@@ -39,6 +39,11 @@ export const MIGRATIONS: Record<number, (w: AnyWorld) => AnyWorld> = {
     }
     return w;
   },
+  // v3 -> v4: multi-step transfer negotiations, pre-contracts, sell-on clauses.
+  3: (w) => {
+    w.negotiations ??= [];
+    return w;
+  },
 };
 
 const metaSchema = z

@@ -293,6 +293,7 @@ export function createWorld(opts: NewWorldOptions): World {
     overrides: {},
     customFormats: {},
     draftPicks: [],
+    negotiations: [],
   };
   const rng = new RNG(`${opts.seed}|worldgen`);
   const ctx: GenCtx = { world, rng, handles: new Set() };

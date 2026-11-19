@@ -47,7 +47,7 @@ Other scripts:
    to delegate to your coaching staff. Battle royale events are watched live as full-lobby games.
 5. **Manage** — Tactics/Draft (lineup, positions, playstyle, aggression, draft priority, character pools,
    ban priorities, map preferences, delegation), Training (team & individual focus, intensity, scrims,
-   opponent prep), Market (free agents, transfer list, bids, offers, loans, trades, shortlist), Scouting,
+   opponent prep), Market (free agents, player search, transfer negotiations — fee then personal terms —, pre-contracts, asking prices, counter-offers, loans, trades, shortlist), Scouting,
    Finances (division budgets, ledger, charts), Facilities, Organisation (buy league slots to expand into
    new titles, found academies, close divisions, rebrand). Optionally take a **national-team job** (Teams
    page) and coach a country in the biennial Nations Cup.

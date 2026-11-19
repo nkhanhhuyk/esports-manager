@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useGame, useWorld } from '../store';
 import { Card, Gate, PageHeader } from '../components/common';
 import { formatDate } from '../../core/date';
-import { respondToOffer } from '../../systems/transfers';
+import { decideOfferSheet, respondToOffer } from '../../systems/transfers';
 import { useRoute, navigate } from '../router';
 
 export function Inbox() {
@@ -23,8 +23,9 @@ export function Inbox() {
   const doAction = (actionId: string) => {
     if (!m) return;
     const offerId = m.payload?.offerId as string | undefined;
+    const matchPlayerId = m.payload?.matchPlayerId as string | undefined;
     const r = act((w) => {
-      const res = offerId ? respondToOffer(w, offerId, actionId === 'accept') : { ok: true, message: 'Done' };
+      const res = offerId ? respondToOffer(w, offerId, actionId === 'accept') : matchPlayerId ? decideOfferSheet(w, matchPlayerId, actionId === 'match') : { ok: true, message: 'Done' };
       const mm = w.inbox.find((x) => x.id === m.id);
       if (mm) mm.resolved = actionId;
       return res;

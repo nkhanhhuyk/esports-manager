@@ -9,7 +9,8 @@ import { clamp } from '../core/math';
 import { ageAt, ymd } from '../core/date';
 import { RNG } from '../core/rng';
 import { getTitle, titleSimilarity } from '../data/titles/catalogue';
-import type { DraftPickAsset, Offer, Organisation, Player, Team, TransferRecord, World } from '../model/types';
+import type { DraftPickAsset, Offer, Organisation, Player, PreContract, Team, TransferRecord, World } from '../model/types';
+import { seasonEndDay } from '../competition/season';
 import { pickLabel, pickValue } from './draft';
 import { nextId } from '../model/ids';
 import { effectivenessLight, bestRole } from '../sim/common/ratings';
@@ -91,7 +92,17 @@ function removeFromTeam(world: World, p: Player): Team | null {
 }
 
 /** Move a player to a team under a new contract (core of every signing type). */
-export function movePlayer(world: World, p: Player, to: Team, salary: number, years: number, type: TransferRecord['type'], fee = 0, loan?: { parentTeamId: string; untilDay: number; wageSplit: number }): void {
+export function movePlayer(
+  world: World,
+  p: Player,
+  to: Team,
+  salary: number,
+  years: number,
+  type: TransferRecord['type'],
+  fee = 0,
+  loan?: { parentTeamId: string; untilDay: number; wageSplit: number },
+  terms: { signingBonus?: number; buyout?: number | null; note?: string } = {},
+): void {
   const from = removeFromTeam(world, p);
   if (fee > 0) {
     const buyer = world.orgs[to.orgId];
@@ -99,12 +110,26 @@ export function movePlayer(world: World, p: Player, to: Team, salary: number, ye
     if (from) {
       const seller = world.orgs[from.orgId];
       if (seller) ledger(world, seller, 'transfer-in', fee, from.id, `Sold ${p.handle}`);
+      // A former club's sell-on clause is paid out of the selling club's proceeds.
+      const so = p.sellOn;
+      const soOrg = so ? world.orgs[so.orgId] : null;
+      if (so && soOrg && seller && soOrg.id !== seller.id) {
+        const cut = Math.round(fee * so.pct);
+        ledger(world, seller, 'sell-on', -cut, from.id, `${p.handle} sell-on clause`);
+        ledger(world, soOrg, 'sell-on', cut, so.teamId, `${p.handle} sell-on clause`);
+        if (soOrg.user) addInbox(world, { from: 'Finance', subject: `Sell-on income: ${p.handle}`, body: `${p.handle}'s move to ${to.name} triggers your ${Math.round(so.pct * 100)}% sell-on clause: $${cut.toLocaleString()}.`, kind: 'finance' });
+      }
     }
+    p.sellOn = null;
   }
-  if (p.contract && from && type !== 'loan') {
-    // previous contract ends
+  if (type !== 'loan') {
+    p.preContract = null;
+    p.askingPrice = null;
   }
-  p.contract = makeContract(world, to, salary, years, loan ? { loan, buyout: null } : {});
+  const opts: Parameters<typeof makeContract>[4] = loan ? { loan, buyout: null } : {};
+  if (terms.signingBonus !== undefined) opts.signingBonus = terms.signingBonus;
+  if (terms.buyout !== undefined && !loan) opts.buyout = terms.buyout;
+  p.contract = makeContract(world, to, salary, years, opts);
   if (p.contract.signingBonus > 0 && world.orgs[to.orgId]) ledger(world, world.orgs[to.orgId], 'signing-bonus', -p.contract.signingBonus, to.id, `${p.handle} signing bonus`);
   p.teamId = to.id;
   p.joinedDay = world.day;
@@ -113,7 +138,7 @@ export function movePlayer(world: World, p: Player, to: Team, salary: number, ye
   to.roster.push(p.id);
   if (to.titleId !== p.titleId) switchTitle(world, p, to.titleId);
   p.career.push({ season: world.season, day: world.day, titleId: to.titleId, teamId: to.id, orgId: to.orgId, roleId: p.roles[0], type: type === 'free' ? 'signed' : type === 'promotion' ? 'promoted' : (type as never), fee: fee || undefined });
-  record(world, { playerId: p.id, fromTeamId: from?.id ?? null, toTeamId: to.id, fee, type, titleId: to.titleId });
+  record(world, { playerId: p.id, fromTeamId: from?.id ?? null, toTeamId: to.id, fee, type, titleId: to.titleId, note: terms.note });
   if (world.meta.userOrgId === to.orgId) world.scouting[p.id] = 100;
   // Chemistry dips when rosters change.
   to.chemistry = clamp(to.chemistry - 4, 0, 100);
@@ -152,6 +177,8 @@ export function releasePlayer(world: World, playerId: string, note = 'Released')
   }
   removeFromTeam(world, p);
   p.contract = null;
+  p.preContract = null;
+  p.askingPrice = null;
   p.career.push({ season: world.season, day: world.day, titleId: p.titleId, teamId: null, orgId: null, type: 'released', note });
   record(world, { playerId: p.id, fromTeamId: team?.id ?? null, toTeamId: null, fee: 0, type: 'release', titleId: p.titleId, note });
   if (team?.prefs.delegateLineup) team.lineup = autoLineup(world, team);
@@ -200,8 +227,9 @@ function playerAccepts(world: World, p: Player, team: Team, salary: number, rng:
   return { yes: appeal + rng.normal(0, 0.04) >= threshold, demand };
 }
 
-function clubValuation(world: World, p: Player, owner: Team): number {
+export function clubValuation(world: World, p: Player, owner: Team): number {
   const org = world.orgs[owner.orgId];
+  if (org?.user && p.listed && p.askingPrice) return p.askingPrice;
   const starter = owner.lineup.some((s) => s.playerId === p.id);
   let v = marketValue(world, p) * (starter ? 1.35 : 1.0);
   if (org?.strategy === 'moneyball') v *= 0.85;
@@ -210,7 +238,7 @@ function clubValuation(world: World, p: Player, owner: Team): number {
   return Math.round(v / 1000) * 1000;
 }
 
-function checkPolicy(world: World, team: Team, p: Player, kind: Offer['kind'], salary: number, years: number): string | null {
+export function checkPolicy(world: World, team: Team, p: Player, kind: Offer['kind'], salary: number, years: number): string | null {
   const league = team.leagueId ? world.leagues[team.leagueId] : null;
   if (team.roster.length >= rosterMax(world, team) && !team.roster.includes(p.id)) return 'Roster is full (league roster limit).';
   if (league && kind === 'trade' && !league.policy.trades) return 'This league does not permit trades.';
@@ -245,6 +273,7 @@ export function bidForPlayer(world: World, teamId: string, playerId: string, fee
   if (!team || !p || !p.teamId) return { ok: false, status: 'invalid', message: 'Player is not under contract.' };
   const owner = world.teams[p.teamId];
   if (owner.orgId === team.orgId) return promotePlayer(world, playerId, teamId);
+  if (p.preContract) return { ok: false, status: 'invalid', message: `${p.handle} has agreed to join ${world.teams[p.preContract.teamId]?.name ?? 'another club'} at the end of the season.` };
   if (!inTransferWindow(world) && !p.listed) return { ok: false, status: 'invalid', message: 'The transfer window is closed (free agents can still be signed).' };
   if (world.day - p.joinedDay < 30) return { ok: false, status: 'rejected', message: `${p.handle} only just joined ${owner.name}.` };
   const err = checkPolicy(world, team, p, 'transfer', salary, years);
@@ -265,9 +294,111 @@ export function bidForPlayer(world: World, teamId: string, playerId: string, fee
   return { ok: true, status: 'accepted', message: `${p.handle} joins ${team.name} for $${fee.toLocaleString()}.` };
 }
 
+// ---------------------------------------------------------------------------------------------
+// Pre-contracts (free moves agreed in a player's final six months) & restricted-FA offer sheets
+// ---------------------------------------------------------------------------------------------
+
+export const PRECONTRACT_DAYS = 183;
+
+/** Why a club cannot approach this player for a pre-contract (null = eligible). */
+export function preContractBlock(world: World, p: Player, buyer: Team): string | null {
+  if (!p.teamId || !p.contract || p.retired) return 'Only players under contract can sign pre-contracts (free agents can sign now).';
+  const cur = world.teams[p.teamId];
+  if (cur?.orgId === buyer.orgId) return 'The player already belongs to your organisation.';
+  if (p.contract.loan) return 'The player is on loan.';
+  if (p.preContract) return `${p.handle} has already agreed to join ${world.teams[p.preContract.teamId]?.name ?? 'another club'}.`;
+  if (p.contract.endSeason !== world.season) return `${p.handle}'s contract runs beyond this season.`;
+  if (p.contract.option === 'team') return `${cur?.name ?? 'The club'} holds an option to extend.`;
+  const opens = seasonEndDay(world.season) - PRECONTRACT_DAYS;
+  if (world.day < opens) return 'Pre-contract talks open six months before the contract expires.';
+  return null;
+}
+
+/** Is the player a restricted free agent at the end of this season (current club holds matching rights)? */
+export function isRestrictedFA(world: World, p: Player): boolean {
+  const team = p.teamId ? world.teams[p.teamId] : null;
+  const league = team?.leagueId ? world.leagues[team.leagueId] : null;
+  return !!league?.policy.restrictedFA && ageAt(p.birth, seasonEndDay(world.season)) <= 24;
+}
+
+/** Record an agreed free move (user negotiation or AI). Restricted FAs become offer sheets. */
+export function signPreContract(world: World, p: Player, buyer: Team, terms: { salary: number; years: number; signingBonus: number }): PreContract {
+  const cur = world.teams[p.teamId!];
+  const pc: PreContract = { teamId: buyer.id, orgId: buyer.orgId, salary: terms.salary, years: terms.years, signingBonus: terms.signingBonus, day: world.day, offerSheet: isRestrictedFA(world, p), matched: null };
+  p.preContract = pc;
+  const curOrg = cur ? world.orgs[cur.orgId] : null;
+  addNews(world, {
+    kind: 'transfer',
+    title: pc.offerSheet ? `${p.handle} signs an offer sheet with ${buyer.name}` : `${p.handle} agrees to join ${buyer.name}`,
+    body: pc.offerSheet
+      ? `${cur?.name} hold matching rights on the restricted free agent (${pc.years} seasons at $${Math.round(pc.salary / 1000)}K).`
+      : `${p.handle} will join ${buyer.name} on a free transfer when the contract with ${cur?.name} expires.`,
+    titleId: buyer.titleId,
+    refs: [{ type: 'player', id: p.id }, { type: 'team', id: buyer.id }, ...(cur ? [{ type: 'team' as const, id: cur.id }] : [])],
+    importance: p.rep > 60 ? 2 : 1,
+  });
+  if (curOrg?.user) {
+    if (pc.offerSheet)
+      addInbox(world, {
+        from: buyer.name,
+        subject: `Offer sheet for ${p.handle}`,
+        body: `${p.handle} (restricted free agent) has signed an offer sheet with ${buyer.name}: ${pc.years} seasons at $${pc.salary.toLocaleString()}/season. Match it to keep the player on those terms from next season.`,
+        actions: [
+          { id: 'match', label: 'Match offer' },
+          { id: 'decline', label: 'Let them go' },
+        ],
+        payload: { matchPlayerId: p.id },
+        kind: 'offer',
+      });
+    else addInbox(world, { from: 'Contracts', subject: `${p.handle} signs a pre-contract`, body: `${p.handle} has agreed to join ${buyer.name} when the current contract expires at the end of the season.`, kind: 'contract' });
+  }
+  return pc;
+}
+
+/** The current club's decision on a restricted-FA offer sheet. */
+export function decideOfferSheet(world: World, playerId: string, match: boolean): OfferResponse {
+  const p = world.players[playerId];
+  if (!p?.preContract?.offerSheet) return { ok: false, status: 'invalid', message: 'No offer sheet to decide.' };
+  p.preContract.matched = match;
+  return { ok: true, status: 'accepted', message: match ? `You will match the offer sheet: ${p.handle} stays on the new terms next season.` : `${p.handle} will join ${world.teams[p.preContract.teamId]?.name} at the end of the season.` };
+}
+
+/** Season rollover: complete (or match) an agreed pre-contract. Returns true when handled. */
+function executePreContract(world: World, p: Player, endedSeason: number): boolean {
+  const pc = p.preContract;
+  if (!pc) return false;
+  p.preContract = null;
+  const dest = world.teams[pc.teamId];
+  const cur = p.teamId ? world.teams[p.teamId] : null;
+  if (!dest || !dest.active) return false;
+  if (pc.offerSheet && cur) {
+    const curOrg = world.orgs[cur.orgId];
+    let match = pc.matched;
+    if (match === null) {
+      if (curOrg?.user && can(world, 'contracts')) match = cur.prefs.tenderRFA !== false;
+      else {
+        const valued = cur.lineup.some((s) => s.playerId === p.id) || p.pa - p.ca > 5;
+        match = valued && pc.salary <= expectedSalary(world, p, cur.titleId, cur.region) * 1.35;
+      }
+    }
+    if (match && curOrg && curOrg.balance > 0) {
+      p.contract = { ...makeContract(world, cur, pc.salary, pc.years, { signingBonus: pc.signingBonus }), endSeason: endedSeason + pc.years };
+      if (pc.signingBonus > 0) ledger(world, curOrg, 'signing-bonus', -pc.signingBonus, cur.id, `${p.handle} signing bonus`);
+      p.career.push({ season: endedSeason, day: world.day, titleId: cur.titleId, teamId: cur.id, orgId: cur.orgId, type: 'signed', note: 'Offer sheet matched (restricted free agent)' });
+      addNews(world, { kind: 'transfer', title: `${cur.name} match ${dest.name}'s offer sheet for ${p.handle}`, body: `${p.handle} stays on ${pc.years} seasons at $${Math.round(pc.salary / 1000)}K.`, titleId: cur.titleId, refs: [{ type: 'player', id: p.id }, { type: 'team', id: cur.id }, { type: 'team', id: dest.id }], importance: 1 });
+      return true;
+    }
+  }
+  movePlayer(world, p, dest, pc.salary, pc.years, 'free', 0, undefined, { signingBonus: pc.signingBonus, note: pc.offerSheet ? 'Offer sheet (not matched)' : 'Pre-contract' });
+  if (p.contract) p.contract.endSeason = endedSeason + pc.years;
+  if (cur?.prefs.delegateLineup) cur.lineup = autoLineup(world, cur);
+  return true;
+}
+
 export function offerExtension(world: World, playerId: string, salary: number, years: number): OfferResponse {
   const p = world.players[playerId];
   if (!p || !p.teamId || !p.contract) return { ok: false, status: 'invalid', message: 'No contract to extend.' };
+  if (p.preContract) return { ok: false, status: 'invalid', message: `${p.handle} has signed a pre-contract with ${world.teams[p.preContract.teamId]?.name ?? 'another club'}.` };
   const team = world.teams[p.teamId];
   const v = validateContract(world, team, p, { salary, endSeason: world.season + years - 1 });
   if (!v.ok) return { ok: false, status: 'invalid', message: v.errors[0] };
@@ -378,6 +509,87 @@ export function respondToOffer(world: World, offerId: string, accept: boolean): 
   return { ok: true, status: 'accepted', message: `${p.handle} sold to ${buyer.name} for $${o.fee.toLocaleString()}.` };
 }
 
+/**
+ * Counter an incoming bid with an asking fee. Up to the bidder's hidden ceiling the sale goes
+ * through at your price; modestly above it they come back once at their ceiling; far above it
+ * they walk away.
+ */
+export function counterOffer(world: World, offerId: string, askFee: number): OfferResponse {
+  const o = world.offers.find((x) => x.id === offerId);
+  if (!o || o.status !== 'pending') return { ok: false, status: 'invalid', message: 'Offer no longer available.' };
+  const buyer = world.teams[o.fromTeamId];
+  const p = world.players[o.playerId];
+  if (!buyer || !p || p.teamId !== o.toTeamId) {
+    o.status = 'withdrawn';
+    return { ok: false, status: 'invalid', message: 'The situation changed; offer withdrawn.' };
+  }
+  if (!(askFee > o.fee)) return respondToOffer(world, offerId, true);
+  const ceiling = Math.min(o.maxFee ?? Math.round(o.fee * 1.1), world.orgs[buyer.orgId]?.balance ?? 0);
+  if (askFee <= ceiling) {
+    o.fee = Math.round(askFee);
+    return respondToOffer(world, offerId, true);
+  }
+  if (o.counterFee === undefined && askFee <= ceiling * 1.2 && ceiling > o.fee) {
+    o.fee = ceiling;
+    o.counterFee = ceiling;
+    o.expiresDay = Math.max(o.expiresDay, world.day + 3);
+    return { ok: false, status: 'countered', message: `${buyer.name} can go to $${ceiling.toLocaleString()} but no further.`, counterFee: ceiling };
+  }
+  o.status = 'withdrawn';
+  o.response = 'Asking price too high';
+  return { ok: false, status: 'rejected', message: `${buyer.name} walk away from the deal.` };
+}
+
+/** List (or unlist) a player with an optional asking price. */
+export function setTransferListing(world: World, playerId: string, listed: boolean, askingPrice: number | null = null): OfferResponse {
+  const p = world.players[playerId];
+  if (!p || !p.teamId) return { ok: false, status: 'invalid', message: 'Player is not under contract.' };
+  p.listed = listed;
+  p.askingPrice = listed && askingPrice && askingPrice > 0 ? Math.round(askingPrice) : null;
+  return { ok: true, status: 'accepted', message: listed ? `${p.handle} transfer listed${p.askingPrice ? ` at $${p.askingPrice.toLocaleString()}` : ''}.` : `${p.handle} removed from the transfer list.` };
+}
+
+/**
+ * Offer a player to clubs: the player is listed and clubs in the title that would improve by
+ * signing them (and can afford it) send bids to your inbox. Once per player per fortnight.
+ */
+export function shopPlayer(world: World, playerId: string, askingPrice: number | null = null): OfferResponse {
+  const p = world.players[playerId];
+  const owner = p?.teamId ? world.teams[p.teamId] : null;
+  if (!p || !owner) return { ok: false, status: 'invalid', message: 'Player is not under contract.' };
+  if (p.preContract) return { ok: false, status: 'invalid', message: `${p.handle} has already agreed a pre-contract.` };
+  if (world.offers.some((o) => o.playerId === p.id && o.day > world.day - 14 && o.response === 'shopped')) return { ok: false, status: 'invalid', message: 'Clubs were sounded out recently — wait for their replies.' };
+  setTransferListing(world, p.id, true, askingPrice ?? p.askingPrice ?? null);
+  const t = getTitle(owner.titleId);
+  const rng = RNG.derive(world.meta.seed, 'shop', p.id, world.day);
+  const ask = clubValuation(world, p, owner);
+  const bids: Offer[] = [];
+  for (const team of Object.values(world.teams)) {
+    if (!team.active || team.national || team.titleId !== owner.titleId || team.orgId === owner.orgId) continue;
+    const org = world.orgs[team.orgId];
+    if (!org || org.user || org.federation || team.roster.length >= rosterMax(world, team)) continue;
+    const lg = team.leagueId ? world.leagues[team.leagueId] : null;
+    if (lg && !lg.policy.transferFees) continue;
+    const role = t.roles.find((r) => r.id === p.roles[0]) ?? t.roles[0];
+    const slot = team.lineup.find((s) => s.roleId === role.id);
+    const cur = slot?.playerId ? world.players[slot.playerId] : null;
+    const gain = effectivenessLight(p, t, role) - (cur ? effectivenessLight(cur, t, role) : 0);
+    const salary = Math.round((expectedSalary(world, p, t.id, team.region) * 1.05) / 500) * 500;
+    const budgetLeft = team.salaryBudget - teamPayroll(world, team) + Math.max(0, org.balance) * 0.02;
+    if (gain < 1 || salary > budgetLeft * 1.2 || org.balance < ask * 0.5) continue;
+    const fee = Math.round(Math.min(org.balance * 0.5, ask * rng.float(0.7, 1.0)) / 1000) * 1000;
+    bids.push({ id: '', day: world.day, playerId: p.id, fromTeamId: team.id, toTeamId: owner.id, fee, salary, years: rng.int(1, 3), status: 'pending', kind: 'transfer', user: true, expiresDay: world.day + 10, response: 'shopped', maxFee: Math.round(Math.min(org.balance * 0.6, ask * rng.float(1.0, 1.25)) / 1000) * 1000 });
+  }
+  bids.sort((a, b) => b.fee - a.fee);
+  for (const b of bids.slice(0, 3)) {
+    b.id = nextId(world, 'of');
+    world.offers.push(b);
+    addInbox(world, { from: world.teams[b.fromTeamId].name, subject: `Bid for ${p.handle}: $${b.fee.toLocaleString()}`, body: `${world.teams[b.fromTeamId].name} respond to your approach with a bid of $${b.fee.toLocaleString()}. Accept, reject or counter from the Market's Offers tab.`, actions: [{ id: 'accept', label: 'Accept' }, { id: 'reject', label: 'Reject' }], payload: { offerId: b.id }, kind: 'offer' });
+  }
+  if (!bids.length) return { ok: true, status: 'pending', message: `${p.handle} is listed, but no club is interested at the moment.` };
+  return { ok: true, status: 'accepted', message: `${Math.min(3, bids.length)} club(s) bid for ${p.handle} — see Market › Offers.` };
+}
+
 // ---------------------------------------------------------------------------------------------
 // AI behaviour
 // ---------------------------------------------------------------------------------------------
@@ -403,10 +615,18 @@ function teamNeeds(world: World, team: Team): Need[] {
   return needs.sort((a, b) => a.currentE - b.currentE);
 }
 
-function freeAgentPool(world: World): Map<string, Player[]> {
+function freeAgentPool(world: World, listed?: Map<string, Player[]>, pre?: Map<string, number>): Map<string, Player[]> {
   const m = new Map<string, Player[]>();
   for (const p of Object.values(world.players)) {
-    if (p.retired || p.teamId) continue;
+    if (p.retired) continue;
+    if (pre && p.preContract) pre.set(p.preContract.teamId, (pre.get(p.preContract.teamId) ?? 0) + 1);
+    if (p.teamId) {
+      if (listed && p.listed && !p.preContract) {
+        if (!listed.has(p.titleId)) listed.set(p.titleId, []);
+        listed.get(p.titleId)!.push(p);
+      }
+      continue;
+    }
     if (!m.has(p.titleId)) m.set(p.titleId, []);
     m.get(p.titleId)!.push(p);
   }
@@ -431,6 +651,10 @@ function strategyScore(org: Organisation, p: Player, gain: number, salary: numbe
 
 interface MarketIndex {
   fa: Map<string, Player[]>;
+  /** Transfer-listed players under contract, by title. */
+  listed: Map<string, Player[]>;
+  /** Pre-contracts already agreed, by destination team. */
+  pre: Map<string, number>;
   byTitle: Map<string, Team[]>;
   academy: Map<string, Team>;
 }
@@ -444,7 +668,9 @@ function buildIndex(world: World): MarketIndex {
     byTitle.get(t.titleId)!.push(t);
     if (t.parentTeamId) academy.set(t.parentTeamId, t);
   }
-  return { fa: freeAgentPool(world), byTitle, academy };
+  const listed = new Map<string, Player[]>();
+  const pre = new Map<string, number>();
+  return { fa: freeAgentPool(world, listed, pre), listed, pre, byTitle, academy };
 }
 
 function aiTeamMarket(world: World, team: Team, idx: MarketIndex, rng: RNG, emergency: boolean): void {
@@ -473,7 +699,7 @@ function aiTeamMarket(world: World, team: Team, idx: MarketIndex, rng: RNG, emer
   if (!need.urgent && !wantSub && team.roster.length >= maxR) return;
   // 2) Academy promotion check
   const academy = idx.academy.get(team.id);
-  let best: { p: Player; score: number; fee: number; salary: number } | null = null;
+  let best: { p: Player; score: number; fee: number; salary: number; pre?: boolean } | null = null;
   if (academy) {
     for (const pid of academy.roster) {
       const p = world.players[pid];
@@ -507,22 +733,34 @@ function aiTeamMarket(world: World, team: Team, idx: MarketIndex, rng: RNG, emer
     const poacher = org.strategy === 'win-now' || org.strategy === 'prestige' || org.balance > team.salaryBudget * 2;
     const others = (idx.byTitle.get(t.id) ?? []).filter((x) => x.id !== team.id && x.active && x.orgId !== team.orgId && (poacher || x.elo < team.elo + 80));
     const pool = rng.sample(others, 8).flatMap((x) => x.roster.map((id) => world.players[id]));
+    // Transfer-listed players are actively shopped, so clubs look at them first.
+    pool.push(...rng.sample((idx.listed.get(t.id) ?? []).filter((p) => p.teamId && world.teams[p.teamId]?.orgId !== team.orgId), 6));
+    const pendingPre = idx.pre.get(team.id) ?? 0;
     for (const p of pool) {
-      if (!p || p.retired || world.day - p.joinedDay < 120 || !p.contract || p.contract.loan) continue;
+      if (!p || p.retired || !p.contract || p.contract.loan || p.preContract || p.teamId === team.id) continue;
+      const pre = !need.urgent && pendingPre < 1 && preContractBlock(world, p, team) === null;
+      if (!pre && (world.day - p.joinedDay < 120 && !p.listed)) continue;
       const owner = world.teams[p.teamId!];
       const e = effectivenessLight(p, t, role);
       const gain = e - need.currentE;
       if (gain < 3) continue;
-      const fee = clubValuation(world, p, owner);
+      const fee = pre ? 0 : clubValuation(world, p, owner);
       const sal = expectedSalary(world, p, t.id, team.region) * 1.1;
       if (fee > org.balance * 0.5 || sal > budgetLeft * 1.2) continue;
-      const score = strategyScore(org, p, gain, sal, ageAt(p.birth, world.day)) - fee / 200000;
-      if (!best || score > best.score) best = { p, score, fee, salary: sal };
+      const score = strategyScore(org, p, gain, sal, ageAt(p.birth, world.day)) - fee / 200000 + (pre ? 0.5 : 0);
+      if (!best || score > best.score) best = { p, score, fee, salary: sal, pre };
     }
   }
   if (!best) return;
   const years = rng.int(1, 3);
   const salary = Math.round((best.salary * rng.float(0.95, 1.15)) / 500) * 500;
+  if (best.pre) {
+    if (playerAccepts(world, best.p, team, salary, rng).yes) {
+      signPreContract(world, best.p, team, { salary, years, signingBonus: Math.round((salary * 0.05) / 500) * 500 });
+      idx.pre.set(team.id, (idx.pre.get(team.id) ?? 0) + 1);
+    }
+    return;
+  }
   if (best.fee === 0) {
     const res = playerAccepts(world, best.p, team, salary, rng);
     if (res.yes || need.urgent) movePlayer(world, best.p, team, Math.max(salary, need.urgent ? res.demand : salary), years, 'free');
@@ -546,6 +784,7 @@ function aiTeamMarket(world: World, team: Team, idx: MarketIndex, rng: RNG, emer
       user: true,
       expiresDay: world.day + 7,
     };
+    offer.maxFee = Math.max(offer.fee, Math.round(Math.min(org.balance * 0.6, best.fee * rng.float(1.08, 1.3)) / 1000) * 1000);
     world.offers.push(offer);
     addInbox(world, {
       from: team.name,
@@ -626,6 +865,7 @@ export function expireContracts(world: World, endedSeason: number): void {
       returnFromLoan(world, p);
       if (!p.contract || p.contract.endSeason > endedSeason) continue;
     }
+    if (p.preContract && executePreContract(world, p, endedSeason)) continue;
     const team = p.teamId ? world.teams[p.teamId] : null;
     if (p.contract.option === 'team' && team && team.lineup.some((s) => s.playerId === p.id)) {
       p.contract.endSeason += 1;

@@ -249,10 +249,11 @@ describe('tradable draft picks & restricted free agency', () => {
     const a = setup(true);
     advance(a.w, { kind: 'end-season' });
     expect(a.p.teamId).toBe(a.team.id);
-    expect(a.p.career.some((c) => c.note === 'Qualifying offer (restricted free agent)')).toBe(true);
+    // Retained either by the qualifying offer or by matching a rival's offer sheet.
+    expect(a.p.career.some((c) => c.note === 'Qualifying offer (restricted free agent)' || c.note === 'Offer sheet matched (restricted free agent)')).toBe(true);
     expect(a.p.contract!.endSeason).toBeGreaterThanOrEqual(a.w.season);
     const b = setup(false);
     advance(b.w, { kind: 'end-season' });
-    expect(b.p.career.some((c) => c.note === 'Qualifying offer (restricted free agent)')).toBe(false);
+    expect(b.p.career.some((c) => c.note === 'Qualifying offer (restricted free agent)' || c.note === 'Offer sheet matched (restricted free agent)')).toBe(false);
   });
 });

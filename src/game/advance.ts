@@ -14,6 +14,7 @@ import { playFixture } from '../sim/record';
 import { dailyCondition, weeklyTraining } from '../systems/training';
 import { processMonthlyFinances } from '../systems/finance';
 import { aiContracts, aiMarketDay, processLoans } from '../systems/transfers';
+import { negotiationsDay } from '../systems/negotiation';
 import { adaptToMeta, releasePatch } from '../systems/patches';
 import { seasonRollover } from './rollover';
 import { isUserTeam } from '../systems/news';
@@ -80,6 +81,7 @@ export function processDay(world: World): void {
   dailyCondition(world);
   for (const team of Object.values(world.teams)) if (team.active) adaptToMeta(world, team.id);
   aiMarketDay(world);
+  negotiationsDay(world);
   if (dayOfWeek(day) === 1) {
     const wk = Math.floor(day / 7);
     if (world.processed.lastWeek !== wk) {

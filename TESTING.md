@@ -12,17 +12,19 @@
 | `tests/time.test.ts` | Idempotent days/months (no duplicate fixtures, money, awards); one long advance == many 1-day advances; stop-before-user-match and resume; save → reload → advance determinism; full-detail viewing does not change results |
 | `tests/persistence.test.ts` | IndexedDB round-trip (fake-indexeddb); backup recovery from a corrupted main save; delete; JSON export/import; v1→v2 migration then continued simulation; v2→v3 migration seeds unique draft picks; rejects malformed/future/corrupt saves |
 | `tests/season.test.ts` | **All 30 titles complete a valid season** (champions incl. Worlds per title, all fixtures played, POY per title, world invariants); 3-season multi-title world invariants (no double rosters, roster limits, finite values, league membership, retirements, transfers, development, pruning, patches) |
+| `tests/transfers.test.ts` | Negotiation flow (lowball rejected → counter → accept → terms counter → signed; fee, bonus, clause and records), club patience & 30-day block, release clause forces acceptance, withdrawal, sell-on payout on the next sale, pre-contract completes at rollover (and blocks extensions/bids), refused for longer contracts, offer sheet matched by the current club, counter-offers vs bidder ceiling, asking price & offer-to-clubs, deterministic outcomes, v3→v4 migration |
 | `tests/longterm.test.ts` | 10 seasons (default) / 30 seasons (`LONG_SIM=1`): bounded population, finite finances, bounded save growth, multiple world champions per title, legends & retirees |
 
 End-to-end (`npm run e2e`, Playwright, Chromium): new career → organisation pick → players directory,
 profile tabs, world popularity map, global search → advance to match day → play a full live series (or BR
 event) → match report with commentary → advance a week → save → reload → load save restores the date;
-asserts no page errors. Mobile viewport: no horizontal overflow.
+asserts no page errors. Transfer flow: new career → into the window → player search → bid → accept the
+club's counter → offer personal terms → signing completed and listed under Negotiations. Mobile viewport: no horizontal overflow.
 
 ## Latest results
 
-* Vitest: **95 passed / 95** (≈45s total; season test ≈18s for all 30 titles).
-* Playwright: **2 passed / 2**.
+* Vitest: **106 passed / 106** (≈45s total; season test ≈18s for all 30 titles).
+* Playwright: **3 passed / 3**.
 * Long-term: 10 seasons × 3 titles in ~13s; save 3.4MB → 5.5MB.
 
 ## Simulation validation tools

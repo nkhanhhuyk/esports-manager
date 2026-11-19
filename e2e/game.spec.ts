@@ -84,6 +84,48 @@ test('new career: generate, pick organisation, browse, advance, play live, save 
   expect(errors).toEqual([]);
 });
 
+test('transfer negotiation: bid, club response, personal terms, completed signing', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  await page.evaluate(() => indexedDB.deleteDatabase('ultimate-esports-manager'));
+  await page.reload();
+  for (const cb of await page.locator('input[type=checkbox]').all()) if (await cb.isChecked()) await cb.uncheck();
+  await page.getByLabel('Counter-Strike 2', { exact: true }).check();
+  await page.locator('label:has-text("World size") select').selectOption('tiny');
+  await page.locator('label:has-text("World seed") input').fill('e2e-transfers');
+  await page.getByRole('button', { name: 'Generate world' }).click();
+  await expect(page.getByText('Choose your organisation')).toBeVisible({ timeout: 60000 });
+  await page.getByRole('button', { name: 'Manage' }).first().click();
+  await expect(page.getByText('Upcoming matches')).toBeVisible();
+  // Into the transfer window (opens 20 Nov).
+  await page.getByRole('button', { name: 'More advance options' }).click();
+  await page.getByText('Advance 1 day').click();
+  await expect(page.locator('.busy')).toHaveCount(0, { timeout: 120000 });
+  await page.goto('/#/market?tab=search');
+  await expect(page.getByRole('tab', { name: 'Player search' })).toBeVisible();
+  // Cheapest players first, then open one at another club.
+  await page.locator('th', { hasText: 'Value' }).click();
+  await page.locator('th', { hasText: 'Value' }).click();
+  await page.locator('table tbody tr.clickable td:nth-child(6)').first().click();
+  await expect(page.getByText('Transfer negotiation')).toBeVisible();
+  const value = Number(await page.getByLabel('Transfer fee').inputValue());
+  await page.getByLabel('Transfer fee').fill(String(Math.max(20000, value * 2)));
+  await page.getByRole('button', { name: 'Submit bid' }).click();
+  // The club either accepts or counters; accept any counter.
+  const offerTerms = page.getByRole('button', { name: 'Offer terms' });
+  const acceptCounter = page.getByRole('button', { name: /^Accept \$/ });
+  await expect(offerTerms.or(acceptCounter)).toBeVisible();
+  if (await acceptCounter.count()) await acceptCounter.click();
+  await expect(offerTerms).toBeVisible();
+  await expect(page.getByText(/agent asks for/).first()).toBeVisible();
+  await offerTerms.click();
+  await expect(page.getByText(/joins .* for \$/).first()).toBeVisible();
+  await page.goto('/#/market?tab=talks');
+  await expect(page.getByRole('cell', { name: 'Completed', exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('mobile layout is usable', async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });
   const page = await ctx.newPage();

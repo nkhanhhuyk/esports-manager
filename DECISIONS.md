@@ -111,6 +111,22 @@ turnover (e.g. OBS 2027–31, IL 2032–34). Drivers: aging/decline, contract ex
 * **Restricted free agency**: a qualifying offer is one season at max(110% salary, league minimum), so it
   always runs through the next season. Simplification: no offer sheets yet — the tender simply retains the
   player. AI tenders lineup players and those with > 5 points of headroom if the org's balance is positive.
+* **Transfer negotiations**: club ask = club valuation (market value × 1.35 for starters, strategy factor,
+  × 0.8 when listed, or the user's asking price) × 1.4 for a top-two starter of a win-now/prestige club. A
+  sell-on clause is credited at fee × pct × 0.6 (≤ 22), 0.4 (≤ 25) or 0.2. Bids ≥ ask (±3%) are accepted;
+  ≥ 60% of ask get a counter of ask × (1.06 − 0.02 × round) minus sell-on credit; three failed bids end
+  talks for 30 days. Personal terms reuse the contract-appeal model: salary equivalent = salary + 0.9 ×
+  bonus/seasons, −0.025 per season away from the preferred length (2 for ≤ 21, 3 for ≥ 26), +0.03 ×
+  ambition for a release clause; the bar is the move threshold (0.82 + 0.12 × ambition, at least the
+  appeal of staying + 0.03; an agreed sale lowers staying appeal by 0.05) plus a fixed hidden ±0.03 per
+  negotiation, so counter-demands are honest. Agents pad asks by greed/500. Decisions are seeded by
+  negotiation id, so the same world state gives the same answers.
+* **Pre-contracts**: allowed in the final 183 days before season end for contracts without a team option;
+  they block extensions and bids, and complete at the rollover (contract runs from next season). Offer
+  sheets (restricted FAs) default to the user's RFA tender setting if undecided; AI matches lineup or
+  high-upside players up to 1.35 × expected salary. AI clubs hold at most one pending pre-contract.
+* **Selling**: AI bids carry a hidden ceiling of 1.08–1.3 × their valuation (≤ 60% of balance); counters up to
+  it complete, up to 1.2 × it draw one final offer, beyond that the bidder walks.
 * **Swiss pairing**: score groups are paired by bounded backtracking (highest vs lowest preferred) so
   avoidable rematches never happen; an odd group floats its lowest feasible team down; rematches are
   accepted only when no rematch-free pairing exists (greedy fallback).

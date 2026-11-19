@@ -126,6 +126,12 @@ export interface Player {
   coachApt: number; // hidden aptitude for post-career staff roles
   joinedDay: DayNum;
   listed: boolean; // transfer listed
+  /** Asking price when listed (user clubs); AI bids anchor on it. */
+  askingPrice?: number | null;
+  /** Sell-on clause owed to a former club: pct of the next transfer fee. */
+  sellOn?: { teamId: ID; orgId: ID; pct: number } | null;
+  /** Agreed free move at the end of the current contract. */
+  preContract?: PreContract | null;
   unhappy: number; // 0..100
   retired: { season: number; day: DayNum } | null;
   attrVersion: number; // bumped when attrs change (rating cache invalidation)
@@ -611,6 +617,52 @@ export interface TransferRecord {
   note?: string;
 }
 
+export interface PreContract {
+  teamId: ID;
+  orgId: ID;
+  salary: number;
+  years: number;
+  signingBonus: number;
+  day: DayNum;
+  /** Restricted free agency: the current club holds matching rights. */
+  offerSheet: boolean;
+  /** Current club's matching decision (null = undecided; AI decides at rollover). */
+  matched: boolean | null;
+}
+
+export interface NegotiationTerms {
+  salary: number;
+  years: number;
+  signingBonus: number;
+  buyout: number | null;
+}
+
+/**
+ * A multi-step transfer: club fee negotiation, then personal terms with the player.
+ * Pre-contracts skip the club stage (no fee) and complete at the end of the season.
+ */
+export interface Negotiation {
+  id: ID;
+  day: DayNum;
+  kind: 'transfer' | 'precontract';
+  playerId: ID;
+  buyerTeamId: ID;
+  sellerTeamId: ID | null;
+  stage: 'club' | 'terms' | 'agreed' | 'completed' | 'collapsed' | 'withdrawn';
+  fee: number;
+  sellOnPct: number;
+  clubCounter: number | null;
+  clubRounds: number;
+  terms: NegotiationTerms | null;
+  playerCounter: { salary: number; years: number } | null;
+  termsRounds: number;
+  expiresDay: DayNum;
+  /** After a breakdown the selling club refuses new approaches until this day. */
+  blockedUntil?: DayNum;
+  user: boolean;
+  log: Array<{ day: DayNum; text: string }>;
+}
+
 export interface Offer {
   id: ID;
   day: DayNum;
@@ -624,6 +676,8 @@ export interface Offer {
   kind: 'transfer' | 'free' | 'loan' | 'trade' | 'extension';
   tradePlayerIds?: ID[];
   counterFee?: number;
+  /** Hidden ceiling the bidding club would pay (counter-offers above it fail). */
+  maxFee?: number;
   response?: string;
   user: boolean; // involves the user's organisation
   expiresDay: DayNum;
@@ -773,6 +827,8 @@ export interface World {
   customFormats: Record<TitleId, Partial<Record<FormatKey, SeriesFormat>>>;
   /** Tradable rookie-draft picks (leagues with drafts enabled). */
   draftPicks: DraftPickAsset[];
+  /** Transfer negotiations (user and AI-visible), pruned after resolution. */
+  negotiations: Negotiation[];
 }
 
 export interface DraftPickAsset {

@@ -11,7 +11,8 @@ import { roleName, seasonAgg, aggregate, isUserTeamId, userTeams, kda } from '..
 import { potentialRange, scoutPlayer } from '../../systems/scouting';
 import { effectivenessLight } from '../../sim/common/ratings';
 import { expectedSalary } from '../../systems/contracts';
-import { bidForPlayer, inTransferWindow, loanPlayer, offerExtension, offerFreeAgent, promotePlayer, releasePlayer, switchTitle } from '../../systems/transfers';
+import { inTransferWindow, loanPlayer, offerExtension, offerFreeAgent, promotePlayer, releasePlayer, switchTitle } from '../../systems/transfers';
+import { BuyPanel, SellPanel } from './TransferTalks';
 import { legacy } from '../../systems/awards';
 import { LineChart } from '../components/Charts';
 import { displayName } from '../../gen/names';
@@ -27,7 +28,6 @@ function OfferPanel({ p }: { p: Player }) {
   const exp = team ? expectedSalary(world, p, team.titleId, team.region) : 0;
   const [salary, setSalary] = useState(Math.round(exp));
   const [years, setYears] = useState(2);
-  const [fee, setFee] = useState(Math.round(p.value));
   const owned = isUserTeamId(world, p.teamId);
   if (!mine.length || p.retired) return null;
   const run = (fn: () => { ok: boolean; message: string; counterSalary?: number; counterFee?: number } | undefined) => {
@@ -35,7 +35,6 @@ function OfferPanel({ p }: { p: Player }) {
     if (!r) return;
     notify(r.message, r.ok ? 'ok' : 'err');
     if (r.counterSalary) setSalary(r.counterSalary);
-    if (r.counterFee) setFee(r.counterFee);
   };
   if (owned && p.contract) {
     const others = mine.filter((t) => t.id !== p.teamId);
@@ -61,9 +60,6 @@ function OfferPanel({ p }: { p: Player }) {
           </button>
         </div>
         <div className="row" style={{ marginTop: 10 }}>
-          <button className="btn ghost sm" onClick={() => act((w) => { const pp = w.players[p.id]; pp.listed = !pp.listed; })}>
-            {p.listed ? 'Remove from transfer list' : 'Transfer list'}
-          </button>
           {others.map((t) => (
             <button key={t.id} className="btn ghost sm" onClick={() => run(() => promotePlayer(world, p.id, t.id))}>
               Move to {t.name} ({getTitle(t.titleId).short})
@@ -73,6 +69,9 @@ function OfferPanel({ p }: { p: Player }) {
             Release
           </button>
         </div>
+        <Gate world={world} perm="transfers">
+          <SellPanel p={p} />
+        </Gate>
         <div className="row" style={{ marginTop: 10 }}>
           <span className="muted small">Loan out (60 days, 50% wages):</span>
           <select onChange={(e) => e.target.value && run(() => loanPlayer(world, p.id, e.target.value, 60, 0.5))} defaultValue="">
@@ -90,7 +89,7 @@ function OfferPanel({ p }: { p: Player }) {
   }
   return (
     <Gate world={world} perm="transfers">
-    <Card title={p.teamId ? 'Make a transfer bid' : 'Offer a contract'} right={<span className="muted small">{inTransferWindow(world) ? 'Transfer window OPEN' : 'Window closed (free agents only)'}</span>}>
+    <Card title={p.teamId ? 'Transfer negotiation' : 'Offer a contract'} right={<span className="muted small">{inTransferWindow(world) ? 'Transfer window OPEN' : 'Window closed (free agents & listed players only)'}</span>}>
       <div className="row" style={{ alignItems: 'flex-end' }}>
         <label className="field">
           <span>For team</span>
@@ -102,12 +101,14 @@ function OfferPanel({ p }: { p: Player }) {
             ))}
           </select>
         </label>
-        {p.teamId && (
-          <label className="field">
-            <span>Fee (value {formatMoney(p.value)}{p.contract?.buyout ? `, buyout ${formatMoney(p.contract.buyout)}` : ''})</span>
-            <input type="number" value={fee} onChange={(e) => setFee(Number(e.target.value))} />
-          </label>
-        )}
+      </div>
+      {p.teamId && team && (
+        <div style={{ marginTop: 8 }}>
+          <BuyPanel p={p} team={team} />
+        </div>
+      )}
+      {!p.teamId && (
+      <div className="row" style={{ alignItems: 'flex-end' }}>
         <label className="field">
           <span>Salary / season (expects ~{formatMoney(exp)})</span>
           <input type="number" value={salary} onChange={(e) => setSalary(Number(e.target.value))} />
@@ -120,10 +121,11 @@ function OfferPanel({ p }: { p: Player }) {
             ))}
           </select>
         </label>
-        <button className="btn" onClick={() => run(() => (p.teamId ? bidForPlayer(world, teamId, p.id, fee, salary, years) : offerFreeAgent(world, teamId, p.id, salary, years)))}>
-          {p.teamId ? 'Submit bid' : 'Offer contract'}
+        <button className="btn" onClick={() => run(() => offerFreeAgent(world, teamId, p.id, salary, years))}>
+          Offer contract
         </button>
       </div>
+      )}
       {team && team.titleId !== p.titleId && (
         <div className="muted small" style={{ marginTop: 6 }}>
           Cross-title signing: {getTitle(p.titleId).short} → {getTitle(team.titleId).short} ({similarityLabel(titleSimilarity(p.titleId, team.titleId))}, {Math.round(titleSimilarity(p.titleId, team.titleId) * 100)}%). Attributes are kept; title/role/character familiarity must be rebuilt.

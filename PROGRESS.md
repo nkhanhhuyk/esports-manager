@@ -22,9 +22,22 @@ by simulation tests.
   instant sims.
 * **Competitions**: RR/DRR, groups, Swiss, single elim with byes, double elim, page playoff, BR points with
   match point; qualification by placements and circuit points; prize money; promotion/relegation.
-* **Market**: free agents, bids/counters/buyouts, extensions, releases, loans, trades (policy-gated),
-  academy promotions, cross-title signings with title switching, AI offers for user players (inbox),
-  shortlist, transfer history; AI clubs recruit by needs/strategy/budget, renew and poach.
+* **Market**: free agents, extensions, releases, loans, trades (policy-gated), academy promotions,
+  cross-title signings with title switching, shortlist, transfer history, player search over every
+  contracted player (contract end, release clause, listed/asking price, pre-contract status); AI clubs
+  recruit by needs/strategy/budget, renew and poach.
+* **Transfer negotiations** (football-manager style): bid a fee (+ optional sell-on clause) → the club
+  accepts, counters or rejects and loses patience after 3 failed bids (refuses approaches for 30 days);
+  release clauses cannot be refused → personal terms with the player (salary, seasons, signing bonus,
+  release clause; honest counter-demands, 4 offers, 14-day deadline) → completion pays fee & bonus and
+  attaches the sell-on clause, which pays the former club a share of the next fee. Negotiations tab tracks
+  every deal with its log.
+* **Pre-contracts**: players in the final six months of a contract (no team option) can agree a free move
+  for next season with you or AI clubs; restricted free agents sign offer sheets the current club may match
+  (inbox Match / Let go; AI matches valued players at sensible salaries).
+* **Selling**: asking prices on listed players (AI bids anchor on them), "Offer to clubs" produces bids from
+  clubs that would improve, and incoming bids can be accepted, rejected or countered (accepted up to the
+  bidder's hidden ceiling, one final offer back, then they walk away).
 * **Finance**: monthly accounts per org with division budgets, ledger, charts, facilities upgrades,
   sponsorship renewal, distress → injections/acquisitions.
 * **Training & progression**: team/individual focus, intensity, scrims, opponent prep, diminishing returns,
@@ -50,7 +63,7 @@ by simulation tests.
   retain expiring players aged ≤ 24 with a one-season qualifying offer at +10%; AI tenders starters and
   high-upside players, user teams choose via a toggle on the Team page.
 * **Saves**: IndexedDB slots, autosave + backup, crash-recovery prompt, export/import JSON, zod validation,
-  v1→v2→v3 migrations.
+  v1→v2→v3→v4 migrations.
 * **UI**: sidebar shell, breadcrumbs, back/forward, global search, sortable/filterable/paginated tables with
   column chooser, profiles for every entity, player comparison, title-adaptive match screens, charts,
   light/dark themes, responsive mobile layout, database editor.
@@ -59,8 +72,8 @@ by simulation tests.
 
 * **Dual-title participation**: `Player.dualTitleId` exists and cross-title histories are tracked, but a player
   cannot yet appear on two active rosters simultaneously.
-* **Draft picks / RFA**: AI clubs do not yet initiate pick trades among themselves; RFA has qualifying offers
-  but no rival offer-sheet/matching step.
+* **Draft picks / transfers**: AI clubs do not yet trade picks among themselves; no transfer instalments,
+  add-ons or loan-to-buy options; AI-to-AI deals are resolved instantly rather than negotiated.
 * **Career roles & job security**: choose Head Coach & GM, Head Coach, General Manager, Sporting Director,
   Owner or Commissioner. Each role has its own permissions (tactics/live matches, transfers, contracts, staff,
   finance, facilities, expansion); AI staff run whatever your role doesn't (e.g. the AI GM recruits for a Head
@@ -77,7 +90,7 @@ by simulation tests.
    Standard ≈46s per season (in a Web Worker with progress). Next: cache per-game team contexts across a
    series, pre-filter draft candidates, lighter weekly training for free agents, an aggregated engine path
    for low-tier leagues.
-2. AI-initiated pick trades, RFA offer sheets with matching rights, trade-block UI.
+2. AI-initiated pick trades, instalments/add-ons, a trade-block UI.
 3. Mid-season board reactions (warnings after bad splits), contract-length/job offers while employed.
 4. Dual-title rosters with schedule-conflict fatigue.
 5. Richer AI strategic shifts (rebuild vs contend cycles), affiliate partnerships and player exchanges.

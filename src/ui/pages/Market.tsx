@@ -7,10 +7,12 @@ import { navigate, withQuery, type Route } from '../router';
 import { potentialRange } from '../../systems/scouting';
 import { formatMoney } from '../../core/math';
 import { formatDate } from '../../core/date';
-import { inTransferWindow, proposeTrade, respondToOffer } from '../../systems/transfers';
+import { counterOffer, inTransferWindow, proposeTrade, respondToOffer } from '../../systems/transfers';
+import { isActive, negotiationsForOrg } from '../../systems/negotiation';
+import { NegotiationLog } from './TransferTalks';
 import { pickLabel, picksOwnedBy, pickValue } from '../../systems/draft';
 import { isUserTeamId, roleName, userTeams } from '../helpers';
-import type { Player } from '../../model/types';
+import type { Offer, Player } from '../../model/types';
 
 export function MarketPage({ route }: { route: Route }) {
   const world = useWorld();
@@ -24,6 +26,7 @@ export function MarketPage({ route }: { route: Route }) {
       if (title && p.titleId !== title) return false;
       if (tab === 'fa') return !p.teamId;
       if (tab === 'listed') return p.listed && !isUserTeamId(world, p.teamId);
+      if (tab === 'search') return !!p.teamId && !isUserTeamId(world, p.teamId) && !world.teams[p.teamId]?.national;
       if (tab === 'shortlist') return world.shortlist.includes(p.id);
       return false;
     });
@@ -39,7 +42,26 @@ export function MarketPage({ route }: { route: Route }) {
     { key: 'pa', label: 'PA', align: 'right' as const, value: (p: Player) => potentialRange(world, p)[1], render: (p: Player) => { const [a, b] = potentialRange(world, p); return a === b ? a : `${a}-${b}`; } },
     { key: 'value', label: 'Value', align: 'right' as const, value: (p: Player) => p.value, render: (p: Player) => formatMoney(p.value) },
     { key: 'sal', label: 'Salary', align: 'right' as const, value: (p: Player) => p.contract?.salary ?? 0, render: (p: Player) => (p.contract ? formatMoney(p.contract.salary) : '—') },
+    { key: 'until', label: 'Contract', align: 'right' as const, value: (p: Player) => p.contract?.endSeason ?? 0, render: (p: Player) => (p.contract ? `S${p.contract.endSeason}` : '—') },
+    {
+      key: 'status',
+      label: 'Status',
+      value: (p: Player) => (p.preContract ? 'pre-contract' : p.listed ? 'listed' : p.contract && p.contract.endSeason === world.season ? 'expiring' : p.contract?.buyout ? 'clause' : ''),
+      render: (p: Player) =>
+        p.preContract ? (
+          <span className="muted small">joins {world.teams[p.preContract.teamId]?.short}</span>
+        ) : p.listed ? (
+          <span className="small">listed{p.askingPrice ? ` ${formatMoney(p.askingPrice)}` : ''}</span>
+        ) : p.contract && p.contract.endSeason === world.season ? (
+          <span className="small">expiring{p.contract.buyout ? <span className="muted"> · clause {formatMoney(p.contract.buyout)}</span> : ''}</span>
+        ) : p.contract?.buyout ? (
+          <span className="muted small">clause {formatMoney(p.contract.buyout)}</span>
+        ) : (
+          ''
+        ),
+    },
   ];
+  const negs = world.meta.userOrgId ? negotiationsForOrg(world, world.meta.userOrgId) : [];
   return (
     <div>
       <PageHeader title="Transfer market" sub={inTransferWindow(world) ? 'Transfer window is OPEN (closes 12 Jan / 1 Jun)' : 'Transfer window closed — free agents can still be signed; listed players accept bids'} />
@@ -48,6 +70,8 @@ export function MarketPage({ route }: { route: Route }) {
           { id: 'fa', label: 'Free agents' },
           { id: 'listed', label: 'Transfer list' },
           { id: 'shortlist', label: `Shortlist (${world.shortlist.length})` },
+          { id: 'search', label: 'Player search' },
+          { id: 'talks', label: `Negotiations (${negs.filter(isActive).length})` },
           { id: 'offers', label: `Offers (${offers.filter((o) => o.status === 'pending').length})` },
           { id: 'trade', label: 'Trades' },
           { id: 'history', label: 'Transfer history' },
@@ -55,7 +79,7 @@ export function MarketPage({ route }: { route: Route }) {
         active={tab}
         onChange={(x) => navigate(withQuery(route, { tab: x }))}
       />
-      {(tab === 'fa' || tab === 'listed' || tab === 'shortlist') && (
+      {(tab === 'fa' || tab === 'listed' || tab === 'shortlist' || tab === 'search') && (
         <Card>
           <div className="row" style={{ marginBottom: 6 }}>
             <select value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Title">
@@ -66,7 +90,7 @@ export function MarketPage({ route }: { route: Route }) {
                 </option>
               ))}
             </select>
-            <span className="muted small">Open a player to make an offer or bid.</span>
+            <span className="muted small">{tab === 'search' ? 'Every player under contract elsewhere. Open a player to bid (or agree a pre-contract with an expiring one).' : 'Open a player to make an offer or bid.'}</span>
           </div>
           <DataTable id={`market-${tab}`} rows={rows} rowKey={(p) => p.id} columns={cols} initialSort={{ key: 'ca', desc: true }} filter={(p, q) => p.handle.toLowerCase().includes(q)} onRowClick={(p) => navigate(`/player/${p.id}?tab=contract`)} />
         </Card>
@@ -86,25 +110,58 @@ export function MarketPage({ route }: { route: Route }) {
                     <TeamLink t={world.teams[o.fromTeamId]} />
                   </td>
                   <td>{formatMoney(o.fee)}</td>
-                  <td>{o.status}</td>
-                  <td>
-                    {o.status === 'pending' && (
-                      <>
-                        <button className="btn sm" onClick={() => { const r = act((w) => respondToOffer(w, o.id, true), { save: true }); if (r) notify(r.message, r.ok ? 'ok' : 'err'); }}>
-                          Accept
-                        </button>{' '}
-                        <button className="btn ghost sm" onClick={() => { const r = act((w) => respondToOffer(w, o.id, false)); if (r) notify(r.message, 'info'); }}>
-                          Reject
-                        </button>
-                      </>
-                    )}
-                  </td>
+                  <td>{o.status}{o.counterFee ? ' (final offer)' : ''}</td>
+                  <td>{o.status === 'pending' && <OfferActions o={o} />}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           {!offers.length && <div className="muted">No offers yet. AI clubs bid for your players during transfer windows.</div>}
         </Card>
+        </Gate>
+      )}
+      {tab === 'talks' && (
+        <Gate world={world} perm="transfers">
+          <Card title="Your negotiations">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Started</th>
+                  <th>Player</th>
+                  <th>For</th>
+                  <th>From</th>
+                  <th>Type</th>
+                  <th>Stage</th>
+                  <th className="num">Fee</th>
+                  <th>Latest</th>
+                </tr>
+              </thead>
+              <tbody>
+                {negs.map((n) => (
+                  <tr key={n.id} className="clickable" onClick={() => navigate(`/player/${n.playerId}?tab=contract`)}>
+                    <td>{formatDate(n.day)}</td>
+                    <td>
+                      <PlayerLink p={world.players[n.playerId]} />
+                    </td>
+                    <td>
+                      <TeamLink t={world.teams[n.buyerTeamId]} />
+                    </td>
+                    <td>{n.sellerTeamId ? <TeamLink t={world.teams[n.sellerTeamId]} /> : '—'}</td>
+                    <td>{n.kind === 'precontract' ? 'pre-contract' : 'transfer'}</td>
+                    <td>
+                      <b>{STAGE_LABEL[n.stage]}</b>
+                      {isActive(n) && <span className="muted small"> until {formatDate(n.expiresDay)}</span>}
+                    </td>
+                    <td className="num">{n.fee ? formatMoney(n.fee) : n.kind === 'precontract' ? 'free' : '—'}</td>
+                    <td>
+                      <NegotiationLog n={n} max={1} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!negs.length && <div className="muted">No negotiations yet. Open a player at another club and submit a bid; the club answers, then you agree personal terms with the player.</div>}
+          </Card>
         </Gate>
       )}
       {tab === 'trade' && (
@@ -222,5 +279,35 @@ function PickChecks({ world, teamId, sel, set }: { world: ReturnType<typeof useW
         </label>
       ))}
     </div>
+  );
+}
+
+const STAGE_LABEL: Record<string, string> = { club: 'Fee talks', terms: 'Personal terms', agreed: 'Agreed (joins at season end)', completed: 'Completed', collapsed: 'Collapsed', withdrawn: 'Withdrawn' };
+
+/** Accept / reject / counter an incoming bid for one of your players. */
+function OfferActions({ o }: { o: Offer }) {
+  const { act, notify } = useGame();
+  const [ask, setAsk] = useState(Math.round((o.fee * 1.2) / 1000) * 1000);
+  const go = (fn: Parameters<typeof act>[0], save = true) => {
+    const r = act(fn, { save }) as { ok: boolean; status?: string; message: string } | undefined;
+    if (r) notify(r.message, r.ok ? 'ok' : r.status === 'countered' ? 'info' : 'err');
+  };
+  return (
+    <span className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+      <button className="btn sm" onClick={() => go((w) => respondToOffer(w, o.id, true))}>
+        Accept
+      </button>
+      <button className="btn ghost sm" onClick={() => go((w) => respondToOffer(w, o.id, false), false)}>
+        Reject
+      </button>
+      {!o.counterFee && (
+        <>
+          <input type="number" aria-label="Counter fee" style={{ width: 110 }} value={ask} onChange={(e) => setAsk(Number(e.target.value))} />
+          <button className="btn ghost sm" onClick={() => go((w) => counterOffer(w, o.id, ask))}>
+            Counter
+          </button>
+        </>
+      )}
+    </span>
   );
 }
