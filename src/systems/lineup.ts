@@ -106,6 +106,26 @@ export function ensureLineup(world: World, team: Team): LineupSlot[] {
       const p = world.players[s.playerId];
       return p && team.roster.includes(s.playerId) && !(p.injury && p.injury.untilDay > world.day) && !p.retired;
     });
-  if (!valid || team.prefs.delegateLineup) team.lineup = autoLineup(world, team);
+  if (!valid) {
+    team.lineup = autoLineup(world, team);
+    team.lineupSig = lineupSignature(world, team);
+  } else if (team.prefs.delegateLineup) {
+    const sig = lineupSignature(world, team);
+    if (sig !== team.lineupSig) {
+      team.lineup = autoLineup(world, team);
+      team.lineupSig = sig;
+    }
+  }
   return team.lineup;
+}
+
+/** Changes whenever the coach's automatic lineup choice could change. */
+function lineupSignature(world: World, team: Team): string {
+  let s = '';
+  for (const id of team.roster) {
+    const p = world.players[id];
+    if (!p) continue;
+    s += `${id}.${p.attrVersion}.${p.injury && p.injury.untilDay > world.day ? 1 : 0}.${Math.round(p.fatigue / 25)};`;
+  }
+  return s;
 }

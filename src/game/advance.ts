@@ -78,7 +78,6 @@ export function processDay(world: World): void {
     if (f && f.status === 'scheduled') playFixture(world, f);
   }
   dailyCondition(world);
-  processLoans(world);
   for (const team of Object.values(world.teams)) if (team.active) adaptToMeta(world, team.id);
   aiMarketDay(world);
   if (dayOfWeek(day) === 1) {
@@ -87,6 +86,7 @@ export function processDay(world: World): void {
       world.processed.lastWeek = wk;
       weeklyTraining(world);
       weeklyScouting(world);
+      processLoans(world);
     }
   }
   if (isFirstOfMonth(day) && world.processed.lastMonth !== monthKey(day)) {

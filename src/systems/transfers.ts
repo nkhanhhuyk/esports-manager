@@ -418,7 +418,26 @@ function strategyScore(org: Organisation, p: Player, gain: number, salary: numbe
   }
 }
 
-function aiTeamMarket(world: World, team: Team, faPool: Map<string, Player[]>, rng: RNG, emergency: boolean): void {
+interface MarketIndex {
+  fa: Map<string, Player[]>;
+  byTitle: Map<string, Team[]>;
+  academy: Map<string, Team>;
+}
+
+function buildIndex(world: World): MarketIndex {
+  const byTitle = new Map<string, Team[]>();
+  const academy = new Map<string, Team>();
+  for (const t of Object.values(world.teams)) {
+    if (!t.active) continue;
+    if (!byTitle.has(t.titleId)) byTitle.set(t.titleId, []);
+    byTitle.get(t.titleId)!.push(t);
+    if (t.parentTeamId) academy.set(t.parentTeamId, t);
+  }
+  return { fa: freeAgentPool(world), byTitle, academy };
+}
+
+function aiTeamMarket(world: World, team: Team, idx: MarketIndex, rng: RNG, emergency: boolean): void {
+  const faPool = idx.fa;
   const t = getTitle(team.titleId);
   const org = world.orgs[team.orgId];
   if (!org || org.user) return;
@@ -442,7 +461,7 @@ function aiTeamMarket(world: World, team: Team, faPool: Map<string, Player[]>, r
   const wantSub = team.roster.length < t.teamSize + 1;
   if (!need.urgent && !wantSub && team.roster.length >= maxR) return;
   // 2) Academy promotion check
-  const academy = Object.values(world.teams).find((x) => x.parentTeamId === team.id && x.active);
+  const academy = idx.academy.get(team.id);
   let best: { p: Player; score: number; fee: number; salary: number } | null = null;
   if (academy) {
     for (const pid of academy.roster) {
@@ -475,7 +494,7 @@ function aiTeamMarket(world: World, team: Team, faPool: Map<string, Player[]>, r
   // 4) Transfer targets from weaker clubs (windows only)
   if (!emergency && inTransferWindow(world) && rng.chance(0.45) && org.balance > 0) {
     const poacher = org.strategy === 'win-now' || org.strategy === 'prestige' || org.balance > team.salaryBudget * 2;
-    const others = Object.values(world.teams).filter((x) => x.titleId === t.id && x.id !== team.id && x.active && x.orgId !== team.orgId && (poacher || x.elo < team.elo + 80));
+    const others = (idx.byTitle.get(t.id) ?? []).filter((x) => x.id !== team.id && x.active && x.orgId !== team.orgId && (poacher || x.elo < team.elo + 80));
     const pool = rng.sample(others, 8).flatMap((x) => x.roster.map((id) => world.players[id]));
     for (const p of pool) {
       if (!p || p.retired || world.day - p.joinedDay < 120 || !p.contract || p.contract.loan) continue;
@@ -538,7 +557,7 @@ function aiTeamMarket(world: World, team: Team, faPool: Map<string, Player[]>, r
 export function aiMarketDay(world: World): void {
   const rng = new RNG(`${world.meta.seed}|market|${world.day}`);
   const window = inTransferWindow(world);
-  let faPool: Map<string, Player[]> | null = null;
+  let index: MarketIndex | null = null;
   for (const team of Object.values(world.teams)) {
     if (!team.active) continue;
     const org = world.orgs[team.orgId];
@@ -546,8 +565,8 @@ export function aiMarketDay(world: World): void {
     const t = getTitle(team.titleId);
     const short = team.roster.length < t.teamSize;
     if (!short && !(window && rng.chance(1 / 6))) continue;
-    faPool ||= freeAgentPool(world);
-    aiTeamMarket(world, team, faPool, rng, short);
+    index ||= buildIndex(world);
+    aiTeamMarket(world, team, index, rng, short);
   }
   // Expire user offers
   for (const o of world.offers) if (o.status === 'pending' && o.expiresDay < world.day) o.status = 'withdrawn';

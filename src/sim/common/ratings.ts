@@ -107,6 +107,8 @@ export function inputProf(p: Player, t: TitleDef): number {
   return p.input[inputIndex(t.input)];
 }
 
+const SENS = Float64Array.from(ATTRS.map((a) => a.inputSensitivity));
+
 function weightedEffective(attrs: readonly number[], w: Float64Array, sum: number, ip: number): number {
   if (sum <= 0) return 0;
   let s = 0;
@@ -114,7 +116,7 @@ function weightedEffective(attrs: readonly number[], w: Float64Array, sum: numbe
   for (let i = 0; i < ATTR_COUNT; i++) {
     const wi = w[i];
     if (wi === 0) continue;
-    s += wi * attrs[i] * (1 - ATTRS[i].inputSensitivity * pen);
+    s += wi * attrs[i] * (1 - SENS[i] * pen);
   }
   return s / sum;
 }
@@ -130,6 +132,7 @@ const baseCache = new Map<string, BaseRatings>();
 
 export function clearRatingCache(): void {
   baseCache.clear();
+  lightCache = new WeakMap();
 }
 
 /** Attribute-driven part of the ratings (cached per player attribute version). */
@@ -179,8 +182,16 @@ export function charProf(p: Player, t: TitleDef, role: RoleDef, charId?: string)
       }
       return best * 0.45;
     }
-    const vals = Object.values(map).sort((a, b) => b - a).slice(0, 3);
-    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    // Average of the three best comfort picks (single pass, no sort).
+    let a = -1, b = -1, c = -1, n = 0;
+    for (const k in map) {
+      const v = map[k];
+      n++;
+      if (v > a) { c = b; b = a; a = v; } else if (v > b) { c = b; b = v; } else if (v > c) c = v;
+    }
+    if (!n) return 0;
+    const k = Math.min(3, n);
+    return ((a > 0 ? a : 0) + (k > 1 ? b : 0) + (k > 2 ? c : 0)) / k;
   }
   const wmap = p.prof.weapons[t.id] ?? {};
   const ws = role.weapons ?? t.weaponClasses.slice(0, 2);
@@ -233,11 +244,24 @@ export function bestRole(p: Player, t: TitleDef): { roleId: string; E: number } 
 }
 
 /** E without computing (or caching) phase ratings — cheap path for CA and AI scans. */
+let lightCache = new WeakMap<Player, { v: number; m: Map<string, [number, number]> }>();
+
 export function effectivenessLight(p: Player, t: TitleDef, role: RoleDef, charId?: string, ipOverride?: number): number {
   const ip = ipOverride ?? inputProf(p, t);
-  const rw = roleWeights(t, role);
-  const C = weightedEffective(p.attrs, rw.overall.core, rw.overall.coreSum, ip);
-  const S = rw.overall.specSum > 0 ? weightedEffective(p.attrs, rw.overall.spec, rw.overall.specSum, ip) : C;
+  let entry = lightCache.get(p);
+  if (!entry || entry.v !== p.attrVersion) {
+    entry = { v: p.attrVersion, m: new Map() };
+    lightCache.set(p, entry);
+  }
+  const key = role.id + t.id + Math.round(ip * 10);
+  let cs = entry.m.get(key);
+  if (!cs) {
+    const rw = roleWeights(t, role);
+    const C0 = weightedEffective(p.attrs, rw.overall.core, rw.overall.coreSum, ip);
+    cs = [C0, rw.overall.specSum > 0 ? weightedEffective(p.attrs, rw.overall.spec, rw.overall.specSum, ip) : C0];
+    entry.m.set(key, cs);
+  }
+  const [C, S] = cs;
   const { T, R } = familiarity(p, t.id, role.id);
   const P = charProf(p, t, role, charId);
   return E_WEIGHTS.C * C + E_WEIGHTS.S * S + E_WEIGHTS.T * T + E_WEIGHTS.R * R + E_WEIGHTS.P * P;

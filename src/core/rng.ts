@@ -88,12 +88,21 @@ export class RNG {
     return this.next() < p;
   }
 
-  /** Standard normal via Box-Muller. */
+  private spare: number | null = null;
+
+  /** Standard normal via Box-Muller (both outputs used). */
   normal(mean = 0, sd = 1): number {
+    if (this.spare !== null) {
+      const z = this.spare;
+      this.spare = null;
+      return mean + sd * z;
+    }
     let u = 0;
     while (u === 0) u = this.next();
     const v = this.next();
-    return mean + sd * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    const m = Math.sqrt(-2 * Math.log(u));
+    this.spare = m * Math.sin(2 * Math.PI * v);
+    return mean + sd * m * Math.cos(2 * Math.PI * v);
   }
 
   /** Normal clamped into [min, max]. */

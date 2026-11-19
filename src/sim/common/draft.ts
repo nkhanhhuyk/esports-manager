@@ -155,6 +155,8 @@ export interface DraftState {
   order: DraftRecord['order'];
   unavailable: [Set<string>, Set<string>]; // fearless restrictions per team
   done: boolean;
+  /** Runtime cache of per-player comfort lookups (not persisted). */
+  comfortCache?: Map<string, (c: CharDef) => number>;
 }
 
 export function newDraft(world: World, t: TitleDef, patch: Patch, sides: [DraftSide, DraftSide], fearless: [Set<string>, Set<string>]): DraftState {
@@ -281,7 +283,7 @@ export function aiDraftAction(world: World, ds: DraftState, rng: RNG): { charId:
       let comfort = 0;
       for (const p of enemyPlayers) comfort = Math.max(comfort, p.prof.chars[ds.title.id]?.[c.id] ?? 0);
       const pref = side.team.prefs.bans.includes(c.id) ? 0.6 : 0;
-      const score = (ds.patch.charMeta[c.id] ?? 0) / 10 * wMeta + (comfort / 100) * 0.9 * wComfort + pref + rng.normal(0, noise);
+      const score = (ds.patch.charMeta[c.id] ?? 0) / 10 * wMeta + (comfort / 100) * 0.9 * wComfort + pref + (rng.next() - 0.5) * noise * 3.4;
       if (score > bs) {
         bs = score;
         best = c;
@@ -292,32 +294,38 @@ export function aiDraftAction(world: World, ds: DraftState, rng: RNG): { charId:
   const slots = unfilledPlayers(ds, team);
   let best: { c: CharDef; slot: LineupSlot } | null = null;
   let bs = -Infinity;
-  const ctrOf = new Map<string, number>();
-  for (const c of opts) {
+  // Option-level terms (independent of which player takes the pick) computed once per option.
+  const style = side.team.prefs.style;
+  const have: Record<string, number> = {};
+  if (ds.title.hero) for (const id of ds.picks[team]) {
+    const cls = cmap.get(id)?.cls;
+    if (cls) have[cls] = (have[cls] ?? 0) + 1;
+  }
+  const base = new Float64Array(opts.length);
+  for (let i = 0; i < opts.length; i++) {
+    const c = opts[i];
     let ctr = 0;
     for (const e of enemyChars) ctr += counterScore(c, e);
-    ctrOf.set(c.id, ctr);
+    let balance = 0;
+    if (ds.title.hero) balance = (have[c.cls] ?? 0) >= (ds.title.hero.comp[c.cls] ?? 0) ? -0.8 : 0.2;
+    base[i] = ((ds.patch.charMeta[c.id] ?? 0) / 10) * 0.8 * wMeta + ctr * 0.25 * wCounter + ((c.styles[style] ?? 5) - 5) / 10 + balance + (rng.next() - 0.5) * noise * 3.4;
   }
+  ds.comfortCache ||= new Map();
   for (const slot of slots) {
     const p = side.players.find((x) => x.id === slot.playerId);
     const role = roleOf(ds, team, slot);
-    const prefPool = side.team.prefs.pool[role.id] ?? [];
-    const comfortOf = comfortFn(ds.title, p);
-    for (const c of opts) {
-      const fit = role.classes.length === 0 || role.classes.includes(c.cls) ? 0.5 : -0.4;
-      const comfort = comfortOf(c) / 100;
-      const meta = (ds.patch.charMeta[c.id] ?? 0) / 10;
-      const ctr = ctrOf.get(c.id) ?? 0;
-      const style = ((c.styles[side.team.prefs.style] ?? 5) - 5) / 10;
-      const pref = prefPool.includes(c.id) ? 0.35 : 0;
-      // Hero-shooter role balance: discourage exceeding ideal class counts.
-      let balance = 0;
-      if (ds.title.hero) {
-        const have = ds.picks[team].filter((id) => cmap.get(id)?.cls === c.cls).length;
-        const ideal = ds.title.hero.comp[c.cls] ?? 0;
-        balance = have >= ideal ? -0.8 : 0.2;
-      }
-      const score = fit + comfort * 1.1 * wComfort + meta * 0.8 * wMeta + ctr * 0.25 * wCounter + style + pref + balance + rng.normal(0, noise);
+    const pool = side.team.prefs.pool[role.id];
+    const prefSet = pool && pool.length ? new Set(pool) : null;
+    const classSet = role.classes.length ? new Set(role.classes) : null;
+    let comfortOf = p ? ds.comfortCache.get(p.id) : undefined;
+    if (!comfortOf) {
+      comfortOf = comfortFn(ds.title, p);
+      if (p) ds.comfortCache.set(p.id, comfortOf);
+    }
+    for (let i = 0; i < opts.length; i++) {
+      const c = opts[i];
+      const fit = !classSet || classSet.has(c.cls) ? 0.5 : -0.4;
+      const score = base[i] + fit + (comfortOf(c) / 100) * 1.1 * wComfort + (prefSet?.has(c.id) ? 0.35 : 0);
       if (score > bs) {
         bs = score;
         best = { c, slot };

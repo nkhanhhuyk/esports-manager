@@ -79,7 +79,7 @@ export interface MonthlyBreakdown {
 }
 
 /** Projected monthly cash flow for an organisation (also used by the UI). */
-export function monthlyBreakdown(world: World, org: Organisation): MonthlyBreakdown {
+export function monthlyBreakdown(world: World, org: Organisation, orgStaff?: Map<string, number>): MonthlyBreakdown {
   const econ = regionEconomy(org.region);
   const revenue: Record<string, number> = { sponsorship: 0, media: 0, merchandise: 0, league: 0 };
   const expenses: Record<string, number> = { salaries: 0, staff: 0, facilities: facilityUpkeep(org), operations: 0 };
@@ -103,7 +103,8 @@ export function monthlyBreakdown(world: World, org: Organisation): MonthlyBreakd
     expenses.operations += Math.round((v * 0.06) / 12 + 1500 * (0.4 + regionEconomy(team.region)) * (team.tier === 'main' ? 1 : 0.5));
     void t;
   }
-  for (const s of Object.values(world.staff)) if (s.orgId === org.id && !s.teamId && s.contract && !s.retired) expenses.staff += s.contract.salary / 12;
+  if (orgStaff) expenses.staff += orgStaff.get(org.id) ?? 0;
+  else for (const s of Object.values(world.staff)) if (s.orgId === org.id && !s.teamId && s.contract && !s.retired) expenses.staff += s.contract.salary / 12;
   for (const k of Object.keys(expenses)) expenses[k] = Math.round(expenses[k]);
   return { revenue, expenses };
 }
@@ -112,9 +113,11 @@ export function processMonthlyFinances(world: World): void {
   const mk = monthKey(world.day);
   if (world.processed.lastMonth === mk) return;
   world.processed.lastMonth = mk;
+  const orgStaff = new Map<string, number>();
+  for (const s of Object.values(world.staff)) if (s.orgId && !s.teamId && s.contract && !s.retired) orgStaff.set(s.orgId, (orgStaff.get(s.orgId) ?? 0) + s.contract.salary / 12);
   for (const org of Object.values(world.orgs)) {
     if (!org.active) continue;
-    const { revenue, expenses } = monthlyBreakdown(world, org);
+    const { revenue, expenses } = monthlyBreakdown(world, org, orgStaff);
     for (const [k, v] of Object.entries(revenue)) if (v) ledger(world, org, k, v);
     for (const [k, v] of Object.entries(expenses)) if (v) ledger(world, org, k, -v);
     org.monthly.push({ month: mk, revenue, expenses, balance: org.balance });

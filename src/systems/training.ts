@@ -74,13 +74,22 @@ function recoveryRate(world: World, p: Player, team: Team | null): number {
 /** Daily: fatigue recovery, injury healing and setbacks. */
 export function dailyCondition(world: World): void {
   const rng = new RNG(`${world.meta.seed}|cond|${world.day}`);
+  const teamRec = new Map<string, number>();
   for (const p of Object.values(world.players)) {
     if (p.retired) continue;
+    if (p.fatigue <= 0 && !p.injury) continue;
     const team = p.teamId ? world.teams[p.teamId] : null;
     if (p.injury && p.injury.untilDay <= world.day) {
       p.injury = null;
     }
-    if (p.fatigue > 0) p.fatigue = Math.max(0, p.fatigue - recoveryRate(world, p, team));
+    if (p.fatigue > 0) {
+      let base = team ? teamRec.get(team.id) : 1.6;
+      if (base === undefined) {
+        base = recoveryRate(world, { attrs: new Array(86).fill(0) } as unknown as Player, team);
+        teamRec.set(team!.id, base);
+      }
+      p.fatigue = Math.max(0, p.fatigue - (base + (p.attrs[61] / 100) * 2));
+    }
     if (!p.injury && p.fatigue > 55 && rng.chance(0.0015 * (p.fatigue / 50) * (1.3 - p.attrs[60] / 100))) {
       const days = rng.int(5, 35);
       p.injury = { label: rng.pick(['Wrist strain', 'Burnout', 'Back pain', 'Illness', 'Eye strain', 'Tendonitis']), untilDay: world.day + days };

@@ -261,6 +261,8 @@ export interface Team {
   founded: number;
   active: boolean;
   scrimRating: number; // short-term practice quality
+  /** Cache key of the last automatic lineup (avoids recomputation every match). */
+  lineupSig?: string;
 }
 
 export type OrgStrategy = 'win-now' | 'balanced' | 'youth' | 'moneyball' | 'prestige' | 'expansion';
