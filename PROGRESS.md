@@ -50,15 +50,13 @@ by simulation tests.
 
 ## Partially implemented
 
-* **Career roles**: data model supports coach, GM, director, owner, national coach, commissioner; the game
-  plays as combined Coach/GM with delegation toggles (lineup, draft, routine training/contract reminders).
-  Role-specific permission sets are not enforced yet.
 * **Dual-title participation**: `Player.dualTitleId` exists and cross-title histories are tracked, but a player
   cannot yet appear on two active rosters simultaneously.
 * **Draft picks as tradable assets**: drafts run, but picks cannot yet be traded.
 * **Restricted free agency**: policy flag exists; no matching-offer mechanic yet.
-* **National team coach career**: national teams and the Nations Cup exist; the user cannot yet take the
-  national coach role (squads are picked automatically).
+* **Career roles**: besides Coach/GM you can hold a **national-team coach** job (Teams page): your nation
+  always qualifies for the Nations Cup, you name the squad, set tactics and play its matches live; time
+  advancement pauses for its match days. Owner/director/commissioner permission sets are still not enforced.
 * **Scouting assignments**: scouts auto-scout your titles + focus list; no region assignment UI.
 * **Affiliate/partner organisations & joint ownership**: `partners` field exists; no gameplay yet.
 * **Media/social reactions**: news feed covers major events; no fan-sentiment model.
@@ -71,7 +69,7 @@ by simulation tests.
    for low-tier leagues.
 2. Role-based permissions for career modes (owner/director/national coach) and board objectives/job security.
 3. Tradable draft picks, restricted FA matching offers, trade-block UI.
-4. National-team coach career mode (pick squads, play Nations Cup matches live).
+4. Owner / director / commissioner permission sets and board objectives with job security.
 5. Dual-title rosters with schedule-conflict fatigue.
 6. Richer AI strategic shifts (rebuild vs contend cycles), affiliate partnerships and player exchanges.
 7. More granular commentary (per-round tactical narration), heatmap-style analytics.

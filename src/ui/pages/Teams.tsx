@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { useWorld } from '../store';
+import { useGame, useWorld } from '../store';
+import { eligibleNations } from '../../systems/nations';
+import { COUNTRY_BY_CODE } from '../../data/countries';
+import { userNationalTeam } from '../helpers';
 import { Card, CompLink, Flag, Money, OrgLink, PageHeader, PlayerLink, Rating, Stat, StaffLink, TeamLink, TitleTag, Tabs, OrgBadge, age } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { getTitle } from '../../data/titles/catalogue';
@@ -36,6 +39,7 @@ export function TeamsPage() {
           </Card>
         ))}
       </div>
+      <NationalJobCard />
       <Card title="Team directory">
         <div className="row" style={{ marginBottom: 6 }}>
           <select value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Title filter">
@@ -268,5 +272,83 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Optional national-team coaching job held alongside the club role. */
+function NationalJobCard() {
+  const world = useWorld();
+  const { act, notify } = useGame();
+  const job = world.meta.nationalJob;
+  const titles = world.meta.titlesEnabled.filter((id) => getTitle(id).engine !== 'br');
+  const [title, setTitle] = useState(titles[0] ?? '');
+  const nations = title ? eligibleNations(world, title).slice(0, 40) : [];
+  const [country, setCountry] = useState('');
+  if (!job) {
+    return (
+      <Card title="National team job" right={<span className="muted small">Optional — coach a country in the biennial Nations Cup</span>}>
+        <div className="row" style={{ alignItems: 'flex-end' }}>
+          <label className="field">
+            <span>Title</span>
+            <select value={title} onChange={(e) => { setTitle(e.target.value); setCountry(''); }}>
+              {titles.map((id) => (
+                <option key={id} value={id}>{getTitle(id).name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Country (strength of top players)</span>
+            <select value={country} onChange={(e) => setCountry(e.target.value)}>
+              <option value="">Choose…</option>
+              {nations.map((n) => (
+                <option key={n.cc} value={n.cc}>{COUNTRY_BY_CODE[n.cc]?.name} — {n.score.toFixed(1)} ({n.players} players)</option>
+              ))}
+            </select>
+          </label>
+          <button className="btn" disabled={!country} onClick={() => { act((w) => (w.meta.nationalJob = { titleId: title, country, squad: [] }), { save: true }); notify(`You are now ${COUNTRY_BY_CODE[country]?.name} national coach for ${getTitle(title).short}.`, 'ok'); }}>
+            Accept job
+          </button>
+        </div>
+      </Card>
+    );
+  }
+  const t = getTitle(job.titleId);
+  const squadSize = t.teamSize + Math.min(2, t.subs);
+  const pool = Object.values(world.players).filter((p) => !p.retired && p.nat === job.country && p.titleId === job.titleId).sort((a, b) => b.ca - a.ca).slice(0, 25);
+  const team = userNationalTeam(world);
+  const cup = Object.values(world.comps).find((c) => c.titleId === job.titleId && c.tier === 'cup' && c.status !== 'done');
+  const toggle = (id: string) =>
+    act((w) => {
+      const j = w.meta.nationalJob!;
+      j.squad = j.squad.includes(id) ? j.squad.filter((x) => x !== id) : [...j.squad, id].slice(-squadSize);
+    });
+  return (
+    <Card
+      title={<span>National coach: <Flag cc={job.country} />{COUNTRY_BY_CODE[job.country]?.name} · <TitleTag id={job.titleId} /></span>}
+      right={
+        <>
+          {team && team.roster.length > 0 && <button className="btn ghost sm" onClick={() => navigate(`/tactics?team=${team.id}`)}>Tactics</button>}
+          <button className="btn ghost sm" onClick={() => confirm('Resign as national coach?') && act((w) => (w.meta.nationalJob = null), { save: true })}>Resign</button>
+        </>
+      }
+    >
+      <div className="muted small" style={{ marginBottom: 6 }}>
+        {cup ? <>Next tournament: <CompLink c={cup} /> ({cup.status}).</> : 'The Nations Cup is held every odd season in December.'} Name up to {squadSize} players ({job.squad.length} selected); empty places are filled with the best available. Club contracts are unaffected; call-ups add fatigue.
+      </div>
+      <table className="table">
+        <tbody>
+          {pool.map((p) => (
+            <tr key={p.id}>
+              <td><input type="checkbox" checked={job.squad.includes(p.id)} onChange={() => toggle(p.id)} aria-label={`Select ${p.handle}`} /></td>
+              <td><PlayerLink p={p} /></td>
+              <td>{roleName(p.titleId, p.roles[0])}</td>
+              <td><TeamLink t={p.teamId ? world.teams[p.teamId] : undefined} /></td>
+              <td><Rating v={p.ca} /></td>
+              <td className="muted small">age {age(world, p.birth)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
   );
 }

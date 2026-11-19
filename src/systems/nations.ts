@@ -57,15 +57,21 @@ export function buildNationalTeams(world: World, titleId: string, count: number)
     byNat.get(p.nat)!.push({ id: p.id, ca: p.ca });
   }
   const squadSize = t.teamSize + Math.min(2, t.subs);
-  const nations = [...byNat.entries()]
+  const job = world.meta.nationalJob;
+  const ranked = [...byNat.entries()]
     .filter(([, ps]) => ps.length >= t.teamSize)
     .map(([cc, ps]) => {
       ps.sort((a, b) => b.ca - a.ca);
       const top = ps.slice(0, t.teamSize);
       return { cc, ps, score: top.reduce((a, x) => a + x.ca, 0) / top.length };
     })
-    .sort((a, b) => b.score - a.score)
-    .slice(0, count);
+    .sort((a, b) => b.score - a.score);
+  const nations = ranked.slice(0, count);
+  // The user's nation always qualifies (taking the last slot) if it can field a team.
+  if (job && job.titleId === titleId && !nations.some((x) => x.cc === job.country)) {
+    const mine = ranked.find((x) => x.cc === job.country);
+    if (mine) nations[nations.length - 1] = mine;
+  }
   const ids: string[] = [];
   for (const n of nations) {
     let team = Object.values(world.teams).find((x) => x.national === n.cc && x.titleId === titleId);
@@ -100,13 +106,39 @@ export function buildNationalTeams(world: World, titleId: string, count: number)
       world.teams[team.id] = team;
       fed.teams.push(team.id);
     }
-    team.roster = n.ps.slice(0, squadSize).map((x) => x.id);
+    const job = world.meta.nationalJob;
+    const userJob = !!job && job.country === n.cc && job.titleId === titleId;
+    if (userJob) {
+      // The national coach's named squad first (if still eligible), topped up automatically.
+      const eligible = new Set(n.ps.map((x) => x.id));
+      const named = job.squad.filter((id) => eligible.has(id)).slice(0, squadSize);
+      for (const x of n.ps) if (named.length < squadSize && !named.includes(x.id)) named.push(x.id);
+      team.roster = named;
+    } else team.roster = n.ps.slice(0, squadSize).map((x) => x.id);
     team.lineupSig = undefined;
-    team.lineup = autoLineup(world, team);
+    if (!userJob || team.prefs.delegateLineup || team.lineup.some((s) => !team.roster.includes(s.playerId)) || team.lineup.length !== t.teamSize) team.lineup = autoLineup(world, team);
     team.elo = Math.round(1500 + (n.score - 70) * 18);
     ids.push(team.id);
   }
   return ids;
+}
+
+/** Countries that can field a team in a title (for the national-coach job offer). */
+export function eligibleNations(world: World, titleId: string): Array<{ cc: string; players: number; score: number }> {
+  const t = getTitle(titleId);
+  const byNat = new Map<string, number[]>();
+  for (const p of Object.values(world.players)) {
+    if (p.retired || p.titleId !== titleId || ageAt(p.birth, world.day) < t.minAge) continue;
+    if (!byNat.has(p.nat)) byNat.set(p.nat, []);
+    byNat.get(p.nat)!.push(p.ca);
+  }
+  return [...byNat.entries()]
+    .filter(([, v]) => v.length >= t.teamSize)
+    .map(([cc, v]) => {
+      v.sort((a, b) => b - a);
+      return { cc, players: v.length, score: v.slice(0, t.teamSize).reduce((a, b) => a + b, 0) / t.teamSize };
+    })
+    .sort((a, b) => b.score - a.score);
 }
 
 /** Clear national squads (called at rollover so rosters never reference stale players). */

@@ -182,3 +182,21 @@ describe('national teams', () => {
     }
   });
 });
+
+describe('national team coach job', () => {
+  it('qualifies the user nation, honours the named squad and pauses for its matches', async () => {
+    const { advance } = await import('../src/game/advance');
+    const { eligibleNations } = await import('../src/systems/nations');
+    const w = withUser(makeWorld(['lol'], 'natjob', 'small'));
+    const nations = eligibleNations(w, 'lol');
+    const weak = nations[nations.length - 1]; // outside the top 8 on strength
+    const picks = Object.values(w.players).filter((p) => p.nat === weak.cc && p.titleId === 'lol' && !p.retired).sort((a, b) => a.ca - b.ca).slice(0, 2).map((p) => p.id);
+    w.meta.nationalJob = { titleId: 'lol', country: weak.cc, squad: picks };
+    const r = advance(w, { kind: 'next-event' });
+    expect(r.stoppedFor).toBe('user-match');
+    const f = w.fixtures[r.fixtureId!];
+    const mine = f.teams.map((id) => w.teams[id]).find((t) => t.national === weak.cc)!;
+    expect(mine).toBeTruthy();
+    for (const id of picks) expect(mine.roster).toContain(id);
+  });
+});

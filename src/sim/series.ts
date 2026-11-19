@@ -11,6 +11,7 @@ import { getTitle } from '../data/titles/catalogue';
 import type { MapDef, TitleDef } from '../data/titles/types';
 import type { DraftRecord, Fixture, FormatKey, GameEvent, GameResult, LineupSlot, MatchRecord, Team, UserMatchPlan, World } from '../model/types';
 import { currentPatch } from '../systems/patches';
+import { isUserTeam } from '../systems/news';
 import { ensureLineup, validateLineup } from '../systems/lineup';
 import { evaluateComp, NEUTRAL_COMP, newDraft, runAiDraft, toRecord, validateDraft, type CompEval, type DraftState } from './common/draft';
 import type { GameContext } from './common/engine';
@@ -122,7 +123,7 @@ function mapsForMode(t: TitleDef, modeId: string | undefined, pool: string[]): M
 
 export function getPlans(world: World, f: Fixture): [UserMatchPlan | undefined, UserMatchPlan | undefined] {
   const plan = world.overrides[f.id];
-  return f.teams.map((tid) => (plan && world.teams[tid]?.orgId === world.meta.userOrgId ? plan : undefined)) as [UserMatchPlan | undefined, UserMatchPlan | undefined];
+  return f.teams.map((tid) => (plan && isUserTeam(world, tid) ? plan : undefined)) as [UserMatchPlan | undefined, UserMatchPlan | undefined];
 }
 
 export function createSeries(world: World, f: Fixture, forceDetail = false): SeriesState {

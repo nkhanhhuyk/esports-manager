@@ -1,6 +1,7 @@
 import type { Fixture, Player, StatLine, Team, World } from '../model/types';
 import { getTitle } from '../data/titles/catalogue';
 import { effectivenessLight } from '../sim/common/ratings';
+import { isUserTeam } from '../systems/news';
 
 export function userTeams(world: World): Team[] {
   const uid = world.meta.userOrgId;
@@ -8,8 +9,15 @@ export function userTeams(world: World): Team[] {
   return world.orgs[uid].teams.map((id) => world.teams[id]).filter((t) => t && t.active);
 }
 
+/** The user's national team (only while a squad has been named for a tournament). */
+export function userNationalTeam(world: World): Team | undefined {
+  const job = world.meta.nationalJob;
+  if (!job) return undefined;
+  return Object.values(world.teams).find((t) => t.national === job.country && t.titleId === job.titleId);
+}
+
 export function isUserTeamId(world: World, teamId: string | null | undefined): boolean {
-  return !!teamId && world.teams[teamId]?.orgId === world.meta.userOrgId;
+  return isUserTeam(world, teamId);
 }
 
 export function rosterPlayers(world: World, team: Team): Player[] {

@@ -28,8 +28,12 @@ export function addInbox(world: World, msg: Omit<InboxMessage, 'id' | 'day' | 'r
   return m;
 }
 
+/** Is this team controlled by the user (club divisions + national-team job)? */
 export function isUserTeam(world: World, teamId: string | null | undefined): boolean {
   if (!teamId) return false;
   const t = world.teams[teamId];
-  return !!t && t.orgId === world.meta.userOrgId;
+  if (!t) return false;
+  if (t.orgId === world.meta.userOrgId) return true;
+  const job = world.meta.nationalJob;
+  return !!job && !!t.national && t.national === job.country && t.titleId === job.titleId;
 }

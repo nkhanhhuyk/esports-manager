@@ -719,6 +719,8 @@ export interface WorldMeta {
   autosave: boolean;
   managerName: string;
   titlesEnabled: TitleId[];
+  /** Optional national-team job held alongside the club role. */
+  nationalJob?: { titleId: TitleId; country: CountryCode; squad: ID[] } | null;
 }
 
 export interface World {

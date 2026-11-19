@@ -7,6 +7,7 @@ import { dayOfWeek } from '../core/date';
 import type { BracketNode, BracketSource, Competition, Fixture, FormatKey, SeriesFormat, Stage, StandingRow, World } from '../model/types';
 import { nextId } from '../model/ids';
 import { getTitle } from '../data/titles/catalogue';
+import { isUserTeam } from '../systems/news';
 
 // ---------------------------------------------------------------------------------------------
 // Utilities
@@ -39,7 +40,7 @@ function isDetail(world: World, comp: Competition, teams: string[]): boolean {
   if (world.meta.detail.fullDetailTitles.includes(comp.titleId)) return true;
   if (world.meta.detail.internationals && (comp.tier === 'international' || comp.tier === 'worlds')) return true;
   if (world.meta.detail.userMatches && world.meta.userOrgId) {
-    for (const tid of teams) if (world.teams[tid]?.orgId === world.meta.userOrgId) return true;
+    for (const tid of teams) if (isUserTeam(world, tid)) return true;
   }
   return false;
 }

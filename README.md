@@ -48,7 +48,8 @@ Other scripts:
    ban priorities, map preferences, delegation), Training (team & individual focus, intensity, scrims,
    opponent prep), Market (free agents, transfer list, bids, offers, loans, trades, shortlist), Scouting,
    Finances (division budgets, ledger, charts), Facilities, Organisation (buy league slots to expand into
-   new titles, found academies, close divisions, rebrand).
+   new titles, found academies, close divisions, rebrand). Optionally take a **national-team job** (Teams
+   page) and coach a country in the biennial Nations Cup.
 6. **Explore** — every player, team, organisation, competition and staff member has a profile; global
    search, breadcrumbs, browser back/forward, sortable/filterable tables with column choosers, player
    comparison, world popularity map, patch history, history/champions, GOAT rankings and Hall of Fame.

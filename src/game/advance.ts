@@ -16,6 +16,7 @@ import { processMonthlyFinances } from '../systems/finance';
 import { aiContracts, aiMarketDay, processLoans } from '../systems/transfers';
 import { adaptToMeta, releasePatch } from '../systems/patches';
 import { seasonRollover } from './rollover';
+import { isUserTeam } from '../systems/news';
 import { weeklyScouting } from '../systems/scouting';
 
 export type AdvanceMode =
@@ -39,11 +40,10 @@ export interface AdvanceResult {
 }
 
 export function userFixturesOn(world: World, day: number): Fixture[] {
-  const uid = world.meta.userOrgId;
-  if (!uid) return [];
+  if (!world.meta.userOrgId) return [];
   return (world.schedule[day] ?? [])
     .map((id) => world.fixtures[id])
-    .filter((f) => f && f.status === 'scheduled' && f.teams.some((t) => world.teams[t]?.orgId === uid));
+    .filter((f) => f && f.status === 'scheduled' && f.teams.some((t) => isUserTeam(world, t)));
 }
 
 /** Patch cadence: majors at season start & mid-season, minor balance patches ~every 3 weeks. */
