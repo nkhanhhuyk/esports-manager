@@ -44,6 +44,18 @@ export const MIGRATIONS: Record<number, (w: AnyWorld) => AnyWorld> = {
     w.negotiations ??= [];
     return w;
   },
+  // v4 -> v5: seven-title edition. Saves that still reference other titles are flagged; the
+  // conversion itself (src/game/scope.ts) runs after migration, once the original has been kept
+  // as a backup by the persistence layer.
+  4: (w) => {
+    const allowed = new Set(['mlbb', 'wildrift', 'hok', 'lol', 'dota2', 'valorant', 'cs2']);
+    const ids = new Set<string>(w.meta?.titlesEnabled ?? []);
+    for (const t of Object.values<AnyWorld>(w.teams ?? {})) ids.add(t.titleId);
+    for (const p of Object.values<AnyWorld>(w.players ?? {})) ids.add(p.titleId);
+    const removed = [...ids].filter((id) => id && !allowed.has(id));
+    if (removed.length) w.meta.scopeConversion = { pending: true, removed };
+    return w;
+  },
 };
 
 const metaSchema = z

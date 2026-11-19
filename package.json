@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:web": "tsc -b && vite build",
     "build:portable": "tsc --noEmit -p . && vite build --mode portable",
     "check:portable": "npm run build:portable && node scripts/portable-check.cjs",
     "preview": "vite preview",
@@ -15,7 +16,11 @@
     "test:watch": "vitest",
     "test:long": "LONG_SIM=1 vitest run tests/longterm.test.ts",
     "e2e": "playwright test --trace off",
-    "sim:bench": "vitest run tests/bench.test.ts"
+    "sim:bench": "vitest run tests/bench.test.ts",
+    "android:sync": "npm run build:web && npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:debug-apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
+    "android:install": "adb install -r android/app/build/outputs/apk/debug/app-debug.apk"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.2",

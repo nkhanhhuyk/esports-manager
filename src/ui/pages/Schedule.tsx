@@ -16,7 +16,7 @@ export function SchedulePage({ route }: { route: Route }) {
     <div>
       <PageHeader
         title="Schedule"
-        sub="One shared calendar for all 30 titles"
+        sub="One shared calendar for all seven titles"
         right={
           <>
             <button className={`btn sm ${view === 'mine' ? '' : 'ghost'}`} onClick={() => navigate(withQuery(route, { view: 'mine' }))}>

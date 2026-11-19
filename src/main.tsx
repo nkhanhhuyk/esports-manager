@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './ui/App';
 import './ui/styles.css';
+import { initNative } from './ui/native';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -21,6 +22,8 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
     return this.props.children;
   }
 }
+
+initNative();
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -5,7 +5,8 @@ import { DataTable } from '../components/DataTable';
 import { Card, Flag, OrgBadge, TitleTag } from '../components/common';
 import { regionName } from '../../data/countries';
 import { formatMoney } from '../../core/math';
-import { deleteSave, exportSave, getSession, importSave } from '../../persistence/db';
+import { getSession } from '../../persistence/db';
+import { SavesPanel } from './Saves';
 import type { CareerRole, Organisation } from '../../model/types';
 import { INPUT_LABEL } from '../../model/attributes';
 import { ROLE_LABEL, jobOffers, takeJob } from '../../systems/career';
@@ -103,7 +104,7 @@ export function Welcome() {
         <h1>
           ULTIMATE <span style={{ color: 'var(--accent)' }}>ESPORTS</span> MANAGER
         </h1>
-        <p className="muted">A living MOBA & shooter universe — 30 titles, fictional organisations and players, endless seasons.</p>
+        <p className="muted">Five MOBAs and two tactical shooters — Mobile Legends: Bang Bang, Wild Rift, Honor of Kings, League of Legends, Dota 2, Valorant and Counter-Strike 2 — with fictional organisations and players and endless seasons.</p>
       </div>
       {storageError && (
         <Card title="Saving is unavailable">
@@ -193,73 +194,9 @@ export function Welcome() {
             <span className="muted small">Starts on today&apos;s date, during the off-season before the new season.</span>
           </div>
         </Card>
-        <Card
-          title="Saved games"
-          right={
-            <>
-              <button className="btn ghost sm" onClick={() => fileRef.current?.click()}>
-                Import…
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="application/json,.json"
-                style={{ display: 'none' }}
-                onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  try {
-                    const w = await importSave(await f.text());
-                    await refreshSaves();
-                    notify(`Imported "${w.meta.name}".`, 'ok');
-                  } catch (err) {
-                    notify(`Import failed: ${(err as Error).message}`, 'err');
-                  }
-                }}
-              />
-            </>
-          }
-        >
-          {!saves.length && <div className="muted">No saves yet.</div>}
-          {saves.map((s) => (
-            <div key={s.id} className="row" style={{ padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-              <div className="grow">
-                <b>{s.name}</b>
-                <div className="muted small">
-                  {s.orgName} · {s.dateLabel} · season {s.season} · {s.titles} titles · v{s.version}
-                </div>
-              </div>
-              <button className="btn sm" onClick={() => load(s.id)}>
-                Load
-              </button>
-              <button
-                className="btn ghost sm"
-                onClick={async () => {
-                  const { loadWorld } = await import('../../persistence/db');
-                  const { world: w } = await loadWorld(s.id);
-                  const url = URL.createObjectURL(exportSave(w));
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `${s.name.replace(/\W+/g, '_')}.uem.json`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                Export
-              </button>
-              <button
-                className="btn ghost sm"
-                onClick={async () => {
-                  if (!confirm(`Delete "${s.name}" permanently?`)) return;
-                  await deleteSave(s.id);
-                  await refreshSaves();
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          ))}
-        </Card>
+        <div>
+          <SavesPanel inGame={false} />
+        </div>
       </div>
     </div>
   );

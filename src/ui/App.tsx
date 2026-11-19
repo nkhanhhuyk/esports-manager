@@ -26,6 +26,7 @@ import { HistoryPage, AwardsPage } from './pages/History';
 import { SettingsPage } from './pages/Settings';
 import { EditorPage } from './pages/Editor';
 import { NewsPage } from './pages/News';
+import { SavesPage } from './pages/Saves';
 
 const NAV: Array<{ sec?: string; page?: string; label?: string }> = [
   { page: 'home', label: 'Home' },
@@ -52,6 +53,7 @@ const NAV: Array<{ sec?: string; page?: string; label?: string }> = [
   { page: 'history', label: 'History' },
   { page: 'awards', label: 'Awards' },
   { sec: 'System' },
+  { page: 'saves', label: 'Save / Load' },
   { page: 'settings', label: 'Settings' },
   { page: 'editor', label: 'Database Editor' },
 ];
@@ -260,6 +262,8 @@ function Page({ route }: { route: Route }) {
       return <AwardsPage route={route} />;
     case 'settings':
       return <SettingsPage />;
+    case 'saves':
+      return <SavesPage />;
     case 'editor':
       return <EditorPage route={route} />;
     default:
@@ -273,8 +277,27 @@ export function App() {
   const theme = useGame((s) => s.theme);
   const busy = useGame((s) => s.busy);
   const toast = useGame((s) => s.toast);
-  const save = useGame((s) => s.save);
+  const quickSave = useGame((s) => s.quickSave);
+  const notify = useGame((s) => s.notify);
   const unsaved = useGame((s) => s.unsaved);
+  const onSave = async () => {
+    const r = await quickSave();
+    if (r === 'choose') {
+      navigate('/saves');
+      notify('Choose a save slot (1-5). The Save button will then save there.', 'info');
+    }
+  };
+  // Ctrl/Cmd+S saves the game.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && useGame.getState().world) {
+        e.preventDefault();
+        void onSave();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
   const route = useRoute();
   const [navOpen, setNavOpen] = useState(false);
 
@@ -362,7 +385,7 @@ export function App() {
           {formatDate(world.day, true)} · S{world.season}
         </span>
         <AdvanceControls />
-        <button className="btn ghost sm hide-sm" onClick={() => save()} title={unsaved ? 'Unsaved changes' : 'All changes saved'}>
+        <button className="btn ghost sm save-btn" onClick={() => void onSave()} title={`${unsaved ? 'Unsaved changes' : 'All changes saved'}${world.meta.activeSlot ? ` · saves to slot ${world.meta.activeSlot}` : ' · choose a slot'} (Ctrl+S)`}>
           Save{unsaved ? ' •' : ''}
         </button>
       </div>

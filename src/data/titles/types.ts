@@ -189,6 +189,8 @@ export interface TitleDef {
   id: string;
   /** Stable source-specification ID (S220 MLBB … S234 CS2). */
   sourceId: string;
+  /** Read-only label for a title removed from the game (old-save history only; never simulated). */
+  archived?: boolean;
   name: string;
   short: string;
   family: Family;

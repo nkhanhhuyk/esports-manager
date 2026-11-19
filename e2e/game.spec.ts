@@ -14,7 +14,7 @@ test('new career: generate, pick organisation, browse, advance, play live, save 
   for (const cb of await page.locator('input[type=checkbox]').all()) if (await cb.isChecked()) await cb.uncheck();
   await page.getByLabel('League of Legends', { exact: true }).check();
   await page.getByLabel('Valorant', { exact: true }).check();
-  await page.getByLabel('PUBG Mobile', { exact: true }).check();
+  await page.getByLabel('Mobile Legends: Bang Bang', { exact: true }).check();
   await page.locator('label:has-text("World size") select').selectOption('tiny');
   await page.getByRole('button', { name: 'Generate world' }).click();
   await expect(page.getByText('Choose your organisation')).toBeVisible({ timeout: 60000 });
@@ -75,10 +75,16 @@ test('new career: generate, pick organisation, browse, advance, play live, save 
   await page.getByText('Advance 1 week').click();
   await expect(page.locator('.busy')).toHaveCount(0, { timeout: 120000 });
   const date = await page.locator('.date-pill').textContent();
+  // Save: the first time, the Save button asks for a slot; afterwards it writes that slot.
   await page.getByRole('button', { name: /^Save/ }).click();
-  await expect(page.getByText('Game saved.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Save / Load' })).toBeVisible();
+  await page.getByRole('button', { name: 'Save to slot 1' }).click();
+  await expect(page.getByText('Saved to slot 1.')).toBeVisible();
+  await page.getByRole('button', { name: /^Save/ }).first().click();
+  await expect(page.getByText('Saved to slot 1.').first()).toBeVisible();
   await page.goto('/');
   await page.reload();
+  await expect(page.getByText('Slot 1', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Load' }).first().click();
   await expect(page.locator('.date-pill')).toHaveText(date!);
   expect(errors).toEqual([]);

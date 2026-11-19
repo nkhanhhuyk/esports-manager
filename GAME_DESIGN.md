@@ -1,15 +1,21 @@
 # Game Design — Ultimate Esports Manager
 
 Consolidated mechanics as implemented. Fixed requirements from the brief are marked **[spec]**;
-tunable design choices are documented in DECISIONS.md.
+tunable design choices are documented in DESIGN_DECISIONS.md.
 
 ## 1. Scope
 
-* Exactly two families **[spec]**: MOBA (13 titles) and Shooter (17 titles). No RTS, fighting, card or
-  autobattler titles. Deadlock is a Shooter with hybrid MOBA mechanics; Brawl Stars is a MOBA with its own
-  mode-based engine; Overwatch Rush is distinct from Overwatch **[spec]**.
-* Competitive inputs are deliberate assignments **[spec]** (see `src/data/titles/catalogue.ts`, verified
-  by `tests/model.test.ts`). Legacy titles remain playable and can be revived by popularity drift.
+* **Exactly seven titles [spec, 19 Nov 2026]** in two subfamilies: five MOBAs — S220 Mobile Legends:
+  Bang Bang, S221 League of Legends: Wild Rift, S222 Honor of Kings, S223 League of Legends, S224 Dota 2 —
+  and two tactical 5v5 bomb-defusal shooters — S232 Valorant, S234 Counter-Strike 2. No other videogame
+  or sport exists in the game (no battle royale, hero shooters, mobile Valorant, RTS, cards, ...).
+* Competitive inputs **[spec]**: touchscreen for MLBB, Wild Rift and HoK; mouse & keyboard for LoL, Dota 2,
+  Valorant and CS2; no controller titles. All 5v5. Verified by `tests/model.test.ts`.
+* Formats **[spec]**: MLBB/Wild Rift/HoK BO3/BO5/BO7; LoL BO3/BO5/BO5; Dota 2 BO3/BO3/BO5; Valorant and
+  CS2 BO3/BO3/BO5 (standard/playoffs/final). A series stops when a team reaches the required wins; one
+  map/game is one series game.
+* The wider source Bible's other sports and titles are inspirations for **management mechanics only**.
+  Old saves from the 30-title edition are converted (see DESIGN_DECISIONS.md → Seven-title edition).
 * Fictional organisations, players, staff, characters, maps and competitions; real countries, languages
   and regions **[spec]**.
 
@@ -71,19 +77,16 @@ also has condition (fatigue, form, morale, injury), map familiarity, big-match p
 personality) and consistency-driven day noise.
 
 Draft/composition evaluation: meta strength (patch), style profile vs patch-favoured styles and team
-style, role coverage (hero shooters: ideal class counts), class counter matrix vs enemy picks, comfort.
+style, role coverage (front line, damage, support), class counter matrix vs enemy picks, comfort.
 
 ## 6. Engines
 
-| Family | Titles | Model |
+Exactly two engine families **[spec]**:
+
+| Engine | Titles | Model |
 | --- | --- | --- |
-| Lane MOBA | LoL, Dota 2, MLBB, HoK, Wild Rift, AoV, Vainglory, MSW, SMITE 2, Predecessor, HotS, Unite | Tick simulation: lane duels → gold/CS/denies, ganks & counter-ganks, title-specific objectives (stacking souls, push buffs, Aegis extra life, execute buffs, XP runes, score legendaries, siege objectives), teamfights with gold/level leads, comeback bounties, respawn windows converting fights into structures, title-specific structure layouts and core durability. Economies: gold, shared XP + talent tiers (HotS), score on a fixed clock (Unite) |
-| Hybrid | Deadlock | Lane MOBA engine with souls economy, 4-lane preset, Guardians/Walkers/Shrines/Patron, Urn & Mid Boss, fights resolved with shooter aim |
-| Brawl | Brawl Stars | 3v3 games on Gem Grab, Brawl Ball, Heist, Hot Zone, Knockout, Bounty; map openness & mode change class value; sets = first to 2 game wins, Bo3/5/7 sets |
-| Tactical | Valorant, Valorant Mobile, CS2, R6 Siege | Rounds with buy logic (credits/money/none), utility & info, entry duels, trades, man advantage, plant/retake/defuse, clutches, KAST, multikills, halftime, overtime (win-by-two / MR3 / capped) |
-| Hero | Overwatch, Marvel Rivals, Paladins, OW Rush | Fight-by-fight with ultimate economy & hero swaps; Control, Escort, Hybrid, Push, Flashpoint, Siege; per-map mode rotation and loser picks |
-| Arena | CoD, CoD Mobile | Hardpoint (rotations, hill time), Search & Destroy (one-life rounds), Control (attack/defence), Domination |
-| Battle royale | Apex, PUBG, PUBG Mobile, Fortnite, Warzone, Warzone Mobile | Full lobby: drop spots (contested drops), loot, shrinking zones with rotation timing and zone damage, positional encounters, third parties, beacons/Gulag/reboots, building, final circle; placement + kill points, match-point finals (Apex preset) |
+| A: 5v5 MOBA | MLBB, Wild Rift, HoK, LoL, Dota 2 (five parameterised adapters) | Tick simulation: lane duels → gold/CS (denies in Dota), ganks & counter-ganks, title-specific objectives (MLBB Turtle/Lord, Wild Rift & LoL dragons/Herald/Baron/Elder with different timings, HoK Tyrant/Overlords, Dota Roshan/Aegis/Tormentor/Wisdom runes), teamfights with gold leads, comeback bounties, respawn windows converting fights into structures, title-specific structure layouts and core durability. **Dota 2 buyback** (net-worth cost, cooldown, blunts high-ground pushes). A game ends only when the core (Base Crystal / Nexus / Ancient) is destroyed. Fresh draft every game; side choice: coin toss, then the previous game's loser picks first. Fearless only as an optional named LoL preset |
+| B: 5v5 tactical shooter | Valorant, CS2 | Rounds with buy logic (Valorant credits, CS2 money with loss bonus and saved equipment), utility & info (Valorant agent abilities; CS2 grenades, no abilities), entry duels, trades, man advantage, Spike/bomb plant, retake, defuse, clutches, KAST, multikills, halftime side swap. First to 13; Valorant overtime alternates sides each round until a two-round lead; CS2 overtime in 6-round blocks (3 per side; 4 wins take the block, 3-3 another). Map veto before the series |
 
 Every game records title-appropriate statistics, ratings (≈1.00 average), MVP, draft and commentary.
 Series keep every game.
@@ -93,7 +96,7 @@ Series keep every game.
 * Formats per title follow the specification tables **[spec]**; editable per title (Database Editor) and per
   competition (`formatOverrides`).
 * Stage types: round robin, double round robin, groups, Swiss, single elimination (byes), double elimination
-  (4/8, no bracket reset), page playoff, BR points (with optional match point).
+  (4/8, no bracket reset — finals start 0-0), page playoff.
 * Season template per title on one shared calendar: Split 1 (Jan) → playoffs (Mar) → Mid-Season
   Invitational (late Apr) → Split 2 (Jun) → playoffs (Aug) → World Championship (late Sep–Oct) → rollover
   (22 Nov). International slots are allocated by regional strength; Worlds seeds by Split 2 champion and
@@ -169,3 +172,13 @@ Series keep every game.
   + volume; per title and cross-title; Hall of Fame threshold 110 for retired players.
 * Season history snapshots (champions, standings, popularity), team season records, org events, retired
   archive for long saves.
+
+## 12. Saves & platforms
+
+* Five named manual save slots plus one autosave per career **[spec: user request 19 Nov 2026]**. The
+  header Save button (and Ctrl+S) writes the current slot; the first save asks for a slot; overwriting a
+  slot that holds another career needs confirmation. Autosave runs after every advance inside the
+  simulation worker; Android also autosaves when the app is backgrounded. Export/import JSON; corrupt
+  newest copies fall back to the previous one.
+* Platforms: the web build (dev server, static hosting, or the single-file portable build) and an Android
+  APK built from the same bundle with Capacitor (offline; system Back; safe areas). See ANDROID_BUILD.md.

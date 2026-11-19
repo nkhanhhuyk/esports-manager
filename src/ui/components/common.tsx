@@ -71,8 +71,8 @@ export function StaffLink({ s }: { s: Staff | undefined }) {
 
 export function TitleTag({ id, link = true }: { id: string; link?: boolean }) {
   const t = getTitle(id);
-  const el = <span className={`ttag ${t.family === 'MOBA' ? 'moba' : 'shooter'}`}>{t.short}</span>;
-  return link ? <Link to={`/title/${id}`}>{el}</Link> : el;
+  const el = <span className={`ttag ${t.family === 'MOBA' ? 'moba' : 'shooter'}${t.archived ? ' archived' : ''}`} title={t.archived ? t.name : undefined}>{t.short}</span>;
+  return link && !t.archived ? <Link to={`/title/${id}`}>{el}</Link> : el;
 }
 
 /** Colour-coded 0-100 value (rating interpretation bands). */

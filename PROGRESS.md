@@ -3,25 +3,41 @@
 Status of the specification, honestly assessed. "Playable" means usable end-to-end in the UI and covered
 by simulation tests.
 
+## Milestone status (master prompt of 19 Nov 2026)
+
+| Milestone | Status | Evidence |
+| --- | --- | --- |
+| M0 seven-title restriction | ✅ | `tests/model.test.ts` registry gates; no other title in catalogue/UI/seeds/tests; old saves converted with backup (`tests/persistence.test.ts`) |
+| M1 playable core | ✅ | all seven complete a season (`tests/season.test.ts`); engine integrity (`tests/engines.test.ts`); Playwright career + slot save/reload |
+| M2 Android APK | ✅ built, ⏳ device test | `android/app/build/outputs/apk/debug/app-debug.apk` (debug-signed, verified with aapt/apksigner); no emulator available in the build environment |
+| M3 deep management | 🔶 | see Partially implemented |
+| M4 long careers & polish | 🔶 | 10-season soak; device profiling pending |
+
 ## Complete & playable
 
-* **30-title catalogue** with correct inputs, families, engines, roles/lineups, draft rules, map veto modes,
-  series formats (spec tables), maps/modes, objectives, structures, economies, stats, popularity.
-* **All 30 titles run full seasons** (regional splits → playoffs → MSI → Worlds → rollover) under their own
-  rules — verified in `tests/season.test.ts`.
-* **Seven engine families** (lane MOBA with 4 economies, Brawl Stars sets, tactical, hero, arena, battle
-  royale, Deadlock hybrid) with title-specific configs, stats, ratings, MVPs and commentary.
+* **Seven-title catalogue** — S220 MLBB, S221 Wild Rift, S222 Honor of Kings, S223 League of Legends,
+  S224 Dota 2 (MOBA) and S232 Valorant, S234 Counter-Strike 2 (tactical shooters) with the specified inputs
+  (3 touchscreen, 4 M&K, 0 controller), 5v5 lineups, title-specific roles, draft rules, map veto, series
+  formats, objectives, structures, economies, stats and popularity.
+* **All seven titles run full seasons** (regional splits → playoffs → MSI → Worlds → rollover) under their
+  own rules — verified in `tests/season.test.ts`.
+* **Two engine families** — Engine A (5v5 MOBA, five adapters; Dota 2 buyback; core destruction wins;
+  coin-toss then loser-chooses side; fresh draft every game; optional LoL Fearless preset) and Engine B
+  (round-based tactical shooter; Valorant agents/abilities/Spike/credits and win-by-two overtime; CS2
+  no abilities, money economy, MR12 and 6-round overtime blocks).
+* **Saves**: five manual save slots + one autosave per career; Save button (also on phones) / Ctrl+S;
+  background autosave; v1→v5 migrations; seven-title conversion of old saves with exportable original.
+* **Android APK** (Capacitor 8): offline, system Back, safe areas, autosave on background — ANDROID_BUILD.md.
 * **86-attribute model + 3 input proficiencies** with the specified formulas; derived summaries; title / role
   / character / map / weapon proficiencies; CA/PA; personalities; trajectories.
 * **World generation**: 20 regions, 95 countries, culture-specific names & handles, multi-title organisations,
   leagues (single & macro regions, challenger tiers), rosters, staff, finances, sponsors, patches.
 * **Time**: day/week/month/next event/end of season/1-5-10 seasons; pauses before user match days;
   idempotent day processing; Web Worker for long advances with progress bar.
-* **Live matches**: map veto plan, interactive drafts (sequential & simultaneous, fearless), game-by-game
-  play with box scores and commentary; BR events watched as full lobbies; results recorded identically to
-  instant sims.
-* **Competitions**: RR/DRR, groups, Swiss, single elim with byes, double elim, page playoff, BR points with
-  match point; qualification by placements and circuit points; prize money; promotion/relegation.
+* **Live matches**: map veto plan, interactive drafts (optional; the coach drafts by default), game-by-game
+  play with box scores and commentary; results recorded identically to instant sims.
+* **Competitions**: RR/DRR, groups, Swiss, single elim with byes, double elim (finals start 0-0), page
+  playoff; qualification by placements and circuit points; prize money; promotion/relegation.
 * **Market**: free agents, extensions, releases, loans, trades (policy-gated), academy promotions,
   cross-title signings with title switching, shortlist, transfer history, player search over every
   contracted player (contract end, release clause, listed/asking price, pre-contract status); AI clubs
@@ -91,12 +107,12 @@ by simulation tests.
 
 ## Missing / next steps (priority order)
 
-1. **Performance for Standard/Large worlds with all 30 titles** — all 30 titles: Tiny ≈12s, Small ≈24s,
-   Standard ≈46s per season (in a Web Worker with progress). Next: cache per-game team contexts across a
-   series, pre-filter draft candidates, lighter weekly training for free agents, an aggregated engine path
-   for low-tier leagues.
-2. AI-initiated pick trades, instalments/add-ons, a trade-block UI.
-3. Dual-title rosters with schedule-conflict fatigue.
-4. Richer AI strategic shifts (rebuild vs contend cycles), affiliate partnerships and player exchanges.
-5. More granular commentary (per-round tactical narration), heatmap-style analytics.
-6. Capacitor Android project scaffold and on-device performance tuning.
+1. **Install and test the APK on a real Android device or emulator** (airplane mode, restart, rotation,
+   Back, backgrounding) — not possible in the build environment (no `/dev/kvm`).
+2. Organisation treasury with department allocations that sum to cash; explicit roster registration
+   separate from employment; staff capacity and philosophy alignment.
+3. Dual-title rosters with one shared calendar and divided practice time.
+4. Training sessions as scarce capacity (staff, rooms, cancellations without phantom growth).
+5. Fan segments, rivalries from repeated encounters, richer news.
+6. Performance for Standard/Large worlds (seven titles: measure and tune on a phone).
+7. Release signing automation (procedure documented in ANDROID_BUILD.md).

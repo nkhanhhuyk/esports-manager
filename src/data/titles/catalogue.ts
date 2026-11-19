@@ -437,10 +437,52 @@ export const TITLE_IDS = TITLES.map((t) => t.id);
 export const MOBA_TITLES = TITLES.filter((t) => t.family === 'MOBA').map((t) => t.id);
 export const SHOOTER_TITLES = TITLES.filter((t) => t.family === 'SHOOTER').map((t) => t.id);
 
+/**
+ * Titles that existed in earlier versions of this game. They are not part of the game any more:
+ * never selectable, generated or simulated. Converted old saves keep historical records (stats,
+ * awards, trophies) under these IDs, so they resolve to a read-only "(archived)" label.
+ */
+export const ARCHIVED_TITLES: Record<string, { name: string; short: string; family: 'MOBA' | 'SHOOTER' }> = {
+  vainglory: { name: 'Vainglory', short: 'VG', family: 'MOBA' },
+  aov: { name: 'Arena of Valor', short: 'AoV', family: 'MOBA' },
+  msw: { name: 'Marvel Super War', short: 'MSW', family: 'MOBA' },
+  unite: { name: 'Pokémon Unite', short: 'Unite', family: 'MOBA' },
+  hots: { name: 'Heroes of the Storm', short: 'HotS', family: 'MOBA' },
+  smite2: { name: 'SMITE 2', short: 'SMITE 2', family: 'MOBA' },
+  predecessor: { name: 'Predecessor', short: 'Pred', family: 'MOBA' },
+  brawlstars: { name: 'Brawl Stars', short: 'Brawl', family: 'MOBA' },
+  valmobile: { name: 'Valorant Mobile', short: 'Val Mobile', family: 'SHOOTER' },
+  rivals: { name: 'Marvel Rivals', short: 'Rivals', family: 'SHOOTER' },
+  overwatch: { name: 'Overwatch', short: 'OW', family: 'SHOOTER' },
+  r6: { name: 'Rainbow Six Siege', short: 'R6', family: 'SHOOTER' },
+  apex: { name: 'Apex Legends', short: 'Apex', family: 'SHOOTER' },
+  warzone: { name: 'Call of Duty: Warzone', short: 'Warzone', family: 'SHOOTER' },
+  fortnite: { name: 'Fortnite', short: 'Fortnite', family: 'SHOOTER' },
+  pubg: { name: 'PUBG', short: 'PUBG', family: 'SHOOTER' },
+  pubgm: { name: 'PUBG Mobile', short: 'PUBGM', family: 'SHOOTER' },
+  paladins: { name: 'Paladins', short: 'Paladins', family: 'SHOOTER' },
+  deadlock: { name: 'Deadlock', short: 'Deadlock', family: 'SHOOTER' },
+  codm: { name: 'Call of Duty: Mobile', short: 'CODM', family: 'SHOOTER' },
+  cod: { name: 'Call of Duty', short: 'CoD', family: 'SHOOTER' },
+  wzm: { name: 'Call of Duty: Warzone Mobile', short: 'WZM', family: 'SHOOTER' },
+  owrush: { name: 'Overwatch Rush', short: 'OW Rush', family: 'SHOOTER' },
+};
+
+const archivedCache: Record<string, TitleDef> = {};
+
+/** Is this one of the seven titles in the game (as opposed to an archived historical label)? */
+export function isPlayableTitle(id: string): boolean {
+  return !!TITLE_BY_ID[id];
+}
+
 export function getTitle(id: string): TitleDef {
   const t = TITLE_BY_ID[id];
-  if (!t) throw new Error(`Unknown title ${id}`);
-  return t;
+  if (t) return t;
+  const a = ARCHIVED_TITLES[id];
+  if (!a) throw new Error(`Unknown title ${id}`);
+  // Display-only stub: shaped like a title so history screens render, flagged as archived.
+  const base = a.family === 'MOBA' ? TITLE_BY_ID.lol : TITLE_BY_ID.cs2;
+  return (archivedCache[id] ||= { ...base, id, sourceId: 'archived', name: `${a.name} (archived)`, short: a.short, archived: true, characters: [], maps: [], notes: 'No longer part of this game; shown for historical records only.' });
 }
 
 export function charById(titleId: string, charId: string) {

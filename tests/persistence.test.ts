@@ -159,3 +159,102 @@ describe('keeping saves small', () => {
     expect(p.prof.titles[p.titleId]).toBe(63.35);
   });
 });
+
+describe('manual save slots', () => {
+  it('saves copies of a career into slots 1-5 that load independently', async () => {
+    const { saveToSlot, slotSaveId, MANUAL_SLOTS } = await import('../src/persistence/db');
+    expect(MANUAL_SLOTS).toBe(5);
+    const w = withUser(makeWorld(['mlbb'], 'slots-ui'));
+    await saveToSlot(w, 1);
+    const day1 = w.day;
+    advance(w, { kind: 'days', n: 5 }, { stopForUserMatch: false });
+    await saveToSlot(w, 3);
+    const metas = await listSaves();
+    const s1 = metas.find((m) => m.id === slotSaveId(1))!;
+    const s3 = metas.find((m) => m.id === slotSaveId(3))!;
+    expect(s1).toMatchObject({ manualSlot: 1, careerId: w.meta.saveId, day: day1 });
+    expect(s3).toMatchObject({ manualSlot: 3, careerId: w.meta.saveId, day: w.day });
+    expect((await loadWorld(slotSaveId(1))).world.day).toBe(day1);
+    const l3 = (await loadWorld(slotSaveId(3))).world;
+    expect(l3.day).toBe(w.day);
+    expect(l3.meta.activeSlot).toBe(3);
+    await expect(saveToSlot(w, 6)).rejects.toThrow(/5 save slots/);
+    await deleteSave(slotSaveId(1));
+    expect((await listSaves()).some((m) => m.id === slotSaveId(1))).toBe(false);
+  });
+});
+
+describe('converting saves from the wider (30-title) edition', () => {
+  /** Build a v4 save in which the Valorant scene is labelled as a removed title (Overwatch). */
+  function legacySave(seed: string, onlyRemoved = false) {
+    const w = withUser(makeWorld(['lol', 'valorant'], seed));
+    const raw = clone(w) as unknown as Record<string, any>;
+    const relabel = (o: any) => {
+      if (o && o.titleId === 'valorant') o.titleId = 'overwatch';
+    };
+    for (const coll of ['teams', 'players', 'leagues', 'comps', 'fixtures', 'matches']) for (const x of Object.values<any>(raw[coll])) relabel(x);
+    for (const s of Object.values<any>(raw.staff)) relabel(s);
+    raw.titles.overwatch = raw.titles.valorant;
+    delete raw.titles.valorant;
+    raw.meta.titlesEnabled = onlyRemoved ? ['overwatch'] : ['lol', 'overwatch'];
+    if (onlyRemoved) {
+      for (const coll of ['teams', 'players', 'leagues']) for (const x of Object.values<any>(raw[coll])) if (x.titleId === 'lol') x.titleId = 'overwatch';
+    }
+    raw.meta.version = 4;
+    delete raw.negotiations;
+    return raw;
+  }
+
+  async function putLegacy(raw: Record<string, any>) {
+    const { openDB } = await import('idb');
+    const db = await openDB('ultimate-esports-manager', 1);
+    const { metaFor } = await import('../src/persistence/db');
+    await db.put('worlds', raw, raw.meta.saveId);
+    await db.put('saves', { ...metaFor(raw as never), version: 4 });
+    return db;
+  }
+
+  it('keeps the original as a backup, removes the excluded title and keeps every person', async () => {
+    const { exportLegacyBackup } = await import('../src/persistence/db');
+    const raw = legacySave('legacy-conv');
+    const id = raw.meta.saveId;
+    const owPlayers = Object.values<any>(raw.players).filter((p) => p.titleId === 'overwatch').map((p) => p.id);
+    expect(owPlayers.length).toBeGreaterThan(20);
+    await putLegacy(raw);
+    const { world, converted } = await loadWorld(id);
+    expect(converted).toBe(true);
+    expect(world.meta.version).toBe(SAVE_VERSION);
+    expect(world.meta.titlesEnabled).toEqual(['lol']);
+    for (const coll of [world.teams, world.leagues, world.comps, world.fixtures] as Array<Record<string, { titleId: string }>>) for (const x of Object.values(coll)) expect(x.titleId).toBe('lol');
+    // Every person survives with the same ID, now in an allowed title, as a free agent.
+    for (const pid of owPlayers) {
+      const p = world.players[pid];
+      expect(p).toBeTruthy();
+      expect(p.titleId).toBe('valorant');
+      expect(p.teamId).toBeNull();
+      expect(p.career.some((c) => c.type === 'title-switch' && /no longer part of the game/.test(c.note ?? ''))).toBe(true);
+      expect(p.prof.titles.overwatch).toBeUndefined();
+    }
+    expect(world.inbox.some((m) => m.subject === 'Save converted to the seven-title edition')).toBe(true);
+    // The untouched original remains exportable.
+    const backup = await exportLegacyBackup(id);
+    expect(backup).toBeTruthy();
+    expect(await backup!.text()).toContain('"overwatch"');
+    expect((await listSaves()).find((m) => m.id === id)?.legacyBackup).toBe(true);
+    // The converted world keeps simulating.
+    advance(world, { kind: 'days', n: 30 }, { stopForUserMatch: false });
+    expect(Object.values(world.fixtures).some((f) => f.status === 'done')).toBe(true);
+    // History labels for the removed title still resolve (read-only, archived).
+    const { getTitle, isPlayableTitle } = await import('../src/data/titles/catalogue');
+    expect(isPlayableTitle('overwatch')).toBe(false);
+    expect(getTitle('overwatch').archived).toBe(true);
+  });
+
+  it('refuses to convert a save that only has removed titles, keeping the backup', async () => {
+    const { exportLegacyBackup } = await import('../src/persistence/db');
+    const raw = legacySave('legacy-only', true);
+    await putLegacy(raw);
+    await expect(loadWorld(raw.meta.saveId)).rejects.toThrow(/cannot be converted/);
+    expect(await exportLegacyBackup(raw.meta.saveId)).toBeTruthy();
+  });
+});

@@ -1,30 +1,64 @@
-# Decisions, formulas and balancing constants
+# Design decisions, formulas and balancing constants
 
-Fixed by the specification (not changed): the 30-title catalogue and input assignments, the 86-attribute
-framework, the three input proficiencies, `Effective Mechanics = M × (0.65 + 0.35 × P/100)`,
-`E = 0.40C + 0.30S + 0.15T + 0.10R + 0.05P`, the similarity guideline bands and the series format tables.
-Everything below is a proposed, tunable default.
+Fixed by the specification (not changed): the **seven-title registry** (S220 MLBB, S221 Wild Rift, S222
+Honor of Kings, S223 League of Legends, S224 Dota 2, S232 Valorant, S234 Counter-Strike 2) with its input
+assignments and series formats, the 86-attribute framework (62 core + 10 MOBA + 14 shooter), the three
+input proficiencies, `Effective Mechanics = M × (0.65 + 0.35 × P/100)`,
+`E = 0.40C + 0.30S + 0.15T + 0.10R + 0.05P` and the similarity guideline bands. Everything below is a
+proposed, tunable default — **not** a claim from the source PDF.
+
+## Seven-title edition (19 Nov 2026)
+
+* **Scope.** The 23 other titles of the earlier edition and their engines (battle royale, hero/arena
+  shooters, Brawl sets, MOBA/shooter hybrid) were removed. Internal title IDs (`mlbb`, `wildrift`, `hok`,
+  `lol`, `dota2`, `valorant`, `cs2`) are kept for save compatibility and mapped explicitly to the source IDs
+  through `TitleDef.sourceId`.
+* **Drafts.** Ordinary per-game drafts and bans for all five MOBAs. HoK's former team-scoped restriction is
+  gone (any global-pick rule would be a named competition preset). LoL "Fearless" exists only as an
+  optional named preset (`world.rulePresets.lol.fearless = 'global'`), never on by default.
+* **Side choice (MOBA).** Game 1 by seeded coin toss; afterwards the previous game's loser chooses and takes
+  the first-pick side. The source states this for MLBB; applying it to all five MOBAs is a proposal.
+  Deterministic, so live drafting and quick simulation agree.
+* **Dota 2 buyback (proposal).** Cost `200 + 60 × minute` gold, 8-minute cooldown. A dead hero of the
+  losing side may buy back when its high ground is threatened (a lane one structure from open) or after
+  75% of the average game length, if it keeps 1,500 gold in reserve; probability `0.35 + clutch/250`.
+  Each buyback reduces the winner's push window by 0.9. Recorded as stat `bb` and a `buyback` event.
+* **MOBA victory.** Only core destruction (Base Crystal / Nexus / Ancient, with `coreHits` durability)
+  ends a game; kills never do. The engine's economy is gold for all five titles.
+* **Shooter overtime.** Valorant: at 12-12 sides alternate every round until a two-round lead. CS2: MR12,
+  then 6-round blocks (3 per side): 4 wins take the block, 3-3 starts another. Tested by score arithmetic.
+* **Old saves.** Save version 5. A save that references removed titles is converted on load after the
+  untouched original is stored (`backups[<id>#pre-7-title]`, exportable from the Load screen): removed
+  titles' leagues, competitions, fixtures, records, picks, offers and divisions are deleted; every player
+  and staff member keeps their identity and history and moves to the closest remaining title
+  (`REMOVED_TITLE_MAP`, e.g. AoV → HoK, Valorant Mobile → Valorant, R6 → CS2; starting title familiarity
+  `15 + 55 × similarity`, role familiarity `20 + 40 × similarity`) — players as free agents; past stats,
+  awards and trophies keep the original title IDs and render as read-only "(archived)" labels. A save with
+  only removed titles is refused with an explanation (backup still exportable). The user is informed in
+  the inbox; if their organisation keeps no divisions they become free to take a new job.
+* **Save slots.** Five manual slots (`slot-1` … `slot-5`) plus one autosave per career (`<saveId>`). A slot
+  copy stores `manualSlot` and `careerId`; the world remembers `meta.activeSlot` for the Save button, which
+  never overwrites a slot that now holds another career without asking.
+* **Android.** Capacitor 8 (`dev.uem.esportsmanager`), web build unchanged; `SystemBars.insetsHandling:
+  'css'` with `--safe-area-inset-*`; system Back navigates in-app history and exits from Home/Welcome;
+  autosave on `pause`. The default `INTERNET` permission is kept (template default, no network use).
 
 ## Data & realism
 
-* **Mechanics are simplified, editable presets**, not official real-world rules. Objective names used where
-  well known (e.g. Baron Nashor, Roshan, Lord/Turtle, Tyrant/Overlord, Dark Slayer, Gold Fury/Fire Giant,
-  Fangtooth/Orb Prime, Guardians/Walkers/Patron); uncertain ones are fictional placeholders (Vainglory,
-  Marvel Super War, Unite legendaries, HotS battleground objectives). Overwatch Rush (5v5, Control-only) and
-  Valorant Mobile details are fictional presets.
+* **Mechanics are simplified, editable presets**, not official real-world rules or patch contents. Objective
+  names used where well known (Baron Nashor, Roshan, Lord/Turtle, Tyrant/Overlord); timings are presets.
 * **All characters, maps, POIs** are procedurally generated fictional names (seeded per title).
 * **Popularity matrix** is a fictional-universe starting point (e.g. MLBB strongest in ID/PH, HoK in CN,
-  CS2 in EUE/CIS/BR, PUBG Mobile in SA/MENA) and drifts every season.
-* Deadlock uses a 4-lane "launch era" preset; rule eras are recorded on patches so later eras can differ.
-* Double elimination has **no bracket reset** (upper-bracket finalist can be eliminated by one GF loss).
-* HoK uses a team-scoped fearless draft; LoL uses global fearless; others standard drafts (editable).
+  CS2 in EUE/CIS/BR) and drifts every season.
+* Double elimination has **no bracket reset** (upper-bracket finalist can be eliminated by one GF loss);
+  finals start 0-0 (no upper-bracket game advantage — matches the Dota 2 rule in the spec).
 
 ## Effectiveness model
 
 * Core weights by group: Mechanical 1.0, Combat 1.0, Tactical 0.95, Mental 0.9, Teamwork 0.8, Knowledge 0.8;
   Development attributes only via Consistency (0.6) and Stamina (0.3).
-* Specialist relevance defaults: own family = 1, other family = 0, overridden per title (e.g. Last Hitting
-  0 in HotS, Projectile Leading 0.6 in SMITE 2, Recoil 1.3 in CS2, building/multitasking emphasis in Fortnite).
+* Specialist relevance defaults: own family = 1, other family = 0 (no Last Hitting in Valorant/CS2, no recoil
+  in MOBAs), overridden per title (e.g. Last Hitting 1.2 in Dota 2, 0.5 in MLBB/HoK; Recoil 1.3 in CS2).
 * Role emphasis multiplies attribute weights (full in E, square-rooted inside phase ratings).
 * Input sensitivity per attribute: 1.0 Micro Control/Accuracy/Combo/Movement/aim mechanics; 0.5 Reaction
   Speed; 0.3–0.6 for spacing/timing/targeting/peeking; 0 for mental, tactical and knowledge attributes.
@@ -40,17 +74,14 @@ Target: per-game win rate of the stronger side ≈ 55% for <1 rating point, 60�
 
 | Engine | Key constant |
 | --- | --- |
-| MOBA | teamfight logit = ln(powerA/powerB) × 4.5 (3.4 shared-XP); lane edge /9; objective control /10; pick-offs /9; structure pressure 0.42 × tick / avgLength |
+| MOBA | teamfight logit = ln(powerA/powerB) × 4.5; lane edge /9; objective control /10; pick-offs /9; structure pressure 0.42 × tick / avgLength; Dota buyback (see Seven-title edition) |
 | Tactical | duel scale 26 rating pts/logit (`DUEL_SCALE`); round swing σ 0.32; buy quality ×1.7; utility /60, info /80, IGL /80; defender edge per title |
-| Hero | fight logit = Δ/10 + comp ×0.6, ult +0.35 |
-| Arena | gun edge Δ/15, objective edge Δ/16, hill control noise σ 0.65 |
-| Brawl | Δ/9 per engagement |
-| BR | fight logit = ln ratio × 3, zone/position edges ±0.2 |
 
-Latest calibration (tiny worlds, 6 games per pairing): LoL 3–5 pts 75%; MLBB 73%; Dota 78%; Valorant 85%;
-CS2 89%; R6 81%; Overwatch 82%; CoD 81%; Brawl Stars 64%. Tactical shooters compound most (≈22 rounds).
+Latest calibration (tiny worlds, 6 games per pairing, before the seven-title edition): LoL 3–5 pts 75%;
+MLBB 73%; Dota 78%; Valorant 85%; CS2 89%. Tactical shooters compound most (≈22 rounds). The balance test
+(`tests/engines.test.ts`) still requires the stronger side to win >60% for all five tested titles.
 
-Core durability (`coreHits`): 2 for most MOBAs, 3 for Dota 2 / SMITE 2 / Deadlock, 4 for HotS.
+Core durability (`coreHits`): 2 for MLBB, Wild Rift, HoK and LoL; 3 for Dota 2.
 
 ## Economy
 
@@ -97,7 +128,7 @@ turnover (e.g. OBS 2027–31, IL 2032–34). Drivers: aging/decline, contract ex
 
 ## Competition extras
 
-* **Nations Cup**: odd seasons, 3–18 December, six most popular non-BR titles, 8 nations by average CA of
+* **Nations Cup**: odd seasons, 3–18 December, six most popular titles, 8 nations by average CA of
   their top players in the title; groups of 4 → single elimination; squads = starters + up to 2 subs.
   National teams belong to a federation pseudo-organisation excluded from finance, market and org evolution.
 * **Rookie drafts**: enabled by default in franchised tier-1 leagues (editable per league); prospect class of

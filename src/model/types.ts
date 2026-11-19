@@ -808,6 +808,8 @@ export interface WorldMeta {
   jobApproaches?: JobApproach[];
   /** Set after a dismissal until the user accepts a new job. */
   unemployed?: boolean;
+  /** Manual save slot (1-5) the Save button writes to; unset until the player picks one. */
+  activeSlot?: number | null;
   /** Optional national-team job held alongside the club role. */
   nationalJob?: { titleId: TitleId; country: CountryCode; squad: ID[] } | null;
 }

@@ -10,6 +10,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import type { World } from '../model/types';
 import { migrate, SaveError } from './migrate';
+import { convertToSevenTitles, removedTitlesIn, ScopeConversionError } from '../game/scope';
 import { formatDate } from '../core/date';
 
 export interface SaveMeta {
@@ -24,10 +25,20 @@ export interface SaveMeta {
   titles: number;
   /** Slot holding the newest copy (absent for saves written by older builds). */
   slot?: 'a' | 'b';
+  /** The untouched pre-seven-title original is kept and can be exported. */
+  legacyBackup?: boolean;
+  /** Manual save slot number (1-5); absent for a career's autosave. */
+  manualSlot?: number;
+  /** Career (autosave id) this copy belongs to. */
+  careerId?: string;
 }
+
+export const MANUAL_SLOTS = 5;
+export const slotSaveId = (n: number) => `slot-${n}`;
 
 type Slot = 'a' | 'b';
 const slotKey = (id: string, slot: Slot) => `${id}#${slot}`;
+const legacyKey = (id: string) => `${id}#pre-7-title`;
 const otherSlot = (s: Slot): Slot => (s === 'a' ? 'b' : 'a');
 
 const DB_NAME = 'ultimate-esports-manager';
@@ -67,31 +78,37 @@ let chain: Promise<unknown> = Promise.resolve();
  * Atomic save into the slot not holding the newest copy, then flip the metadata pointer (same
  * transaction). Saves are serialised so overlapping requests never interleave.
  */
-export function saveWorld(world: World): Promise<SaveMeta> {
+export function saveWorld(world: World, id: string = world.meta.saveId, extra: Partial<SaveMeta> = {}): Promise<SaveMeta> {
   const run = chain.then(
-    () => writeWorld(world),
-    () => writeWorld(world),
+    () => writeWorld(world, id, extra),
+    () => writeWorld(world, id, extra),
   );
   chain = run.catch(() => undefined);
   return run;
 }
 
-async function writeWorld(world: World): Promise<SaveMeta> {
+/** Save a copy of the current career into manual slot n (1-5). */
+export function saveToSlot(world: World, n: number): Promise<SaveMeta> {
+  if (!(n >= 1 && n <= MANUAL_SLOTS)) return Promise.reject(new SaveError(`There are only ${MANUAL_SLOTS} save slots.`));
+  world.meta.activeSlot = n;
+  return saveWorld(world, slotSaveId(n), { manualSlot: n, careerId: world.meta.saveId });
+}
+
+async function writeWorld(world: World, id: string, extra: Partial<SaveMeta>): Promise<SaveMeta> {
   world.meta.updated = Date.now();
-  const id = world.meta.saveId;
   const d = await db();
   const tx = d.transaction(['saves', 'worlds', 'backups', 'session'], 'readwrite');
   const prev = (await tx.objectStore('saves').get(id)) as SaveMeta | undefined;
   const slot: Slot = prev?.slot ? otherSlot(prev.slot) : 'a';
   await tx.objectStore('worlds').put(world, slotKey(id, slot));
-  const meta: SaveMeta = { ...metaFor(world), slot };
+  const meta: SaveMeta = { ...metaFor(world), id, careerId: world.meta.saveId, ...extra, slot, legacyBackup: prev?.legacyBackup };
   await tx.objectStore('saves').put(meta);
   // Once both slots exist, the old single-slot copies (older builds) are no longer needed.
   if (prev?.slot) {
     await tx.objectStore('worlds').delete(id);
     await tx.objectStore('backups').delete(id);
   }
-  await tx.objectStore('session').put({ saveId: id, dirty: false, at: Date.now() }, 'current');
+  if (id === world.meta.saveId) await tx.objectStore('session').put({ saveId: id, dirty: false, at: Date.now() }, 'current');
   await tx.done;
   return meta;
 }
@@ -124,8 +141,22 @@ export async function listSaves(): Promise<SaveMeta[]> {
   return all.sort((a, b) => b.updated - a.updated);
 }
 
+/**
+ * Migrate a raw save and convert it to the seven-title scope if needed. Conversion failures are
+ * reported as SaveErrors (the caller keeps any backup).
+ */
+function migrateAndConvert(raw: unknown): { world: World; converted: boolean } {
+  const world = migrate(raw as Record<string, unknown>);
+  try {
+    return { world, converted: !!convertToSevenTitles(world) };
+  } catch (e) {
+    if (e instanceof ScopeConversionError) throw new SaveError(e.message);
+    throw e;
+  }
+}
+
 /** Load the newest copy; if it is missing or corrupt, fall back to the other slot / older layout. */
-export async function loadWorld(id: string): Promise<{ world: World; recovered: boolean }> {
+export async function loadWorld(id: string): Promise<{ world: World; recovered: boolean; converted?: boolean }> {
   const d = await db();
   const meta = (await d.get('saves', id)) as SaveMeta | undefined;
   const candidates: Array<[string, string]> = [];
@@ -133,15 +164,28 @@ export async function loadWorld(id: string): Promise<{ world: World; recovered: 
   candidates.push(['worlds', id], ['backups', id]);
   let error: unknown = null;
   for (let i = 0; i < candidates.length; i++) {
-    const raw = await d.get(candidates[i][0], candidates[i][1]);
+    const raw = (await d.get(candidates[i][0], candidates[i][1])) as Record<string, any> | undefined;
     if (!raw) continue;
+    // Keep the untouched original before a save is converted to the seven-title scope.
+    if (removedTitlesIn(raw).length && !(await d.get('backups', legacyKey(id)))) {
+      await d.put('backups', structuredClone(raw), legacyKey(id));
+      if (meta) await d.put('saves', { ...meta, legacyBackup: true });
+    }
     try {
-      return { world: migrate(raw), recovered: i > 0 };
+      const { world, converted } = migrateAndConvert(raw);
+      return { world, recovered: i > 0, converted };
     } catch (e) {
       error ??= e;
     }
   }
   throw error ?? new SaveError('Save not found.');
+}
+
+/** Export the untouched pre-seven-title original of a converted save (JSON). */
+export async function exportLegacyBackup(id: string): Promise<Blob | null> {
+  const d = await db();
+  const raw = await d.get('backups', legacyKey(id));
+  return raw ? new Blob([JSON.stringify(raw)], { type: 'application/json' }) : null;
 }
 
 export async function deleteSave(id: string): Promise<void> {
@@ -150,8 +194,11 @@ export async function deleteSave(id: string): Promise<void> {
   await tx.objectStore('saves').delete(id);
   for (const k of [id, slotKey(id, 'a'), slotKey(id, 'b')]) await tx.objectStore('worlds').delete(k);
   await tx.objectStore('backups').delete(id);
+  await tx.objectStore('backups').delete(legacyKey(id));
   await tx.done;
 }
+
+
 
 /** Marks that unsaved progress exists (used to offer recovery after a crash / closed tab). */
 export async function markDirty(saveId: string): Promise<void> {
@@ -175,7 +222,7 @@ export async function importSave(text: string): Promise<World> {
   } catch {
     throw new SaveError('File is not valid JSON.');
   }
-  const world = migrate(raw as Record<string, unknown>);
+  const { world } = migrateAndConvert(raw);
   const existing = await listSaves();
   if (existing.some((s) => s.id === world.meta.saveId)) world.meta.saveId = `${world.meta.saveId}-import-${Date.now().toString(36)}`;
   await saveWorld(world);

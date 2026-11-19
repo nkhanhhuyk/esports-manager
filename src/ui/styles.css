@@ -851,3 +851,68 @@ label {
     padding: 6px;
   }
 }
+
+/* ------------------------------------------------------------------------------------------
+ * Android / phones: safe areas (edge-to-edge WebView), touch targets, archived title labels.
+ * Capacitor injects --safe-area-inset-*; browsers provide env(safe-area-inset-*).
+ * ------------------------------------------------------------------------------------------ */
+:root {
+  --sat: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --sab: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+  --sal: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+  --sar: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+}
+.shell {
+  grid-template-rows: calc(52px + var(--sat)) 1fr;
+  padding-left: var(--sal);
+  padding-right: var(--sar);
+  box-sizing: border-box;
+}
+.topbar {
+  padding-top: var(--sat);
+}
+.main {
+  padding-bottom: calc(60px + var(--sab));
+}
+.toast {
+  margin-bottom: var(--sab);
+}
+.ttag.archived {
+  opacity: 0.6;
+  font-style: italic;
+}
+@media (max-width: 860px) {
+  .shell {
+    grid-template-rows: auto 1fr;
+  }
+  .topbar {
+    padding-top: calc(6px + var(--sat));
+  }
+  .sidebar {
+    padding-top: calc(8px + var(--sat));
+    padding-bottom: calc(20px + var(--sab));
+  }
+}
+@media (pointer: coarse) {
+  .btn {
+    min-height: 38px;
+  }
+  .btn.sm {
+    min-height: 34px;
+    padding: 4px 10px;
+  }
+  .sidebar a {
+    padding: 11px 16px;
+  }
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 20px;
+    height: 20px;
+  }
+  select,
+  input[type='number'],
+  input[type='text'],
+  input:not([type]) {
+    min-height: 38px;
+  }
+}

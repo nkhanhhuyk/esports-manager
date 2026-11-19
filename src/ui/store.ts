@@ -9,7 +9,7 @@ import { advanceAsync, createWorldAsync } from '../worker/client';
 import type { NewWorldOptions } from '../gen/world';
 import { setUserOrg } from '../gen/world';
 import { applyRoleDelegation, hasBoard, setBoardObjectives } from '../systems/career';
-import { describeStorageError, listSaves, loadWorld, markDirty, requestPersistentStorage, saveWorld, type SaveMeta } from '../persistence/db';
+import { describeStorageError, listSaves, loadWorld, markDirty, requestPersistentStorage, saveToSlot, saveWorld, slotSaveId, type SaveMeta } from '../persistence/db';
 import { clearRatingCache } from '../sim/common/ratings';
 
 export interface Busy {
@@ -35,6 +35,10 @@ interface GameStore {
   chooseOrg: (orgId: string) => Promise<void>;
   load: (id: string) => Promise<void>;
   save: (silent?: boolean) => Promise<void>;
+  /** Save the current career into manual slot n (1-5). */
+  saveSlot: (n: number) => Promise<boolean>;
+  /** Header Save: write the active slot; 'choose' when the player must pick a slot first. */
+  quickSave: () => Promise<'saved' | 'choose' | 'failed'>;
   closeGame: () => void;
   advance: (mode: AdvanceMode, stopForUserMatch?: boolean) => Promise<AdvanceResult | null>;
   /** Run a mutation against the world and re-render. */
@@ -94,10 +98,18 @@ export const useGame = create<GameStore>((set, get) => ({
   load: async (id) => {
     set({ busy: { label: 'Loading save…', done: 0, total: 0 } });
     try {
-      const { world, recovered } = await loadWorld(id);
+      const { world, recovered, converted } = await loadWorld(id);
       clearRatingCache();
+      if (id.startsWith('slot-')) world.meta.activeSlot = Number(id.slice(5));
       set({ world, version: get().version + 1, busy: null, unsaved: false });
       if (recovered) get().notify('Main save was damaged — restored the previous autosave.', 'info');
+      if (converted) {
+        // Persist the converted world once (the original stays available as a backup).
+        if (world.meta.activeSlot && id.startsWith('slot-')) await saveToSlot(world, world.meta.activeSlot);
+        else await saveWorld(world);
+        await get().refreshSaves();
+        get().notify('This save was converted to the seven-title edition — see the Inbox. The original is kept as a backup (Load screen → Export original).', 'info');
+      }
     } catch (e) {
       set({ busy: null });
       get().notify(`Could not load save: ${(e as Error).message}`, 'err');
@@ -117,6 +129,33 @@ export const useGame = create<GameStore>((set, get) => ({
       set({ storageError: why });
       get().notify(`Save failed: ${why}`, 'err');
     }
+  },
+  saveSlot: async (n) => {
+    const w = get().world;
+    if (!w) return false;
+    try {
+      await saveToSlot(w, n);
+      requestPersistentStorage();
+      if (get().world === w) set({ unsaved: false, storageError: null, version: get().version + 1 });
+      await get().refreshSaves();
+      get().notify(`Saved to slot ${n}.`, 'ok');
+      return true;
+    } catch (e) {
+      const why = describeStorageError(e);
+      set({ storageError: why });
+      get().notify(`Save failed: ${why}`, 'err');
+      return false;
+    }
+  },
+  quickSave: async () => {
+    const w = get().world;
+    if (!w) return 'failed';
+    const n = w.meta.activeSlot;
+    if (!n) return 'choose';
+    // Never silently overwrite a slot that now holds a different career.
+    const meta = get().saves.find((s) => s.id === slotSaveId(n));
+    if (meta?.careerId && meta.careerId !== w.meta.saveId) return 'choose';
+    return (await get().saveSlot(n)) ? 'saved' : 'failed';
   },
   closeGame: () => set({ world: null, version: get().version + 1 }),
   advance: async (mode, stopForUserMatch = true) => {
