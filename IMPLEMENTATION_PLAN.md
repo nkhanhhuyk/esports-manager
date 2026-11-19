@@ -25,7 +25,8 @@ maps, formats and stats; all 30 complete seasons in tests.
 Done: multi-league structures, promotion/relegation, MSI/Worlds qualification, popularity drift, patch
 evolution & eras, cross-title careers, staff movement & ex-player staff, academies, org expansion,
 closures, acquisitions, rebrands, history, awards, GOAT, Hall of Fame.
-Next: national teams, rookie drafts, career-role permissions, dual-title rosters, affiliate exchanges.
+Also done: national teams, rookie drafts with tradable picks, restricted free agency, career-role permissions.
+Next: dual-title rosters, affiliate exchanges, AI pick trades.
 
 ## Phase 6 — Long-term stability & Android 🔶
 Done: deterministic seeded simulation, idempotent days, pruning/archiving for long saves (10-season soak in

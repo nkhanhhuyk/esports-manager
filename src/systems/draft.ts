@@ -8,7 +8,9 @@ import { clamp } from '../core/math';
 import type { RNG } from '../core/rng';
 import { COUNTRY_BY_CODE, expandRegion } from '../data/countries';
 import { getTitle } from '../data/titles/catalogue';
-import type { League, Player, World } from '../model/types';
+import type { DraftPickAsset, League, Player, World } from '../model/types';
+import { regionEconomy } from '../data/countries';
+import { computeTeamStrength } from '../sim/common/team';
 import { generatePlayer, pickNationality, type GenCtx } from '../gen/player';
 import { makeContract } from './contracts';
 import { rosterMax } from './transfers';
@@ -54,7 +56,11 @@ export function runRookieDrafts(world: World, season: number, rng: RNG): DraftPi
     const order = draftOrder(world, league, season);
     let pickNo = 0;
     for (let round = 1; round <= 2; round++) {
-      for (const teamId of order) {
+      for (const originalId of order) {
+        // Whoever owns this slot's pick (it may have been traded) makes the selection.
+        const asset = (world.draftPicks ?? []).find((d) => !d.used && d.leagueId === league.id && d.season === season && d.round === round && d.originalTeamId === originalId);
+        if (asset) asset.used = true;
+        const teamId = asset && world.teams[asset.ownerTeamId]?.active ? asset.ownerTeamId : originalId;
         const team = world.teams[teamId];
         if (!team || !team.active || !pool.length) continue;
         pickNo++;
@@ -83,4 +89,57 @@ export function runRookieDrafts(world: World, season: number, rng: RNG): DraftPi
 
 function age(p: Player, world: World): number {
   return Math.floor((world.day - p.birth) / 365.25);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Tradable picks
+// ---------------------------------------------------------------------------------------------
+
+/** Make sure every draft league has picks for this season's and next season's drafts. */
+export function ensureDraftPicks(world: World): void {
+  world.draftPicks ??= [];
+  for (const league of Object.values(world.leagues)) {
+    if (!league.policy.draft || league.tier !== 1) continue;
+    for (const season of [world.season, world.season + 1]) {
+      for (const teamId of league.teamIds) {
+        for (const round of [1, 2]) {
+          if (world.draftPicks.some((d) => d.leagueId === league.id && d.season === season && d.round === round && d.originalTeamId === teamId)) continue;
+          world.draftPicks.push({ id: nextId(world, 'dp'), leagueId: league.id, season, round, originalTeamId: teamId, ownerTeamId: teamId, used: false });
+        }
+      }
+    }
+  }
+  // Drafts for past seasons have been held; drop their picks (used or orphaned by league changes).
+  world.draftPicks = world.draftPicks.filter((d) => d.season >= world.season);
+}
+
+export function picksOwnedBy(world: World, teamId: string): DraftPickAsset[] {
+  return (world.draftPicks ?? []).filter((d) => !d.used && d.ownerTeamId === teamId).sort((a, b) => a.season - b.season || a.round - b.round);
+}
+
+/** Projected slot (1 = first) from the original team's current strength rank in its league. */
+export function projectedSlot(world: World, pick: DraftPickAsset): number {
+  const league = world.leagues[pick.leagueId];
+  if (!league) return 1;
+  const ranked = league.teamIds.map((id) => world.teams[id]).filter(Boolean).sort((a, b) => computeTeamStrength(world, a) - computeTeamStrength(world, b));
+  const idx = ranked.findIndex((t) => t.id === pick.originalTeamId);
+  return idx < 0 ? Math.ceil(league.teamIds.length / 2) : idx + 1;
+}
+
+/** Trade value of a pick: earlier picks and nearer drafts are worth more. */
+export function pickValue(world: World, pick: DraftPickAsset): number {
+  const league = world.leagues[pick.leagueId];
+  if (!league) return 0;
+  const t = getTitle(league.titleId);
+  const n = Math.max(1, league.teamIds.length);
+  const pos = projectedSlot(world, pick);
+  const base = t.baseSalary * regionEconomy(league.region) * 1.4;
+  const roundF = pick.round === 1 ? 1.6 - pos / n : 0.35 * (1.2 - pos / n);
+  const future = pick.season > world.season ? 0.85 : 1;
+  return Math.round((base * Math.max(0.1, roundF) * future) / 1000) * 1000;
+}
+
+export function pickLabel(world: World, pick: DraftPickAsset): string {
+  const orig = world.teams[pick.originalTeamId];
+  return `S${pick.season} draft R${pick.round} (${orig?.short ?? '?'}, proj. #${projectedSlot(world, pick)})`;
 }

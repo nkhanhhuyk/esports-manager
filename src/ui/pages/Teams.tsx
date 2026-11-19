@@ -15,6 +15,7 @@ import { STAFF_ROLE_LABEL } from '../../gen/staff';
 import { potentialRange } from '../../systems/scouting';
 import { regionName } from '../../data/countries';
 import { formatMoney } from '../../core/math';
+import { pickLabel, picksOwnedBy, pickValue } from '../../systems/draft';
 import type { Team } from '../../model/types';
 
 export function TeamsPage() {
@@ -158,6 +159,7 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
           <Card title={`Roster (${team.roster.length}) — ${t.teamSize} starters`}>
             <RosterTable team={team} />
           </Card>
+          <TeamPicks team={team} />
           {academy.length > 0 && (
             <Card title="Academy / development teams">
               {academy.map((a) => (
@@ -349,6 +351,40 @@ function NationalJobCard() {
           ))}
         </tbody>
       </table>
+    </Card>
+  );
+}
+
+/** Rookie-draft picks owned by a team, and the restricted-free-agency tender policy for user teams. */
+function TeamPicks({ team }: { team: Team }) {
+  const world = useWorld();
+  const { act } = useGame();
+  const league = team.leagueId ? world.leagues[team.leagueId] : null;
+  const picks = picksOwnedBy(world, team.id);
+  const mine = isUserTeamId(world, team.id);
+  if (!picks.length && !(mine && league?.policy.restrictedFA)) return null;
+  return (
+    <Card title="Draft picks & restricted free agency">
+      {picks.length > 0 ? (
+        <table className="table">
+          <tbody>
+            {picks.map((d) => (
+              <tr key={d.id}>
+                <td>{pickLabel(world, d)}</td>
+                <td className="muted">{d.originalTeamId === team.id ? 'own pick' : `acquired from ${world.teams[d.originalTeamId]?.name ?? '?'}`}</td>
+                <td className="num">≈{formatMoney(pickValue(world, d))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <div className="muted small">No draft picks held.</div>
+      )}
+      {mine && league?.policy.restrictedFA && (
+        <label style={{ display: 'block', marginTop: 6 }}>
+          <input type="checkbox" checked={team.prefs.tenderRFA !== false} onChange={(e) => act((w) => (w.teams[team.id].prefs.tenderRFA = e.target.checked), { save: true })} /> Tender qualifying offers to expiring players aged 24 or under (one season at +10% salary)
+        </label>
+      )}
     </Card>
   );
 }

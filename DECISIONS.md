@@ -103,6 +103,17 @@ turnover (e.g. OBS 2027–31, IL 2032–34). Drivers: aging/decline, contract ex
 * **Rookie drafts**: enabled by default in franchised tier-1 leagues (editable per league); prospect class of
   2 × teams + 4 aged 17–19 from the league's region; reverse regular-season order; picks valued by CA +
   0.8 × headroom with evaluation noise; two-season rookie deals at 1.5 × league minimum with a team option.
+* **Draft picks**: `world.draftPicks` holds assets for the current and next season's drafts (2 rounds per
+  team); past-season picks are pruned at rollover. Value = title base salary × regional economy × 1.4 ×
+  (round 1: 1.6 − slot/n; round 2: 0.35 × (1.2 − slot/n)), × 0.85 for next season's draft. Projected slot is
+  the original team's strength rank in its league (weakest picks first). The receiving club values picks it
+  gives up at 1.1× in trades. If a pick's owner is no longer active, the original team selects.
+* **Restricted free agency**: a qualifying offer is one season at max(110% salary, league minimum), so it
+  always runs through the next season. Simplification: no offer sheets yet — the tender simply retains the
+  player. AI tenders lineup players and those with > 5 points of headroom if the org's balance is positive.
+* **Swiss pairing**: score groups are paired by bounded backtracking (highest vs lowest preferred) so
+  avoidable rematches never happen; an odd group floats its lowest feasible team down; rematches are
+  accepted only when no rematch-free pairing exists (greedy fallback).
 * **Luxury tax**: soft caps tax payroll above the cap at the league tax rate (default 50%), charged monthly.
 
 ## Board

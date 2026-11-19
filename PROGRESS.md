@@ -42,8 +42,15 @@ by simulation tests.
 * **League policies in play**: rookie drafts (franchised leagues by default; reverse-standings order, two
   rounds, rookie deals with team option), soft-cap luxury tax charged monthly, hard caps, import limits,
   minimum ages, roster limits, trade/loan/fee permissions.
+* **Tradable draft picks**: every draft league holds two rounds of picks for this and next season's drafts;
+  picks can be traded with players and cash in the trade builder (picks-only deals allowed), are valued by
+  projected slot (team-strength rank), round and distance, and the owning club makes the selection. Team
+  pages list held picks (own / acquired).
+* **Restricted free agency**: in restricted-FA leagues (franchised shooter leagues by default) clubs can
+  retain expiring players aged ≤ 24 with a one-season qualifying offer at +10%; AI tenders starters and
+  high-upside players, user teams choose via a toggle on the Team page.
 * **Saves**: IndexedDB slots, autosave + backup, crash-recovery prompt, export/import JSON, zod validation,
-  v1→v2 migration.
+  v1→v2→v3 migrations.
 * **UI**: sidebar shell, breadcrumbs, back/forward, global search, sortable/filterable/paginated tables with
   column chooser, profiles for every entity, player comparison, title-adaptive match screens, charts,
   light/dark themes, responsive mobile layout, database editor.
@@ -52,8 +59,8 @@ by simulation tests.
 
 * **Dual-title participation**: `Player.dualTitleId` exists and cross-title histories are tracked, but a player
   cannot yet appear on two active rosters simultaneously.
-* **Draft picks as tradable assets**: drafts run, but picks cannot yet be traded.
-* **Restricted free agency**: policy flag exists; no matching-offer mechanic yet.
+* **Draft picks / RFA**: AI clubs do not yet initiate pick trades among themselves; RFA has qualifying offers
+  but no rival offer-sheet/matching step.
 * **Career roles & job security**: choose Head Coach & GM, Head Coach, General Manager, Sporting Director,
   Owner or Commissioner. Each role has its own permissions (tactics/live matches, transfers, contracts, staff,
   finance, facilities, expansion); AI staff run whatever your role doesn't (e.g. the AI GM recruits for a Head
@@ -70,10 +77,9 @@ by simulation tests.
    Standard ≈46s per season (in a Web Worker with progress). Next: cache per-game team contexts across a
    series, pre-filter draft candidates, lighter weekly training for free agents, an aggregated engine path
    for low-tier leagues.
-2. Role-based permissions for career modes (owner/director/national coach) and board objectives/job security.
-3. Tradable draft picks, restricted FA matching offers, trade-block UI.
-4. Mid-season board reactions (warnings after bad splits), contract-length/job offers while employed.
-5. Dual-title rosters with schedule-conflict fatigue.
-6. Richer AI strategic shifts (rebuild vs contend cycles), affiliate partnerships and player exchanges.
-7. More granular commentary (per-round tactical narration), heatmap-style analytics.
-8. Capacitor Android project scaffold and on-device performance tuning.
+2. AI-initiated pick trades, RFA offer sheets with matching rights, trade-block UI.
+3. Mid-season board reactions (warnings after bad splits), contract-length/job offers while employed.
+4. Dual-title rosters with schedule-conflict fatigue.
+5. Richer AI strategic shifts (rebuild vs contend cycles), affiliate partnerships and player exchanges.
+6. More granular commentary (per-round tactical narration), heatmap-style analytics.
+7. Capacitor Android project scaffold and on-device performance tuning.

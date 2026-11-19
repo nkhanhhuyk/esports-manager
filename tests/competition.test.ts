@@ -120,6 +120,21 @@ describe('brackets', () => {
     expect(stage.standings.filter((r) => r.w === 3).length).toBe(8);
     expect(stage.standings.filter((r) => r.l === 3).length).toBe(8);
   });
+
+  it('swiss pairing backtracks instead of accepting an avoidable rematch', async () => {
+    const { pairGroup } = await import('../src/competition/stages');
+    // Greedy top-vs-bottom pairs A-E, B-F, then is forced into the C-D rematch.
+    const played = new Set(['A|F', 'C|D']);
+    const { pairs, float } = pairGroup(['A', 'B', 'C', 'D', 'E', 'F'], played);
+    expect(float).toBeNull();
+    expect(pairs.length).toBe(3);
+    for (const [a, b] of pairs) expect(played.has([a, b].sort().join('|'))).toBe(false);
+    expect(new Set(pairs.flat()).size).toBe(6);
+    // Odd group: the lowest team that still allows a clean pairing floats down.
+    const odd = pairGroup(['A', 'B', 'C'], new Set(['A|C']));
+    expect(odd.pairs).toEqual([['A', 'B']]);
+    expect(odd.float).toBe('C');
+  });
 });
 
 describe('battle royale points stage', () => {

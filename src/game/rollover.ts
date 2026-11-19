@@ -24,7 +24,7 @@ import { createOrg, createTeam, populateTeam, staffTeam } from '../gen/world';
 import { expectedStaffSalary, makeContract } from '../systems/contracts';
 import { makeOrgName } from '../gen/names';
 import { computeTeamStrength } from '../sim/common/team';
-import { runRookieDrafts } from '../systems/draft';
+import { ensureDraftPicks, runRookieDrafts } from '../systems/draft';
 import { clearNationalSquads } from '../systems/nations';
 import { boardReview, hasBoard, setBoardObjectives } from '../systems/career';
 
@@ -414,6 +414,7 @@ export function seasonRollover(world: World): void {
   }
   for (const id of world.meta.titlesEnabled) releasePatch(world, id, true);
   planSeason(world, world.season);
+  ensureDraftPicks(world);
   if (world.meta.userOrgId && !world.meta.unemployed && hasBoard(world)) setBoardObjectives(world);
   prune(world, season);
   if (world.meta.userOrgId) {

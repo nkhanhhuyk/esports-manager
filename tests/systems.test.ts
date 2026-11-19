@@ -200,3 +200,59 @@ describe('national team coach job', () => {
     for (const id of picks) expect(mine.roster).toContain(id);
   });
 });
+
+describe('tradable draft picks & restricted free agency', () => {
+  it('a traded pick changes owner and the new owner makes that selection', async () => {
+    const { advance } = await import('../src/game/advance');
+    const { ensureDraftPicks, picksOwnedBy, pickValue } = await import('../src/systems/draft');
+    const { proposeTrade } = await import('../src/systems/transfers');
+    const w = makeWorld(['lol'], 'picks');
+    const league = Object.values(w.leagues).find((l) => l.tier === 1)!;
+    league.policy.draft = true;
+    league.policy.trades = true;
+    ensureDraftPicks(w);
+    expect(w.draftPicks.filter((d) => d.leagueId === league.id).length).toBe(league.teamIds.length * 2 * 2);
+    advance(w, { kind: 'until', day: dayFromYMD(2026, 11, 21) });
+    const [aId, bId] = league.teamIds;
+    const pick = picksOwnedBy(w, aId).find((d) => d.season === w.season && d.round === 1)!;
+    w.orgs[w.teams[bId].orgId].balance += 1e8;
+    // Not enough value is rejected; a fair offer is accepted.
+    expect(proposeTrade(w, bId, [], [], 1, { otherTeamId: aId, takePicks: [pick.id] }).ok).toBe(false);
+    const r = proposeTrade(w, bId, [], [], pickValue(w, pick) * 2, { otherTeamId: aId, takePicks: [pick.id] });
+    expect(r.ok).toBe(true);
+    expect(pick.ownerTeamId).toBe(bId);
+    expect(picksOwnedBy(w, bId).some((d) => d.id === pick.id)).toBe(true);
+    const season = w.season;
+    advance(w, { kind: 'end-season' });
+    const drafted = w.transfers.filter((x) => x.type === 'draft' && x.season === season + 1);
+    expect(drafted.filter((x) => x.toTeamId === bId).length).toBe(3);
+    expect(drafted.filter((x) => x.toTeamId === aId).length).toBe(1);
+    // Used picks are pruned and the next two drafts are seeded.
+    expect(w.draftPicks.some((d) => d.season < w.season)).toBe(false);
+    expect(w.draftPicks.filter((d) => d.leagueId === league.id && d.season === w.season + 1).length).toBe(league.teamIds.length * 2);
+  });
+
+  it('tenders qualifying offers to young expiring players in restricted-FA leagues (user can opt out)', async () => {
+    const { advance } = await import('../src/game/advance');
+    const setup = (tender: boolean) => {
+      const w = withUser(makeWorld(['valorant'], 'rfa'));
+      const team = Object.values(w.teams).find((t) => t.orgId === w.meta.userOrgId && t.leagueId)!;
+      w.leagues[team.leagueId!].policy.restrictedFA = true;
+      w.orgs[team.orgId].balance += 1e7;
+      team.prefs.tenderRFA = tender;
+      const p = team.lineup.map((s) => w.players[s.playerId!]).filter(Boolean).sort((a, b) => b.birth - a.birth)[0];
+      p.birth = w.day - 20 * 365.25;
+      p.contract!.endSeason = w.season;
+      p.contract!.option = 'none';
+      return { w, team, p };
+    };
+    const a = setup(true);
+    advance(a.w, { kind: 'end-season' });
+    expect(a.p.teamId).toBe(a.team.id);
+    expect(a.p.career.some((c) => c.note === 'Qualifying offer (restricted free agent)')).toBe(true);
+    expect(a.p.contract!.endSeason).toBeGreaterThanOrEqual(a.w.season);
+    const b = setup(false);
+    advance(b.w, { kind: 'end-season' });
+    expect(b.p.career.some((c) => c.note === 'Qualifying offer (restricted free agent)')).toBe(false);
+  });
+});

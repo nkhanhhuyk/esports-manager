@@ -9,7 +9,8 @@ import { clamp } from '../core/math';
 import { ageAt, ymd } from '../core/date';
 import { RNG } from '../core/rng';
 import { getTitle, titleSimilarity } from '../data/titles/catalogue';
-import type { Offer, Organisation, Player, Team, TransferRecord, World } from '../model/types';
+import type { DraftPickAsset, Offer, Organisation, Player, Team, TransferRecord, World } from '../model/types';
+import { pickLabel, pickValue } from './draft';
 import { nextId } from '../model/ids';
 import { effectivenessLight, bestRole } from '../sim/common/ratings';
 import { expectedSalary, makeContract, marketValue, offerAppeal, teamPayroll, validateContract } from './contracts';
@@ -321,24 +322,33 @@ export function loanPlayer(world: World, playerId: string, toTeamId: string, day
 }
 
 /** Player-for-player trade (+ optional cash from the proposing team). */
-export function proposeTrade(world: World, teamId: string, give: string[], take: string[], cash = 0): OfferResponse {
+export function proposeTrade(world: World, teamId: string, give: string[], take: string[], cash = 0, opts: { otherTeamId?: string; givePicks?: string[]; takePicks?: string[] } = {}): OfferResponse {
   const team = world.teams[teamId];
   const takeP = take.map((id) => world.players[id]).filter(Boolean);
-  if (!team || !takeP.length || !takeP[0].teamId) return { ok: false, status: 'invalid', message: 'Invalid trade.' };
-  const other = world.teams[takeP[0].teamId!];
+  const picks = world.draftPicks ?? [];
+  const givePk = (opts.givePicks ?? []).map((id) => picks.find((d) => d.id === id)).filter((d) => d && !d.used && d.ownerTeamId === teamId) as DraftPickAsset[];
+  const otherId = opts.otherTeamId ?? takeP[0]?.teamId ?? picks.find((d) => d.id === opts.takePicks?.[0])?.ownerTeamId;
+  const other = otherId ? world.teams[otherId] : undefined;
+  if (!team || !other || other.id === team.id) return { ok: false, status: 'invalid', message: 'Invalid trade.' };
+  const takePk = (opts.takePicks ?? []).map((id) => picks.find((d) => d.id === id)).filter((d) => d && !d.used && d.ownerTeamId === other.id) as DraftPickAsset[];
+  if (!takeP.length && !takePk.length) return { ok: false, status: 'invalid', message: 'Ask for at least one player or pick.' };
   if (takeP.some((p) => p.teamId !== other.id)) return { ok: false, status: 'invalid', message: 'All requested players must come from one team.' };
   const giveP = give.map((id) => world.players[id]).filter((p) => p && p.teamId === team.id);
   const lg = team.leagueId ? world.leagues[team.leagueId] : null;
   const olg = other.leagueId ? world.leagues[other.leagueId] : null;
   if ((lg && !lg.policy.trades) || (olg && !olg.policy.trades)) return { ok: false, status: 'invalid', message: 'Trades are not permitted by league rules (franchised leagues only by default).' };
   if (!inTransferWindow(world)) return { ok: false, status: 'invalid', message: 'Trades are only processed in transfer windows.' };
-  const valueIn = takeP.reduce((a, p) => a + clubValuation(world, p, other), 0);
-  const valueOut = giveP.reduce((a, p) => a + marketValue(world, p) * (other.titleId === p.titleId ? 1 : 0.5), 0) + cash;
+  const valueIn = takeP.reduce((a, p) => a + clubValuation(world, p, other), 0) + takePk.reduce((a, d) => a + pickValue(world, d) * 1.1, 0);
+  const valueOut = giveP.reduce((a, p) => a + marketValue(world, p) * (other.titleId === p.titleId ? 1 : 0.5), 0) + givePk.reduce((a, d) => a + pickValue(world, d), 0) + cash;
+  if (takeP.length + giveP.length > 0 && (team.roster.length - giveP.length + takeP.length > rosterMax(world, team) || other.roster.length - takeP.length + giveP.length > rosterMax(world, other))) return { ok: false, status: 'invalid', message: 'The trade would break a roster limit.' };
   if (valueOut < valueIn * 1.05) return { ok: false, status: 'rejected', message: `${other.name} want more value (gap ~$${Math.round(valueIn * 1.05 - valueOut).toLocaleString()}).`, counterFee: Math.round(valueIn * 1.05 - valueOut) };
   if (cash > 0) {
     ledger(world, world.orgs[team.orgId], 'trade-cash', -cash, team.id, 'Trade consideration');
     ledger(world, world.orgs[other.orgId], 'trade-cash', cash, other.id, 'Trade consideration');
   }
+  for (const d of takePk) d.ownerTeamId = team.id;
+  for (const d of givePk) d.ownerTeamId = other.id;
+  if (givePk.length || takePk.length) addNews(world, { kind: 'transfer', title: `${team.name} and ${other.name} trade draft picks`, body: [...takePk.map((d) => `${team.short} receive ${pickLabel(world, d)}`), ...givePk.map((d) => `${other.short} receive ${pickLabel(world, d)}`)].join('; '), titleId: team.titleId, refs: [{ type: 'team', id: team.id }, { type: 'team', id: other.id }], importance: 2 });
   for (const p of takeP) movePlayer(world, p, team, p.contract?.salary ?? expectedSalary(world, p, team.titleId, team.region), Math.max(1, (p.contract?.endSeason ?? world.season) - world.season + 1), 'trade');
   for (const p of giveP) movePlayer(world, p, other, p.contract?.salary ?? expectedSalary(world, p, other.titleId, other.region), Math.max(1, (p.contract?.endSeason ?? world.season) - world.season + 1), 'trade');
   return { ok: true, status: 'accepted', message: `Trade completed with ${other.name}.` };
@@ -621,6 +631,20 @@ export function expireContracts(world: World, endedSeason: number): void {
       p.contract.endSeason += 1;
       p.contract.option = 'none';
       continue;
+    }
+    // Restricted free agency: young players' clubs may retain them with a qualifying offer.
+    const league = team?.leagueId ? world.leagues[team.leagueId] : null;
+    if (team && league?.policy.restrictedFA && ageAt(p.birth, world.day) <= 24) {
+      const org = world.orgs[team.orgId];
+      const valued = team.lineup.some((s) => s.playerId === p.id) || p.pa - p.ca > 5;
+      const tender = org?.user && can(world, 'contracts') ? team.prefs.tenderRFA !== false : valued;
+      if (tender && org && org.balance > 0) {
+        const salary = Math.round(Math.max(p.contract.salary * 1.1, league.policy.minSalary) / 500) * 500;
+        p.contract = { ...makeContract(world, team, salary, 1, { buyout: p.contract.buyout }), endSeason: endedSeason + 1 };
+        p.career.push({ season: endedSeason, day: world.day, titleId: team.titleId, teamId: team.id, orgId: team.orgId, type: 'signed', note: 'Qualifying offer (restricted free agent)' });
+        if (org.user) addInbox(world, { from: 'Contracts', subject: `${p.handle} retained as a restricted free agent`, body: `A one-season qualifying offer of $${salary.toLocaleString()} keeps ${p.handle} at ${team.name}.`, kind: 'contract' });
+        continue;
+      }
     }
     removeFromTeam(world, p);
     p.contract = null;

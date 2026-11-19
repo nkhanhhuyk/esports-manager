@@ -60,6 +60,20 @@ describe('save migration', () => {
     expect(Object.values(m.fixtures).some((f) => f.status === 'done')).toBe(true);
   });
 
+  it('migrates a v2 save by seeding tradable draft picks', () => {
+    const w = makeWorld(['lol'], 'migrate3');
+    const lg = Object.values(w.leagues).find((l) => l.tier === 1)!;
+    lg.policy.draft = true;
+    const v2 = clone(w) as unknown as Record<string, any>;
+    v2.meta.version = 2;
+    delete v2.draftPicks;
+    const m = migrate(v2);
+    expect(m.meta.version).toBe(SAVE_VERSION);
+    expect(m.draftPicks.length).toBe(lg.teamIds.length * 4);
+    expect(new Set(m.draftPicks.map((d) => d.id)).size).toBe(m.draftPicks.length);
+    expect(m.draftPicks.every((d) => d.ownerTeamId === d.originalTeamId && !d.used)).toBe(true);
+  });
+
   it('rejects malformed and future saves', () => {
     expect(() => migrate({} as never)).toThrow(SaveError);
     const w = clone(makeWorld(['lol'], 'bad')) as unknown as Record<string, any>;

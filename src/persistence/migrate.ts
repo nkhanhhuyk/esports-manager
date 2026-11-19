@@ -22,6 +22,23 @@ export const MIGRATIONS: Record<number, (w: AnyWorld) => AnyWorld> = {
     }
     return w;
   },
+  // v2 -> v3: tradable draft picks. Self-contained (no game imports): seed this and next
+  // season's picks for every top-tier league that runs a rookie draft.
+  2: (w) => {
+    if (!Array.isArray(w.draftPicks)) {
+      w.draftPicks = [];
+      for (const lg of Object.values<AnyWorld>(w.leagues ?? {})) {
+        if (!lg.policy?.draft || lg.tier !== 1) continue;
+        for (const season of [w.season, w.season + 1])
+          for (const teamId of lg.teamIds ?? [])
+            for (const round of [1, 2]) {
+              w.counter += 1;
+              w.draftPicks.push({ id: `dp${w.counter.toString(36)}`, leagueId: lg.id, season, round, originalTeamId: teamId, ownerTeamId: teamId, used: false });
+            }
+      }
+    }
+    return w;
+  },
 };
 
 const metaSchema = z

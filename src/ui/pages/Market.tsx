@@ -8,6 +8,7 @@ import { potentialRange } from '../../systems/scouting';
 import { formatMoney } from '../../core/math';
 import { formatDate } from '../../core/date';
 import { inTransferWindow, proposeTrade, respondToOffer } from '../../systems/transfers';
+import { pickLabel, picksOwnedBy, pickValue } from '../../systems/draft';
 import { isUserTeamId, roleName, userTeams } from '../helpers';
 import type { Player } from '../../model/types';
 
@@ -144,6 +145,8 @@ function TradeBuilder() {
   const [give, setGive] = useState<string[]>([]);
   const [take, setTake] = useState<string[]>([]);
   const [cash, setCash] = useState(0);
+  const [givePicks, setGivePicks] = useState<string[]>([]);
+  const [takePicks, setTakePicks] = useState<string[]>([]);
   if (!team) return null;
   const others = Object.values(world.teams).filter((t) => t.active && t.titleId === team.titleId && t.id !== team.id && !isUserTeamId(world, t.id));
   const other = world.teams[otherId];
@@ -151,7 +154,7 @@ function TradeBuilder() {
   return (
     <Card title="Trade proposal" right={<span className="muted small">{league?.policy.trades ? 'Trades permitted in your league' : 'Your league does not permit trades (franchised leagues allow them by default; edit in Database Editor)'}</span>}>
       <div className="row">
-        <select value={teamId} onChange={(e) => { setTeamId(e.target.value); setGive([]); }} aria-label="Your team">
+        <select value={teamId} onChange={(e) => { setTeamId(e.target.value); setGive([]); setGivePicks([]); }} aria-label="Your team">
           {mine.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}
@@ -159,7 +162,7 @@ function TradeBuilder() {
           ))}
         </select>
         <span>⇄</span>
-        <select value={otherId} onChange={(e) => { setOtherId(e.target.value); setTake([]); }} aria-label="Other team">
+        <select value={otherId} onChange={(e) => { setOtherId(e.target.value); setTake([]); setTakePicks([]); }} aria-label="Other team">
           <option value="">Choose partner…</option>
           {others.map((t) => (
             <option key={t.id} value={t.id}>
@@ -176,6 +179,7 @@ function TradeBuilder() {
               <input type="checkbox" checked={give.includes(pid)} onChange={() => setGive((g) => (g.includes(pid) ? g.filter((x) => x !== pid) : [...g, pid]))} /> {world.players[pid].handle} ({world.players[pid].ca.toFixed(0)} CA, {formatMoney(world.players[pid].value)})
             </label>
           ))}
+          <PickChecks world={world} teamId={team.id} sel={givePicks} set={setGivePicks} />
           <label className="field">
             <span>+ cash</span>
             <input type="number" value={cash} onChange={(e) => setCash(Number(e.target.value))} />
@@ -188,11 +192,35 @@ function TradeBuilder() {
               <input type="checkbox" checked={take.includes(pid)} onChange={() => setTake((g) => (g.includes(pid) ? g.filter((x) => x !== pid) : [...g, pid]))} /> {world.players[pid].handle} ({world.players[pid].ca.toFixed(0)} CA, {formatMoney(world.players[pid].value)})
             </label>
           ))}
+          {other && <PickChecks world={world} teamId={other.id} sel={takePicks} set={setTakePicks} />}
         </div>
       </div>
-      <button className="btn" disabled={!take.length} onClick={() => { const r = act((w) => proposeTrade(w, teamId, give, take, cash), { save: true }); if (r) notify(r.message, r.ok ? 'ok' : 'err'); }}>
+      <button
+        className="btn"
+        disabled={!other || (!take.length && !takePicks.length)}
+        onClick={() => {
+          const r = act((w) => proposeTrade(w, teamId, give, take, cash, { otherTeamId: otherId, givePicks, takePicks }), { save: true });
+          if (r) notify(r.message, r.ok ? 'ok' : 'err');
+          if (r?.ok) { setGive([]); setTake([]); setGivePicks([]); setTakePicks([]); setCash(0); }
+        }}
+      >
         Propose trade
       </button>
     </Card>
+  );
+}
+
+function PickChecks({ world, teamId, sel, set }: { world: ReturnType<typeof useWorld>; teamId: string; sel: string[]; set: (f: (s: string[]) => string[]) => void }) {
+  const picks = picksOwnedBy(world, teamId);
+  if (!picks.length) return null;
+  return (
+    <div style={{ marginTop: 6 }}>
+      <span className="muted small">Draft picks</span>
+      {picks.map((d) => (
+        <label key={d.id} style={{ display: 'block' }}>
+          <input type="checkbox" checked={sel.includes(d.id)} onChange={() => set((s) => (s.includes(d.id) ? s.filter((x) => x !== d.id) : [...s, d.id]))} /> {pickLabel(world, d)} <span className="muted">≈{formatMoney(pickValue(world, d))}</span>
+        </label>
+      ))}
+    </div>
   );
 }

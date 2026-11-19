@@ -14,6 +14,7 @@ import { generateStaff } from './staff';
 import { makeColors, makeCompanyName, makeOrgName } from './names';
 import { expectedSalary, expectedStaffSalary, makeContract, marketValue, titlePopIn } from '../systems/contracts';
 import { sponsorDealValue } from '../systems/finance';
+import { ensureDraftPicks } from '../systems/draft';
 import { autoLineup } from '../systems/lineup';
 import { initialPatch } from '../systems/patches';
 import { planSeason } from '../competition/season';
@@ -291,6 +292,7 @@ export function createWorld(opts: NewWorldOptions): World {
     scoutFocus: [],
     overrides: {},
     customFormats: {},
+    draftPicks: [],
   };
   const rng = new RNG(`${opts.seed}|worldgen`);
   const ctx: GenCtx = { world, rng, handles: new Set() };
@@ -459,6 +461,7 @@ export function createWorld(opts: NewWorldOptions): World {
   }
 
   planSeason(world, world.season);
+  ensureDraftPicks(world);
   return world;
 }
 

@@ -113,6 +113,10 @@ Series keep every game.
   talent, evaluate needs by role, scan free agents (sometimes cross-title) and players at other clubs,
   score candidates by strategy (win-now, youth, moneyball, prestige…), respect budgets, bid on user players
   (inbox offers with accept/reject), renew key contracts, list unhappy players.
+* **Draft picks & restricted free agency**: leagues with rookie drafts give every team two picks per draft for
+  this and next season; picks trade alongside players and cash (valued by projected slot, round and how far
+  away the draft is) and the holder makes the selection. In restricted-FA leagues clubs may retain expiring
+  players aged ≤ 24 with a one-season qualifying offer (+10% salary).
 * **Finance**: division commercial value (title × region × popularity × roster size) drives media and
   sponsorship; merchandise from fans; franchised league revenue share; prize money; salaries, staff,
   facilities upkeep, operations; distress → owner injection or acquisition; sponsor renewal.

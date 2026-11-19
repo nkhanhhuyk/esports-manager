@@ -295,6 +295,42 @@ function playedPairs(world: World, stage: Stage): Set<string> {
   return s;
 }
 
+/**
+ * Pair one Swiss score group without rematches, highest against lowest where possible
+ * (bounded backtracking). With an odd group the lowest team that still allows a clean
+ * pairing floats down. Rematches are only accepted when no rematch-free pairing exists.
+ */
+export function pairGroup(ids: string[], played: Set<string>): { pairs: Array<[string, string]>; float: string | null } {
+  const key = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  let budget = 20000;
+  const solve = (rest: string[]): Array<[string, string]> | null => {
+    if (!rest.length) return [];
+    if (--budget < 0) return null;
+    const [a, ...others] = rest;
+    for (let j = others.length - 1; j >= 0; j--) {
+      if (played.has(key(a, others[j]))) continue;
+      const sub = solve(others.filter((_, i) => i !== j));
+      if (sub) return [[a, others[j]], ...sub];
+    }
+    return null;
+  };
+  const floats = ids.length % 2 ? [...ids].reverse() : [null];
+  for (const f of floats) {
+    const sub = solve(f ? ids.filter((x) => x !== f) : ids);
+    if (sub) return { pairs: sub, float: f };
+  }
+  // No clean pairing: greedy, preferring unplayed opponents.
+  const pool = [...ids];
+  const pairs: Array<[string, string]> = [];
+  while (pool.length >= 2) {
+    const a = pool.shift()!;
+    let j = pool.length - 1;
+    while (j > 0 && played.has(key(a, pool[j]))) j--;
+    pairs.push([a, pool.splice(j, 1)[0]]);
+  }
+  return { pairs, float: pool[0] ?? null };
+}
+
 export function scheduleSwissRound(world: World, comp: Competition, stage: Stage): boolean {
   const W = stage.config.swissWins ?? 3;
   const L = stage.config.swissLosses ?? 3;
@@ -317,15 +353,10 @@ export function scheduleSwissRound(world: World, comp: Competition, stage: Stage
   let carry: StandingRow[] = [];
   for (const k of keys) {
     const pool = [...carry, ...pools.get(k)!].sort((a, b) => b.gw - b.gl - (a.gw - a.gl) || seedIdx(a.teamId) - seedIdx(b.teamId));
-    carry = [];
-    while (pool.length >= 2) {
-      const a = pool.shift()!;
-      let j = pool.length - 1;
-      while (j > 0 && played.has([a.teamId, pool[j].teamId].sort().join('|'))) j--;
-      const b = pool.splice(j, 1)[0];
-      pairs.push([a.teamId, b.teamId]);
-    }
-    if (pool.length) carry = pool;
+    const ids = pool.map((r) => r.teamId);
+    const res = pairGroup(ids, played);
+    pairs.push(...res.pairs);
+    carry = res.float ? pool.filter((r) => r.teamId === res.float) : [];
   }
   if (!pairs.length) return false;
   const day = Math.max(stage.startDay + stage.swissRound * (stage.config.daysBetweenRounds ?? 1), world.day + 1);

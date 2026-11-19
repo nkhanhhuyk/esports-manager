@@ -190,6 +190,8 @@ export interface TeamPrefs {
   delegateLineup: boolean;
   delegateDraft: boolean;
   delegateTraining: boolean;
+  /** Tender qualifying offers to restricted free agents (leagues with RFA). Default on. */
+  tenderRFA?: boolean;
 }
 
 export type TrainingFocus =
@@ -769,6 +771,19 @@ export interface World {
   overrides: Record<ID, UserMatchPlan>;
   /** User-edited series format presets per title (database editor). */
   customFormats: Record<TitleId, Partial<Record<FormatKey, SeriesFormat>>>;
+  /** Tradable rookie-draft picks (leagues with drafts enabled). */
+  draftPicks: DraftPickAsset[];
+}
+
+export interface DraftPickAsset {
+  id: ID;
+  leagueId: ID;
+  /** The draft is held at the rollover that ends this season. */
+  season: number;
+  round: number;
+  originalTeamId: ID;
+  ownerTeamId: ID;
+  used: boolean;
 }
 
 /** Plan the user submits for a specific fixture (lineup / draft choices / map picks). */
