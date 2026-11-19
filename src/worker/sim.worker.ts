@@ -7,14 +7,15 @@
 import { advance, type AdvanceMode } from '../game/advance';
 import { createWorld, type NewWorldOptions } from '../gen/world';
 import type { World } from '../model/types';
+import { saveWorld } from '../persistence/db';
 
 type Req =
-  | { id: number; type: 'advance'; world: World; mode: AdvanceMode; stopForUserMatch?: boolean }
+  | { id: number; type: 'advance'; world: World; mode: AdvanceMode; stopForUserMatch?: boolean; autosave?: boolean }
   | { id: number; type: 'create'; opts: NewWorldOptions };
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
 
-ctx.onmessage = (e: MessageEvent<Req>) => {
+ctx.onmessage = async (e: MessageEvent<Req>) => {
   const msg = e.data;
   try {
     if (msg.type === 'create') {
@@ -34,7 +35,19 @@ ctx.onmessage = (e: MessageEvent<Req>) => {
           }
         },
       });
-      ctx.postMessage({ id: msg.id, type: 'done', world: msg.world, result });
+      // Autosave from the worker: the (large) structured clone into IndexedDB happens here instead
+      // of blocking the UI thread. If storage is unavailable in the worker the UI saves instead.
+      let saved = false;
+      if (msg.autosave) {
+        try {
+          await saveWorld(msg.world);
+          saved = true;
+        } catch (err) {
+          saved = false;
+          console.warn(`[sim-worker] autosave unavailable in the worker (${err instanceof Error ? err.message : String(err)}); the page will save instead.`);
+        }
+      }
+      ctx.postMessage({ id: msg.id, type: 'done', world: msg.world, result, saved });
     }
   } catch (err) {
     ctx.postMessage({ id: msg.id, type: 'error', message: err instanceof Error ? `${err.message}\n${err.stack}` : String(err) });

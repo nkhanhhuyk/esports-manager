@@ -17,8 +17,8 @@ Everything runs **offline in the browser** (no server, no account, no paid API).
 **Portable single file (no install):** run `npm run build:portable` and open `release/index.html` by
 double-clicking it (Chrome, Edge, Firefox or Safari). Everything — game, simulation worker and styles — is
 inlined into one ~1 MB HTML file that works offline from disk; saves persist in the browser's storage for
-that file (use *Settings → Export save file* to move a career between browsers or machines). If a browser blocks
-background workers on local files, the simulation transparently runs on the main thread instead.
+that file (use *Settings → Export save file* to move a career between browsers or machines). The simulation and
+autosaves run in a background worker so the page stays responsive (`npm run check:portable` verifies this).
 
 **From source:**
 
@@ -36,6 +36,7 @@ Other scripts:
 | --- | --- |
 | `npm run build` | Type-check + production build into `dist/` (relative paths, Capacitor-ready) |
 | `npm run build:portable` | One self-contained `release/index.html` (worker inlined) that runs from disk |
+| `npm run check:portable` | Build it and smoke-test it from `file://` (worker loads, no freezes, autosave survives reload) |
 | `npm run preview` | Serve the production build |
 | `npm test` | Vitest suite (106 tests: model, engines, competitions, time, saves, transfers, multi-season, long-term) |
 | `npm run test:long` | 30-season, 5-title soak test (`LONG_SIM=1`) |

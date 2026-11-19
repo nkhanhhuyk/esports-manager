@@ -37,6 +37,7 @@ function getWorker(): Worker | null {
         // A load/startup failure (or an uncaught crash): the request is retried on the main thread,
         // which is safe because the worker only ever received a structured clone of the world.
         e.preventDefault?.();
+        console.warn(`[sim-worker] unavailable (${e.message || 'failed to load'}); simulating on the main thread.`);
         broken = true;
         for (const p of pending.values()) p.reject(new Error('no-worker'));
         pending.clear();
@@ -71,16 +72,22 @@ export async function createWorldAsync(opts: NewWorldOptions): Promise<World> {
 }
 
 /** Advance in the worker (large advances) or synchronously on the main thread (small ones). */
-export async function advanceAsync(world: World, mode: AdvanceMode, stopForUserMatch: boolean, onProgress?: Progress): Promise<{ world: World; result: AdvanceResult }> {
+export async function advanceAsync(
+  world: World,
+  mode: AdvanceMode,
+  stopForUserMatch: boolean,
+  onProgress?: Progress,
+  autosave = false,
+): Promise<{ world: World; result: AdvanceResult; saved: boolean }> {
   const small = mode.kind === 'days' && mode.n <= 1;
   if (!small) {
     try {
-      const r = await call({ type: 'advance', world, mode, stopForUserMatch }, onProgress);
-      return { world: r.world as World, result: r.result as AdvanceResult };
+      const r = await call({ type: 'advance', world, mode, stopForUserMatch, autosave }, onProgress);
+      return { world: r.world as World, result: r.result as AdvanceResult, saved: !!r.saved };
     } catch (e) {
       if ((e as Error).message !== 'no-worker') throw e;
     }
   }
   const result = advance(world, mode, { stopForUserMatch, onProgress });
-  return { world, result };
+  return { world, result, saved: false };
 }

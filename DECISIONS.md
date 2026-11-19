@@ -155,6 +155,21 @@ turnover (e.g. OBS 2027–31, IL 2032–34). Drivers: aging/decline, contract ex
 ## Persistence
 
 * Saves are stored as structured-cloned objects (no JSON stringify) — fast and compact enough for long saves.
+* Two physical slots per save (`<id>#a` / `<id>#b`) with the metadata row pointing at the newest; a save
+  writes the other slot and flips the pointer in one transaction, so the previous copy is the backup without
+  being read back and rewritten (the old layout cost ~3× the I/O). Saves are serialised (a promise chain) so
+  an autosave and a manual save never interleave. Older single-slot saves load as before and are upgraded on
+  the next two saves.
+* Autosave after an advance runs **inside the simulation worker**, which already holds the world, so the
+  large structured clone into IndexedDB never blocks the UI; if storage is unavailable there, the page saves.
+  The UI tracks unsaved changes (Save •) and warns before closing the tab; storage errors are explained
+  (quota full, storage blocked) and the game asks for persistent storage.
+* World size is kept down on fixed simulation ticks (never at save time, so results do not depend on when
+  you save): detailed box scores of other clubs' matches are slimmed after 21 days (user matches and finals
+  keep full detail), proficiency values are rounded to 2 decimals monthly, and AI organisations keep 40
+  ledger lines and 13 months of accounts (the user's organisation 250 and 36).
+* The portable single-file build uses a classic (IIFE) inline worker: Chromium refuses module workers from a
+  local file's opaque origin, which silently forced the simulation onto the main thread.
 * Validation (zod) checks the top-level shape and a sample of ≤200 players; the original object is returned
   (zod re-creates objects and reorders keys, which we avoid).
 * Rollover pruning: competitions/fixtures/matches older than the previous season are deleted (history keeps

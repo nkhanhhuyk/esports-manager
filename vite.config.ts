@@ -13,7 +13,8 @@ export default defineConfig(({ mode }) => ({
     mode === 'portable'
       ? { alias: [{ find: /^\.\/factory$/, replacement: fileURLToPath(new URL('./src/worker/factory.inline.ts', import.meta.url)) }] }
       : undefined,
-  worker: { format: 'es' },
+  // Module workers cannot load from a local file's opaque origin (file://), classic ones can.
+  worker: { format: mode === 'portable' ? 'iife' : 'es' },
   build:
     mode === 'portable'
       ? { target: 'es2022', sourcemap: false, chunkSizeWarningLimit: 4000, outDir: 'release', emptyOutDir: true }

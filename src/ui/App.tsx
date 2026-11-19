@@ -274,8 +274,20 @@ export function App() {
   const busy = useGame((s) => s.busy);
   const toast = useGame((s) => s.toast);
   const save = useGame((s) => s.save);
+  const unsaved = useGame((s) => s.unsaved);
   const route = useRoute();
   const [navOpen, setNavOpen] = useState(false);
+
+  // Warn before closing or reloading the tab with progress that has not been saved yet.
+  useEffect(() => {
+    if (!unsaved || !world) return;
+    const onLeave = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onLeave);
+    return () => window.removeEventListener('beforeunload', onLeave);
+  }, [unsaved, world]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -350,8 +362,8 @@ export function App() {
           {formatDate(world.day, true)} · S{world.season}
         </span>
         <AdvanceControls />
-        <button className="btn ghost sm hide-sm" onClick={() => save()}>
-          Save
+        <button className="btn ghost sm hide-sm" onClick={() => save()} title={unsaved ? 'Unsaved changes' : 'All changes saved'}>
+          Save{unsaved ? ' •' : ''}
         </button>
       </div>
       <nav className={`sidebar ${navOpen ? 'open' : ''}`} aria-label="Main navigation">

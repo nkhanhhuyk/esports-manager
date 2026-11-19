@@ -62,7 +62,9 @@ by simulation tests.
 * **Restricted free agency**: in restricted-FA leagues (franchised shooter leagues by default) clubs can
   retain expiring players aged ≤ 24 with a one-season qualifying offer at +10%; AI tenders starters and
   high-upside players, user teams choose via a toggle on the Team page.
-* **Saves**: IndexedDB slots, autosave + backup, crash-recovery prompt, export/import JSON, zod validation,
+* **Saves**: IndexedDB slots (two alternating copies per save = built-in backup), autosave from the simulation
+  worker (no UI freeze), unsaved-changes marker + close-tab warning, plain-language storage errors, persistent
+  storage request, crash-recovery prompt, export/import JSON, zod validation,
   v1→v2→v3→v4 migrations.
 * **UI**: sidebar shell, breadcrumbs, back/forward, global search, sortable/filterable/paginated tables with
   column chooser, profiles for every entity, player comparison, title-adaptive match screens, charts,

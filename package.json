@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:portable": "tsc --noEmit -p . && vite build --mode portable",
+    "check:portable": "npm run build:portable && node scripts/portable-check.cjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",

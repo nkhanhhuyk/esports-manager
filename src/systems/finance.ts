@@ -13,13 +13,18 @@ import { addInbox, addNews } from './news';
 import { RNG } from '../core/rng';
 import { makeCompanyName } from '../gen/names';
 
+/** Ledger lines kept per organisation: the user's books in full, AI clubs only recent entries. */
 const LEDGER_MAX = 250;
+const LEDGER_MAX_AI = 40;
+const MONTHS_KEPT = 36;
+const MONTHS_KEPT_AI = 13;
 
 export function ledger(world: World, org: Organisation, kind: string, amount: number, teamId?: string, note?: string): void {
   if (!Number.isFinite(amount)) return;
   org.balance = Math.round(org.balance + amount);
   org.ledger.push({ day: world.day, kind, amount: Math.round(amount), teamId, note });
-  if (org.ledger.length > LEDGER_MAX) org.ledger.splice(0, org.ledger.length - LEDGER_MAX);
+  const max = org.user ? LEDGER_MAX : LEDGER_MAX_AI;
+  if (org.ledger.length > max + 20) org.ledger.splice(0, org.ledger.length - max);
 }
 
 /**
@@ -129,7 +134,8 @@ export function processMonthlyFinances(world: World): void {
     for (const [k, v] of Object.entries(revenue)) if (v) ledger(world, org, k, v);
     for (const [k, v] of Object.entries(expenses)) if (v) ledger(world, org, k, -v);
     org.monthly.push({ month: mk, revenue, expenses, balance: org.balance });
-    if (org.monthly.length > 36) org.monthly.shift();
+    const keep = org.user ? MONTHS_KEPT : MONTHS_KEPT_AI;
+    if (org.monthly.length > keep) org.monthly.splice(0, org.monthly.length - keep);
     handleDistress(world, org);
   }
 }

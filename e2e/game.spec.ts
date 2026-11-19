@@ -75,7 +75,7 @@ test('new career: generate, pick organisation, browse, advance, play live, save 
   await page.getByText('Advance 1 week').click();
   await expect(page.locator('.busy')).toHaveCount(0, { timeout: 120000 });
   const date = await page.locator('.date-pill').textContent();
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('button', { name: /^Save/ }).click();
   await expect(page.getByText('Game saved.')).toBeVisible();
   await page.goto('/');
   await page.reload();

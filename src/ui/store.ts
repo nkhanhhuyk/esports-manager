@@ -9,7 +9,7 @@ import { advanceAsync, createWorldAsync } from '../worker/client';
 import type { NewWorldOptions } from '../gen/world';
 import { setUserOrg } from '../gen/world';
 import { applyRoleDelegation, hasBoard, setBoardObjectives } from '../systems/career';
-import { listSaves, loadWorld, markDirty, saveWorld, type SaveMeta } from '../persistence/db';
+import { describeStorageError, listSaves, loadWorld, markDirty, requestPersistentStorage, saveWorld, type SaveMeta } from '../persistence/db';
 import { clearRatingCache } from '../sim/common/ratings';
 
 export interface Busy {
@@ -26,6 +26,10 @@ interface GameStore {
   toast: { text: string; kind: 'ok' | 'err' | 'info' } | null;
   saves: SaveMeta[];
   lastAdvance: AdvanceResult | null;
+  /** Changes since the last successful save (warns before closing the tab). */
+  unsaved: boolean;
+  /** Set when browser storage is unavailable or failing. */
+  storageError: string | null;
   refreshSaves: () => Promise<void>;
   newGame: (opts: NewWorldOptions) => Promise<void>;
   chooseOrg: (orgId: string) => Promise<void>;
@@ -58,11 +62,13 @@ export const useGame = create<GameStore>((set, get) => ({
   toast: null,
   saves: [],
   lastAdvance: null,
+  unsaved: false,
+  storageError: null,
   refreshSaves: async () => {
     try {
-      set({ saves: await listSaves() });
-    } catch {
-      set({ saves: [] });
+      set({ saves: await listSaves(), storageError: null });
+    } catch (e) {
+      set({ saves: [], storageError: describeStorageError(e) });
     }
   },
   newGame: async (opts) => {
@@ -90,7 +96,7 @@ export const useGame = create<GameStore>((set, get) => ({
     try {
       const { world, recovered } = await loadWorld(id);
       clearRatingCache();
-      set({ world, version: get().version + 1, busy: null });
+      set({ world, version: get().version + 1, busy: null, unsaved: false });
       if (recovered) get().notify('Main save was damaged — restored the previous autosave.', 'info');
     } catch (e) {
       set({ busy: null });
@@ -102,10 +108,14 @@ export const useGame = create<GameStore>((set, get) => ({
     if (!w) return;
     try {
       await saveWorld(w);
+      requestPersistentStorage();
+      if (get().world === w) set({ unsaved: false, storageError: null });
       await get().refreshSaves();
       if (!silent) get().notify('Game saved.', 'ok');
     } catch (e) {
-      get().notify(`Save failed: ${(e as Error).message}`, 'err');
+      const why = describeStorageError(e);
+      set({ storageError: why });
+      get().notify(`Save failed: ${why}`, 'err');
     }
   },
   closeGame: () => set({ world: null, version: get().version + 1 }),
@@ -115,10 +125,16 @@ export const useGame = create<GameStore>((set, get) => ({
     set({ busy: { label: 'Simulating…', done: 0, total: 0 } });
     try {
       void markDirty(w.meta.saveId).catch(() => undefined);
-      const { world, result } = await advanceAsync(w, mode, stopForUserMatch, (done, total) => set({ busy: { label: 'Simulating…', done, total } }));
+      const autosave = !!w.meta.autosave;
+      const { world, result, saved } = await advanceAsync(w, mode, stopForUserMatch, (done, total) => set({ busy: { label: 'Simulating…', done, total } }), autosave);
       if (world !== w) clearRatingCache();
-      set({ world, version: get().version + 1, busy: null, lastAdvance: result });
-      if (world.meta.autosave) await get().save(true);
+      set({ world, version: get().version + 1, busy: null, lastAdvance: result, unsaved: true });
+      if (saved) {
+        // The worker already wrote the autosave off the UI thread.
+        requestPersistentStorage();
+        set({ unsaved: false });
+        void get().refreshSaves();
+      } else if (autosave) await get().save(true);
       return result;
     } catch (e) {
       set({ busy: null });
@@ -130,7 +146,7 @@ export const useGame = create<GameStore>((set, get) => ({
     const w = get().world;
     if (!w) return undefined;
     const r = fn(w);
-    set({ version: get().version + 1 });
+    set({ version: get().version + 1, unsaved: true });
     if (opts?.save) void get().save(true);
     return r;
   },

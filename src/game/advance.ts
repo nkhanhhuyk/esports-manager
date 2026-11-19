@@ -16,6 +16,7 @@ import { processMonthlyFinances } from '../systems/finance';
 import { aiContracts, aiMarketDay, processLoans } from '../systems/transfers';
 import { negotiationsDay } from '../systems/negotiation';
 import { boardMonthly } from '../systems/career';
+import { compactMatches, roundProficiencies } from './compact';
 import { adaptToMeta, releasePatch } from '../systems/patches';
 import { seasonRollover } from './rollover';
 import { isUserTeam } from '../systems/news';
@@ -90,11 +91,13 @@ export function processDay(world: World): void {
       weeklyTraining(world);
       weeklyScouting(world);
       processLoans(world);
+      compactMatches(world);
     }
   }
   if (isFirstOfMonth(day) && world.processed.lastMonth !== monthKey(day)) {
     processMonthlyFinances(world);
     boardMonthly(world);
+    roundProficiencies(world);
     aiContracts(world);
   }
   patchCheck(world, day);

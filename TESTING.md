@@ -10,7 +10,7 @@
 | `tests/systems.test.ts` | Rookie draft order & signings; draft-pick trades (rejected when under-valued, ownership moves, new owner selects, picks pruned/seeded at rollover); restricted-FA qualifying offers (retained, contract runs through next season, user opt-out); luxury tax; Nations Cup squads (nationality, club contracts untouched); national coach job (qualification, named squad, pause before national matches); contract validation (salary, length, min age, hard cap), salary ordering by ability; ledger & once-per-month finance; facility upgrades; free-agent signing within roster limits & release; AI refills short rosters & respects limits; transfer window rules; training develops CA and input proficiency; patches shift meta and reduce adaptation |
 | `tests/career.test.ts` | Role permissions; AI general manager recruits for a head-coach user; board objectives, dismissal, job offers & taking a new job; season review at rollover sets new objectives; no board for commissioners; mid-season split reactions (praise/warning), ultimatum then mid-season dismissal (teams handed to AI staff), advance pauses on dismissal, job approaches (accept moves the manager with a new contract & objectives, decline +2, one open at a time), manager contract renewal vs non-renewal, monthly finance warnings |
 | `tests/time.test.ts` | Idempotent days/months (no duplicate fixtures, money, awards); one long advance == many 1-day advances; stop-before-user-match and resume; save → reload → advance determinism; full-detail viewing does not change results |
-| `tests/persistence.test.ts` | IndexedDB round-trip (fake-indexeddb); backup recovery from a corrupted main save; delete; JSON export/import; v1→v2 migration then continued simulation; v2→v3 migration seeds unique draft picks; rejects malformed/future/corrupt saves |
+| `tests/persistence.test.ts` | IndexedDB round-trip (fake-indexeddb); backup recovery from a corrupted main save; delete; JSON export/import; v1→v2 migration then continued simulation; v2→v3 migration seeds unique draft picks; rejects malformed/future/corrupt saves; alternating save slots (no backup rewrite) and serialised overlapping saves; corrupt newest slot recovers the previous one; old single-slot saves load and upgrade; storage-error messages; old detailed records of other clubs slimmed (user matches kept) and proficiencies rounded |
 | `tests/season.test.ts` | **All 30 titles complete a valid season** (champions incl. Worlds per title, all fixtures played, POY per title, world invariants); 3-season multi-title world invariants (no double rosters, roster limits, finite values, league membership, retirements, transfers, development, pruning, patches) |
 | `tests/transfers.test.ts` | Negotiation flow (lowball rejected → counter → accept → terms counter → signed; fee, bonus, clause and records), club patience & 30-day block, release clause forces acceptance, withdrawal, sell-on payout on the next sale, pre-contract completes at rollover (and blocks extensions/bids), refused for longer contracts, offer sheet matched by the current club, counter-offers vs bidder ceiling, asking price & offer-to-clubs, deterministic outcomes, v3→v4 migration |
 | `tests/longterm.test.ts` | 10 seasons (default) / 30 seasons (`LONG_SIM=1`): bounded population, finite finances, bounded save growth, multiple world champions per title, legends & retirees |
@@ -21,9 +21,13 @@ event) → match report with commentary → advance a week → save → reload �
 asserts no page errors. Transfer flow: new career → into the window → player search → bid → accept the
 club's counter → offer personal terms → signing completed and listed under Negotiations. Mobile viewport: no horizontal overflow.
 
+Portable build (`npm run check:portable`): builds `release/index.html`, opens it from disk in Chromium,
+advances a month and fails if the worker did not load, the page froze for more than 1.5 s, the autosave did
+not survive a reload, or any warning/error was logged.
+
 ## Latest results
 
-* Vitest: **112 passed / 112** (≈45s total; season test ≈18s for all 30 titles).
+* Vitest: **116 passed / 116** (≈45s total; season test ≈18s for all 30 titles).
 * Playwright: **3 passed / 3**.
 * Long-term: 10 seasons × 3 titles in ~13s; save 3.4MB → 5.5MB.
 

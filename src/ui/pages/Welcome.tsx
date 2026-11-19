@@ -66,7 +66,7 @@ function OrgPicker() {
 }
 
 export function Welcome() {
-  const { world, saves, refreshSaves, newGame, load, notify } = useGame();
+  const { world, saves, refreshSaves, newGame, load, notify, storageError } = useGame();
   const [name, setName] = useState('My Career');
   const [seed, setSeed] = useState(() => Math.random().toString(36).slice(2, 8));
   const [size, setSize] = useState<'tiny' | 'small' | 'standard' | 'large'>('small');
@@ -104,6 +104,11 @@ export function Welcome() {
         </h1>
         <p className="muted">A living MOBA & shooter universe — 30 titles, fictional organisations and players, endless seasons.</p>
       </div>
+      {storageError && (
+        <Card title="Saving is unavailable">
+          <div className="neg">{storageError}</div>
+        </Card>
+      )}
       {session?.dirty && saves.some((s) => s.id === session.saveId) && (
         <Card title="Recover session">
           <div className="row">
