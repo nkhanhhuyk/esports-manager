@@ -44,6 +44,24 @@ const FOCUS_GROUPS: Partial<Record<TrainingFocus, number[]>> = {
   teamwork: GROUP_INDICES.Teamwork,
 };
 
+const focusCache = new Map<string, Float64Array>();
+
+/** Per-attribute base training weights for a focus and title family (cached). */
+function focusWeights(focus: TrainingFocus, famKey: string, famSet: number[]): Float64Array {
+  const key = `${focus}|${famKey}`;
+  let w = focusCache.get(key);
+  if (!w) {
+    w = new Float64Array(ATTR_COUNT);
+    for (let i = 0; i < ATTR_COUNT; i++) w[i] = focusWeight(i, focus, famSet);
+    focusCache.set(key, w);
+  }
+  return w;
+}
+
+/** Decline multiplier per attribute: mechanics fade fastest, mind/knowledge barely. */
+const DECLINE = Float64Array.from(ATTRS.map((a) => (a.curve === 'mech' ? 1 : a.curve === 'combat' ? 0.5 : a.curve === 'physical' && (a.key === 'stamina' || a.key === 'recovery') ? 0.4 : 0)));
+const MIND = Uint8Array.from(ATTRS.map((a) => (a.curve === 'mind' || a.curve === 'knowledge' ? 1 : 0)));
+
 function focusWeight(i: number, focus: TrainingFocus, familySpec: number[]): number {
   const a = ATTRS[i];
   if (a.group === 'Development') return 0.08;
@@ -107,8 +125,11 @@ function ageCurve(p: Player, age: number): { grow: number; decline: number } {
 }
 
 /** Weekly training & progression for every active player. */
+const HYBRID_SPEC = [...MOBA_INDICES, ...SHOOTER_INDICES];
+
 export function weeklyTraining(world: World): void {
   const rng = new RNG(`${world.meta.seed}|train|${world.day}`);
+  const progressWeek = Math.floor(world.day / 7) % 2 === 0;
   const teamQ = new Map<string, number>();
   const teamFocusMult = new Map<string, number>();
   for (const team of Object.values(world.teams)) {
@@ -143,29 +164,29 @@ export function weeklyTraining(world: World): void {
     const gap = Math.max(0, p.pa - p.ca);
     const overtrained = p.fatigue > 70 ? 0.4 : 1;
     const playing = team && team.lineup.some((s) => s.playerId === p.id) ? 1.1 : team ? 0.85 : 0.7;
-    const budget = 0.062 * p.dev.growthRate * Math.pow(gap / 10, 0.85) * grow * q * (0.5 + ethic) * (0.6 + intensity * 0.6) * mult * overtrained * playing;
-    const familySpec = t.family === 'MOBA' ? MOBA_INDICES : SHOOTER_INDICES;
-    const famSet = t.engine === 'hybrid' ? [...MOBA_INDICES, ...SHOOTER_INDICES] : familySpec;
+    // Permanent attributes progress every second week (double step) — same yearly rate,
+    // half the computation and cache invalidation in very large worlds.
+    const budget = (progressWeek ? 2 : 0) * 0.062 * p.dev.growthRate * Math.pow(gap / 10, 0.85) * grow * q * (0.5 + ethic) * (0.6 + intensity * 0.6) * mult * overtrained * playing;
+    const famKey = t.engine === 'hybrid' ? 'hybrid' : t.family;
+    const famSet = t.engine === 'hybrid' ? HYBRID_SPEC : t.family === 'MOBA' ? MOBA_INDICES : SHOOTER_INDICES;
     let changed = false;
-    if (budget > 0.0005 || decline > 0) {
+    const dec = progressWeek ? decline * 2 : 0;
+    if (progressWeek && (budget > 0.0005 || dec > 0)) {
       const points = budget * 110;
-      const weights = new Array<number>(ATTR_COUNT);
+      const base = focusWeights(focus, famKey, famSet);
+      const weights = new Float64Array(ATTR_COUNT);
       let wsum = 0;
       for (let i = 0; i < ATTR_COUNT; i++) {
-        const room = (100 - p.attrs[i]) / 100;
-        weights[i] = focusWeight(i, focus, famSet) * room;
-        wsum += weights[i];
+        const wi = base[i] * (100 - p.attrs[i]) * 0.01;
+        weights[i] = wi;
+        wsum += wi;
       }
+      const volatile = p.dev.trajectory === 'volatile';
       for (let i = 0; i < ATTR_COUNT; i++) {
         let d = wsum > 0 ? (points * weights[i]) / wsum : 0;
-        const a = ATTRS[i];
-        if (decline > 0) {
-          if (a.curve === 'mech') d -= decline;
-          else if (a.curve === 'combat') d -= decline * 0.5;
-          else if (a.curve === 'physical' && (a.key === 'stamina' || a.key === 'recovery')) d -= decline * 0.4;
-          else if (a.curve === 'mind' || a.curve === 'knowledge') d += age < 31 ? 0.01 : -decline * 0.1;
-        }
-        if (p.dev.trajectory === 'volatile') d += rng.normal(0, 0.04);
+        if (dec > 0) d -= dec * DECLINE[i];
+        if (MIND[i]) d += age < 31 ? 0.02 : -dec * 0.1;
+        if (volatile) d += rng.normal(0, 0.057);
         if (d !== 0) {
           p.attrs[i] = Math.round(clamp(p.attrs[i] + d, 1, 100) * 100) / 100;
           changed = true;

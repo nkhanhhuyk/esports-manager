@@ -64,11 +64,17 @@ Core durability (`coreHits`): 2 for most MOBAs, 3 for Dota 2 / SMITE 2 / Deadloc
   Costs: salaries, staff, facility upkeep (level^1.5 × 350), operations (V × 0.06/12 + base).
   Result (economy.ts, Small world): median org slightly negative before prizes (−10% of costs), top decile
   +26%, ~2% in debt after one season; distress triggers owner injections or acquisitions.
+* AI salary budgets (set each rollover) = `V × (0.85 + rep/250) × strategy + cushion`, strategy multipliers
+  win-now 1.2, prestige 1.15, expansion 1.05, balanced 1, youth 0.85, moneyball 0.75; cushion = 8% of cash,
+  bounded to [−30%, +35%] of V. Budgets never compound season over season (that previously let rich clubs
+  stack every star and win 8+ consecutive titles).
 * Prize split: 32/18/11/9/6/6/4/4/2… %, org keeps (1 − 0.6 × average player prize share).
 * Transfer valuation = expected salary × 1.4 × youth/headroom factor × contract-length factor; clubs add
   +35% for starters, strategy modifiers (moneyball −15%, win-now/prestige +25%), listed −20%.
 
 ## Development
+
+* Permanent attributes progress every second week with a double step (same yearly rate, half the work).
 
 * Weekly growth budget = `0.062 × growthRate × (gap/10)^0.85 × ageFactor × trainingQuality × (0.5 + ethic) ×
   (0.6 + 0.6·intensity) × focusRepetition × overtraining × playingTime`, converted to ≈110 attribute points
@@ -85,8 +91,8 @@ Core durability (`coreHits`): 2 for most MOBAs, 3 for Dota 2 / SMITE 2 / Deadloc
 
 ## Competitive turnover
 
-Dynasty check (scripts/dynasty.ts, 8 LoL seasons): world titles were won by 3 different organisations,
-dynasties of 2–3 years. Drivers: aging/decline, contract expiry, poaching by win-now/prestige/rich clubs
+Dynasty check (scripts/dynasty.ts, 8 LoL seasons, seed `long`): dynasties of roughly 3–5 seasons followed by
+turnover (e.g. OBS 2027–31, IL 2032–34). Drivers: aging/decline, contract expiry, poaching by win-now/prestige/rich clubs
 (any club; the user's players only via inbox offers), regens, patches and meta adaptation, day-form noise.
 
 ## Competition extras

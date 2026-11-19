@@ -210,11 +210,11 @@ function unfilledPlayers(ds: DraftState, team: 0 | 1): LineupSlot[] {
 }
 
 /** Apply an action. For picks, `playerId` chooses who plays it (defaults to best fit). */
-export function applyDraftAction(ds: DraftState, charId: string, playerId?: string): { ok: boolean; error?: string } {
+export function applyDraftAction(ds: DraftState, charId: string, playerId?: string, trusted = false): { ok: boolean; error?: string } {
   const step = currentStep(ds);
   if (!step) return { ok: false, error: 'Draft complete.' };
-  const opts = legalOptions(ds, step.team, step.action);
-  if (!opts.some((c) => c.id === charId)) return { ok: false, error: 'Illegal choice (banned, taken or restricted).' };
+  // AI choices come from legalOptions already; user / imported choices are validated.
+  if (!trusted && !legalOptions(ds, step.team, step.action).some((c) => c.id === charId)) return { ok: false, error: 'Illegal choice (banned, taken or restricted).' };
   if (step.action === 'ban') {
     ds.bans[step.team].push(charId);
   } else {
@@ -344,7 +344,7 @@ export function runAiDraft(world: World, ds: DraftState, rng: RNG): void {
       ds.done = true;
       break;
     }
-    const r = applyDraftAction(ds, act.charId, act.playerId);
+    const r = applyDraftAction(ds, act.charId, act.playerId, true);
     if (!r.ok) {
       ds.done = true;
       break;

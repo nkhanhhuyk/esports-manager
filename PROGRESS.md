@@ -65,8 +65,8 @@ by simulation tests.
 
 ## Missing / next steps (priority order)
 
-1. **Performance for Standard/Large worlds with all 30 titles** — all 30 titles: Tiny ≈12s, Small ≈26s,
-   Standard ≈50s per season (in a Web Worker with progress). Next: cache per-game team contexts across a
+1. **Performance for Standard/Large worlds with all 30 titles** — all 30 titles: Tiny ≈12s, Small ≈24s,
+   Standard ≈46s per season (in a Web Worker with progress). Next: cache per-game team contexts across a
    series, pre-filter draft candidates, lighter weekly training for free agents, an aggregated engine path
    for low-tier leagues.
 2. Role-based permissions for career modes (owner/director/national coach) and board objectives/job security.

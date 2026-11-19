@@ -13,7 +13,7 @@ import type { League, Player, SeasonHistory, Team, World } from '../model/types'
 import { planSeason } from '../competition/season';
 import { hallOfFame, legacy, seasonAwards } from '../systems/awards';
 import { expireContracts } from '../systems/transfers';
-import { renewSponsors } from '../systems/finance';
+import { divisionValue, renewSponsors } from '../systems/finance';
 import { addInbox, addNews } from '../systems/news';
 import { yearlyDevelopment } from '../systems/training';
 import { releasePatch } from '../systems/patches';
@@ -354,6 +354,21 @@ function prune(world: World, endedSeason: number): void {
   for (const p of Object.values(world.players)) if (p.stats.length > 60) p.stats.splice(0, p.stats.length - 60);
 }
 
+const STRATEGY_BUDGET: Record<string, number> = { 'win-now': 1.2, prestige: 1.15, expansion: 1.05, balanced: 1, youth: 0.85, moneyball: 0.75 };
+
+/**
+ * Salary budget a division can sustain: anchored to its commercial value (title x region x
+ * popularity), reputation, board strategy and a bounded cushion from cash reserves. It does not
+ * compound season over season, so wealthy organisations cannot stack every star indefinitely.
+ */
+export function salaryBudgetFor(world: World, team: Team): number {
+  const org = world.orgs[team.orgId];
+  const v = divisionValue(world, team.id);
+  const strat = STRATEGY_BUDGET[org?.strategy ?? 'balanced'] ?? 1;
+  const cushion = org ? Math.max(-0.3 * v, Math.min(org.balance * 0.08, v * 0.35)) : 0;
+  return Math.max(20000, Math.round((v * (0.85 + (org?.rep ?? 40) / 250) * strat + cushion) / 1000) * 1000);
+}
+
 export function seasonRollover(world: World): void {
   const season = world.season;
   if (world.processed.seasonRolled.includes(season)) return;
@@ -386,10 +401,7 @@ export function seasonRollover(world: World): void {
     if (!team.active) continue;
     team.chemistry = clamp(team.chemistry * 0.85 + 8, 0, 100);
     const org = world.orgs[team.orgId];
-    let pay = 0;
-    for (const pid of team.roster) pay += world.players[pid]?.contract?.salary ?? 0;
-    const growth = org && org.balance > 0 ? 1.15 + Math.min(0.3, org.balance / 5e6) : 0.95;
-    team.salaryBudget = Math.round(Math.max(pay * growth, pay + 20000) / 1000) * 1000;
+    if (org && !org.user && !team.national) team.salaryBudget = salaryBudgetFor(world, team);
     team.lineup = autoLineup(world, team);
   }
   for (const p of Object.values(world.players)) {

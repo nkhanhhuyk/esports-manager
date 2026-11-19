@@ -33,7 +33,7 @@ asserts no page errors. Mobile viewport: no horizontal overflow.
 
 ## Known issues / limitations
 
-* Full 30-title worlds: Tiny ≈12s, Small ≈26s, Standard ≈50s per season (Web Worker + progress bar; see
+* Full 30-title worlds: Tiny ≈12s, Small ≈24s, Standard ≈46s per season (Web Worker + progress bar; see
   PROGRESS.md for the optimisation plan).
 * Tactical shooters are somewhat more deterministic than MOBAs for large strength gaps (many rounds compound).
 * Top-team strength drifts upward slowly in long saves (equilibrium higher than the generated start level);
