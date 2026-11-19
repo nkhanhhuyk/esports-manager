@@ -14,6 +14,7 @@ import type { DraftRecord, Fixture, FormatKey, GameEvent, GameResult, LineupSlot
 import { currentPatch } from '../systems/patches';
 import { isUserTeam } from '../systems/news';
 import { ensureLineup, validateLineup } from '../systems/lineup';
+import { registeredLineup } from '../systems/registration';
 import { evaluateComp, newDraft, runAiDraft, toRecord, validateDraft, type CompEval, type DraftState } from './common/draft';
 import type { GameContext } from './common/engine';
 import { buildTeamCtx, type TeamCtx } from './common/team';
@@ -119,10 +120,12 @@ export function createSeries(world: World, f: Fixture, forceDetail = false): Ser
   const t = getTitle(f.titleId);
   const teams = f.teams.map((id) => world.teams[id]) as [Team, Team];
   const plans = getPlans(world, f);
+  const comp = world.comps[f.compId];
   const lineups = teams.map((team, i) => {
     const plan = plans[i];
-    if (plan?.lineup && validateLineup(world, team, plan.lineup).ok) return plan.lineup;
-    return ensureLineup(world, team);
+    const preferred = plan?.lineup && validateLineup(world, team, plan.lineup).ok ? plan.lineup : ensureLineup(world, team);
+    // Only players registered for this competition may play.
+    return registeredLineup(world, comp, team, preferred);
   }) as [LineupSlot[], LineupSlot[]];
   const vrng = RNG.derive(world.meta.seed, f.id, 'veto');
   const n = f.format.n;

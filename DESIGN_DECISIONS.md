@@ -39,6 +39,19 @@ proposed, tunable default — **not** a claim from the source PDF.
 * **Save slots.** Five manual slots (`slot-1` … `slot-5`) plus one autosave per career (`<saveId>`). A slot
   copy stores `manualSlot` and `careerId`; the world remembers `meta.activeSlot` for the Save button, which
   never overwrites a slot that now holds another career without asking.
+* **Competition registration (proposal).** Registration is separate from employment. When a competition
+  locks (3 days before it starts) each entrant registers up to `min(league roster max, teamSize + 3)` = 8
+  players: the team's standing plan if it has at least five rostered players, otherwise the coach's choice
+  (best lineup + most useful substitutes). Only registered players can play in that edition; fixture
+  lineups are filtered to registered, available players. After the lock: **2 changes per edition** while a
+  transfer window is open (swap, or replace a departed player); **emergency registrations** at any time
+  when fewer than five registered players are available (recorded as emergencies, so teams never
+  forfeit). A player can be registered for only one team per edition. AI clubs register signings when a
+  place is free; the user is told when a signing is not registered and gets a reminder 7 days before a
+  league split locks. Editions created before registration existed have no restriction.
+* **Android export.** WebViews ignore `<a download>`, so on Android exported saves are written to the app
+  cache (`@capacitor/filesystem`) and offered through the system share sheet (`@capacitor/share`) — no
+  storage permission needed. Import uses the normal file picker.
 * **Android.** Capacitor 8 (`dev.uem.esportsmanager`), web build unchanged; `SystemBars.insetsHandling:
   'css'` with `--safe-area-inset-*`; system Back navigates in-app history and exits from Home/Welcome;
   autosave on `pause`. The default `INTERNET` permission is kept (template default, no network use).

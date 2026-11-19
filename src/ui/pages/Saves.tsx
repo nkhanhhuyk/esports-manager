@@ -6,15 +6,8 @@ import { useEffect, useRef } from 'react';
 import { useGame } from '../store';
 import { Card, PageHeader } from '../components/common';
 import { deleteSave, exportLegacyBackup, exportSave, importSave, loadWorld, MANUAL_SLOTS, slotSaveId, type SaveMeta } from '../../persistence/db';
+import { saveFile } from '../fileExport';
 
-function download(blob: Blob, name: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 function fileName(s: SaveMeta, suffix = ''): string {
   return `${(s.manualSlot ? `slot${s.manualSlot}_` : '') + s.name.replace(/\W+/g, '_')}${suffix}.uem.json`;
@@ -51,7 +44,8 @@ function RowActions({ s, allowLoad }: { s: SaveMeta; allowLoad: boolean }) {
         onClick={async () => {
           try {
             const { world: w } = await loadWorld(s.id);
-            download(exportSave(w), fileName(s));
+            const r = await saveFile(exportSave(w), fileName(s));
+            notify(r.message, r.ok ? 'ok' : 'err');
           } catch (e) {
             notify(`Export failed: ${(e as Error).message}`, 'err');
           }
@@ -65,8 +59,9 @@ function RowActions({ s, allowLoad }: { s: SaveMeta; allowLoad: boolean }) {
           title="The untouched save from before the seven-title edition"
           onClick={async () => {
             const b = await exportLegacyBackup(s.id);
-            if (b) download(b, fileName(s, '_original'));
-            else notify('No original backup stored for this save.', 'err');
+            if (!b) return notify('No original backup stored for this save.', 'err');
+            const r = await saveFile(b, fileName(s, '_original'));
+            notify(r.message, r.ok ? 'ok' : 'err');
           }}
         >
           Export original

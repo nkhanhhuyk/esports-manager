@@ -11,10 +11,10 @@ runtime and needs no network connection to play.
 | App name | Esports Manager |
 | Native project | `android/` (committed source — treat it as real code) |
 | Capacitor config | `capacitor.config.ts` (`webDir: dist`, edge-to-edge WebView, safe-area CSS variables) |
-| Plugins | `@capacitor/app` (system Back button, pause/background autosave) |
+| Plugins | `@capacitor/app` (system Back button, pause/background autosave), `@capacitor/filesystem` + `@capacitor/share` (save export through the Android share sheet) |
 | minSdk / compileSdk / targetSdk | 24 (Android 7.0) / 36 / 36 |
 | Permissions | `INTERNET` only (Capacitor template default; the game makes no network requests) |
-| Saves on device | IndexedDB inside the app's WebView storage (persists across restarts; removed on uninstall — use *Save / Load → Export* to keep a copy) |
+| Saves on device | IndexedDB inside the app's WebView storage (persists across restarts; removed on uninstall — use *Save / Load → Export*, which opens the share sheet so you can keep the file in Files/Drive; *Import* uses the file picker) |
 
 ## Prerequisites
 

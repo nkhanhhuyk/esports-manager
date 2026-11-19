@@ -19,6 +19,7 @@ import { ledger } from './finance';
 import { addInbox, addNews, isUserTeam } from './news';
 import { autoLineup } from './lineup';
 import { can } from './career';
+import { onPlayerJoined } from './registration';
 
 export interface OfferResponse {
   ok: boolean;
@@ -144,6 +145,7 @@ export function movePlayer(
   to.chemistry = clamp(to.chemistry - 4, 0, 100);
   if (from) from.chemistry = clamp(from.chemistry - 2, 0, 100);
   if (!to.prefs.delegateLineup && to.lineup.length < getTitle(to.titleId).teamSize) to.lineup = autoLineup(world, to);
+  if (type !== 'loan-return') onPlayerJoined(world, to, p.id);
   if (to.prefs.delegateLineup) to.lineup = autoLineup(world, to);
   if (from?.prefs.delegateLineup) from.lineup = autoLineup(world, from);
   const big = fee > 200000 || p.rep > 70;

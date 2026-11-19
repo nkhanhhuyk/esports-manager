@@ -27,7 +27,11 @@ by simulation tests.
   no abilities, money economy, MR12 and 6-round overtime blocks).
 * **Saves**: five manual save slots + one autosave per career; Save button (also on phones) / Ctrl+S;
   background autosave; v1→v5 migrations; seven-title conversion of old saves with exportable original.
-* **Android APK** (Capacitor 8): offline, system Back, safe areas, autosave on background — ANDROID_BUILD.md.
+* **Android APK** (Capacitor 8): offline, system Back, safe areas, autosave on background, save export via
+  the Android share sheet — ANDROID_BUILD.md.
+* **Competition registration** separate from contracts: locked registration lists (≤ 8), standing plan,
+  2 changes per competition in transfer windows, emergency registrations, AI registration of signings,
+  reminders and Tactics warnings (`tests/registration.test.ts`).
 * **86-attribute model + 3 input proficiencies** with the specified formulas; derived summaries; title / role
   / character / map / weapon proficiencies; CA/PA; personalities; trajectories.
 * **World generation**: 20 regions, 95 countries, culture-specific names & handles, multi-title organisations,
@@ -109,8 +113,8 @@ by simulation tests.
 
 1. **Install and test the APK on a real Android device or emulator** (airplane mode, restart, rotation,
    Back, backgrounding) — not possible in the build environment (no `/dev/kvm`).
-2. Organisation treasury with department allocations that sum to cash; explicit roster registration
-   separate from employment; staff capacity and philosophy alignment.
+2. Organisation treasury with department allocations that sum to cash; staff capacity and philosophy
+   alignment.
 3. Dual-title rosters with one shared calendar and divided practice time.
 4. Training sessions as scarce capacity (staff, rooms, cancellations without phantom growth).
 5. Fan segments, rivalries from repeated encounters, richer news.

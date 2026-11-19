@@ -22,12 +22,14 @@ export function availablePlayers(world: World, team: Team): Player[] {
 }
 
 /** Greedy maximum-effectiveness assignment of players to the title's lineup positions. */
-export function autoLineup(world: World, team: Team): LineupSlot[] {
+/** Best legal lineup; `eligible` restricts it to players registered for a competition. */
+export function autoLineup(world: World, team: Team, eligible?: Set<string>): LineupSlot[] {
   const t = getTitle(team.titleId);
   const league = team.leagueId ? world.leagues[team.leagueId] : null;
   const minAge = league?.policy.minAge ?? t.minAge;
-  let players = availablePlayers(world, team).filter((p) => ageAt(p.birth, world.day) >= minAge);
-  if (players.length < t.teamSize) players = team.roster.map((id) => world.players[id]).filter((p) => p && !p.retired) as Player[];
+  const ok = (p: Player) => !eligible || eligible.has(p.id);
+  let players = availablePlayers(world, team).filter((p) => ageAt(p.birth, world.day) >= minAge && ok(p));
+  if (players.length < t.teamSize) players = team.roster.map((id) => world.players[id]).filter((p) => p && !p.retired && ok(p)) as Player[];
   const roles = t.lineup;
   const pairs: Array<{ p: Player; roleIdx: number; e: number }> = [];
   for (const p of players) {

@@ -13,12 +13,13 @@
 | `tests/persistence.test.ts` | IndexedDB round-trip (fake-indexeddb); backup recovery from a corrupted main save; delete; JSON export/import; v1→v2 migration then continued simulation; v2→v3 migration seeds unique draft picks; rejects malformed/future/corrupt saves; **five manual save slots** (independent copies, active slot, slot 6 rejected, delete); **30-title-edition conversion** (original kept and exportable, removed title's leagues/teams/competitions gone, every person kept with the same ID in an allowed title as a free agent, inbox notice, world keeps simulating, archived labels resolve) and refusal for saves with only removed titles; alternating save slots (no backup rewrite) and serialised overlapping saves; corrupt newest slot recovers the previous one; old single-slot saves load and upgrade; storage-error messages; old detailed records of other clubs slimmed (user matches kept) and proficiencies rounded |
 | `tests/season.test.ts` | **All seven titles complete a valid season and nothing else exists in the world** (champions incl. Worlds per title, all fixtures played, POY per title, world invariants); 3-season multi-title world invariants (no double rosters, roster limits, finite values, league membership, retirements, transfers, development, pruning, patches) |
 | `tests/transfers.test.ts` | Negotiation flow (lowball rejected → counter → accept → terms counter → signed; fee, bonus, clause and records), club patience & 30-day block, release clause forces acceptance, withdrawal, sell-on payout on the next sale, pre-contract completes at rollover (and blocks extensions/bids), refused for longer contracts, offer sheet matched by the current club, counter-offers vs bidder ceiling, asking price & offer-to-clubs, deterministic outcomes, v3→v4 migration |
+| `tests/registration.test.ts` | Registration lock (5–8 rostered players per entrant, unique across teams, inbox notice); standing plan honoured; changes refused outside windows, limited to 2 in windows, duplicates refused, emergency registrations allowed and flagged; unregistered user signing notice; AI auto-registers signings in a window; season simulation: every player who played a competition was registered for it |
 | `tests/longterm.test.ts` | 10 seasons (default) / 30 seasons (`LONG_SIM=1`): bounded population, finite finances, bounded save growth, multiple world champions per title, legends & retirees |
 
 End-to-end (`npm run e2e`, Playwright, Chromium): new career → organisation pick → players directory,
 profile tabs, world popularity map, global search → advance to match day → play a full live series →
 match report with commentary → advance a week → Save opens Save / Load → save to slot 1 → Save again writes
-slot 1 → reload → load slot 1 restores the date;
+slot 1 → Export downloads `slot1_*.uem.json` → reload → load slot 1 restores the date;
 asserts no page errors. Transfer flow: new career → into the window → player search → bid → accept the
 club's counter → offer personal terms → signing completed and listed under Negotiations. Mobile viewport: no horizontal overflow.
 
@@ -28,7 +29,7 @@ not survive a reload, or any warning/error was logged.
 
 ## Latest results
 
-* Vitest: **100 passed / 100** (19 Nov 2026, seven-title edition).
+* Vitest: **105 passed / 105** (19 Nov 2026, seven-title edition + registration).
 * Playwright: **3 passed / 3**; `npm run check:portable` passes (worker loads from file://, no freezes,
   autosave survives reload); Pixel 7 emulation: no horizontal overflow, slot save works by tap.
 * Android: `npm run android:debug-apk` → `android/app/build/outputs/apk/debug/app-debug.apk` built and

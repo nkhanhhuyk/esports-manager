@@ -82,6 +82,9 @@ test('new career: generate, pick organisation, browse, advance, play live, save 
   await expect(page.getByText('Saved to slot 1.')).toBeVisible();
   await page.getByRole('button', { name: /^Save/ }).first().click();
   await expect(page.getByText('Saved to slot 1.').first()).toBeVisible();
+  // Exporting a slot downloads a save file in browsers (Android uses the share sheet instead).
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export', exact: true }).first().click()]);
+  expect(download.suggestedFilename()).toMatch(/^slot1_.*\.uem\.json$/);
   await page.goto('/');
   await page.reload();
   await expect(page.getByText('Slot 1', { exact: true })).toBeVisible();

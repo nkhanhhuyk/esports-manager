@@ -6,6 +6,7 @@ import type { Competition, Fixture, World } from '../model/types';
 import { applyFixtureToStage, checkStage, stagePlacements, startStage } from './stages';
 import { onCompetitionFinished } from '../systems/awards';
 import { boardCompetitionReaction } from '../systems/career';
+import { lockRegistrations } from '../systems/registration';
 import { buildNationalTeams } from '../systems/nations';
 
 function compDone(world: World, id: string): boolean {
@@ -88,6 +89,7 @@ export function startDueCompetitions(world: World, day: number): void {
     comp.teamIds = teams;
     comp.status = 'active';
     comp.current = 0;
+    lockRegistrations(world, comp);
     startStage(world, comp, comp.stages[0], teams);
   }
 }

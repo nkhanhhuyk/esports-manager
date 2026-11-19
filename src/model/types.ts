@@ -198,6 +198,8 @@ export interface TeamPrefs {
   delegateTraining: boolean;
   /** Tender qualifying offers to restricted free agents (leagues with RFA). Default on. */
   tenderRFA?: boolean;
+  /** Standing registration plan: the players to register when a competition locks (else the coach picks). */
+  registrationPlan?: ID[];
 }
 
 export type TrainingFocus =
@@ -481,6 +483,14 @@ export interface Competition {
   split?: number;
   /** Per-player aggregate inside this competition (MVP voting). */
   pstats: Record<ID, { gp: number; r: number; m: number; teamId: ID }>;
+  /**
+   * Registered players per entrant, frozen when the competition locks (3 days before it starts).
+   * Only registered players may play in this competition. Absent for editions created before
+   * registration existed (then every rostered player is eligible).
+   */
+  registrations?: Record<ID, ID[]>;
+  /** Registration changes made after the lock, per team (limited per edition). */
+  amendments?: Record<ID, Array<{ day: DayNum; added: ID; removed: ID | null; emergency: boolean }>>;
 }
 
 /** Best-of-n series: first to ceil(n/2) game (MOBA) or map (shooter) wins. */

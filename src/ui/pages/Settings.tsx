@@ -1,4 +1,6 @@
 import { useRef } from 'react';
+import { navigate } from '../router';
+import { saveFile } from '../fileExport';
 import { useGame, useWorld } from '../store';
 import { Card, PageHeader } from '../components/common';
 import { exportSave, importSave } from '../../persistence/db';
@@ -27,18 +29,14 @@ export function SettingsPage() {
             <input type="checkbox" checked={world.meta.autosave} onChange={(e) => act((w) => (w.meta.autosave = e.target.checked))} /> Autosave after every advance (previous state kept as a backup)
           </label>
           <div className="row" style={{ marginTop: 8 }}>
-            <button className="btn" onClick={() => save()}>
-              Save now
+            <button className="btn" onClick={() => navigate('/saves')}>
+              Save / Load (5 slots)…
             </button>
             <button
               className="btn ghost"
-              onClick={() => {
-                const url = URL.createObjectURL(exportSave(world));
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${world.meta.name.replace(/\W+/g, '_')}-${world.season}.uem.json`;
-                a.click();
-                URL.revokeObjectURL(url);
+              onClick={async () => {
+                const r = await saveFile(exportSave(world), `${world.meta.name.replace(/\W+/g, '_')}-${world.season}.uem.json`);
+                notify(r.message, r.ok ? 'ok' : 'err');
               }}
             >
               Export save file

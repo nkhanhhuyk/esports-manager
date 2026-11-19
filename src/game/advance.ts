@@ -16,6 +16,7 @@ import { processMonthlyFinances } from '../systems/finance';
 import { aiContracts, aiMarketDay, processLoans } from '../systems/transfers';
 import { negotiationsDay } from '../systems/negotiation';
 import { boardMonthly } from '../systems/career';
+import { registrationReminders } from '../systems/registration';
 import { compactMatches, roundProficiencies } from './compact';
 import { adaptToMeta, releasePatch } from '../systems/patches';
 import { seasonRollover } from './rollover';
@@ -84,6 +85,7 @@ export function processDay(world: World): void {
   for (const team of Object.values(world.teams)) if (team.active) adaptToMeta(world, team.id);
   aiMarketDay(world);
   negotiationsDay(world);
+  registrationReminders(world);
   if (dayOfWeek(day) === 1) {
     const wk = Math.floor(day / 7);
     if (world.processed.lastWeek !== wk) {

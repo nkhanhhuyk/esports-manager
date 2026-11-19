@@ -5,6 +5,7 @@ import { roleE, rosterPlayers, userTeams } from '../helpers';
 import { getTitle } from '../../data/titles/catalogue';
 import { autoLineup, validateLineup } from '../../systems/lineup';
 import { currentPatch } from '../../systems/patches';
+import { activeRegistrations } from '../../systems/registration';
 import type { LineupSlot, TeamPrefs } from '../../model/types';
 import { computeTeamStrength } from '../../sim/common/team';
 
@@ -101,6 +102,15 @@ export function TacticsPage({ route }: { route: Route }) {
             </div>
           )}
           {check.ok && <div className="pos small">Lineup is legal for {team.leagueId ? world.leagues[team.leagueId].name : t.short} rules.</div>}
+          {activeRegistrations(world, team.id).map((c) => {
+            const missing = team.lineup.filter((s) => !c.registrations![team.id].includes(s.playerId));
+            return missing.length ? (
+              <div key={c.id} className="neg small" style={{ marginTop: 4 }}>
+                Not registered for {c.short}: {missing.map((s) => world.players[s.playerId]?.handle).join(', ')} — the coach will field registered players instead.{' '}
+                <a onClick={() => navigate(`/team/${team.id}`)}>Registration</a>
+              </div>
+            ) : null;
+          })}
         </Card>
         <Card title="Team preferences (pre-match)">
           <label className="field">

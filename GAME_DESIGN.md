@@ -143,6 +143,12 @@ Series keep every game.
 * **News & inbox**: transfers, upsets, champions, awards, retirements, prospects, patches, finance and
   organisation events; actionable inbox offers and board messages.
 
+* **Competition registration**: contracts and registrations are separate. Each competition locks up to
+  eight registered players per team three days before it starts (your standing plan on the Team page, or
+  the coach's choice); only registered players can play; 2 changes per competition during transfer
+  windows; emergency registrations when injuries leave fewer than five. Tactics warns about unregistered
+  starters; the inbox reminds you before splits lock and when a signing still needs registering.
+
 ## 9. Career roles & the board
 
 * Roles: Head Coach & GM (all football-manager style powers), Head Coach (lineups, drafts, live matches,

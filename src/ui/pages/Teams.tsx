@@ -16,6 +16,8 @@ import { potentialRange } from '../../systems/scouting';
 import { regionName } from '../../data/countries';
 import { formatMoney } from '../../core/math';
 import { pickLabel, picksOwnedBy, pickValue } from '../../systems/draft';
+import { activeRegistrations, AMENDMENTS, amendRegistration, maxRegistered, plannedRegistration } from '../../systems/registration';
+import { inTransferWindow } from '../../systems/transfers';
 import type { Team } from '../../model/types';
 
 export function TeamsPage() {
@@ -159,6 +161,7 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
           <Card title={`Roster (${team.roster.length}) — ${t.teamSize} starters`}>
             <RosterTable team={team} />
           </Card>
+          <RegistrationCard team={team} />
           <TeamPicks team={team} />
           {academy.length > 0 && (
             <Card title="Academy / development teams">
@@ -385,6 +388,110 @@ function TeamPicks({ team }: { team: Team }) {
           <input type="checkbox" checked={team.prefs.tenderRFA !== false} onChange={(e) => act((w) => (w.teams[team.id].prefs.tenderRFA = e.target.checked), { save: true })} /> Tender qualifying offers to expiring players aged 24 or under (one season at +10% salary)
         </label>
       )}
+    </Card>
+  );
+}
+
+/** Competition registration: the standing plan (user teams) and live registrations with changes. */
+function RegistrationCard({ team }: { team: Team }) {
+  const world = useWorld();
+  const { act, notify } = useGame();
+  const mine = isUserTeamId(world, team.id);
+  const comps = activeRegistrations(world, team.id);
+  const max = maxRegistered(world, team);
+  const t = getTitle(team.titleId);
+  const planned = plannedRegistration(world, team);
+  const [swapOut, setSwapOut] = useState<Record<string, string>>({});
+  if (!mine && !comps.length) return null;
+  const name = (id: string) => world.players[id]?.handle ?? '—';
+  const togglePlan = (pid: string) =>
+    act((w) => {
+      const tm = w.teams[team.id];
+      const cur = tm.prefs.registrationPlan?.length ? [...tm.prefs.registrationPlan] : plannedRegistration(w, tm);
+      const next = cur.includes(pid) ? cur.filter((x) => x !== pid) : cur.length < max ? [...cur, pid] : cur;
+      if (!cur.includes(pid) && cur.length >= max) notify(`At most ${max} players can be registered.`, 'err');
+      tm.prefs.registrationPlan = next;
+    });
+  return (
+    <Card title="Competition registration" right={<span className="muted small">up to {max} players · only registered players can play · {AMENDMENTS} changes per competition in transfer windows</span>}>
+      {mine && (
+        <div style={{ marginBottom: 10 }}>
+          <div className="row" style={{ marginBottom: 4 }}>
+            <b className="small">Registration plan (used when a competition locks, 3 days before it starts)</b>
+            <span className="muted small">{team.prefs.registrationPlan?.length ? `your plan · ${team.prefs.registrationPlan.length}/${max}` : "coach's choice"}</span>
+            {team.prefs.registrationPlan?.length ? (
+              <button className="btn ghost sm" onClick={() => act((w) => (w.teams[team.id].prefs.registrationPlan = undefined))}>
+                Let the coach choose
+              </button>
+            ) : null}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 2 }}>
+            {team.roster.map((pid) => (
+              <label key={pid}>
+                <input type="checkbox" checked={planned.includes(pid)} onChange={() => togglePlan(pid)} /> {name(pid)} <span className="muted small">{roleName(team.titleId, world.players[pid]?.roles[0] ?? '')}</span>
+              </label>
+            ))}
+          </div>
+          {planned.length < t.teamSize && <div className="neg small">The plan needs at least {t.teamSize} players; the coach will fill it otherwise.</div>}
+        </div>
+      )}
+      {comps.map((c) => {
+        const reg = c.registrations![team.id];
+        const used = c.amendments?.[team.id]?.filter((a) => !a.emergency).length ?? 0;
+        const unregistered = team.roster.filter((id) => !reg.includes(id));
+        return (
+          <div key={c.id} style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 6 }}>
+            <div className="row">
+              <CompLink c={c} />
+              <span className="muted small">
+                {reg.length}/{max} registered · {AMENDMENTS - used} change(s) left · window {inTransferWindow(world) ? 'open' : 'closed'}
+              </span>
+            </div>
+            <div className="small">
+              {reg.map((id) => {
+                const p = world.players[id];
+                const status = !p || p.teamId !== team.id ? ' (left the team)' : p.injury && p.injury.untilDay > world.day ? ' (injured)' : '';
+                return (
+                  <span key={id} className={`chip ${status ? 'ban' : 'pick'}`}>
+                    {name(id)}
+                    {status}
+                  </span>
+                );
+              })}
+            </div>
+            {mine && unregistered.length > 0 && (
+              <div style={{ marginTop: 4 }}>
+                {unregistered.map((pid) => (
+                  <div key={pid} className="row small">
+                    <span>
+                      <b>{name(pid)}</b> is not registered
+                    </span>
+                    {reg.length >= max && (
+                      <select aria-label={`Replace for ${name(pid)}`} value={swapOut[pid] ?? ''} onChange={(e) => setSwapOut((o) => ({ ...o, [pid]: e.target.value }))}>
+                        <option value="">replace…</option>
+                        {reg.map((id) => (
+                          <option key={id} value={id}>
+                            {name(id)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      className="btn ghost sm"
+                      onClick={() => {
+                        const r = act((w) => amendRegistration(w, c.id, team.id, pid, reg.length >= max ? swapOut[pid] || null : null), { save: true });
+                        if (r) notify(r.message, r.ok ? 'ok' : 'err');
+                      }}
+                    >
+                      Register
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </Card>
   );
 }
