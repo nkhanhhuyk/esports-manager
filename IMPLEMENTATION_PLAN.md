@@ -36,10 +36,10 @@ Capacitor 8 project (`android/`), scripts (`build:web`, `android:sync`, `android
 ## M3 — Deep management systems 🔶
 Done: scouting with uncertainty, 86-attribute profiles, training incl. input/role/character adaptation,
 transfers (negotiations, pre-contracts, sell-ons), loans, trades & picks, RFA, staff, board & job security,
-finances & facilities, news, awards, national teams.
-Next: organisation-level treasury with department allocations that sum to cash, staff capacity/philosophy,
-explicit roster registration separate from contracts, dual-title rosters with one shared calendar, fan
-segments, training-session capacity/cancellation.
+finances & facilities, news, awards, national teams, competition registration separate from contracts,
+organisation treasury (department wage budgets backed by cash, commitments, forecast, audit log).
+Next: fan segments & rivalries, training-session capacity/cancellation, staff capacity/philosophy,
+dual-title rosters with one shared calendar.
 
 ## M4 — Long careers and polish 🔶
 Done: deterministic seeded simulation, idempotent days, save-size compaction, 10-season soak test.

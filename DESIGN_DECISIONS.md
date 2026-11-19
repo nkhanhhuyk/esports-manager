@@ -112,6 +112,22 @@ Core durability (`coreHits`): 2 for MLBB, Wild Rift, HoK and LoL; 3 for Dota 2.
   win-now 1.2, prestige 1.15, expansion 1.05, balanced 1, youth 0.85, moneyball 0.75; cushion = 8% of cash,
   bounded to [−30%, +35%] of V. Budgets never compound season over season (that previously let rich clubs
   stack every star and win 8+ consecutive titles).
+* **Organisation treasury** (src/systems/treasury.ts; proposal, editable). Cash, department budgets,
+  commitments and the forecast are kept apart: a budget is spending *authority*, not money — cash moves only
+  when salaries, fees and bonuses are paid.
+  * Fundable wage authority = 12-month projected revenue (sponsor deals until they end + media, merchandise
+    and league share at the current rate) + 50% of positive cash − 12 months of fixed costs (staff,
+    facilities, operations). Σ department wage budgets ≤ fundable; the difference is the unallocated
+    reserve.
+  * Raising a budget draws on the reserve; lowering it returns authority but never goes below the
+    department's contracted payroll; moving budget between departments nets to zero and may only move the
+    source's unused part. Every change is written to the organisation's budget log (last 120 entries).
+  * User signings, extensions (only the raise counts) and trades must fit the receiving department's
+    budget; AI clubs keep the board budget formula above. A user whose role lacks the *finance* permission
+    gets board-set budgets at rollover; roles with it keep theirs.
+  * Commitments = salaries owed until each contract's end (season end 22 Nov). The 12-month cash forecast
+    uses only agreed income/costs (no prizes, transfers, bonuses or renewals); a projected negative balance
+    within three months sends a monthly Finance warning.
 * Prize split: 32/18/11/9/6/6/4/4/2… %, org keeps (1 − 0.6 × average player prize share).
 * Transfer valuation = expected salary × 1.4 × youth/headroom factor × contract-length factor; clubs add
   +35% for starters, strategy modifiers (moneyball −15%, win-now/prestige +25%), listed −20%.

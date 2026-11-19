@@ -17,6 +17,7 @@ import { aiContracts, aiMarketDay, processLoans } from '../systems/transfers';
 import { negotiationsDay } from '../systems/negotiation';
 import { boardMonthly } from '../systems/career';
 import { registrationReminders } from '../systems/registration';
+import { treasuryMonthly } from '../systems/treasury';
 import { compactMatches, roundProficiencies } from './compact';
 import { adaptToMeta, releasePatch } from '../systems/patches';
 import { seasonRollover } from './rollover';
@@ -99,6 +100,7 @@ export function processDay(world: World): void {
   if (isFirstOfMonth(day) && world.processed.lastMonth !== monthKey(day)) {
     processMonthlyFinances(world);
     boardMonthly(world);
+    treasuryMonthly(world);
     roundProficiencies(world);
     aiContracts(world);
   }

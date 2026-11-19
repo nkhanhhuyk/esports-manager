@@ -20,6 +20,7 @@ import { addInbox, addNews, isUserTeam } from './news';
 import { autoLineup } from './lineup';
 import { can } from './career';
 import { onPlayerJoined } from './registration';
+import { budgetCheck } from './treasury';
 
 export interface OfferResponse {
   ok: boolean;
@@ -248,7 +249,8 @@ export function checkPolicy(world: World, team: Team, p: Player, kind: Offer['ki
   if (league && kind === 'transfer' && !league.policy.transferFees && p.teamId) return 'This league does not permit paid transfers.';
   const v = validateContract(world, team, p, { salary, endSeason: world.season + years - 1 }, league);
   if (!v.ok) return v.errors[0];
-  return null;
+  // The user's signings must fit the department's wage budget (Finances → Treasury).
+  return budgetCheck(world, team, p.id, salary);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -404,6 +406,8 @@ export function offerExtension(world: World, playerId: string, salary: number, y
   const team = world.teams[p.teamId];
   const v = validateContract(world, team, p, { salary, endSeason: world.season + years - 1 });
   if (!v.ok) return { ok: false, status: 'invalid', message: v.errors[0] };
+  const over = budgetCheck(world, team, p.id, salary);
+  if (over) return { ok: false, status: 'invalid', message: over };
   const rng = RNG.derive(world.meta.seed, 'ext', p.id, world.day, salary);
   const expected = expectedSalary(world, p, team.titleId, team.region);
   const appeal = offerAppeal(world, p, team, salary) + (p.pers.loyalty / 100) * 0.2 - p.unhappy / 150;
@@ -474,6 +478,11 @@ export function proposeTrade(world: World, teamId: string, give: string[], take:
   const valueIn = takeP.reduce((a, p) => a + clubValuation(world, p, other), 0) + takePk.reduce((a, d) => a + pickValue(world, d) * 1.1, 0);
   const valueOut = giveP.reduce((a, p) => a + marketValue(world, p) * (other.titleId === p.titleId ? 1 : 0.5), 0) + givePk.reduce((a, d) => a + pickValue(world, d), 0) + cash;
   if (takeP.length + giveP.length > 0 && (team.roster.length - giveP.length + takeP.length > rosterMax(world, team) || other.roster.length - takeP.length + giveP.length > rosterMax(world, other))) return { ok: false, status: 'invalid', message: 'The trade would break a roster limit.' };
+  if (world.orgs[team.orgId]?.user) {
+    const pay = (ps: Player[]) => ps.reduce((a, p) => a + (p.contract?.salary ?? 0), 0);
+    const after = teamPayroll(world, team) - pay(giveP) + pay(takeP);
+    if (after > team.salaryBudget && pay(takeP) > pay(giveP)) return { ok: false, status: 'invalid', message: `The trade would put ${team.name} ${Math.round(after - team.salaryBudget).toLocaleString()} over its wage budget. Raise or move budget in Finances → Treasury.` };
+  }
   if (valueOut < valueIn * 1.05) return { ok: false, status: 'rejected', message: `${other.name} want more value (gap ~$${Math.round(valueIn * 1.05 - valueOut).toLocaleString()}).`, counterFee: Math.round(valueIn * 1.05 - valueOut) };
   if (cash > 0) {
     ledger(world, world.orgs[team.orgId], 'trade-cash', -cash, team.id, 'Trade consideration');

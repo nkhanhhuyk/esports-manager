@@ -325,6 +325,8 @@ export interface Organisation {
   strategy: OrgStrategy;
   balance: number;
   sponsors: Sponsor[];
+  /** Internal budget movements (authorisations, not cash) — audit trail. */
+  budgetLog?: Array<{ day: DayNum; teamId: ID | null; toTeamId: ID | null; amount: number; note: string }>;
   ledger: LedgerEntry[];
   monthly: MonthlyFinance[];
   debtMonths: number;

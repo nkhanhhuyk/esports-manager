@@ -60,6 +60,10 @@ by simulation tests.
   bidder's hidden ceiling, one final offer back, then they walk away).
 * **Finance**: monthly accounts per org with division budgets, ledger, charts, facilities upgrades,
   sponsorship renewal, distress → injections/acquisitions.
+* **Organisation treasury**: cash vs. budgets vs. commitments vs. forecast kept apart; fundable wage
+  authority (revenue + 50% cash − fixed costs) allocated to departments; set/move budgets with an audit log;
+  budgets enforced for user signings, renewals and trades; 12-month committed-cash forecast with shortfall
+  warnings (`tests/treasury.test.ts`).
 * **Training & progression**: team/individual focus, intensity, scrims, opponent prep, diminishing returns,
   fatigue & health setbacks, aging & decline, potential revisions, resurgences, input adaptation training.
 * **Patches/meta**: per-title version history, balance & major patches, styles, map pool rotation, objective
@@ -113,8 +117,7 @@ by simulation tests.
 
 1. **Install and test the APK on a real Android device or emulator** (airplane mode, restart, rotation,
    Back, backgrounding) — not possible in the build environment (no `/dev/kvm`).
-2. Organisation treasury with department allocations that sum to cash; staff capacity and philosophy
-   alignment.
+2. Staff capacity and philosophy alignment.
 3. Dual-title rosters with one shared calendar and divided practice time.
 4. Training sessions as scarce capacity (staff, rooms, cancellations without phantom growth).
 5. Fan segments, rivalries from repeated encounters, richer news.

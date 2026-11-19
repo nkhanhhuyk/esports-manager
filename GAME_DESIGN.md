@@ -128,6 +128,11 @@ Series keep every game.
 * **Finance**: division commercial value (title × region × popularity × roster size) drives media and
   sponsorship; merchandise from fans; franchised league revenue share; prize money; salaries, staff,
   facilities upkeep, operations; distress → owner injection or acquisition; sponsor renewal.
+* **Treasury**: the organisation's cash backs a fundable wage authority (revenue + half of cash − fixed costs)
+  that is allocated to departments (divisions) as wage budgets. Finances → Treasury shows cash, allocated and
+  unallocated authority, salary commitments, per-department payroll/budget/headroom, lets permitted roles set
+  or move budgets (logged), and forecasts 12 months of committed cash with shortfall warnings. User
+  signings, renewals and trades must fit the department's budget.
 * **Training**: team focus (14 options), intensity, scrims, individual focus, opponent prep; quality from
   coaching staff and facilities; diminishing returns after 8 weeks on one focus; fatigue & health setbacks.
 * **Progression**: weekly attribute growth toward potential by age curve and trajectory; mechanical decline

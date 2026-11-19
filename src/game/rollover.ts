@@ -26,7 +26,7 @@ import { makeOrgName } from '../gen/names';
 import { computeTeamStrength } from '../sim/common/team';
 import { ensureDraftPicks, runRookieDrafts } from '../systems/draft';
 import { clearNationalSquads } from '../systems/nations';
-import { boardReview, hasBoard, setBoardObjectives } from '../systems/career';
+import { boardReview, can, hasBoard, setBoardObjectives } from '../systems/career';
 
 function leagueTable(world: World, league: League, season: number): Array<{ teamId: string; w: number; l: number; gd: number }> {
   const agg = new Map<string, { teamId: string; w: number; l: number; gd: number }>();
@@ -404,7 +404,8 @@ export function seasonRollover(world: World): void {
     if (!team.active) continue;
     team.chemistry = clamp(team.chemistry * 0.85 + 8, 0, 100);
     const org = world.orgs[team.orgId];
-    if (org && !org.user && !team.national) team.salaryBudget = salaryBudgetFor(world, team);
+    // AI clubs, and user clubs whose manager has no finance authority, get the board's budget.
+    if (org && !team.national && (!org.user || !can(world, 'finance'))) team.salaryBudget = salaryBudgetFor(world, team);
     team.lineup = autoLineup(world, team);
   }
   for (const p of Object.values(world.players)) {
