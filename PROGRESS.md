@@ -36,6 +36,12 @@ by simulation tests.
 * **Organisation lifecycle**: buy league slots (enter new titles), academies, division closure, rebrand,
   AI rebrands/relocations/closures/acquisitions with history preserved.
 * **Staff**: generation, hiring/release, development, retirement, ex-players into staff.
+* **National teams**: biennial Nations Cup (odd seasons, December off-season) for the six most popular
+  non-BR titles; squads are the best players of each nation in the title (club contracts untouched);
+  trophies and legacy points for players; fatigue carries into club play.
+* **League policies in play**: rookie drafts (franchised leagues by default; reverse-standings order, two
+  rounds, rookie deals with team option), soft-cap luxury tax charged monthly, hard caps, import limits,
+  minimum ages, roster limits, trade/loan/fee permissions.
 * **Saves**: IndexedDB slots, autosave + backup, crash-recovery prompt, export/import JSON, zod validation,
   v1→v2 migration.
 * **UI**: sidebar shell, breadcrumbs, back/forward, global search, sortable/filterable/paginated tables with
@@ -49,21 +55,23 @@ by simulation tests.
   Role-specific permission sets are not enforced yet.
 * **Dual-title participation**: `Player.dualTitleId` exists and cross-title histories are tracked, but a player
   cannot yet appear on two active rosters simultaneously.
-* **Drafts (rookie drafts)**: league policy flag exists (`draft`), not yet run at rollover.
-* **Restricted free agency / luxury tax**: policy fields exist; soft-cap tax is not charged yet.
-* **National teams / Nations Cup**: not implemented (data model leaves room via career role).
+* **Draft picks as tradable assets**: drafts run, but picks cannot yet be traded.
+* **Restricted free agency**: policy flag exists; no matching-offer mechanic yet.
+* **National team coach career**: national teams and the Nations Cup exist; the user cannot yet take the
+  national coach role (squads are picked automatically).
 * **Scouting assignments**: scouts auto-scout your titles + focus list; no region assignment UI.
 * **Affiliate/partner organisations & joint ownership**: `partners` field exists; no gameplay yet.
 * **Media/social reactions**: news feed covers major events; no fan-sentiment model.
 
 ## Missing / next steps (priority order)
 
-1. **Performance for Standard/Large worlds with all 30 titles** — currently ~15s/season for Tiny (446 teams).
-   Next: cache per-game team contexts, pre-filter draft candidates, lighter AI market scans, optional
-   lower-detail engine path for very low-tier leagues.
+1. **Performance for Standard/Large worlds with all 30 titles** — all 30 titles: Tiny ≈12s, Small ≈26s,
+   Standard ≈50s per season (in a Web Worker with progress). Next: cache per-game team contexts across a
+   series, pre-filter draft candidates, lighter weekly training for free agents, an aggregated engine path
+   for low-tier leagues.
 2. Role-based permissions for career modes (owner/director/national coach) and board objectives/job security.
-3. Rookie drafts, restricted FA, luxury tax collection, trade blocks UI.
-4. National team competitions (biennial Nations Cup per title).
+3. Tradable draft picks, restricted FA matching offers, trade-block UI.
+4. National-team coach career mode (pick squads, play Nations Cup matches live).
 5. Dual-title rosters with schedule-conflict fatigue.
 6. Richer AI strategic shifts (rebuild vs contend cycles), affiliate partnerships and player exchanges.
 7. More granular commentary (per-round tactical narration), heatmap-style analytics.

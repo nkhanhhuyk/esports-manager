@@ -24,6 +24,8 @@ import { createOrg, createTeam, populateTeam, staffTeam } from '../gen/world';
 import { expectedStaffSalary, makeContract } from '../systems/contracts';
 import { makeOrgName } from '../gen/names';
 import { computeTeamStrength } from '../sim/common/team';
+import { runRookieDrafts } from '../systems/draft';
+import { clearNationalSquads } from '../systems/nations';
 
 function leagueTable(world: World, league: League, season: number): Array<{ teamId: string; w: number; l: number; gd: number }> {
   const agg = new Map<string, { teamId: string; w: number; l: number; gd: number }>();
@@ -105,7 +107,7 @@ function retirements(world: World, rng: RNG): void {
     const age = ageAt(p.birth, world.day);
     let chance = 0;
     if (age >= 23) chance = 0.015 + Math.max(0, age - p.dev.declineAge) * 0.045 + Math.max(0, age - 28) * 0.05;
-    if (!p.teamId && age >= 21) chance += 0.08 + (p.ca < 55 ? 0.1 : 0);
+    if (!p.teamId && age >= 21) chance += 0.1 + (p.ca < 55 ? 0.12 : 0) + (age >= 24 ? 0.1 : 0);
     if (p.ca < 45 && age > 20) chance += 0.1;
     if (p.teamId && p.contract && p.contract.endSeason > world.season) chance *= 0.25;
     if (!rng.chance(clamp(chance, 0, 0.95))) continue;
@@ -181,7 +183,7 @@ function orgEvolution(world: World, rng: RNG): void {
   const ctx: GenCtx = { world, rng, handles: new Set(Object.values(world.players).map((p) => p.handle.toLowerCase())) };
   const names = new Set(Object.values(world.orgs).map((o) => o.name.toLowerCase()));
   for (const org of Object.values(world.orgs)) {
-    if (!org.active || org.user) continue;
+    if (!org.active || org.user || org.federation) continue;
     // Rebrand
     if (rng.chance(0.015)) {
       const old = org.name;
@@ -264,7 +266,7 @@ function hireMissingStaff(world: World, rng: RNG): void {
   for (const team of Object.values(world.teams)) {
     if (!team.active) continue;
     const org = world.orgs[team.orgId];
-    if (!org || org.user) continue;
+    if (!org || org.user || org.federation) continue;
     const hasCoach = team.staff.some((id) => ['head-coach', 'academy-coach'].includes(world.staff[id]?.role));
     if (hasCoach) continue;
     const cands = pool.filter((s) => (s.role === 'head-coach' || s.role === 'assistant-coach') && !s.teamId).sort((a, b) => (b.titleFam[team.titleId] ?? 0) + b.rep - ((a.titleFam[team.titleId] ?? 0) + a.rep));
@@ -365,6 +367,7 @@ export function seasonRollover(world: World): void {
   }
   seasonAwards(world, season);
   snapshotHistory(world, season);
+  clearNationalSquads(world);
   promotionRelegation(world, season, rng);
   yearlyDevelopment(world, rng);
   retirements(world, rng);
@@ -372,9 +375,10 @@ export function seasonRollover(world: World): void {
   staffAging(world, rng);
   popularityDrift(world, rng);
   orgEvolution(world, rng);
-  for (const org of Object.values(world.orgs)) if (org.active) renewSponsors(world, org, rng);
+  for (const org of Object.values(world.orgs)) if (org.active && !org.federation) renewSponsors(world, org, rng);
   hallOfFame(world, season + 1);
   world.season = season + 1;
+  runRookieDrafts(world, season, rng);
   regenerate(world, rng);
   hireMissingStaff(world, rng);
   // New-season resets

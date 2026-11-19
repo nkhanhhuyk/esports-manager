@@ -44,6 +44,8 @@ test('new career: generate, pick organisation, browse, advance, play live, save 
   for (let i = 0; i < 4 && !page.url().includes('matchday'); i++) {
     await page.getByRole('button', { name: /Continue/ }).click();
     await expect(page.locator('.busy')).toHaveCount(0, { timeout: 120000 });
+    // Navigation to the match-day screen happens right after the simulation finishes.
+    await page.waitForURL(/matchday/, { timeout: 1500 }).catch(() => undefined);
   }
   await expect(page).toHaveURL(/matchday/);
   await page.getByRole('button', { name: /Play live|Watch live/ }).first().click();

@@ -89,6 +89,16 @@ Dynasty check (scripts/dynasty.ts, 8 LoL seasons): world titles were won by 3 di
 dynasties of 2–3 years. Drivers: aging/decline, contract expiry, poaching by win-now/prestige/rich clubs
 (any club; the user's players only via inbox offers), regens, patches and meta adaptation, day-form noise.
 
+## Competition extras
+
+* **Nations Cup**: odd seasons, 3–18 December, six most popular non-BR titles, 8 nations by average CA of
+  their top players in the title; groups of 4 → single elimination; squads = starters + up to 2 subs.
+  National teams belong to a federation pseudo-organisation excluded from finance, market and org evolution.
+* **Rookie drafts**: enabled by default in franchised tier-1 leagues (editable per league); prospect class of
+  2 × teams + 4 aged 17–19 from the league's region; reverse regular-season order; picks valued by CA +
+  0.8 × headroom with evaluation noise; two-season rookie deals at 1.5 × league minimum with a team option.
+* **Luxury tax**: soft caps tax payroll above the cap at the league tax rate (default 50%), charged monthly.
+
 ## Persistence
 
 * Saves are stored as structured-cloned objects (no JSON stringify) — fast and compact enough for long saves.

@@ -73,7 +73,7 @@ function defaultPolicy(titleId: string, region: string, tier: 1 | 2, franchised:
     minSalary: Math.round(t.baseSalary * econ * 0.06 / 100) * 100,
     maxSalary: 0,
     trades: franchised,
-    draft: false,
+    draft: franchised,
     loans: true,
     transferFees: true,
     restrictedFA: franchised && t.family === 'SHOOTER',

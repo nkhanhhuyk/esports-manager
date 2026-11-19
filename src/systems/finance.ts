@@ -8,7 +8,7 @@ import { regionEconomy } from '../data/countries';
 import { getTitle } from '../data/titles/catalogue';
 import type { FacilityKey, Organisation, World } from '../model/types';
 import { nextId } from '../model/ids';
-import { titlePopIn } from './contracts';
+import { teamPayroll, titlePopIn } from './contracts';
 import { addInbox, addNews } from './news';
 import { RNG } from '../core/rng';
 import { makeCompanyName } from '../gen/names';
@@ -115,8 +115,16 @@ export function processMonthlyFinances(world: World): void {
   world.processed.lastMonth = mk;
   const orgStaff = new Map<string, number>();
   for (const s of Object.values(world.staff)) if (s.orgId && !s.teamId && s.contract && !s.retired) orgStaff.set(s.orgId, (orgStaff.get(s.orgId) ?? 0) + s.contract.salary / 12);
+  // Soft salary caps: luxury tax on payroll above the cap (charged monthly).
+  for (const team of Object.values(world.teams)) {
+    if (!team.active || !team.leagueId || team.national) continue;
+    const cap = world.leagues[team.leagueId]?.policy.cap;
+    if (!cap || cap.type !== 'soft' || cap.amount <= 0) continue;
+    const over = teamPayroll(world, team) - cap.amount;
+    if (over > 0) ledger(world, world.orgs[team.orgId], 'luxury-tax', -Math.round((over * cap.taxRate) / 12), team.id, 'Soft-cap luxury tax');
+  }
   for (const org of Object.values(world.orgs)) {
-    if (!org.active) continue;
+    if (!org.active || org.federation) continue;
     const { revenue, expenses } = monthlyBreakdown(world, org, orgStaff);
     for (const [k, v] of Object.entries(revenue)) if (v) ledger(world, org, k, v);
     for (const [k, v] of Object.entries(expenses)) if (v) ledger(world, org, k, -v);

@@ -263,6 +263,8 @@ export interface Team {
   scrimRating: number; // short-term practice quality
   /** Cache key of the last automatic lineup (avoids recomputation every match). */
   lineupSig?: string;
+  /** Country code for national teams (players keep their club contracts). */
+  national?: CountryCode;
 }
 
 export type OrgStrategy = 'win-now' | 'balanced' | 'youth' | 'moneyball' | 'prestige' | 'expansion';
@@ -323,6 +325,8 @@ export interface Organisation {
   events: OrgEvent[];
   active: boolean;
   user: boolean;
+  /** Federation pseudo-organisation that owns national teams (no finances / market). */
+  federation?: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -438,7 +442,8 @@ export type EntrantRule =
   | { kind: 'league'; leagueId: ID }
   | { kind: 'top'; compId: ID; count: number; skip?: number }
   | { kind: 'circuit'; leagueId: ID; count: number }
-  | { kind: 'fixed'; teamIds: ID[] };
+  | { kind: 'fixed'; teamIds: ID[] }
+  | { kind: 'nations'; titleId: TitleId; count: number };
 
 export interface Competition {
   id: ID;

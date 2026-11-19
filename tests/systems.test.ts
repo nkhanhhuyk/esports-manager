@@ -132,3 +132,53 @@ describe('training, progression and patches', () => {
     expect(Object.keys(p.charMeta).length).toBe(getTitle('overwatch').characters.length);
   });
 });
+
+describe('league policies: rookie draft & luxury tax', () => {
+  it('runs a rookie draft in reverse standings order where the league enables it', async () => {
+    const { advance } = await import('../src/game/advance');
+    const w = makeWorld(['cs2'], 'rookie');
+    const league = Object.values(w.leagues).find((l) => l.tier === 1)!;
+    league.policy.draft = true;
+    advance(w, { kind: 'end-season' });
+    const picks = w.transfers.filter((x) => x.type === 'draft' && league.teamIds.includes(x.toTeamId!));
+    expect(picks.length).toBe(league.teamIds.length * 2);
+    // Worst team of the season picks first.
+    const first = picks.find((x) => x.note === 'Round 1, pick 1')!;
+    expect(first).toBeTruthy();
+    for (const x of picks) {
+      const p = w.players[x.playerId];
+      expect(p.career.some((c) => c.type === 'draft')).toBe(true);
+      if (p.teamId) expect(w.teams[p.teamId].roster).toContain(p.id);
+    }
+  });
+
+  it('charges luxury tax above a soft cap', () => {
+    const w = makeWorld(['lol'], 'tax');
+    const team = Object.values(w.teams).find((t) => t.leagueId)!;
+    const league = w.leagues[team.leagueId!];
+    league.policy.cap = { type: 'soft', amount: 1, taxRate: 0.5 };
+    w.day = dayFromYMD(2027, 2, 1);
+    processMonthlyFinances(w);
+    expect(w.orgs[team.orgId].ledger.some((l) => l.kind === 'luxury-tax' && l.amount < 0)).toBe(true);
+  });
+});
+
+describe('national teams', () => {
+  it('plays a Nations Cup with country squads drawn from club players', async () => {
+    const { advance } = await import('../src/game/advance');
+    const w = makeWorld(['lol', 'valorant'], 'nations', 'small');
+    const cups = Object.values(w.comps).filter((c) => c.tier === 'cup');
+    expect(cups.length).toBe(2); // odd season -> one cup per eligible title
+    advance(w, { kind: 'until', day: w.day + 40 });
+    for (const c of cups) {
+      expect(c.status).toBe('done');
+      const champ = w.teams[c.placements[0]];
+      expect(champ.national).toBeTruthy();
+      for (const pid of champ.roster) {
+        const p = w.players[pid];
+        expect(p.nat).toBe(champ.national);
+        expect(p.teamId).not.toBe(champ.id); // club contract untouched
+      }
+    }
+  });
+});

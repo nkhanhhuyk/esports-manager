@@ -23,7 +23,7 @@ function OrgPicker() {
   const rows = useMemo(
     () =>
       Object.values(world.orgs)
-        .filter((o) => o.active && o.teams.length && (!title || o.teams.some((t) => world.teams[t].titleId === title)))
+        .filter((o) => o.active && !o.federation && o.teams.length && (!title || o.teams.some((t) => world.teams[t].titleId === title)))
         .map((o) => ({ o, avgStr: o.teams.reduce((a, t) => a + computeTeamStrength(world, world.teams[t]), 0) / o.teams.length })),
     [world, title],
   );

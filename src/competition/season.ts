@@ -139,6 +139,7 @@ export function allocateSlots(strengths: number[], total: number, maxPer = 4): n
 
 export function planSeason(world: World, season: number): void {
   const titleIds = world.meta.titlesEnabled.filter((id) => world.titles[id]?.active !== false);
+  planNationsCup(world, season);
   titleIds.forEach((titleId, ti) => {
     const t = getTitle(titleId);
     const off = ti % 3;
@@ -203,6 +204,23 @@ export function planSeason(world: World, season: number): void {
     const wEntrants: EntrantRule[] = tier1.map((l, i) => ({ kind: 'circuit', leagueId: l.id, count: Math.min(slots[i], l.size) }));
     const wN = wEntrants.reduce((a, e) => a + (e.kind === 'circuit' ? e.count : 0), 0);
     mkComp(world, t, season, `${t.short} World Championship ${season}`, `${t.short} Worlds`, 'worlds', null, null, wEntrants, internationalStages(t, wN, D(9, 22), true), t.prizeScale * 1_000_000, 100, []);
+  });
+}
+
+/**
+ * Biennial Nations Cup (odd seasons) for the most popular non-BR titles, played in the December
+ * off-season before the season's competitive calendar.
+ */
+export function planNationsCup(world: World, season: number): void {
+  if (season % 2 !== 1) return;
+  const titles = world.meta.titlesEnabled
+    .filter((id) => getTitle(id).engine !== 'br' && world.titles[id]?.active !== false)
+    .sort((a, b) => (world.titles[b]?.globalPop ?? 0) - (world.titles[a]?.globalPop ?? 0))
+    .slice(0, 6);
+  titles.forEach((titleId, i) => {
+    const t = getTitle(titleId);
+    const start = dayFromYMD(season - 1, 12, 3) + (i % 3);
+    mkComp(world, t, season, `${t.short} Nations Cup ${season}`, `${t.short} NC`, 'cup', null, null, [{ kind: 'nations', titleId, count: 8 }], [stage('Group Stage', 'groups', start, { groups: 2, advance: 2 }), stage('Knockout Stage', 'single-elim', start + 6, { daysBetweenRounds: 2 })], t.prizeScale * 150_000, 45, []);
   });
 }
 

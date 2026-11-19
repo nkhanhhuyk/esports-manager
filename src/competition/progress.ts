@@ -5,6 +5,7 @@
 import type { Competition, Fixture, World } from '../model/types';
 import { applyFixtureToStage, checkStage, stagePlacements, startStage } from './stages';
 import { onCompetitionFinished } from '../systems/awards';
+import { buildNationalTeams } from '../systems/nations';
 
 function compDone(world: World, id: string): boolean {
   return world.comps[id]?.status === 'done';
@@ -23,6 +24,8 @@ export function resolveEntrants(world: World, comp: Competition): string[] | nul
       l?.teamIds.forEach(add);
     } else if (rule.kind === 'fixed') {
       rule.teamIds.forEach(add);
+    } else if (rule.kind === 'nations') {
+      buildNationalTeams(world, rule.titleId, rule.count).forEach(add);
     } else if (rule.kind === 'top') {
       if (!compDone(world, rule.compId)) return null;
       const src = world.comps[rule.compId];
@@ -54,7 +57,7 @@ export function resolveEntrants(world: World, comp: Competition): string[] | nul
     }
   }
   // Seed by strength (elo) inside internationals for balanced brackets.
-  if (comp.tier === 'international' || comp.tier === 'worlds') out.sort((a, b) => (world.teams[b]?.elo ?? 0) - (world.teams[a]?.elo ?? 0));
+  if (comp.tier === 'international' || comp.tier === 'worlds' || comp.tier === 'cup') out.sort((a, b) => (world.teams[b]?.elo ?? 0) - (world.teams[a]?.elo ?? 0));
   return out;
 }
 

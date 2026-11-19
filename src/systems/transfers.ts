@@ -559,9 +559,9 @@ export function aiMarketDay(world: World): void {
   const window = inTransferWindow(world);
   let index: MarketIndex | null = null;
   for (const team of Object.values(world.teams)) {
-    if (!team.active) continue;
+    if (!team.active || team.national) continue;
     const org = world.orgs[team.orgId];
-    if (!org || org.user) continue;
+    if (!org || org.user || org.federation) continue;
     const t = getTitle(team.titleId);
     const short = team.roster.length < t.teamSize;
     if (!short && !(window && rng.chance(1 / 6))) continue;
