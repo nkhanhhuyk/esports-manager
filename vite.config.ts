@@ -1,13 +1,23 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { viteSingleFile } from 'vite-plugin-singlefile';
+import { fileURLToPath } from 'node:url';
 
 // Relative base so the built bundle can be served from file:// (Capacitor/Android) or any sub-path.
-export default defineConfig({
+// `--mode portable` produces one self-contained HTML file (worker inlined) that runs from disk.
+export default defineConfig(({ mode }) => ({
   base: './',
-  plugins: [react()],
+  plugins: mode === 'portable' ? [react(), viteSingleFile()] : [react()],
+  resolve:
+    mode === 'portable'
+      ? { alias: [{ find: /^\.\/factory$/, replacement: fileURLToPath(new URL('./src/worker/factory.inline.ts', import.meta.url)) }] }
+      : undefined,
   worker: { format: 'es' },
-  build: { target: 'es2022', sourcemap: false, chunkSizeWarningLimit: 2000 },
+  build:
+    mode === 'portable'
+      ? { target: 'es2022', sourcemap: false, chunkSizeWarningLimit: 4000, outDir: 'release', emptyOutDir: true }
+      : { target: 'es2022', sourcemap: false, chunkSizeWarningLimit: 2000 },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
@@ -15,4 +25,4 @@ export default defineConfig({
     hookTimeout: 240000,
     pool: 'forks',
   },
-});
+}));

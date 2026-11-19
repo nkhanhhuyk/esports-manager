@@ -4,6 +4,7 @@
 import { advance, type AdvanceMode, type AdvanceResult } from '../game/advance';
 import { createWorld, type NewWorldOptions } from '../gen/world';
 import type { World } from '../model/types';
+import { makeWorker } from './factory';
 
 type Progress = (done: number, total: number, day: number) => void;
 
@@ -11,11 +12,14 @@ let worker: Worker | null = null;
 let seq = 0;
 const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void; onProgress?: Progress }>();
 
+/** Set once the worker failed to load (e.g. blocked on file://); everything then runs on the main thread. */
+let broken = false;
+
 function getWorker(): Worker | null {
-  if (typeof Worker === 'undefined') return null;
+  if (typeof Worker === 'undefined' || broken) return null;
   if (!worker) {
     try {
-      worker = new Worker(new URL('./sim.worker.ts', import.meta.url), { type: 'module' });
+      worker = makeWorker();
       worker.onmessage = (e) => {
         const m = e.data;
         const p = pending.get(m.id);
@@ -30,12 +34,18 @@ function getWorker(): Worker | null {
         }
       };
       worker.onerror = (e) => {
-        for (const p of pending.values()) p.reject(new Error(e.message));
+        // A load/startup failure (or an uncaught crash): the request is retried on the main thread,
+        // which is safe because the worker only ever received a structured clone of the world.
+        e.preventDefault?.();
+        broken = true;
+        for (const p of pending.values()) p.reject(new Error('no-worker'));
         pending.clear();
+        worker?.terminate();
         worker = null;
       };
     } catch {
       worker = null;
+      broken = true;
     }
   }
   return worker;
