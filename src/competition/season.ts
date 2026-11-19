@@ -63,10 +63,7 @@ function mkComp(world: World, t: TitleDef, season: number, name: string, short: 
 }
 
 function regularStage(t: TitleDef, n: number, start: number): { st: Stage; end: number } {
-  if (t.engine === 'br') {
-    const days = matchDays(start, 6, [6]);
-    return { st: stage('Regular Season', 'br-points', start, { matchdays: 6, format: 'standard', matchDaysOfWeek: [6] }), end: days[days.length - 1] };
-  }
+  void t;
   const double = n <= 10;
   const rounds = (n % 2 === 0 ? n - 1 : n) * (double ? 2 : 1);
   const days = matchDays(start, rounds, [5, 6]);
@@ -74,24 +71,14 @@ function regularStage(t: TitleDef, n: number, start: number): { st: Stage; end: 
 }
 
 function playoffStage(t: TitleDef, n: number, start: number, tier: 1 | 2): { st: Stage; take: number } {
-  if (t.engine === 'br') {
-    const take = Math.max(8, Math.round(n * 0.75));
-    return { st: stage('Finals', 'br-points', start, { matchdays: 1, format: 'final', matchDaysOfWeek: [0, 1, 2, 3, 4, 5, 6], matchPoint: t.br?.matchPointFinal }), take };
-  }
   if (tier === 2 || n < 8) return { st: stage('Playoffs', 'single-elim', start, { daysBetweenRounds: 3 }), take: 4 };
-  if (t.engine === 'brawl') return { st: stage('Playoffs', 'page-playoff', start, { daysBetweenRounds: 3 }), take: 4 };
   if (t.family === 'SHOOTER') return { st: stage('Playoffs', 'double-elim', start, { daysBetweenRounds: 2 }), take: 8 };
   return { st: stage('Playoffs', 'single-elim', start, { daysBetweenRounds: 3 }), take: 6 };
 }
 
 /** International event stages for n entrants. */
 function internationalStages(t: TitleDef, n: number, start: number, worlds: boolean): Stage[] {
-  if (t.engine === 'br') {
-    return [
-      stage(worlds ? 'Group Stage' : 'Opening Stage', 'br-points', start, { matchdays: worlds ? 3 : 2, format: 'standard', matchDaysOfWeek: [0, 1, 2, 3, 4, 5, 6], advance: Math.max(8, Math.min(n, t.br!.lobby)) }),
-      stage('Grand Finals', 'br-points', start + (worlds ? 6 : 4), { matchdays: 1, format: 'final', matchDaysOfWeek: [0, 1, 2, 3, 4, 5, 6], matchPoint: t.br?.matchPointFinal }),
-    ];
-  }
+  void t;
   if (n >= 16) {
     return [
       stage('Swiss Stage', 'swiss', start, { swissWins: 3, swissLosses: 3, daysBetweenRounds: 1, advance: 8 }),
@@ -184,23 +171,14 @@ export function planSeason(world: World, season: number): void {
       const count = tier1.length <= 2 ? 2 : i < 2 ? 2 : 1;
       msiEntrants.push({ kind: 'top', compId: splitComps[l.id][0].id, count });
     });
-    let msiN = msiEntrants.reduce((a, e) => a + (e.kind === 'top' ? e.count : 0), 0);
-    if (t.engine === 'br') {
-      // BR internationals fill a lobby.
-      const lobby = Math.min(t.br!.lobby, tier1.reduce((a, l) => a + l.size, 0));
-      const slots = allocateSlots(tier1.map((l) => leagueStrength(world, l)), lobby, Math.ceil(lobby / Math.max(1, tier1.length - 0.5)));
-      msiEntrants.length = 0;
-      tier1.forEach((l, i) => msiEntrants.push({ kind: 'top', compId: splitComps[l.id][0].id, count: Math.min(slots[i], l.size) }));
-      msiN = msiEntrants.reduce((a, e) => a + (e.kind === 'top' ? e.count : 0), 0);
-    }
+    const msiN = msiEntrants.reduce((a, e) => a + (e.kind === 'top' ? e.count : 0), 0);
     mkComp(world, t, season, `${t.short} Mid-Season Invitational ${season}`, `${t.short} MSI`, 'international', null, null, msiEntrants, internationalStages(t, msiN, D(4, 25), false), t.prizeScale * 400_000, 70, MSI_POINTS);
 
     // World Championship
     const totalLeagueTeams = tier1.reduce((a, l) => a + l.size, 0);
-    let target: number;
-    if (t.engine === 'br') target = Math.min(t.br!.lobby, totalLeagueTeams);
-    else target = Math.max(4, Math.min(16, Math.floor((tier1.length * 4) / 4) * 4));
-    const slots = allocateSlots(tier1.map((l) => leagueStrength(world, l)), target, t.engine === 'br' ? Math.ceil(target / Math.max(1, tier1.length - 0.5)) : 4);
+    void totalLeagueTeams;
+    const target = Math.max(4, Math.min(16, Math.floor((tier1.length * 4) / 4) * 4));
+    const slots = allocateSlots(tier1.map((l) => leagueStrength(world, l)), target, 4);
     const wEntrants: EntrantRule[] = tier1.map((l, i) => ({ kind: 'circuit', leagueId: l.id, count: Math.min(slots[i], l.size) }));
     const wN = wEntrants.reduce((a, e) => a + (e.kind === 'circuit' ? e.count : 0), 0);
     mkComp(world, t, season, `${t.short} World Championship ${season}`, `${t.short} Worlds`, 'worlds', null, null, wEntrants, internationalStages(t, wN, D(9, 22), true), t.prizeScale * 1_000_000, 100, []);
@@ -208,13 +186,13 @@ export function planSeason(world: World, season: number): void {
 }
 
 /**
- * Biennial Nations Cup (odd seasons) for the most popular non-BR titles, played in the December
+ * Biennial Nations Cup (odd seasons) for the most popular titles, played in the December
  * off-season before the season's competitive calendar.
  */
 export function planNationsCup(world: World, season: number): void {
   if (season % 2 !== 1) return;
   const titles = world.meta.titlesEnabled
-    .filter((id) => getTitle(id).engine !== 'br' && world.titles[id]?.active !== false)
+    .filter((id) => world.titles[id]?.active !== false)
     .sort((a, b) => (world.titles[b]?.globalPop ?? 0) - (world.titles[a]?.globalPop ?? 0))
     .slice(0, 6);
   titles.forEach((titleId, i) => {

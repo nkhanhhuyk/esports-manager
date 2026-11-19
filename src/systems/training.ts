@@ -167,8 +167,8 @@ export function weeklyTraining(world: World): void {
     // Permanent attributes progress every second week (double step) — same yearly rate,
     // half the computation and cache invalidation in very large worlds.
     const budget = (progressWeek ? 2 : 0) * 0.062 * p.dev.growthRate * Math.pow(gap / 10, 0.85) * grow * q * (0.5 + ethic) * (0.6 + intensity * 0.6) * mult * overtrained * playing;
-    const famKey = t.engine === 'hybrid' ? 'hybrid' : t.family;
-    const famSet = t.engine === 'hybrid' ? HYBRID_SPEC : t.family === 'MOBA' ? MOBA_INDICES : SHOOTER_INDICES;
+    const famKey = t.family;
+    const famSet = t.family === 'MOBA' ? MOBA_INDICES : SHOOTER_INDICES;
     let changed = false;
     const dec = progressWeek ? decline * 2 : 0;
     if (progressWeek && (budget > 0.0005 || dec > 0)) {

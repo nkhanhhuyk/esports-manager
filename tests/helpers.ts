@@ -23,7 +23,7 @@ export function clone<T>(x: T): T {
 export function digest(w: World): string {
   const fx = Object.values(w.fixtures)
     .filter((f) => f.status === 'done')
-    .map((f) => `${f.id}:${f.winner}:${(f.score ?? []).join('-')}:${Object.values(f.brPoints ?? {}).join(',')}`)
+    .map((f) => `${f.id}:${f.winner}:${(f.score ?? []).join('-')}`)
     .sort()
     .join('|');
   const money = Object.values(w.orgs).map((o) => Math.round(o.balance)).join(',');

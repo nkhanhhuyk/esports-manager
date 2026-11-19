@@ -2,7 +2,7 @@ import { makeWorld, withUser } from '../tests/helpers';
 import { advance } from '../src/game/advance';
 import { computeTeamStrength } from '../src/sim/common/team';
 import { ageAt } from '../src/core/date';
-const w = withUser(makeWorld(['lol', 'cs2', 'pubgm'], 'long'));
+const w = withUser(makeWorld(['lol', 'cs2', 'mlbb'], 'long'));
 for (let s = 0; s < 8; s++) {
   const teams = Object.values(w.teams).filter((t) => t.titleId === 'lol' && t.active && t.tier === 'main').map((t) => ({ t, s: computeTeamStrength(w, t) })).sort((a, b) => b.s - a.s);
   const top = teams.slice(0, 4).map((x) => `${x.t.short}:${x.s.toFixed(1)}(age ${(x.t.lineup.reduce((a, l) => a + ageAt(w.players[l.playerId].birth, w.day), 0) / x.t.lineup.length).toFixed(1)}, chem ${x.t.chemistry.toFixed(0)})`).join(' ');

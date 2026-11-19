@@ -76,7 +76,7 @@ export function Home() {
                     </td>
                     <td>{fixtureLabel(world, f)}</td>
                     <td>
-                      <b className={won ? 'pos' : 'neg'}>{f.format.kind === 'br' ? `${f.brPoints?.[mine] ?? 0} pts` : won ? 'W' : 'L'}</b> {scoreLabel(f)}
+                      <b className={won ? 'pos' : 'neg'}>{won ? 'W' : 'L'}</b> {scoreLabel(f)}
                     </td>
                   </tr>
                 );
@@ -101,7 +101,7 @@ export function Home() {
               {teams.map((t) => {
                 const comp = Object.values(world.comps).filter((c) => c.leagueId === t.leagueId && c.season === world.season && c.status !== 'pending').sort((a, b) => (b.split ?? 0) - (a.split ?? 0))[0];
                 const stage = comp?.stages[0];
-                const table = stage ? sortStandings(world, stage.standings, stage.type === 'br-points') : [];
+                const table = stage ? sortStandings(world, stage.standings) : [];
                 const pos = table.findIndex((r) => r.teamId === t.id);
                 const row = table[pos];
                 return (
@@ -112,7 +112,7 @@ export function Home() {
                     <td>
                       <TitleTag id={t.titleId} />
                     </td>
-                    <td>{row ? <CompLink c={comp} /> : <span className="muted">{t.leagueId ? world.leagues[t.leagueId]?.name : 'No league'}</span>}{row ? ` · #${pos + 1} (${stage.type === 'br-points' ? `${row.pts} pts` : `${row.w}-${row.l}`})` : ''}</td>
+                    <td>{row ? <CompLink c={comp} /> : <span className="muted">{t.leagueId ? world.leagues[t.leagueId]?.name : 'No league'}</span>}{row ? ` · #${pos + 1} (${row.w}-${row.l})` : ''}</td>
                     <td>{computeTeamStrength(world, t).toFixed(1)}</td>
                     <td>{t.elo}</td>
                   </tr>

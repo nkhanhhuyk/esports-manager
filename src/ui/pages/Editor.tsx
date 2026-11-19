@@ -290,7 +290,7 @@ function FormatEditor() {
   const setF = (k: FormatKey, n: number) =>
     act((w) => {
       const base = cur(k);
-      const nf: SeriesFormat = { ...base, n, label: base.kind === 'br' ? `${n} games` : base.kind === 'sets' ? `Bo${n} sets` : `Bo${n}` };
+      const nf: SeriesFormat = { ...base, n, label: `Bo${n}` };
       w.customFormats[tid] = { ...(w.customFormats[tid] ?? {}), [k]: nf };
     });
   return (
@@ -310,7 +310,7 @@ function FormatEditor() {
               <td>{cur(k).label}</td>
               <td>
                 <select value={cur(k).n} onChange={(e) => setF(k, Number(e.target.value))} aria-label={`${k} length`}>
-                  {(cur(k).kind === 'br' ? [3, 4, 5, 6, 8, 10, 12, 16] : [1, 3, 5, 7, 9]).map((n) => (
+                  {[1, 3, 5, 7, 9].map((n) => (
                     <option key={n} value={n}>
                       {n}
                     </option>

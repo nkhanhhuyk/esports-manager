@@ -382,7 +382,7 @@ export interface League {
 
 export type CompTier = 'league' | 'playoffs' | 'challenger' | 'international' | 'worlds' | 'qualifier' | 'cup';
 
-export type StageType = 'round-robin' | 'double-round-robin' | 'groups' | 'swiss' | 'single-elim' | 'double-elim' | 'page-playoff' | 'br-points';
+export type StageType = 'round-robin' | 'double-round-robin' | 'groups' | 'swiss' | 'single-elim' | 'double-elim' | 'page-playoff';
 
 export type FormatKey = 'standard' | 'playoff' | 'final';
 
@@ -483,11 +483,10 @@ export interface Competition {
   pstats: Record<ID, { gp: number; r: number; m: number; teamId: ID }>;
 }
 
+/** Best-of-n series: first to ceil(n/2) game (MOBA) or map (shooter) wins. */
 export interface SeriesFormat {
-  kind: 'bo' | 'sets' | 'br';
-  n: number; // best-of n (games/maps/sets) or number of BR games
-  setWins?: number; // games needed to win one set (Brawl Stars)
-  matchPoint?: number; // BR match point threshold
+  kind: 'bo';
+  n: number;
   label: string;
 }
 
@@ -506,9 +505,6 @@ export interface Fixture {
   group?: number;
   winner?: ID | null;
   score?: number[];
-  brPoints?: Record<ID, number>;
-  brKills?: Record<ID, number>;
-  brWins?: Record<ID, number>;
   detail: boolean;
   mvp?: ID;
 }
@@ -541,6 +537,8 @@ export interface DraftRecord {
   compScore: [number, number];
   /** playerId -> charId for each team. */
   assign: [Record<string, string>, Record<string, string>];
+  /** Series team index that held first pick (side choice) in this game. */
+  firstPick?: 0 | 1;
 }
 
 export interface GameResult {
@@ -556,8 +554,6 @@ export interface GameResult {
   events?: GameEvent[];
   summary: string;
   sides?: string[];
-  placements?: ID[]; // BR placements (team ids, 1st first)
-  brKills?: Record<ID, number>;
 }
 
 export interface MatchRecord {
@@ -853,6 +849,8 @@ export interface World {
   draftPicks: DraftPickAsset[];
   /** Transfer negotiations (user and AI-visible), pruned after resolution. */
   negotiations: Negotiation[];
+  /** Optional, explicitly named rules presets per title (e.g. LoL "Fearless" draft). */
+  rulePresets?: Record<string, { fearless?: 'none' | 'team' | 'global' }>;
 }
 
 export interface DraftPickAsset {

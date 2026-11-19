@@ -9,7 +9,7 @@ import { legacy } from '../src/systems/awards';
  */
 const LONG = !!process.env.LONG_SIM;
 const SEASONS = LONG ? 30 : 10;
-const TITLES = LONG ? ['lol', 'cs2', 'mlbb', 'pubgm', 'overwatch'] : ['lol', 'cs2', 'pubgm'];
+const TITLES = LONG ? ['lol', 'cs2', 'mlbb', 'valorant', 'dota2'] : ['lol', 'cs2', 'hok'];
 
 describe(`long-term world (${SEASONS} seasons)`, () => {
   it('remains stable, bounded and historically rich', () => {

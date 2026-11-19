@@ -37,8 +37,11 @@ function checkInvariants(w: World) {
 }
 
 describe('every title completes a valid season under its own rules', () => {
-  it('simulates all 30 titles through a full season', () => {
+  it('simulates all seven titles through a full season (and only those seven)', () => {
     const w = withUser(makeWorld(TITLES.map((t) => t.id), 'all-titles'));
+    const allowed = new Set(['mlbb', 'wildrift', 'hok', 'lol', 'dota2', 'valorant', 'cs2']);
+    for (const x of [...Object.values(w.teams), ...Object.values(w.leagues), ...Object.values(w.comps)]) expect(allowed.has(x.titleId), x.titleId).toBe(true);
+    for (const p of Object.values(w.players)) expect(allowed.has(p.titleId)).toBe(true);
     const season = w.season;
     advance(w, { kind: 'end-season' });
     expect(w.season).toBe(season + 1);
@@ -61,7 +64,7 @@ describe('every title completes a valid season under its own rules', () => {
 
 describe('multi-season world', () => {
   it('stays consistent over 3 seasons (transfers, retirements, regens, rollovers)', () => {
-    const w = withUser(makeWorld(['lol', 'valorant', 'pubgm', 'brawlstars'], 'multi'));
+    const w = withUser(makeWorld(['lol', 'valorant', 'mlbb', 'cs2'], 'multi'));
     const firstSeason = w.season;
     const startPlayers = Object.keys(w.players).length;
     advance(w, { kind: 'seasons', n: 3 });

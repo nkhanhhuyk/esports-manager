@@ -7,6 +7,7 @@ import { regionName } from '../../data/countries';
 import { formatMoney } from '../../core/math';
 import { deleteSave, exportSave, getSession, importSave } from '../../persistence/db';
 import type { CareerRole, Organisation } from '../../model/types';
+import { INPUT_LABEL } from '../../model/attributes';
 import { ROLE_LABEL, jobOffers, takeJob } from '../../systems/career';
 import { computeTeamStrength } from '../../sim/common/team';
 
@@ -157,7 +158,7 @@ export function Welcome() {
           </label>
           <div style={{ marginTop: 10 }}>
             <div className="row" style={{ marginBottom: 4 }}>
-              <b>Titles in this universe ({titles.length}/30)</b>
+              <b>Titles in this universe ({titles.length}/{TITLES.length})</b>
               <button className="btn ghost sm" onClick={() => setTitles(TITLES.map((t) => t.id))}>
                 All
               </button>
@@ -167,15 +168,17 @@ export function Welcome() {
               <button className="btn ghost sm" onClick={() => setTitles(TITLES.filter((t) => t.family === 'SHOOTER').map((t) => t.id))}>
                 Shooters only
               </button>
-              <button className="btn ghost sm" onClick={() => setTitles(['mlbb', 'lol', 'valorant', 'cs2', 'pubgm', 'overwatch'])}>
-                Starter six
-              </button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 2 }}>
               {TITLES.map((t) => (
-                <label key={t.id}>
-                  <input type="checkbox" checked={titles.includes(t.id)} onChange={() => toggle(t.id)} /> {t.name}
-                </label>
+                <div key={t.id}>
+                  <label>
+                    <input type="checkbox" checked={titles.includes(t.id)} onChange={() => toggle(t.id)} /> {t.name}
+                  </label>{' '}
+                  <span className="muted small" title={`Source ID ${t.sourceId}`}>
+                    {t.family === 'MOBA' ? 'MOBA' : 'Shooter'} · {INPUT_LABEL[t.input]}
+                  </span>
+                </div>
               ))}
             </div>
           </div>

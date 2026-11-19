@@ -2,7 +2,7 @@ import { createWorld } from '../src/gen/world';
 import { advance } from '../src/game/advance';
 import { dayFromYMD } from '../src/core/date';
 import { monthlyBreakdown } from '../src/systems/finance';
-const w = createWorld({ name: 'E', seed: 'econ', worldSize: 'small', titles: ['lol', 'valorant', 'mlbb', 'cs2', 'pubgm', 'overwatch'], startDay: dayFromYMD(2026, 11, 19) });
+const w = createWorld({ name: 'E', seed: 'econ', worldSize: 'small', titles: ['lol', 'valorant', 'mlbb', 'cs2', 'hok', 'dota2'], startDay: dayFromYMD(2026, 11, 19) });
 const start = new Map(Object.values(w.orgs).map((o) => [o.id, o.balance]));
 let net: number[] = [];
 for (const o of Object.values(w.orgs)) { const m = monthlyBreakdown(w, o); const r = Object.values(m.revenue).reduce((a, b) => a + b, 0); const e = Object.values(m.expenses).reduce((a, b) => a + b, 0); net.push((r - e) / Math.max(1, e)); }

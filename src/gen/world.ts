@@ -69,7 +69,7 @@ function defaultPolicy(titleId: string, region: string, tier: 1 | 2, franchised:
     minAge: t.minAge,
     rosterMin: teamSize,
     rosterMax: teamSize + subs + 2,
-    foreignLimit: single && tier === 1 && t.engine !== 'br' ? Math.max(1, Math.floor(teamSize / 2)) : -1,
+    foreignLimit: single && tier === 1 ? Math.max(1, Math.floor(teamSize / 2)) : -1,
     cap: franchised ? { type: 'soft', amount: Math.round(t.baseSalary * econ * teamSize * 2.6), taxRate: 0.5 } : { type: 'none', amount: 0, taxRate: 0 },
     minSalary: Math.round(t.baseSalary * econ * 0.06 / 100) * 100,
     maxSalary: 0,
@@ -324,8 +324,7 @@ export function createWorld(opts: NewWorldOptions): World {
     const pop = world.titles[id].popularity;
     const regions = planLeagueRegions(id, opts.worldSize, pop);
     regions.forEach((lr, idx) => {
-      const isBr = t.engine === 'br';
-      const size = isBr ? Math.max(10, Math.round(t.leagueSize * cfg.brScale)) : Math.max(6, Math.round(t.leagueSize * cfg.teamScale));
+      const size = Math.max(6, Math.round(t.leagueSize * cfg.teamScale));
       const franchised = !!REGION_BY_ID[lr.region] && lr.strength >= 80 && t.family !== 'MOBA' ? rng.chance(0.6) : lr.strength >= 85 && rng.chance(0.4);
       const ln = leagueName(t.short, lr.region, 1, rng);
       const league: League = {
@@ -363,7 +362,7 @@ export function createWorld(opts: NewWorldOptions): World {
         teamsT1.push(team);
       }
       // Tier 2 for the strongest regions
-      if (idx < cfg.tier2 && REGION_BY_ID[lr.region] && lr.strength >= 70 && !isBr) {
+      if (idx < cfg.tier2 && REGION_BY_ID[lr.region] && lr.strength >= 70) {
         const ln2 = leagueName(t.short, lr.region, 2, rng);
         const l2: League = {
           ...league,

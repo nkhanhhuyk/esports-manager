@@ -35,7 +35,7 @@ function leagueTable(world: World, league: League, season: number): Array<{ team
     const reg = c.stages[0];
     for (const r of reg.standings) {
       const a = agg.get(r.teamId) ?? { teamId: r.teamId, w: 0, l: 0, gd: 0 };
-      a.w += r.w + (reg.type === 'br-points' ? r.pts / 10 : 0);
+      a.w += r.w;
       a.l += r.l;
       a.gd += r.gw - r.gl;
       agg.set(r.teamId, a);

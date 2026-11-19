@@ -31,7 +31,7 @@ describe('time progression', () => {
   });
 
   it('stops before user match days and resumes when acknowledged', () => {
-    const w = withUser(makeWorld(['overwatch'], 'stop'));
+    const w = withUser(makeWorld(['valorant'], 'stop'));
     const r = advance(w, { kind: 'next-event' });
     let res = r;
     for (let i = 0; i < 5 && res.stoppedFor !== 'user-match'; i++) res = advance(w, { kind: 'next-event' });
@@ -47,7 +47,7 @@ describe('time progression', () => {
 
 describe('determinism & save/load consistency', () => {
   it('a saved world advanced after reload produces identical results', () => {
-    const w = makeWorld(['hok', 'r6', 'apex'], 'det');
+    const w = makeWorld(['hok', 'cs2', 'dota2'], 'det');
     advance(w, { kind: 'until', day: w.day + 60 });
     const saved = JSON.stringify(w);
     const a = JSON.parse(saved);

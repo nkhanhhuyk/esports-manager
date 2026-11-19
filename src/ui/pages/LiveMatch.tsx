@@ -41,36 +41,14 @@ export function LiveMatchPage({ id }: { id: string }) {
     );
   }
   if (ui < 0) return <div>This is not your match.</div>;
-  if (f.format.kind !== 'br' && !can(world, 'tactics')) return <div>{denyReason(world, 'tactics')} Use “Simulate match day” instead.</div>;
+  if (!can(world, 'tactics')) return <div>{denyReason(world, 'tactics')} Use “Simulate match day” instead.</div>;
   if (f.day !== world.day + 1) return <div>Live matches can be played on match day only ({f.day > world.day ? 'advance until the day before' : 'already past'}).</div>;
-
-  // Battle royale: watch the whole event live with full detail.
-  if (f.format.kind === 'br') {
-    return (
-      <div>
-        <PageHeader title={`${world.comps[f.compId]?.name} — live lobby`} sub={`${f.teams.length} teams · ${f.format.label}`} />
-        <Card>
-          <p>Battle royale events are decided across {f.format.n} games. Your lineup and playstyle ({world.teams[f.teams[ui]].prefs.style}) are used; drops, rotations and fights are simulated with full commentary.</p>
-          <button
-            className="btn"
-            onClick={() => {
-              act((w) => playFixture(w, w.fixtures[f.id], true), { save: true });
-              navigate(`/match/${f.id}`);
-            }}
-          >
-            Play event
-          </button>
-        </Card>
-      </div>
-    );
-  }
 
   const userTeam = world.teams[f.teams[ui]];
   const lineupCheck = validateLineup(world, userTeam, userTeam.lineup);
 
   const startDraftFor = (state: SeriesState) => {
-    const isSetContinuation = f.format.kind === 'sets' && state.setDraft && (state.setWins[0] > 0 || state.setWins[1] > 0);
-    if (!t.characters.length || t.draft.mode === 'none' || isSetContinuation) {
+    if (!t.characters.length || t.draft.mode === 'none') {
       setDs(null);
       return;
     }
@@ -147,15 +125,14 @@ export function LiveMatchPage({ id }: { id: string }) {
   const meta = currentPatch(world, t.id).charMeta;
   const lastGame = st?.games[st.games.length - 1];
   const awaitingDraft = !!ds && !ds.done;
-  const setContinuation = !!st && f.format.kind === 'sets' && !!st.setDraft && (st.setWins[0] > 0 || st.setWins[1] > 0);
-  const needsDraft = t.characters.length > 0 && t.draft.mode !== 'none' && !setContinuation;
+  const needsDraft = t.characters.length > 0 && t.draft.mode !== 'none';
   const canPlay = !!st && !st.done && !awaitingDraft && (!needsDraft || (!!ds && ds.done));
 
   return (
     <div>
       <PageHeader
         title={`${world.teams[f.teams[0]].name} vs ${world.teams[f.teams[1]].name}`}
-        sub={<span><TitleTag id={t.id} /> · {world.comps[f.compId]?.name} · {f.format.label}{st ? ` · series ${st.wins[0]}-${st.wins[1]}${f.format.kind === 'sets' ? ` (set ${st.setWins[0]}-${st.setWins[1]})` : ''}` : ''}</span>}
+        sub={<span><TitleTag id={t.id} /> · {world.comps[f.compId]?.name} · {f.format.label}{st ? ` · series ${st.wins[0]}-${st.wins[1]}` : ''}</span>}
       />
       {!st && (
         <>

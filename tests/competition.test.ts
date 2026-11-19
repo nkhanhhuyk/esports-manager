@@ -137,32 +137,6 @@ describe('brackets', () => {
   });
 });
 
-describe('battle royale points stage', () => {
-  it('aggregates placement + kill points across games', () => {
-    const w = makeWorld(['pubgm'], 'br');
-    const teams = Object.values(w.teams).filter((t) => t.titleId === 'pubgm').slice(0, 12).map((t) => t.id);
-    const { comp, stage } = fakeComp(w, 'pubgm', 'br-points', teams, { matchdays: 2, gamesPerDay: 3, format: 'standard', matchDaysOfWeek: [0, 1, 2, 3, 4, 5, 6] });
-    playStage(w, comp, stage);
-    const fx = stage.fixtureIds.map((id) => w.fixtures[id]);
-    const t = getTitle('pubgm');
-    for (const tid of teams) {
-      const expected = fx.reduce((a, f) => a + (f.brPoints?.[tid] ?? 0), 0);
-      expect(stage.standings.find((r) => r.teamId === tid)!.pts).toBe(expected);
-    }
-    // Each game awards exactly one first place.
-    for (const f of fx) {
-      const rec = w.matches[f.id];
-      expect(rec.games.length).toBe(3);
-      for (const g of rec.games) {
-        expect(new Set(g.placements).size).toBe(teams.length);
-        const sumKills = Object.values(g.brKills!).reduce((a, b) => a + b, 0);
-        expect(sumKills).toBeGreaterThan(0);
-      }
-    }
-    expect(t.br!.placementPts[0]).toBe(10);
-  });
-});
-
 describe('slot allocation', () => {
   it('distributes international slots by strength', () => {
     const s = allocateSlots([100, 80, 60, 40, 20], 16);

@@ -8,7 +8,7 @@ import { advance } from '../src/game/advance';
 
 describe('save / load integrity', () => {
   it('round-trips a world through IndexedDB unchanged', async () => {
-    const w = withUser(makeWorld(['lol', 'pubgm'], 'persist'));
+    const w = withUser(makeWorld(['lol', 'valorant'], 'persist'));
     advance(w, { kind: 'until', day: w.day + 65 });
     await saveWorld(w);
     const { world, recovered } = await loadWorld(w.meta.saveId);
@@ -81,7 +81,7 @@ describe('save / load integrity', () => {
   });
 
   it('exports and imports JSON saves', async () => {
-    const w = withUser(makeWorld(['brawlstars'], 'export'));
+    const w = withUser(makeWorld(['wildrift'], 'export'));
     const text = await exportSave(w).text();
     const imported = await importSave(text);
     expect(imported.meta.name).toBe(w.meta.name);
@@ -91,7 +91,7 @@ describe('save / load integrity', () => {
 
 describe('save migration', () => {
   it('migrates a v1 save to the current schema', () => {
-    const w = makeWorld(['overwatch'], 'migrate');
+    const w = makeWorld(['valorant'], 'migrate');
     const v1 = clone(w) as unknown as Record<string, any>;
     v1.meta.version = 1;
     delete v1.customFormats;

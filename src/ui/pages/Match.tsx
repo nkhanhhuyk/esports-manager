@@ -8,7 +8,6 @@ import { isUserTeamId, roleName } from '../helpers';
 import { computeTeamStrength } from '../../sim/common/team';
 import type { Fixture, GameResult, MatchRecord } from '../../model/types';
 import { userFixturesOn } from '../../game/advance';
-import { brPoints } from '../../sim/shooter/br';
 import { fmtTime } from '../../sim/common/engine';
 import { can, denyReason } from '../../systems/career';
 
@@ -46,16 +45,14 @@ function Scoreboard({ g, f }: { g: GameResult; f: Fixture }) {
   const world = useWorld();
   const t = getTitle(f.titleId);
   if (!g.players.length) return <div className="muted small">Aggregated simulation — box score not retained for unobserved matches (enable full detail in Settings).</div>;
-  const teamIdxs = f.format.kind === 'br' ? [...new Set(g.players.map((l) => l.teamIdx))] : [0, 1];
-  const order = f.format.kind === 'br' && g.placements ? g.placements.map((tid) => f.teams.indexOf(tid)) : teamIdxs;
+  const order = [0, 1];
   return (
     <div className="dt-scroll">
-      {order.slice(0, f.format.kind === 'br' ? 8 : 2).map((ti) => (
+      {order.map((ti) => (
         <table key={ti} className="table" style={{ marginBottom: 8 }}>
           <thead>
             <tr>
               <th>
-                {f.format.kind === 'br' ? `#${(g.placements?.indexOf(f.teams[ti]) ?? 0) + 1} ` : ''}
                 {world.teams[f.teams[ti]]?.name} {g.winner === ti ? '🏆' : ''}
               </th>
               <th>Role</th>
@@ -98,35 +95,12 @@ export function GameView({ g, f }: { g: GameResult; f: Fixture }) {
   const mode = t.modes.find((m) => m.id === g.modeId);
   return (
     <>
-      <Card title={`Game ${g.idx + 1}${map && t.maps.length > 1 ? ` — ${map.name}` : ''}${mode ? ` (${mode.name})` : ''}`} right={<span className="muted small">{fmtTime(g.duration)}</span>}>
+      <Card title={`${t.family === 'SHOOTER' ? 'Map' : 'Game'} ${g.idx + 1}${map && t.maps.length > 1 ? ` — ${map.name}` : ''}${mode ? ` (${mode.name})` : ''}`} right={<span className="muted small">{fmtTime(g.duration)}</span>}>
         <div style={{ marginBottom: 8 }}>
           <b>{g.summary}</b>
         </div>
         {g.draft && <DraftPanel g={g} f={f} />}
-        {f.format.kind === 'br' && g.placements && (
-          <table className="table" style={{ marginBottom: 8 }}>
-            <thead>
-              <tr>
-                <th>Place</th>
-                <th>Team</th>
-                <th>Kills</th>
-                <th>Points</th>
-              </tr>
-            </thead>
-            <tbody>
-              {g.placements.map((tid, i) => (
-                <tr key={tid} className={isUserTeamId(world, tid) ? 'hl' : ''}>
-                  <td>{i + 1}</td>
-                  <td>
-                    <TeamLink t={world.teams[tid]} />
-                  </td>
-                  <td>{g.brKills?.[tid] ?? 0}</td>
-                  <td>{brPoints(t, i + 1, g.brKills?.[tid] ?? 0)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        {g.sides && g.sides.length > 0 && <div className="muted small" style={{ marginBottom: 6 }}>{g.sides.join(' · ')}</div>}
         <Scoreboard g={g} f={f} />
       </Card>
       {g.events && g.events.length > 0 && (
@@ -160,40 +134,7 @@ export function SeriesView({ f, rec }: { f: Fixture; rec: MatchRecord }) {
           ))}
         </Card>
       )}
-      {f.format.kind === 'br' && f.brPoints && (
-        <Card title="Event standings">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Team</th>
-                <th>Points</th>
-                <th>Kills</th>
-                <th>Wins</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(f.brPoints)
-                .sort((a, b) => b[1] - a[1])
-                .map(([tid, pts], i) => (
-                  <tr key={tid} className={isUserTeamId(world, tid) ? 'hl' : ''}>
-                    <td>{i + 1}</td>
-                    <td>
-                      <TeamLink t={world.teams[tid]} /> {f.winner === tid ? '🏆' : ''}
-                    </td>
-                    <td>
-                      <b>{pts}</b>
-                    </td>
-                    <td>{f.brKills?.[tid]}</td>
-                    <td>{f.brWins?.[tid]}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-          {f.format.matchPoint ? <div className="muted small">Match-point format: a team that reaches {f.format.matchPoint} points wins the event by winning a subsequent game.</div> : null}
-        </Card>
-      )}
-      <Tabs tabs={rec.games.map((x, i) => ({ id: String(i), label: `Game ${i + 1}${f.format.kind === 'br' ? '' : x.winner >= 0 ? ` · ${world.teams[f.teams[x.winner]]?.short}` : ''}` }))} active={String(Math.min(gi, rec.games.length - 1))} onChange={(x) => setGi(Number(x))} />
+      <Tabs tabs={rec.games.map((x, i) => ({ id: String(i), label: `${t.family === 'SHOOTER' ? 'Map' : 'Game'} ${i + 1}${x.winner >= 0 ? ` · ${world.teams[f.teams[x.winner]]?.short}` : ''}` }))} active={String(Math.min(gi, rec.games.length - 1))} onChange={(x) => setGi(Number(x))} />
       {g && <GameView g={g} f={f} />}
     </>
   );
@@ -208,7 +149,7 @@ export function MatchPage({ id }: { id: string; route: Route }) {
   const rec = world.matches[f.id];
   const t = getTitle(f.titleId);
   const isMine = f.teams.some((x) => isUserTeamId(world, x));
-  const two = f.format.kind !== 'br';
+  const two = true;
   return (
     <div>
       <PageHeader
@@ -300,11 +241,11 @@ export function MatchDayPage() {
       {fixtures.map((f) => (
         <Card key={f.id} title={<span><TitleTag id={f.titleId} /> {world.comps[f.compId]?.name}</span>}>
           <div className="row">
-            <b>{f.format.kind === 'br' ? `Lobby of ${f.teams.length} teams` : `${world.teams[f.teams[0]]?.name} vs ${world.teams[f.teams[1]]?.name}`}</b>
+            <b>{`${world.teams[f.teams[0]]?.name} vs ${world.teams[f.teams[1]]?.name}`}</b>
             <span className="muted">{f.format.label}</span>
             <span className="grow" />
-            <button className="btn" disabled={f.format.kind !== 'br' && !can(world, 'tactics')} title={can(world, 'tactics') ? undefined : denyReason(world, 'tactics')} onClick={() => navigate(`/live/${f.id}`)}>
-              {f.format.kind === 'br' ? 'Watch live' : 'Play live'}
+            <button className="btn" disabled={!can(world, 'tactics')} title={can(world, 'tactics') ? undefined : denyReason(world, 'tactics')} onClick={() => navigate(`/live/${f.id}`)}>
+              Play live
             </button>
             <button className="btn ghost" onClick={() => navigate(`/tactics?team=${f.teams.find((x) => isUserTeamId(world, x))}`)}>
               Tactics

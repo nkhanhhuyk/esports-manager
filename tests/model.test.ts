@@ -84,52 +84,77 @@ describe('player generation', () => {
   });
 });
 
-describe('title catalogue', () => {
-  it('contains the 30 specified titles with the deliberate input assignments', () => {
-    expect(TITLES.length).toBe(30);
-    expect(MOBA_TITLES.length).toBe(13);
-    expect(SHOOTER_TITLES.length).toBe(17);
-    const expected: Record<string, string> = {
-      mlbb: 'touch', wildrift: 'touch', hok: 'touch', lol: 'mkb', dota2: 'mkb', vainglory: 'touch', aov: 'touch', msw: 'touch', unite: 'controller', hots: 'mkb', smite2: 'controller', predecessor: 'controller', brawlstars: 'touch',
-      valorant: 'mkb', valmobile: 'touch', cs2: 'mkb', rivals: 'mkb', overwatch: 'mkb', r6: 'controller', apex: 'controller', warzone: 'controller', fortnite: 'controller', pubg: 'mkb', pubgm: 'touch', paladins: 'mkb', deadlock: 'mkb', codm: 'touch', cod: 'controller', wzm: 'touch', owrush: 'touch',
-    };
-    for (const [id, input] of Object.entries(expected)) expect(TITLE_BY_ID[id].input, id).toBe(input);
-    expect(TITLE_BY_ID.deadlock.family).toBe('SHOOTER');
-    expect(TITLE_BY_ID.deadlock.engine).toBe('hybrid');
-    expect(TITLE_BY_ID.brawlstars.family).toBe('MOBA');
-    expect(TITLE_BY_ID.brawlstars.engine).toBe('brawl');
-    expect(TITLE_BY_ID.owrush.id).not.toBe(TITLE_BY_ID.overwatch.id);
+describe('seven-title registry (acceptance gate 1-2)', () => {
+  it('contains exactly the seven titles with their source IDs, families and inputs', () => {
+    expect(TITLES.map((t) => [t.sourceId, t.id])).toEqual([
+      ['S220', 'mlbb'],
+      ['S221', 'wildrift'],
+      ['S222', 'hok'],
+      ['S223', 'lol'],
+      ['S224', 'dota2'],
+      ['S232', 'valorant'],
+      ['S234', 'cs2'],
+    ]);
+    expect(TITLES.map((t) => t.name)).toEqual(['Mobile Legends: Bang Bang', 'League of Legends: Wild Rift', 'Honor of Kings', 'League of Legends', 'Dota 2', 'Valorant', 'Counter-Strike 2']);
+    expect(MOBA_TITLES.length).toBe(5);
+    expect(SHOOTER_TITLES.length).toBe(2);
+    const inputs = TITLES.map((t) => t.input);
+    expect(inputs.filter((x) => x === 'touch').length).toBe(3);
+    expect(inputs.filter((x) => x === 'mkb').length).toBe(4);
+    expect(inputs.filter((x) => x === 'controller').length).toBe(0);
+    expect({ mlbb: 'touch', wildrift: 'touch', hok: 'touch', lol: 'mkb', dota2: 'mkb', valorant: 'mkb', cs2: 'mkb' }).toEqual(Object.fromEntries(TITLES.map((t) => [t.id, t.input])));
+    for (const t of TITLES) {
+      expect(t.teamSize, t.id).toBe(5);
+      expect(t.engine === 'moba' || t.engine === 'tactical').toBe(true);
+      expect(t.family === 'MOBA' ? t.engine : 'tactical').toBe(t.family === 'MOBA' ? 'moba' : 'tactical');
+    }
   });
 
-  it('uses the specified series formats', () => {
+  it('uses the specified series formats (BO3/BO5/BO7 etc.)', () => {
     const f = (id: string) => ['standard', 'playoff', 'final'].map((k) => TITLE_BY_ID[id].formats[k as 'standard'].n);
-    for (const id of ['mlbb', 'wildrift', 'hok', 'aov', 'hots']) expect(f(id)).toEqual([3, 5, 7]);
-    for (const id of ['lol', 'vainglory', 'msw', 'unite', 'smite2', 'predecessor']) expect(f(id)).toEqual([3, 5, 5]);
+    for (const id of ['mlbb', 'wildrift', 'hok']) expect(f(id)).toEqual([3, 5, 7]);
+    expect(f('lol')).toEqual([3, 5, 5]);
     expect(f('dota2')).toEqual([3, 3, 5]);
-    expect(f('brawlstars')).toEqual([3, 5, 7]);
-    expect(TITLE_BY_ID.brawlstars.formats.standard.kind).toBe('sets');
-    expect(TITLE_BY_ID.brawlstars.formats.standard.setWins).toBe(2);
-    for (const id of ['valorant', 'valmobile', 'cs2', 'r6', 'deadlock']) expect(f(id)).toEqual([3, 3, 5]);
-    for (const id of ['rivals', 'overwatch', 'paladins', 'codm', 'cod']) expect(f(id)).toEqual([5, 5, 7]);
-    expect(f('owrush')).toEqual([3, 5, 7]);
-    expect(TITLE_BY_ID.owrush.modes.map((m) => m.kind)).toEqual(['control']);
-    expect(TITLE_BY_ID.owrush.modes[0].params.roundsToWin).toBe(2);
-    for (const id of ['apex', 'pubg', 'pubgm', 'fortnite', 'warzone', 'wzm']) {
-      expect(f(id)).toEqual([6, 6, 12]);
-      expect(TITLE_BY_ID[id].formats.standard.kind).toBe('br');
-    }
+    for (const id of ['valorant', 'cs2']) expect(f(id)).toEqual([3, 3, 5]);
+    for (const t of TITLES) for (const k of ['standard', 'playoff', 'final'] as const) expect(t.formats[k].kind).toBe('bo');
+  });
+
+  it('uses ordinary per-game drafts by default; Fearless is only an optional LoL preset', () => {
+    for (const t of TITLES) expect(t.draft.fearless, t.id).toBe('none');
+    expect(TITLE_BY_ID.lol.draft.fearlessPreset).toBe('global');
+    expect(TITLE_BY_ID.hok.draft.fearlessPreset).toBeUndefined();
+    // CS2 has no characters or abilities; Valorant has agents with abilities and the Spike.
+    expect(TITLE_BY_ID.cs2.characters.length).toBe(0);
+    expect(TITLE_BY_ID.cs2.draft.mode).toBe('none');
+    expect(TITLE_BY_ID.cs2.tactical!.abilities).toBe(false);
+    expect(TITLE_BY_ID.valorant.characters.length).toBeGreaterThan(0);
+    expect(TITLE_BY_ID.valorant.tactical!.abilities).toBe(true);
+    expect(TITLE_BY_ID.valorant.tactical!.objectiveName).toBe('Spike');
+    // Regulation and overtime rules.
+    expect(TITLE_BY_ID.valorant.tactical!.roundsToWin).toBe(13);
+    expect(TITLE_BY_ID.valorant.tactical!.overtime.kind).toBe('win-by-two');
+    expect(TITLE_BY_ID.cs2.tactical!.roundsToWin).toBe(13);
+    expect(TITLE_BY_ID.cs2.tactical!.overtime).toEqual({ kind: 'mr', rounds: 6 });
+    // Dota has its own buyback economy; no other MOBA does.
+    expect(TITLE_BY_ID.dota2.moba!.buyback).toBeTruthy();
+    for (const id of ['mlbb', 'wildrift', 'hok', 'lol']) expect(TITLE_BY_ID[id].moba!.buyback).toBeUndefined();
   });
 
   it('gives every title its own legal lineup, roles and engine configuration', () => {
     for (const t of TITLES) {
       expect(t.lineup.length, t.id).toBe(t.teamSize);
       for (const r of t.lineup) expect(t.roles.some((x) => x.id === r), `${t.id}:${r}`).toBe(true);
-      const cfg = t.moba ?? t.tactical ?? t.hero ?? t.arena ?? t.br ?? t.brawl;
-      expect(cfg, t.id).toBeTruthy();
+      expect(t.family === 'MOBA' ? t.moba : t.tactical, t.id).toBeTruthy();
     }
-    // Objectives are title specific, not one generic set.
+    expect(TITLE_BY_ID.mlbb.lineup).toEqual(['exp', 'jungle', 'mid', 'gold', 'roam']);
+    expect(TITLE_BY_ID.lol.lineup).toEqual(['top', 'jungle', 'mid', 'bot', 'support']);
+    expect(TITLE_BY_ID.hok.lineup).toEqual(['clash', 'jungle', 'mid', 'farm', 'roam']);
+    expect(TITLE_BY_ID.cs2.roles.map((r) => r.id)).toEqual(expect.arrayContaining(['entry', 'awper', 'lurker', 'support']));
+    // Objectives and map pacing are title specific, not one generic set (Wild Rift is not PC LoL).
     const objSets = TITLES.filter((t) => t.moba).map((t) => t.moba!.objectives.map((o) => o.name).join(','));
     expect(new Set(objSets).size).toBe(objSets.length);
+    expect(TITLE_BY_ID.wildrift.moba!.avgLength).toBeLessThan(TITLE_BY_ID.lol.moba!.avgLength);
+    expect(TITLE_BY_ID.wildrift.moba!.laneEnd).toBeLessThan(TITLE_BY_ID.lol.moba!.laneEnd);
   });
 
   it('follows the similarity guidelines', () => {
@@ -137,9 +162,16 @@ describe('title catalogue', () => {
     expect(titleSimilarity('lol', 'wildrift')).toBeGreaterThanOrEqual(0.8);
     expect(titleSimilarity('lol', 'wildrift')).toBeLessThanOrEqual(0.95);
     expect(titleSimilarity('valorant', 'cs2')).toBeGreaterThanOrEqual(0.65);
+    expect(titleSimilarity('mlbb', 'lol')).toBeGreaterThanOrEqual(0.65);
     const cross = titleSimilarity('mlbb', 'cs2');
     expect(cross).toBeGreaterThanOrEqual(0.1);
     expect(cross).toBeLessThanOrEqual(0.35);
+  });
+
+  it('reproduces the specification\'s worked formula examples', () => {
+    for (const [p, v] of [[0, 61.75], [40, 75.05], [80, 88.35], [100, 95]] as const) expect(effectiveMechanic(95, p)).toBeCloseTo(v, 6);
+    const { C, S, T, R, P } = E_WEIGHTS;
+    expect(C * 80 + S * 70 + T * 60 + R * 75 + P * 85).toBeCloseTo(73.75, 6);
   });
 });
 

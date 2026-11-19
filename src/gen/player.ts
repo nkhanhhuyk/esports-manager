@@ -87,7 +87,7 @@ export function generateAttributes(rng: RNG, t: TitleDef, roleId: string | undef
   const role = t.roles.find((r) => r.id === roleId) ?? t.roles[0];
   const groupOffset: Record<string, number> = {};
   for (const g of ['Mechanical', 'Combat', 'Tactical', 'Mental', 'Teamwork', 'Knowledge']) groupOffset[g] = rng.normal(0, 5);
-  const otherFamilyGap = t.engine === 'hybrid' ? 6 : rng.normal(24, 8);
+  const otherFamilyGap = rng.normal(24, 8);
   const attrs = new Array<number>(ATTR_COUNT);
   for (const a of ATTRS) {
     let v: number;
@@ -97,7 +97,7 @@ export function generateAttributes(rng: RNG, t: TitleDef, roleId: string | undef
       v = mean + (groupOffset[a.group] ?? 0) + ageFactor(age, a.curve) + rng.normal(0, 6.5);
       const emph = role.emphasis[a.key];
       if (emph !== undefined) v += (emph - 1) * 7;
-      if (a.group === 'MOBA' && t.family !== 'MOBA' && t.engine !== 'hybrid') v -= otherFamilyGap;
+      if (a.group === 'MOBA' && t.family !== 'MOBA') v -= otherFamilyGap;
       if (a.group === 'Shooter' && t.family === 'MOBA') {
         // MOBA players are not trained shooters, though aim-heavy MOBAs (skillshot / third person) keep more.
         const rel = t.specRelevance[a.key] ?? 0;

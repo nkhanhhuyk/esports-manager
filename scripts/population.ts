@@ -1,6 +1,6 @@
 import { makeWorld, withUser } from '../tests/helpers';
 import { advance } from '../src/game/advance';
-const w = withUser(makeWorld(['lol', 'cs2', 'pubgm'], 'long'));
+const w = withUser(makeWorld(['lol', 'cs2', 'mlbb'], 'long'));
 const count = () => Object.values(w.players).filter((p) => !p.retired);
 const start = count().length;
 for (let s = 0; s < 10; s++) {

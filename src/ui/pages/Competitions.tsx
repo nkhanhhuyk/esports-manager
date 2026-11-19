@@ -64,12 +64,11 @@ export function CompetitionsPage({ route }: { route: Route }) {
 
 function Standings({ stage, comp }: { stage: Stage; comp: Competition }) {
   const world = useWorld();
-  const br = stage.type === 'br-points';
   const groups = stage.type === 'groups' ? [...new Set(stage.standings.map((r) => r.group ?? 0))] : [undefined];
   return (
     <>
       {groups.map((g) => {
-        const rows = sortStandings(world, stage.standings.filter((r) => g === undefined || r.group === g), br);
+        const rows = sortStandings(world, stage.standings.filter((r) => g === undefined || r.group === g));
         return (
           <div key={String(g)} style={{ marginBottom: 10 }}>
             {g !== undefined && <h4>Group {String.fromCharCode(65 + g)}</h4>}
@@ -78,20 +77,10 @@ function Standings({ stage, comp }: { stage: Stage; comp: Competition }) {
                 <tr>
                   <th>#</th>
                   <th>Team</th>
-                  {br ? (
-                    <>
-                      <th>Points</th>
-                      <th>Kills</th>
-                      <th>Wins</th>
-                    </>
-                  ) : (
-                    <>
-                      <th>W</th>
-                      <th>L</th>
-                      <th>{getTitle(comp.titleId).formats.standard.kind === 'sets' ? 'Sets' : 'Games'}</th>
-                      <th>Diff</th>
-                    </>
-                  )}
+                  <th>W</th>
+                  <th>L</th>
+                  <th>{getTitle(comp.titleId).family === 'SHOOTER' ? 'Maps' : 'Games'}</th>
+                  <th>Diff</th>
                 </tr>
               </thead>
               <tbody>
@@ -101,24 +90,12 @@ function Standings({ stage, comp }: { stage: Stage; comp: Competition }) {
                     <td>
                       <OrgBadge org={world.orgs[world.teams[r.teamId]?.orgId]} size={12} /> <TeamLink t={world.teams[r.teamId]} />
                     </td>
-                    {br ? (
-                      <>
-                        <td>
-                          <b>{r.pts}</b>
-                        </td>
-                        <td>{r.kills}</td>
-                        <td>{r.wins}</td>
-                      </>
-                    ) : (
-                      <>
-                        <td>{r.w}</td>
-                        <td>{r.l}</td>
-                        <td>
-                          {r.gw}-{r.gl}
-                        </td>
-                        <td>{r.gw - r.gl > 0 ? '+' : ''}{r.gw - r.gl}</td>
-                      </>
-                    )}
+                    <td>{r.w}</td>
+                    <td>{r.l}</td>
+                    <td>
+                      {r.gw}-{r.gl}
+                    </td>
+                    <td>{r.gw - r.gl > 0 ? '+' : ''}{r.gw - r.gl}</td>
                   </tr>
                 ))}
               </tbody>

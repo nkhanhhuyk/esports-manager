@@ -8,6 +8,7 @@ import { heatColor, LineChart, PALETTE } from '../components/Charts';
 import { navigate, withQuery, type Route } from '../router';
 import { computeTeamStrength } from '../../sim/common/team';
 import { currentPatch } from '../../systems/patches';
+import { fearlessFor } from '../../sim/series';
 import { formatDate } from '../../core/date';
 import { formatMoney } from '../../core/math';
 
@@ -173,7 +174,7 @@ export function TitlePage({ id, route }: { id: string; route: Route }) {
   const similar = TITLES.filter((x) => x.id !== id).map((x) => ({ x, s: titleSimilarity(id, x.id) })).sort((a, b) => b.s - a.s).slice(0, 6);
   return (
     <div>
-      <PageHeader title={t.name} sub={<span><TitleTag id={id} link={false} /> · {t.subgenre} · {t.engine} engine · {INPUT_LABEL[t.input]} · {t.teamSize}v{t.teamSize}{t.br ? ` · lobby ${t.br.lobby}` : ''} · min age {t.minAge}</span>} />
+      <PageHeader title={t.name} sub={<span><TitleTag id={id} link={false} /> · {t.sourceId} · {t.family === 'MOBA' ? 'MOBA' : 'Tactical shooter'} · {INPUT_LABEL[t.input]} · {t.teamSize}v{t.teamSize} · min age {t.minAge}</span>} />
       <div className="stats">
         <Stat label="Global popularity" value={ts.globalPop.toFixed(0)} />
         <Stat label="Prestige" value={ts.prestige} />
@@ -211,7 +212,9 @@ export function TitlePage({ id, route }: { id: string; route: Route }) {
           </Card>
           <Card title="Format & draft rules">
             <div className="attr-row"><span>Standard / Playoff / Final</span><b>{t.formats.standard.label} / {t.formats.playoff.label} / {t.formats.final.label}</b></div>
-            <div className="attr-row"><span>Draft</span><b>{t.draft.mode}{t.draft.mode !== 'none' ? ` · ${t.draft.bansPerTeam} bans · ${t.draft.uniqueAcross ? 'unique' : 'mirrors allowed'} · fearless ${t.draft.fearless}` : ''}</b></div>
+            <div className="attr-row"><span>Draft</span><b>{t.draft.mode === 'none' ? 'none (no characters — loadouts only)' : `${t.draft.mode} · ${t.draft.bansPerTeam} bans/team · ${t.draft.uniqueAcross ? 'unique picks' : 'mirrors allowed'} · fresh draft every game`}</b></div>
+            {t.draft.mode !== 'none' && <div className="attr-row"><span>Series reuse rule</span><b>{fearlessFor(world, t.id) === 'none' ? 'none (characters may return in later games)' : `Fearless (${fearlessFor(world, t.id)}) — optional preset enabled`}{t.draft.fearlessPreset && fearlessFor(world, t.id) === 'none' ? ' · Fearless available as an optional preset' : ''}</b></div>}
+            {t.engine === 'moba' && <div className="attr-row"><span>Side choice</span><b>game 1 by coin toss; afterwards the previous game's loser chooses (first pick)</b></div>}
             <div className="attr-row"><span>Map selection</span><b>{t.mapVeto}</b></div>
             <div className="attr-row"><span>Playstyles</span><b>{t.styles.join(', ')}</b></div>
             {t.moba && (
@@ -221,22 +224,16 @@ export function TitlePage({ id, route }: { id: string; route: Route }) {
                 <div className="attr-row"><span>Objectives</span><b>{t.moba.objectives.map((o) => `${o.name} (${o.kind}, ${o.spawn}′)`).join(', ')}</b></div>
                 <div className="attr-row"><span>Structures</span><b>{t.moba.structures.tierNames.join(' → ')}{t.moba.structures.base ? ` → ${t.moba.structures.baseName}` : ''} → {t.moba.structures.coreName}</b></div>
                 <div className="attr-row"><span>Typical length</span><b>{t.moba.avgLength} min</b></div>
+                {t.moba.buyback && <div className="attr-row"><span>Buyback</span><b>{t.moba.buyback.baseCost} + {t.moba.buyback.perMinute}/min gold · {t.moba.buyback.cooldownMin} min cooldown</b></div>}
               </>
             )}
             {t.tactical && (
               <>
                 <div className="attr-row"><span>Rounds</span><b>first to {t.tactical.roundsToWin}, halftime after {t.tactical.half}</b></div>
-                <div className="attr-row"><span>Overtime</span><b>{t.tactical.overtime.kind === 'mr' ? `MR blocks of ${t.tactical.overtime.rounds}` : `win by two${t.tactical.overtime.cap ? `, cap ${t.tactical.overtime.cap}` : ''}`}</b></div>
+                <div className="attr-row"><span>Overtime (at {t.tactical.roundsToWin - 1}-{t.tactical.roundsToWin - 1})</span><b>{t.tactical.overtime.kind === 'mr' ? `blocks of ${t.tactical.overtime.rounds} rounds (${t.tactical.overtime.rounds / 2} per side): ${t.tactical.overtime.rounds / 2 + 1} wins take the block, ${t.tactical.overtime.rounds / 2}-${t.tactical.overtime.rounds / 2} plays another` : `sides alternate each round; win by two${t.tactical.overtime.cap ? `, cap ${t.tactical.overtime.cap}` : ''}`}</b></div>
+                <div className="attr-row"><span>Series</span><b>one map = one game; rounds never count as series wins</b></div>
                 <div className="attr-row"><span>Economy</span><b>{t.tactical.economy}</b></div>
                 <div className="attr-row"><span>Objective</span><b>{t.tactical.objectiveName} · sides {t.tactical.sides.join('/')}</b></div>
-              </>
-            )}
-            {t.br && (
-              <>
-                <div className="attr-row"><span>Lobby</span><b>{t.br.lobby} teams · {t.br.zones} zones · {t.br.perspective.toUpperCase()}</b></div>
-                <div className="attr-row"><span>Scoring</span><b>placement {t.br.placementPts.slice(0, 8).join('/')}… + {t.br.killPts}/kill</b></div>
-                <div className="attr-row"><span>Respawn</span><b>{t.br.respawn}{t.br.build ? ' · building' : ''}{t.br.vehicles ? ' · vehicles' : ''}</b></div>
-                {t.br.matchPointFinal && <div className="attr-row"><span>Finals</span><b>match point at {t.br.matchPointFinal}</b></div>}
               </>
             )}
             {t.modes.length > 0 && <div className="attr-row"><span>Modes</span><b>{t.modes.map((m) => m.name).join(', ')}</b></div>}

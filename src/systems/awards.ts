@@ -109,7 +109,7 @@ export function onCompetitionFinished(world: World, comp: Competition): void {
   }
   const finalStage = comp.stages[comp.stages.length - 1];
   const finalNode = finalStage.bracket.find((n) => n.isFinal);
-  const finalFx = finalNode?.fixtureId ? world.fixtures[finalNode.fixtureId] : finalStage.type === 'br-points' ? world.fixtures[finalStage.fixtureIds[finalStage.fixtureIds.length - 1]] : undefined;
+  const finalFx = finalNode?.fixtureId ? world.fixtures[finalNode.fixtureId] : undefined;
   if (finalFx?.mvp) {
     comp.finalsMvpPlayerId = finalFx.mvp;
     giveAward(world, { season: comp.season, awardId: 'finals-mvp', label: `${comp.short} Finals MVP`, titleId: comp.titleId, compId: comp.id, playerId: finalFx.mvp }, (comp.tier === 'worlds' ? 10 : comp.tier === 'international' ? 5 : 3) * pf);

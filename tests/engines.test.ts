@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeWorld } from './helpers';
-import { createSeries, playNextGame, runBrSeries, draftStateFor } from '../src/sim/series';
+import { createSeries, playNextGame, draftStateFor, runSeries } from '../src/sim/series';
 import type { Fixture, Team } from '../src/model/types';
 import { getTitle, TITLES } from '../src/data/titles/catalogue';
 import { computeTeamStrength } from '../src/sim/common/team';
@@ -8,11 +8,11 @@ import { runAiDraft, toRecord, validateDraft, applyDraftAction, legalOptions, cu
 import { RNG } from '../src/core/rng';
 import { validateLineup } from '../src/systems/lineup';
 
-function fx(id: string, titleId: string, teams: string[], n = 1, kind: 'bo' | 'sets' = 'bo'): Fixture {
-  return { id, compId: '', stageId: '', titleId, day: 0, teams, format: { kind, n, setWins: kind === 'sets' ? 2 : undefined, label: '' }, formatKey: 'standard', status: 'scheduled', detail: true };
+function fx(id: string, titleId: string, teams: string[], n = 1): Fixture {
+  return { id, compId: '', stageId: '', titleId, day: 0, teams, format: { kind: 'bo', n, label: `Bo${n}` }, formatKey: 'standard', status: 'scheduled', detail: true };
 }
 
-const TWO_TEAM = TITLES.filter((t) => t.engine !== 'br');
+const TWO_TEAM = TITLES;
 
 describe('every two-team engine produces consistent games', () => {
   for (const t of TWO_TEAM) {
@@ -20,7 +20,7 @@ describe('every two-team engine produces consistent games', () => {
       const w = makeWorld([t.id], `eng-${t.id}`);
       const teams = Object.values(w.teams).filter((x) => x.titleId === t.id && x.tier === 'main');
       const [a, b] = teams;
-      const f = fx(`f-${t.id}`, t.id, [a.id, b.id], t.formats.standard.n, t.formats.standard.kind === 'sets' ? 'sets' : 'bo');
+      const f = fx(`f-${t.id}`, t.id, [a.id, b.id], t.formats.standard.n);
       const st = createSeries(w, f, true);
       while (!st.done) playNextGame(w, f, st);
       const need = Math.floor(f.format.n / 2) + 1;
@@ -34,9 +34,12 @@ describe('every two-team engine produces consistent games', () => {
         }
         const sum = (ti: number, k: string) => g.players.filter((l) => l.teamIdx === ti).reduce((acc, l) => acc + (l.s[k] ?? 0), 0);
         // Kills by one side equal deaths of the other (where the title records both).
-        if (t.engine === 'moba' || t.engine === 'hybrid' || t.engine === 'tactical' || t.engine === 'arena' || t.engine === 'brawl') {
-          expect(sum(0, 'k')).toBe(sum(1, 'd'));
-          expect(sum(1, 'k')).toBe(sum(0, 'd'));
+        expect(sum(0, 'k')).toBe(sum(1, 'd'));
+        expect(sum(1, 'k')).toBe(sum(0, 'd'));
+        if (t.engine === 'moba') {
+          // Only destroying the core wins a MOBA game (never a kill count).
+          expect(g.events!.some((e) => e.kind === 'core' && e.team === g.winner)).toBe(true);
+          expect(g.summary).toContain(t.moba!.structures.coreName);
         }
         if (t.engine === 'tactical') {
           const rounds = g.score[0] + g.score[1];
@@ -50,7 +53,7 @@ describe('every two-team engine produces consistent games', () => {
         }
         expect(g.events && g.events.length).toBeTruthy();
       }
-      // Fearless drafts: no character reused across the series where restricted.
+      // Fearless drafts (optional preset): no character reused across the series where restricted.
       if (t.draft.fearless === 'global') {
         const all = st.games.flatMap((g) => [...(g.draft?.picks[0] ?? []), ...(g.draft?.picks[1] ?? [])]);
         expect(new Set(all).size).toBe(all.length);
@@ -65,24 +68,89 @@ describe('every two-team engine produces consistent games', () => {
   }
 });
 
-describe('battle royale lobbies', () => {
-  for (const t of TITLES.filter((x) => x.engine === 'br')) {
-    it(`${t.id} aggregates full-lobby games`, () => {
-      const w = makeWorld([t.id], `br-${t.id}`);
-      const teams = Object.values(w.teams).filter((x) => x.titleId === t.id);
-      const f = fx(`f-${t.id}`, t.id, teams.map((x) => x.id), 6);
-      f.format = { kind: 'br', n: 6, label: '6 games', matchPoint: t.br!.matchPointFinal };
-      const r = runBrSeries(w, f, true);
-      expect(r.games.length).toBeGreaterThanOrEqual(6);
-      for (const g of r.games) {
-        expect(g.placements!.length).toBe(teams.length);
-        expect(new Set(g.placements).size).toBe(teams.length);
-        const kills = g.players.reduce((a, l) => a + l.s.k, 0);
-        expect(kills).toBe(Object.values(g.brKills!).reduce((a, b) => a + b, 0));
+describe('shooter score arithmetic and overtime', () => {
+  const maps = (id: string, n: number) => {
+    const w = makeWorld([id], `ot-${id}`, 'small');
+    const teams = Object.values(w.teams).filter((x) => x.titleId === id && x.tier === 'main');
+    const out: number[][] = [];
+    for (let i = 0; i < n; i++) {
+      const a = teams[i % teams.length];
+      const b = teams[(i + 1) % teams.length];
+      const st = runSeries(w, fx(`ot-${id}-${i}`, id, [a.id, b.id], 1));
+      out.push(st.games[0].score);
+    }
+    return out;
+  };
+  it('Valorant: first to 13; at 12-12 play continues until a two-round lead', () => {
+    for (const sc of maps('valorant', 60)) {
+      const [w, l] = [Math.max(...sc), Math.min(...sc)];
+      if (l <= 11) expect(w).toBe(13);
+      else expect(w - l).toBe(2);
+    }
+  });
+  it('CS2: MR12, then 6-round blocks (3 per side): 4 wins take a block, 3-3 plays another', () => {
+    for (const sc of maps('cs2', 60)) {
+      const [w, l] = [Math.max(...sc), Math.min(...sc)];
+      if (l <= 11) {
+        expect(w).toBe(13);
+        continue;
       }
-      expect(r.winner).toBeTruthy();
-    });
-  }
+      // w = 12 + 3k + 4 and l = 12 + 3k + x (x = 0..3) for k completed 3-3 blocks.
+      expect((w - 16) % 3).toBe(0);
+      expect(w - l).toBeGreaterThanOrEqual(1);
+      expect(w - l).toBeLessThanOrEqual(4);
+    }
+  });
+});
+
+describe('MOBA series rules', () => {
+  it('MLBB: the previous game\'s loser chooses the side and drafts first', () => {
+    const w = makeWorld(['mlbb'], 'side');
+    const [a, b] = Object.values(w.teams).filter((x) => x.titleId === 'mlbb' && x.tier === 'main');
+    for (let k = 0; k < 6; k++) {
+      const st = runSeries(w, fx(`side-${k}`, 'mlbb', [a.id, b.id], 7));
+      for (let i = 1; i < st.games.length; i++) expect(st.games[i].draft!.firstPick).toBe(1 - st.games[i - 1].winner);
+      expect(st.games[0].sides?.[0]).toContain('coin toss');
+    }
+  });
+
+  it('LoL: champions may return in later games; Fearless only applies when the preset is enabled', () => {
+    const w = makeWorld(['lol'], 'fearless');
+    const [a, b] = Object.values(w.teams).filter((x) => x.titleId === 'lol' && x.tier === 'main');
+    let repeats = 0;
+    for (let k = 0; k < 6; k++) {
+      const st = runSeries(w, fx(`std-${k}`, 'lol', [a.id, b.id], 5));
+      const all = st.games.flatMap((g) => [...g.draft!.picks[0], ...g.draft!.picks[1]]);
+      repeats += all.length - new Set(all).size;
+    }
+    expect(repeats).toBeGreaterThan(0);
+    w.rulePresets = { lol: { fearless: 'global' } };
+    for (let k = 0; k < 4; k++) {
+      const st = runSeries(w, fx(`fl-${k}`, 'lol', [a.id, b.id], 5));
+      const all = st.games.flatMap((g) => [...g.draft!.picks[0], ...g.draft!.picks[1]]);
+      expect(new Set(all).size).toBe(all.length);
+    }
+  });
+
+  it('Dota 2 uses buybacks (and no other MOBA does)', () => {
+    const w = makeWorld(['dota2', 'lol'], 'bb');
+    const [a, b] = Object.values(w.teams).filter((x) => x.titleId === 'dota2' && x.tier === 'main');
+    let bb = 0;
+    let events = 0;
+    for (let k = 0; k < 12; k++) {
+      const st = runSeries(w, fx(`bb-${k}`, 'dota2', [a.id, b.id], 1));
+      for (const g of st.games) {
+        bb += g.players.reduce((acc, l) => acc + (l.s.bb ?? 0), 0);
+        events += g.events!.filter((e) => e.kind === 'buyback').length;
+        expect(g.teamStats.reduce((acc, ts) => acc + (ts.buybacks ?? 0), 0)).toBe(g.players.reduce((acc, l) => acc + (l.s.bb ?? 0), 0));
+      }
+    }
+    expect(bb).toBeGreaterThan(0);
+    expect(events).toBe(bb);
+    const [c, d] = Object.values(w.teams).filter((x) => x.titleId === 'lol' && x.tier === 'main');
+    const st = runSeries(w, fx('bb-lol', 'lol', [c.id, d.id], 3));
+    for (const g of st.games) expect(g.players.every((l) => !l.s.bb)).toBe(true);
+  });
 });
 
 describe('drafts and lineups', () => {
@@ -125,7 +193,7 @@ describe('drafts and lineups', () => {
 });
 
 describe('competitive balance', () => {
-  for (const id of ['lol', 'mlbb', 'valorant', 'overwatch', 'cod', 'deadlock', 'brawlstars']) {
+  for (const id of ['lol', 'mlbb', 'dota2', 'valorant', 'cs2']) {
     it(`${id}: stronger teams usually win, underdogs sometimes do`, () => {
       const w = makeWorld([id], `bal-${id}`, 'small');
       const teams = Object.values(w.teams).filter((x) => x.titleId === id && x.tier === 'main');
@@ -136,8 +204,7 @@ describe('competitive balance', () => {
       let wins = 0;
       const N = 40;
       for (let i = 0; i < N; i++) {
-        const f = fx(`bal-${i}`, id, i % 2 ? [strong.id, weak.id] : [weak.id, strong.id], 1, getTitle(id).formats.standard.kind === 'sets' ? 'sets' : 'bo');
-        if (f.format.kind === 'sets') f.format.n = 1;
+        const f = fx(`bal-${i}`, id, i % 2 ? [strong.id, weak.id] : [weak.id, strong.id], 1);
         const st = createSeries(w, f);
         while (!st.done) playNextGame(w, f, st);
         if (f.teams[st.winner] === strong.id) wins++;

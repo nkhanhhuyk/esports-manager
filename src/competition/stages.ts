@@ -380,33 +380,6 @@ export function scheduleSwissRound(world: World, comp: Competition, stage: Stage
   return true;
 }
 
-// ---------------------------------------------------------------------------------------------
-// Battle royale points stage
-// ---------------------------------------------------------------------------------------------
-
-function scheduleBr(world: World, comp: Competition, stage: Stage): void {
-  const n = stage.config.matchdays ?? 1;
-  const days = matchDays(stage.startDay, n, stage.config.matchDaysOfWeek ?? [6]);
-  const fmtKey = stage.config.format ?? 'standard';
-  const base = formatFor(world, comp, fmtKey);
-  for (let i = 0; i < n; i++) {
-    const format: SeriesFormat = { ...base, n: stage.config.gamesPerDay ?? base.n, matchPoint: stage.config.matchPoint ?? undefined };
-    if (!stage.config.matchPoint) delete format.matchPoint;
-    const f = addFixture(world, {
-      compId: comp.id,
-      stageId: stage.id,
-      titleId: comp.titleId,
-      day: days[i],
-      teams: [...stage.teamIds],
-      format,
-      formatKey: fmtKey,
-      status: 'scheduled',
-      round: i,
-      detail: isDetail(world, comp, stage.teamIds),
-    });
-    stage.fixtureIds.push(f.id);
-  }
-}
 
 // ---------------------------------------------------------------------------------------------
 // Stage lifecycle
@@ -445,33 +418,18 @@ export function startStage(world: World, comp: Competition, stage: Stage, teamId
       stage.bracket = buildPagePlayoff();
       progressBracket(world, comp, stage);
       break;
-    case 'br-points':
-      scheduleBr(world, comp, stage);
-      break;
   }
 }
 
-export function sortStandings(world: World, rows: StandingRow[], br: boolean): StandingRow[] {
+export function sortStandings(world: World, rows: StandingRow[]): StandingRow[] {
   const elo = (id: string) => world.teams[id]?.elo ?? 0;
   return [...rows].sort((a, b) => {
-    if (br) return b.pts - a.pts || (b.wins ?? 0) - (a.wins ?? 0) || (b.kills ?? 0) - (a.kills ?? 0) || elo(b.teamId) - elo(a.teamId);
     return b.w - a.w || b.gw - b.gl - (a.gw - a.gl) || b.gw - a.gw || a.l - b.l || elo(b.teamId) - elo(a.teamId) || (a.teamId < b.teamId ? -1 : 1);
   });
 }
 
 /** Apply a finished fixture to the stage standings / bracket. */
 export function applyFixtureToStage(world: World, comp: Competition, stage: Stage, f: Fixture): void {
-  if (f.format.kind === 'br') {
-    for (const tid of f.teams) {
-      const row = stage.standings.find((r) => r.teamId === tid);
-      if (!row) continue;
-      row.pts += f.brPoints?.[tid] ?? 0;
-      row.kills = (row.kills ?? 0) + (f.brKills?.[tid] ?? 0);
-      row.wins = (row.wins ?? 0) + (f.brWins?.[tid] ?? 0);
-    }
-    if (f.winner && stage.config.matchPoint) stage.brMatchPointWinner = f.winner;
-    return;
-  }
   const [a, b] = f.teams;
   const [sa, sb] = f.score ?? [0, 0];
   const ra = stage.standings.find((r) => r.teamId === a);
@@ -520,7 +478,6 @@ export function checkStage(world: World, comp: Competition, stage: Stage): boole
 
 /** Final ordering of teams in a finished stage. */
 export function stagePlacements(world: World, stage: Stage): string[] {
-  const br = stage.type === 'br-points';
   if (stage.type === 'single-elim' || stage.type === 'double-elim' || stage.type === 'page-playoff') {
     const place = new Map<string, number>();
     for (const nd of stage.bracket) {
@@ -536,19 +493,17 @@ export function stagePlacements(world: World, stage: Stage): string[] {
       if (!groups.has(g)) groups.set(g, []);
       groups.get(g)!.push(r);
     }
-    const sortedGroups = [...groups.values()].map((rows) => sortStandings(world, rows, false));
+    const sortedGroups = [...groups.values()].map((rows) => sortStandings(world, rows));
     const maxLen = Math.max(...sortedGroups.map((g) => g.length));
     const out: string[] = [];
     for (let rank = 0; rank < maxLen; rank++) {
       const tier = sortedGroups.map((g) => g[rank]).filter(Boolean) as StandingRow[];
-      out.push(...sortStandings(world, tier, false).map((r) => r.teamId));
+      out.push(...sortStandings(world, tier).map((r) => r.teamId));
     }
     return out;
   }
   if (stage.type === 'swiss') {
     return [...stage.standings].sort((a, b) => b.w - a.w || a.l - b.l || b.gw - b.gl - (a.gw - a.gl) || stage.teamIds.indexOf(a.teamId) - stage.teamIds.indexOf(b.teamId)).map((r) => r.teamId);
   }
-  const order = sortStandings(world, stage.standings, br).map((r) => r.teamId);
-  if (br && stage.brMatchPointWinner) return [stage.brMatchPointWinner, ...order.filter((t) => t !== stage.brMatchPointWinner)];
-  return order;
+  return sortStandings(world, stage.standings).map((r) => r.teamId);
 }

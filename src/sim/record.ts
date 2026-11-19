@@ -8,7 +8,7 @@ import { getTitle } from '../data/titles/catalogue';
 import type { Fixture, GameResult, MatchRecord, Player, StatLine, World } from '../model/types';
 import { addNews, isUserTeam, addInbox } from '../systems/news';
 import { onFixtureComplete } from '../competition/progress';
-import { runBrSeries, runSeries, type SeriesState } from './series';
+import { runSeries, type SeriesState } from './series';
 
 function statLine(p: Player, season: number, titleId: string, teamId: string | null): StatLine {
   let l = p.stats.find((s) => s.season === season && s.titleId === titleId && s.teamId === teamId);
@@ -27,7 +27,7 @@ function applyGame(world: World, f: Fixture, game: GameResult, teamIds: string[]
     const tid = teamIds[line.teamIdx];
     const sl = statLine(p, world.season, f.titleId, tid);
     sl.gp++;
-    const won = game.winner >= 0 ? line.teamIdx === game.winner : game.placements?.[0] === tid;
+    const won = line.teamIdx === game.winner;
     if (won) sl.w++;
     else sl.l++;
     sl.ratingSum += line.rating;
@@ -102,32 +102,8 @@ export function playFixture(world: World, f: Fixture, forceDetail = false): Matc
   const comp = world.comps[f.compId];
   const importance = f.formatKey === 'final' ? 2 : f.formatKey === 'playoff' ? 1 : 0.3;
   let record: MatchRecord;
-  if (f.format.kind === 'br') {
-    const r = runBrSeries(world, f, forceDetail);
-    f.brPoints = r.points;
-    f.brKills = r.kills;
-    f.brWins = r.wins;
-    f.winner = r.winner;
-    for (const g of r.games) {
-      const mvp = [...g.players].sort((a, b) => b.rating - a.rating)[0]?.playerId;
-      applyGame(world, f, g, f.teams, g.placements?.[0] ?? null, mvp);
-    }
-    const all: Record<string, number> = {};
-    for (const g of r.games) for (const l of g.players) all[l.playerId] = (all[l.playerId] ?? 0) + l.rating;
-    f.mvp = Object.entries(all).sort((a, b) => b[1] - a[1])[0]?.[0];
-    record = { fixtureId: f.id, titleId: f.titleId, day: f.day, teams: f.teams, games: r.games, mvp: f.mvp, detail: f.detail || forceDetail };
-    // Elo-like ranking update vs. lobby average
-    const ranked = Object.entries(r.points).sort((a, b) => b[1] - a[1]).map(([k]) => k);
-    const n = ranked.length;
-    ranked.forEach((tid, i) => {
-      const team = world.teams[tid];
-      if (team) team.elo = Math.round(team.elo + ((n - 1) / 2 - i) * (16 / Math.max(1, n / 2)));
-      seriesMorale(world, tid, i < n / 3, importance * (i === 0 ? 1 : 0.3));
-    });
-  } else {
-    const st = runSeries(world, f, forceDetail);
-    record = applySeries(world, f, st, forceDetail, importance);
-  }
+  const st = runSeries(world, f, forceDetail);
+  record = applySeries(world, f, st, forceDetail, importance);
   f.status = 'done';
   // Keep detailed records; summary-only fixtures store a slim record (no events / player lines)
   if (!record.detail) {

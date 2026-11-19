@@ -182,7 +182,7 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
                     <CompLink c={world.comps[f.compId]} />
                   </td>
                   <td>{fixtureLabel(world, f)}</td>
-                  <td>{f.status === 'done' ? (f.format.kind === 'br' ? `${f.brPoints?.[team.id] ?? 0} pts` : (f.winner === team.id ? 'W ' : 'L ') + scoreLabel(f)) : f.format.label}</td>
+                  <td>{f.status === 'done' ? (f.winner === team.id ? 'W ' : 'L ') + scoreLabel(f) : f.format.label}</td>
                 </tr>
               ))}
             </tbody>
@@ -282,7 +282,7 @@ function NationalJobCard() {
   const world = useWorld();
   const { act, notify } = useGame();
   const job = world.meta.nationalJob;
-  const titles = world.meta.titlesEnabled.filter((id) => getTitle(id).engine !== 'br');
+  const titles = world.meta.titlesEnabled;
   const [title, setTitle] = useState(titles[0] ?? '');
   const nations = title ? eligibleNations(world, title).slice(0, 40) : [];
   const [country, setCountry] = useState('');

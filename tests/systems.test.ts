@@ -107,7 +107,7 @@ describe('transfers & AI', () => {
 
 describe('training, progression and patches', () => {
   it('young high-potential players develop with training; proficiencies move faster than attributes', () => {
-    const w = makeWorld(['valmobile'], 'train');
+    const w = makeWorld(['mlbb'], 'train');
     const p = Object.values(w.players).filter((x) => x.teamId && x.pa - x.ca > 8).sort((a, b) => b.pa - b.ca - (a.pa - a.ca))[0];
     const team = w.teams[p.teamId!];
     team.training.focus = 'input';
@@ -122,14 +122,14 @@ describe('training, progression and patches', () => {
   });
 
   it('patches shift the meta and reduce team meta adaptation', () => {
-    const w = makeWorld(['overwatch'], 'patch');
+    const w = makeWorld(['valorant'], 'patch');
     const team = Object.values(w.teams)[0];
     team.metaAdapt = 90;
-    const n = w.titles.overwatch.patches.length;
-    const p = releasePatch(w, 'overwatch', true);
-    expect(w.titles.overwatch.patches.length).toBe(n + 1);
+    const n = w.titles.valorant.patches.length;
+    const p = releasePatch(w, 'valorant', true);
+    expect(w.titles.valorant.patches.length).toBe(n + 1);
     expect(team.metaAdapt).toBeLessThan(90);
-    expect(Object.keys(p.charMeta).length).toBe(getTitle('overwatch').characters.length);
+    expect(Object.keys(p.charMeta).length).toBe(getTitle('valorant').characters.length);
   });
 });
 

@@ -1,10 +1,10 @@
 /**
- * Lane-based MOBA engine, configured per title by `MobaConfig`:
- *  - economy: 'gold' (items + last hitting), 'shared-xp' (HotS-style team levels & talents),
- *             'score' (Unite-style goal scoring on a fixed clock), 'souls' (Deadlock hybrid).
- *  - lanes/roles, jungle roles, per-title objectives with distinct effects, structure layout,
- *    comeback strength, respawn growth, denies.
- * Every title therefore produces different game flows, lengths, objective histories and stats.
+ * Engine A: title-aware 5v5 lane/objective MOBA with five parameterised adapters (MLBB, Wild
+ * Rift, Honor of Kings, League of Legends, Dota 2) configured by `MobaConfig`: gold economy and
+ * last hitting (denies for Dota), lanes/roles and junglers, per-title objectives with distinct
+ * effects (stacks, pushes, executes, Aegis, XP runes), structure layout and core durability,
+ * comeback strength, respawn growth and Dota's buyback. A game ends only when the core
+ * (Base Crystal / Nexus / Ancient) falls; kills never decide a game by themselves.
  */
 import { clamp, logistic } from '../../core/math';
 import type { RNG } from '../../core/rng';
@@ -29,24 +29,25 @@ interface Side {
   executeValue: number;
   aegis: boolean;
   buff: number;
-  score: number;
+  /** Minute at which each player's buyback is available again (Dota). */
+  bbReadyAt: number[];
+  buybacks: number;
   objectives: number;
   structures: number;
   coreDamage: number;
   dead: Set<string>;
 }
 
-const CS_VALUE: Record<string, number> = { gold: 22, souls: 45 };
+const CS_VALUE = 22;
 
 export function simulateMoba(g: GameContext): GameResult {
   const cfg = g.title.moba!;
   const { rng } = g;
-  const hybrid = g.title.engine === 'hybrid';
   const keys = g.title.stats.map((s) => s.key);
   const book = new StatBook(g.teams, keys);
   const sides: [Side, Side] = g.teams.map((tc) => ({
     tc,
-    gold: tc.players.map(() => (cfg.economy === 'souls' ? 600 : 500)),
+    gold: tc.players.map(() => 500),
     xp: 0,
     level: 1,
     kills: 0,
@@ -60,7 +61,8 @@ export function simulateMoba(g: GameContext): GameResult {
     executeValue: 0,
     aegis: false,
     buff: 0,
-    score: 0,
+    bbReadyAt: tc.players.map(() => 0),
+    buybacks: 0,
     objectives: 0,
     structures: 0,
     coreDamage: 0,
@@ -70,7 +72,6 @@ export function simulateMoba(g: GameContext): GameResult {
   const fightPower = (s: Side, minute: number): number => {
     const tc = s.tc;
     let base = tc.phase.teamfight * 0.6 + tc.phase.skirmish * 0.2 + tc.phase.clutch * 0.1 + tc.phase.macro * 0.1;
-    if (hybrid) base = base * 0.6 + tc.phase.aim * 0.4;
     const comp = g.comp[tc.idx];
     const phaseT = clamp(minute / cfg.avgLength, 0, 1.5);
     const early = (comp.profile.early ?? 5) - 5;
@@ -86,18 +87,9 @@ export function simulateMoba(g: GameContext): GameResult {
   };
 
   const goldLead = (i: number): number => {
-    if (cfg.economy === 'shared-xp') return clamp((sides[i].level - sides[1 - i].level) / 6, -1, 1);
-    if (cfg.economy === 'score') return clamp((sides[i].score - sides[1 - i].score) / 200, -1, 1);
     const a = sides[i].gold.reduce((x, y) => x + y, 0);
     const b = sides[1 - i].gold.reduce((x, y) => x + y, 0);
     return (a - b) / Math.max(1, a + b);
-  };
-
-  const levelFactor = (i: number): number => {
-    if (cfg.economy !== 'shared-xp' || !cfg.talents) return 1;
-    const tiersA = cfg.talents.filter((l) => sides[i].level >= l).length;
-    const tiersB = cfg.talents.filter((l) => sides[1 - i].level >= l).length;
-    return 1 + (sides[i].level - sides[1 - i].level) * 0.018 + (tiersA - tiersB) * 0.03;
   };
 
   // ---------------------------------------------------------------- fights
@@ -109,26 +101,19 @@ export function simulateMoba(g: GameContext): GameResult {
     for (const pc of participants) if (pc !== killer && rng.chance(0.65)) book.add(pc.p.id, 'a', 1);
     book.add(victim.p.id, 'd', 1);
     ks.kills++;
-    if (cfg.economy === 'gold' || cfg.economy === 'souls') {
-      const lead = goldLead(killerSide);
-      const bounty = (cfg.economy === 'souls' ? 600 : 300) * (1 + Math.max(0, -lead) * cfg.comeback * 4) * (1 - Math.max(0, lead) * cfg.comeback);
-      const ki = ks.tc.players.indexOf(killer);
-      ks.gold[ki] += bounty * 0.6;
-      participants.forEach((pc) => (ks.gold[ks.tc.players.indexOf(pc)] += (bounty * 0.4) / participants.length));
-    } else if (cfg.economy === 'shared-xp') {
-      ks.xp += 250 + minute * 25;
-    } else if (cfg.economy === 'score') {
-      // Knocked-out players drop carried energy, the killer's team banks some of it.
-      ks.score += rng.int(5, 20);
-    }
+    const lead = goldLead(killerSide);
+    const bounty = 300 * (1 + Math.max(0, -lead) * cfg.comeback * 4) * (1 - Math.max(0, lead) * cfg.comeback);
+    const ki = ks.tc.players.indexOf(killer);
+    ks.gold[ki] += bounty * 0.6;
+    participants.forEach((pc) => (ks.gold[ks.tc.players.indexOf(pc)] += (bounty * 0.4) / participants.length));
     if (ks.kills + vs.kills === 1) emit(g, minute * 60, killerSide as 0 | 1, 'first-blood', () => `First blood! ${withChar(g, killer)} takes down ${withChar(g, victim)}.`);
   };
 
   const teamfight = (minute: number, reason: string): number => {
-    const pa = fightPower(sides[0], minute) * levelFactor(0) * (1 + goldLead(0) * (1.1 - cfg.comeback * 0.6));
-    const pb = fightPower(sides[1], minute) * levelFactor(1) * (1 + goldLead(1) * (1.1 - cfg.comeback * 0.6));
+    const pa = fightPower(sides[0], minute) * (1 + goldLead(0) * (1.1 - cfg.comeback * 0.6));
+    const pb = fightPower(sides[1], minute) * (1 + goldLead(1) * (1.1 - cfg.comeback * 0.6));
     const aggr = (sides[0].tc.aggression - sides[1].tc.aggression) / 400;
-    const p = logistic(Math.log(pa / pb) * (cfg.economy === 'shared-xp' ? 3.4 : 4.5) + aggr);
+    const p = logistic(Math.log(pa / pb) * 4.5 + aggr);
     const winner = rng.chance(p) ? 0 : 1;
     const dom = Math.abs(p - 0.5) * 2;
     const w = sides[winner];
@@ -152,7 +137,7 @@ export function simulateMoba(g: GameContext): GameResult {
     // damage, damage taken, healing
     for (const [s, mult] of [[w, 1.1], [l, 0.9]] as Array<[Side, number]>) {
       for (const pc of s.tc.players) {
-        const base = (cfg.economy === 'souls' ? 2600 : cfg.economy === 'score' ? 1800 : 2200) * (0.6 + minute / cfg.avgLength);
+        const base = 2200 * (0.6 + minute / cfg.avgLength);
         book.add(pc.p.id, 'dmg', base * dmgWeight(g, pc) * mult * rng.float(0.7, 1.3));
         if (keys.includes('taken')) book.add(pc.p.id, 'taken', base * 0.75 * tankWeight(g, pc) * rng.float(0.7, 1.3));
         book.add(pc.p.id, 'heal', base * 0.8 * healWeight(g, pc) * rng.float(0.6, 1.4));
@@ -161,9 +146,29 @@ export function simulateMoba(g: GameContext): GameResult {
     const ace = wKills >= l.tc.players.length;
     emit(g, minute * 60, winner as 0 | 1, 'teamfight', () => `${fmtTime(minute * 60)} ${reason ? reason + ': ' : ''}${teamName(g, winner)} win the fight ${wKills}-for-${lKills}${ace ? ' — ACE!' : ''}.`, ace || wKills >= 3);
     // Respawn windows grow later in the game -> convert fights into structures.
-    const window = wKills - lKills + dom * 2 + (minute / cfg.avgLength) * cfg.respawnGrowth * 1.5 - 1;
-    if (window > 1.5 && cfg.economy !== 'score' && minute > cfg.laneEnd * 0.8) pushStructures(winner, minute, Math.round(window * 0.4 + (minute <= w.pushUntil ? 1 : 0)));
-    if (cfg.economy === 'score' && window > 0.8) score(winner, minute, 15 + window * 18, 'scores off the fight');
+    let window = wKills - lKills + dom * 2 + (minute / cfg.avgLength) * cfg.respawnGrowth * 1.5 - 1;
+    // Dota buyback: dead heroes of the losing side may pay to respawn when their high ground is
+    // threatened or the game is late. It costs net worth, has a cooldown and blunts the push.
+    const bb = cfg.buyback;
+    if (bb && window > 1.5 && minute > cfg.laneEnd) {
+      const threatened = l.laneDown.some((d) => d >= cfg.structures.perLane - 1) || minute > cfg.avgLength * 0.75;
+      if (threatened) {
+        for (const v of victimsL) {
+          const vi = l.tc.players.indexOf(v);
+          const cost = bb.baseCost + bb.perMinute * minute;
+          if (vi < 0 || l.bbReadyAt[vi] > minute || l.gold[vi] < cost + 1500) continue;
+          // Clutch judgement decides whether the buyback is spent now or saved for later.
+          if (!rng.chance(0.35 + (v.base.phaseC.clutch ?? 50) / 250)) continue;
+          l.gold[vi] -= cost;
+          l.bbReadyAt[vi] = minute + bb.cooldownMin;
+          l.buybacks++;
+          book.add(v.p.id, 'bb', 1);
+          window -= 0.9;
+          emit(g, minute * 60, (1 - winner) as 0 | 1, 'buyback', () => `${withChar(g, v)} buys back (${Math.round(cost)} gold) to defend.`, true);
+        }
+      }
+    }
+    if (window > 1.5 && minute > cfg.laneEnd * 0.8) pushStructures(winner, minute, Math.round(window * 0.4 + (minute <= w.pushUntil ? 1 : 0)));
     return winner;
   };
 
@@ -205,15 +210,6 @@ export function simulateMoba(g: GameContext): GameResult {
     }
   };
 
-  const score = (side: number, minute: number, pts: number, how: string) => {
-    const s = sides[side];
-    const v = Math.round(pts);
-    s.score += v;
-    const scorer = pickWeighted(rng, s.tc.players, (pc) => dmgWeight(g, pc) * (pc.base.phaseC.objective ?? 50));
-    book.add(scorer.p.id, 'score', v);
-    if (v >= 40) emit(g, minute * 60, side as 0 | 1, 'score', () => `${withChar(g, scorer)} ${how} (+${v}).`, v >= 80);
-  };
-
   // ---------------------------------------------------------------- objectives
   const nextSpawn: Record<string, number> = {};
   for (const o of cfg.objectives) nextSpawn[o.id] = o.spawn;
@@ -226,7 +222,7 @@ export function simulateMoba(g: GameContext): GameResult {
     book.add(jg.p.id, 'obj', 1);
     switch (o.kind) {
       case 'gold':
-        s.gold = s.gold.map((x) => x + o.value * mod * (cfg.economy === 'souls' ? 1 : 1));
+        s.gold = s.gold.map((x) => x + o.value * mod);
         break;
       case 'stack': {
         s.stacks[o.id] = (s.stacks[o.id] ?? 0) + 1;
@@ -257,9 +253,6 @@ export function simulateMoba(g: GameContext): GameResult {
       case 'buff':
         s.buff += o.value * mod * 0.5;
         break;
-      case 'score':
-        score(side, minute, o.value * mod, `secures the ${o.name}`);
-        break;
       case 'shield':
         s.buff += o.value * 0.1;
         break;
@@ -282,7 +275,7 @@ export function simulateMoba(g: GameContext): GameResult {
 
   // ---------------------------------------------------------------- main loop
   const tickMin = cfg.tickSec / 60;
-  const csValue = CS_VALUE[cfg.economy] ?? 22;
+  const csValue = CS_VALUE;
   const laneRoles = cfg.lanes.map((l) => l.roles);
   for (let t = cfg.tickSec; winner < 0; t += cfg.tickSec) {
     const minute = t / 60;
@@ -294,24 +287,18 @@ export function simulateMoba(g: GameContext): GameResult {
         const eff = 0.85 + 0.3 * ((pc.base.phaseC.economy ?? 50) / 100);
         const roleShare = pc.role.fclass.includes('Carry/Fragger') ? 1.25 : pc.role.fclass.includes('Support/Utility') ? 0.6 : 1;
         const inc = cfg.gpm * tickMin * eff * roleShare;
-        if (cfg.economy === 'gold' || cfg.economy === 'souls') {
-          s.gold[pi] += inc;
-          if (keys.includes('cs')) book.add(pc.p.id, 'cs', (inc * 0.65) / csValue);
-        }
+        s.gold[pi] += inc;
+        if (keys.includes('cs')) book.add(pc.p.id, 'cs', (inc * 0.65) / csValue);
       });
-      if (cfg.economy === 'shared-xp') s.xp += 650 * tickMin * (0.8 + s.tc.phase.macro / 250);
       if (keys.includes('vision')) for (const pc of s.tc.players) book.add(pc.p.id, 'vision', tickMin * (pc.role.phases.vision ?? 0.05) * 6 * (pc.phase.vision / 70));
-    }
-    if (cfg.economy === 'shared-xp') {
-      for (const s of sides) s.level = Math.min(30, 1 + Math.floor(Math.sqrt(s.xp / 180)));
     }
     if (minute <= cfg.laneEnd) {
       laneRoles.forEach((roles, li) => {
         const la = sides[0].tc.players.filter((pc) => roles.includes(pc.roleId));
         const lb = sides[1].tc.players.filter((pc) => roles.includes(pc.roleId));
         if (!la.length || !lb.length) return;
-        const ra = la.reduce((a, pc) => a + (hybrid ? pc.phase.laning * 0.6 + pc.phase.aim * 0.4 : pc.phase.laning), 0) / la.length;
-        const rb = lb.reduce((a, pc) => a + (hybrid ? pc.phase.laning * 0.6 + pc.phase.aim * 0.4 : pc.phase.laning), 0) / lb.length;
+        const ra = la.reduce((a, pc) => a + pc.phase.laning, 0) / la.length;
+        const rb = lb.reduce((a, pc) => a + pc.phase.laning, 0) / lb.length;
         const jgA = sides[0].tc.phase.jungle;
         const jgB = sides[1].tc.phase.jungle;
         const d = (ra - rb) / 9 + (jgA - jgB) / 40 + (g.comp[0].counter - g.comp[1].counter) * 0.25;
@@ -325,15 +312,6 @@ export function simulateMoba(g: GameContext): GameResult {
           const i = sides[1].tc.players.indexOf(pc);
           sides[1].gold[i] -= cfg.gpm * tickMin * shift;
           if (cfg.denies && keys.includes('dn') && rng.chance(0.5 - shift)) book.add(pc.p.id, 'dn', rng.int(0, 2));
-        }
-        if (cfg.economy === 'shared-xp') {
-          sides[0].xp += 60 * tickMin * shift * 10;
-          sides[1].xp -= 60 * tickMin * shift * 10;
-        }
-        if (cfg.economy === 'score') {
-          // Farming wild objectives converts into goal attempts.
-          const pA = logistic(d * 1.2);
-          if (rng.chance(0.35 * tickMin * 2)) score(rng.chance(pA) ? 0 : 1, minute, rng.int(8, 30), 'dunks energy in lane');
         }
         // Solo kill chance
         const aggr = (sides[0].tc.aggression + sides[1].tc.aggression) / 100;
@@ -393,14 +371,8 @@ export function simulateMoba(g: GameContext): GameResult {
       for (let i = 0; i < 2 && winner < 0; i++) {
         const s = sides[i];
         const pressure = (s.tc.phase.macro - sides[1 - i].tc.phase.macro) / 25 + goldLead(i) * 2.5 + ((g.comp[i].profile.split ?? 5) - 5) * 0.05 + (minute <= s.pushUntil ? s.pushValue * 2 : 0);
-        if (rng.chance(clamp((0.42 * tickMin / cfg.avgLength) * (1 + pressure), 0, 0.5)) && cfg.economy !== 'score') pushStructures(i, minute, 1);
+        if (rng.chance(clamp((0.42 * tickMin / cfg.avgLength) * (1 + pressure), 0, 0.5))) pushStructures(i, minute, 1);
       }
-    }
-    // Score-economy end (fixed clock)
-    if (cfg.economy === 'score' && minute >= cfg.maxLength) {
-      winner = sides[0].score === sides[1].score ? (sides[0].kills >= sides[1].kills ? 0 : 1) : sides[0].score > sides[1].score ? 0 : 1;
-      emit(g, t, winner as 0 | 1, 'end', `Time! ${teamName(g, winner)} win ${sides[winner].score}-${sides[1 - winner].score}.`, true);
-      break;
     }
     // Overtime safeguard: sudden-death fights decide very long games.
     if (minute >= cfg.maxLength && winner < 0) {
@@ -409,13 +381,10 @@ export function simulateMoba(g: GameContext): GameResult {
     }
   }
 
-  // Final gold/xp/souls stats
+  // Final gold / net worth
   sides.forEach((s) => {
     s.tc.players.forEach((pc, pi) => {
       if (keys.includes('gold')) book.add(pc.p.id, 'gold', s.gold[pi]);
-      if (keys.includes('souls')) book.add(pc.p.id, 'souls', s.gold[pi]);
-      if (keys.includes('xp')) book.add(pc.p.id, 'xp', s.xp / s.tc.players.length);
-      if (keys.includes('taken') && cfg.economy === 'shared-xp') book.add(pc.p.id, 'taken', s.xp / 10);
     });
   });
   book.finalise();
@@ -424,25 +393,25 @@ export function simulateMoba(g: GameContext): GameResult {
     (l) => {
       const s = l.s;
       const kda = (s.k * 3 + s.a * 1.5 + 1) / (s.d * 2 + 2);
-      const econ = (s.gold ?? s.souls ?? s.xp ?? s.score ?? 0) / 1000;
-      return kda + econ * 0.25 + (s.dmg ?? 0) / 15000 + (s.heal ?? 0) / 20000 + (s.obj ?? 0) * 0.4 + (s.towers ?? 0) * 0.3 + (s.score ?? 0) / 60 + (s.vision ?? 0) / 40;
+      const econ = (s.gold ?? 0) / 1000;
+      return kda + econ * 0.25 + (s.dmg ?? 0) / 15000 + (s.heal ?? 0) / 20000 + (s.obj ?? 0) * 0.4 + (s.towers ?? 0) * 0.3 + (s.vision ?? 0) / 40;
     },
     winner,
   );
   const goldA = sides[0].gold.reduce((a, b) => a + b, 0);
   const goldB = sides[1].gold.reduce((a, b) => a + b, 0);
-  const scoreArr = cfg.economy === 'score' ? [sides[0].score, sides[1].score] : [sides[0].kills, sides[1].kills];
+  const scoreArr = [sides[0].kills, sides[1].kills];
   return {
     idx: g.gameIdx,
     winner,
     mapId: g.mapId,
     duration: Math.round(endT),
     score: scoreArr,
-    teamStats: sides.map((s, i) => ({ kills: s.kills, gold: Math.round(i === 0 ? goldA : goldB), objectives: s.objectives, structures: s.structures, level: s.level, score: s.score })),
+    teamStats: sides.map((s, i) => ({ kills: s.kills, gold: Math.round(i === 0 ? goldA : goldB), objectives: s.objectives, structures: s.structures, buybacks: s.buybacks })),
     players: book.lines,
     draft: g.draft,
     events: g.events ?? undefined,
-    summary: `${teamName(g, winner)} win in ${fmtTime(endT)} (${cfg.economy === 'score' ? `${scoreArr[0]}-${scoreArr[1]} pts` : `${scoreArr[0]}-${scoreArr[1]} kills`})`,
+    summary: `${teamName(g, winner)} destroy the ${cfg.structures.coreName} in ${fmtTime(endT)} (${scoreArr[0]}-${scoreArr[1]} kills)`,
   };
 }
 

@@ -106,13 +106,7 @@ export function evaluateComp(t: TitleDef, patch: Patch, chars: CharDef[], enemy:
   }
   const style = clamp((ssum / Math.max(0.01, wsum) - 5) / 3, -1, 1) * 0.6 + clamp(((profile[teamStyle] ?? 5) - 5) / 5, -1, 1) * 0.4;
   let coverage = 0;
-  if (t.hero) {
-    const counts: Record<string, number> = {};
-    for (const c of chars) counts[c.cls] = (counts[c.cls] ?? 0) + 1;
-    let miss = 0;
-    for (const [cls, n] of Object.entries(t.hero.comp)) miss += Math.abs((counts[cls] ?? 0) - n);
-    coverage = clamp(0.5 - miss * 0.35, -1, 0.5);
-  } else {
+  {
     const hasFront = chars.some((c) => FRONT.test(c.cls.toLowerCase()));
     const dmg = chars.filter((c) => DAMAGE.test(c.cls.toLowerCase())).length;
     const sup = chars.some((c) => SUPPORT.test(c.cls.toLowerCase()));
@@ -154,12 +148,14 @@ export interface DraftState {
   assign: [Record<string, string>, Record<string, string>];
   order: DraftRecord['order'];
   unavailable: [Set<string>, Set<string>]; // fearless restrictions per team
+  /** Series team index holding first pick (the side chosen for this game). */
+  firstPick: 0 | 1;
   done: boolean;
   /** Runtime cache of per-player comfort lookups (not persisted). */
   comfortCache?: Map<string, (c: CharDef) => number>;
 }
 
-export function newDraft(world: World, t: TitleDef, patch: Patch, sides: [DraftSide, DraftSide], fearless: [Set<string>, Set<string>]): DraftState {
+export function newDraft(world: World, t: TitleDef, patch: Patch, sides: [DraftSide, DraftSide], fearless: [Set<string>, Set<string>], firstPick: 0 | 1 = 0): DraftState {
   return {
     title: t,
     patch,
@@ -170,6 +166,7 @@ export function newDraft(world: World, t: TitleDef, patch: Patch, sides: [DraftS
     assign: [{}, {}],
     order: [],
     unavailable: fearless,
+    firstPick,
     done: t.draft.mode === 'none' || t.characters.length === 0,
   };
 }
@@ -177,10 +174,15 @@ export function newDraft(world: World, t: TitleDef, patch: Patch, sides: [DraftS
 export function currentStep(ds: DraftState): { team: 0 | 1; action: 'ban' | 'pick' } | null {
   if (ds.done) return null;
   const t = ds.title;
-  if (t.draft.mode === 'sequential') return t.draft.steps[ds.step] ?? null;
-  // Simultaneous: bans (alternating), then picks for team 0 then team 1.
+  // Step tables are written from the first-pick side's view (team 0 = first pick).
+  if (t.draft.mode === 'sequential') {
+    const s = t.draft.steps[ds.step];
+    if (!s) return null;
+    return ds.firstPick ? { team: (1 - s.team) as 0 | 1, action: s.action } : s;
+  }
+  // Simultaneous: bans (alternating, first-pick side first), then picks for team 0 then team 1.
   const nb = t.draft.bansPerTeam * 2;
-  if (ds.step < nb) return { team: (ds.step % 2) as 0 | 1, action: 'ban' };
+  if (ds.step < nb) return { team: ((ds.step + ds.firstPick) % 2) as 0 | 1, action: 'ban' };
   const k = ds.step - nb;
   const n = t.teamSize;
   if (k < n * 2) return { team: (k < n ? 0 : 1) as 0 | 1, action: 'pick' };
@@ -199,7 +201,6 @@ export function legalOptions(ds: DraftState, team: 0 | 1, action: 'ban' | 'pick'
     if (own.has(c.id)) return false;
     if (t.draft.uniqueAcross && all.has(c.id)) return false;
     if (ds.unavailable[team].has(c.id)) return false;
-    if (t.id === 'r6' && t.draft.sideBans) return true;
     void playerId;
     return true;
   });
@@ -296,19 +297,12 @@ export function aiDraftAction(world: World, ds: DraftState, rng: RNG): { charId:
   let bs = -Infinity;
   // Option-level terms (independent of which player takes the pick) computed once per option.
   const style = side.team.prefs.style;
-  const have: Record<string, number> = {};
-  if (ds.title.hero) for (const id of ds.picks[team]) {
-    const cls = cmap.get(id)?.cls;
-    if (cls) have[cls] = (have[cls] ?? 0) + 1;
-  }
   const base = new Float64Array(opts.length);
   for (let i = 0; i < opts.length; i++) {
     const c = opts[i];
     let ctr = 0;
     for (const e of enemyChars) ctr += counterScore(c, e);
-    let balance = 0;
-    if (ds.title.hero) balance = (have[c.cls] ?? 0) >= (ds.title.hero.comp[c.cls] ?? 0) ? -0.8 : 0.2;
-    base[i] = ((ds.patch.charMeta[c.id] ?? 0) / 10) * 0.8 * wMeta + ctr * 0.25 * wCounter + ((c.styles[style] ?? 5) - 5) / 10 + balance + (rng.next() - 0.5) * noise * 3.4;
+    base[i] = ((ds.patch.charMeta[c.id] ?? 0) / 10) * 0.8 * wMeta + ctr * 0.25 * wCounter + ((c.styles[style] ?? 5) - 5) / 10 + (rng.next() - 0.5) * noise * 3.4;
   }
   ds.comfortCache ||= new Map();
   for (const slot of slots) {
@@ -353,7 +347,7 @@ export function runAiDraft(world: World, ds: DraftState, rng: RNG): void {
 }
 
 export function toRecord(ds: DraftState, comp: [number, number]): DraftRecord {
-  return { bans: [[...ds.bans[0]], [...ds.bans[1]]], picks: [[...ds.picks[0]], [...ds.picks[1]]], order: [...ds.order], compScore: comp, assign: [{ ...ds.assign[0] }, { ...ds.assign[1] }] };
+  return { bans: [[...ds.bans[0]], [...ds.bans[1]]], picks: [[...ds.picks[0]], [...ds.picks[1]]], order: [...ds.order], compScore: comp, assign: [{ ...ds.assign[0] }, { ...ds.assign[1] }], firstPick: ds.firstPick };
 }
 
 /** Validate a finished draft record against title rules (used by tests and plan import). */
@@ -379,9 +373,10 @@ export function validateDraft(t: TitleDef, rec: DraftRecord, fearless: [Set<stri
   if (t.draft.mode === 'sequential') {
     const expected = t.draft.steps;
     if (rec.order.length && rec.order.length !== expected.length) errs.push('Draft order length mismatch.');
+    const fp = rec.firstPick ?? 0;
     rec.order.forEach((o, i) => {
       const e = expected[i];
-      if (e && (e.team !== o.team || e.action !== o.action)) errs.push(`Step ${i + 1} out of order.`);
+      if (e && ((fp ? 1 - e.team : e.team) !== o.team || e.action !== o.action)) errs.push(`Step ${i + 1} out of order.`);
     });
   }
   return errs;

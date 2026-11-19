@@ -47,7 +47,6 @@ export function recentResults(world: World, teamIds: string[], n = 10): Fixture[
 }
 
 export function fixtureLabel(world: World, f: Fixture): string {
-  if (f.format.kind === 'br') return `${world.comps[f.compId]?.short ?? ''} lobby (${f.teams.length} teams)`;
   const a = world.teams[f.teams[0]];
   const b = world.teams[f.teams[1]];
   return `${a?.short ?? '?'} vs ${b?.short ?? '?'}`;
@@ -55,7 +54,6 @@ export function fixtureLabel(world: World, f: Fixture): string {
 
 export function scoreLabel(f: Fixture): string {
   if (f.status !== 'done') return f.format.label;
-  if (f.format.kind === 'br') return 'Final';
   return `${f.score?.[0] ?? 0}–${f.score?.[1] ?? 0}`;
 }
 

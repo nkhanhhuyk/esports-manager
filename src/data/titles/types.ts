@@ -1,7 +1,8 @@
 import type { InputKind } from '../../model/attributes';
 import type { SeriesFormat } from '../../model/types';
 
-export type EngineKind = 'moba' | 'brawl' | 'tactical' | 'hero' | 'arena' | 'br' | 'hybrid';
+/** Exactly two engine families: title-aware 5v5 MOBA and round-based 5v5 tactical shooter. */
+export type EngineKind = 'moba' | 'tactical';
 export type Family = 'MOBA' | 'SHOOTER';
 
 /** Cross-title functional classifications (shared vocabulary). */
@@ -110,8 +111,15 @@ export interface StructureDef {
   coreHits?: number;
 }
 
+/** Dota 2 buyback (versioned with the title preset): a dead hero may pay to respawn at once. */
+export interface BuybackConfig {
+  baseCost: number;
+  perMinute: number;
+  cooldownMin: number;
+}
+
 export interface MobaConfig {
-  economy: 'gold' | 'shared-xp' | 'score' | 'souls';
+  economy: 'gold';
   tickSec: number;
   laneEnd: number; // minute
   avgLength: number; // minutes
@@ -124,9 +132,9 @@ export interface MobaConfig {
   comeback: number; // 0..1
   respawnGrowth: number; // how much late deaths matter
   items: boolean;
-  talents?: number[]; // shared-xp talent levels
-  scoreGoal?: number; // score-economy: typical winning score
   denies?: boolean;
+  /** Present only for titles whose preset enables buyback (Dota 2). */
+  buyback?: BuybackConfig;
 }
 
 export interface TacticalConfig {
@@ -149,38 +157,9 @@ export interface TacticalConfig {
   defenderEdge: number; // base round-win edge for defenders (logit units)
 }
 
-export interface HeroConfig {
-  modes: ModeDef[];
-  rotation: string[]; // mode id order for maps 1..n
-  comp: Record<string, number>; // ideal class counts
-  swaps: boolean;
-  ultCharge: number; // fights to charge an ultimate (approx)
-}
 
-export interface ArenaConfig {
-  modes: ModeDef[];
-  rotation: string[];
-}
 
-export interface BrConfig {
-  lobby: number;
-  zones: number;
-  placementPts: number[];
-  killPts: number;
-  killCap?: number;
-  respawn: 'none' | 'beacon' | 'gulag' | 'reboot';
-  build: boolean;
-  perspective: 'tpp' | 'fpp' | 'mixed';
-  matchPointFinal?: number;
-  legends: boolean;
-  vehicles: boolean;
-  avgLength: number; // minutes
-}
 
-export interface BrawlConfig {
-  modes: ModeDef[];
-  setWins: number;
-}
 
 export interface DraftStep {
   team: 0 | 1;
@@ -192,7 +171,9 @@ export interface DraftRules {
   steps: DraftStep[]; // sequential order (team 0 = first-pick side)
   bansPerTeam: number; // simultaneous mode bans
   uniqueAcross: boolean; // a character may only appear once in a game
-  fearless: 'none' | 'team' | 'global'; // series-level reuse restriction
+  fearless: 'none' | 'team' | 'global'; // series-level reuse restriction (default for the title)
+  /** An optional, separately named rules preset a competition may switch on (never silently). */
+  fearlessPreset?: 'team' | 'global';
   sideBans?: boolean; // R6: one attack + one defence ban each
 }
 
@@ -206,6 +187,8 @@ export interface StatDef {
 
 export interface TitleDef {
   id: string;
+  /** Stable source-specification ID (S220 MLBB … S234 CS2). */
+  sourceId: string;
   name: string;
   short: string;
   family: Family;
@@ -235,10 +218,6 @@ export interface TitleDef {
   phaseWeights: Partial<Record<Phase, number>>; // team-level importance of each phase
   moba?: MobaConfig;
   tactical?: TacticalConfig;
-  hero?: HeroConfig;
-  arena?: ArenaConfig;
-  br?: BrConfig;
-  brawl?: BrawlConfig;
   stats: StatDef[];
   baseSalary: number; // average established pro salary in a 1.0 economy (USD/season)
   prizeScale: number;
