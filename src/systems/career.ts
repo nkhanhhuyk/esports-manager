@@ -8,7 +8,8 @@
  */
 import { clamp } from '../core/math';
 import { RNG } from '../core/rng';
-import type { BoardObjective, CareerRole, League, Team, World } from '../model/types';
+import type { BoardObjective, CareerRole, Competition, JobApproach, League, Team, World } from '../model/types';
+import { nextId } from '../model/ids';
 import { getTitle } from '../data/titles/catalogue';
 import { computeTeamStrength } from '../sim/common/team';
 import { addInbox, addNews } from './news';
@@ -87,6 +88,7 @@ export function setBoardObjectives(world: World): void {
   if (!uid) return;
   world.meta.board ||= { confidence: 60, objectives: [], history: [] };
   const board = world.meta.board;
+  if (world.meta.managerContract?.orgId !== uid) world.meta.managerContract = { orgId: uid, endSeason: world.season + MANAGER_YEARS - 1, since: world.day };
   board.objectives = board.objectives.filter((o) => o.season !== world.season);
   const org = world.orgs[uid];
   for (const tid of org.teams) {
@@ -145,19 +147,214 @@ export function boardReview(world: World, season: number): boolean {
   const trophies = Object.values(world.teams).filter((t) => t.orgId === uid).reduce((a, t) => a + t.trophies.filter((x) => x.season === season).length, 0);
   delta += trophies * 8;
   board.confidence = clamp(board.confidence * 0.7 + 18 + delta, 0, 100);
+  board.ultimatum = null;
   const sacked = board.confidence < 20;
-  board.history.push({ season, confidence: Math.round(board.confidence), verdict: sacked ? 'dismissed' : board.confidence > 70 ? 'delighted' : board.confidence > 45 ? 'satisfied' : 'concerned' });
+  // The manager's contract: renewed when the board is happy enough, otherwise allowed to run out.
+  const mc = world.meta.managerContract;
+  const expiring = !sacked && !!mc && mc.orgId === uid && mc.endSeason <= season;
+  const renewed = expiring && board.confidence >= RENEW_AT;
+  const released = expiring && !renewed;
+  if (renewed) mc!.endSeason = season + MANAGER_YEARS;
+  const verdict = sacked ? 'dismissed' : released ? 'contract not renewed' : board.confidence > 70 ? 'delighted' : board.confidence > 45 ? 'satisfied' : 'concerned';
+  board.history.push({ season, confidence: Math.round(board.confidence), verdict });
+  const tail = sacked
+    ? '\n\nThe board has decided to part ways with you. Several organisations have expressed interest.'
+    : released
+      ? `\n\nYour contract expires and the board has decided not to renew it (confidence below ${RENEW_AT}).`
+      : renewed
+        ? `\n\nThe board rewards you with a new contract until the end of season ${mc!.endSeason}.`
+        : mc && mc.orgId === uid
+          ? `\nYour contract runs until the end of season ${mc.endSeason}.`
+          : '';
   addInbox(world, {
     from: 'Board',
-    subject: sacked ? 'You have been dismissed' : `Season review: board ${board.history[board.history.length - 1].verdict}`,
-    body: `${lines.join('\n')}\nTrophies this season: ${trophies}. Board confidence: ${Math.round(board.confidence)}/100.${sacked ? '\n\nThe board has decided to part ways with you. Several organisations have expressed interest.' : ''}`,
+    subject: sacked ? 'You have been dismissed' : released ? 'Your contract will not be renewed' : `Season review: board ${verdict}`,
+    body: `${lines.join('\n')}\nTrophies this season: ${trophies}. Board confidence: ${Math.round(board.confidence)}/100.${tail}`,
     kind: 'board',
   });
-  if (sacked) {
-    world.meta.unemployed = true;
-    addNews(world, { kind: 'org', title: `${org.name} part ways with ${world.meta.managerName}`, body: 'Missed objectives cost the manager their job.', refs: [{ type: 'org', id: org.id }], importance: 3 });
+  if (sacked || released) dismissUser(world, sacked ? 'Missed objectives cost the manager their job.' : 'The manager leaves as their contract runs out.');
+  return sacked || released;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Mid-season board reactions, manager contract, job approaches
+// ---------------------------------------------------------------------------------------------
+
+export const MANAGER_YEARS = 2;
+export const RENEW_AT = 40;
+export const ULTIMATUM_AT = 30;
+export const DISMISS_MIDSEASON = 12;
+
+const ORD = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
+
+function boardNote(world: World, text: string, delta: number): void {
+  const board = world.meta.board!;
+  board.notes ??= [];
+  board.notes.push({ day: world.day, season: world.season, text, delta });
+  if (board.notes.length > 30) board.notes.splice(0, board.notes.length - 30);
+}
+
+/** End the user's employment (season review or mid-season). The AI staff take the teams over. */
+export function dismissUser(world: World, why: string): void {
+  const uid = world.meta.userOrgId;
+  if (!uid) return;
+  const org = world.orgs[uid];
+  world.meta.unemployed = true;
+  world.pendingUserMatch = null;
+  if (org) {
+    org.user = false;
+    for (const tid of org.teams) {
+      const t = world.teams[tid];
+      if (!t) continue;
+      t.prefs.delegateLineup = true;
+      t.prefs.delegateDraft = true;
+      t.prefs.delegateTraining = true;
+    }
+    addNews(world, { kind: 'org', title: `${org.name} part ways with ${world.meta.managerName}`, body: why, refs: [{ type: 'org', id: org.id }], importance: 3 });
   }
-  return sacked;
+  for (const a of world.meta.jobApproaches ?? []) if (a.status === 'pending') a.status = 'expired';
+}
+
+const TROPHY_DELTA: Partial<Record<Competition['tier'], number>> = { worlds: 10, international: 6, playoffs: 5, league: 4, cup: 3, challenger: 3, qualifier: 1 };
+
+/**
+ * The board reacts when a competition involving the user's teams finishes: trophies are praised,
+ * league splits are judged against the season objective (the final split is left to the season
+ * review). Poor runs bring warnings, then an ultimatum; failing after an ultimatum ends the job
+ * mid-season. Excellent results attract approaches from bigger organisations.
+ */
+export function boardCompetitionReaction(world: World, comp: Competition): void {
+  const uid = world.meta.userOrgId;
+  const board = world.meta.board;
+  if (!uid || !board || !hasBoard(world) || world.meta.unemployed || comp.season !== world.season) return;
+  const mine = comp.teamIds.filter((tid) => world.teams[tid]?.orgId === uid);
+  if (!mine.length) return;
+  const lines: string[] = [];
+  let delta = 0;
+  // How the board judges the result; the final split's effect is left to the season review.
+  let judged = 0;
+  let excellent = false;
+  const champ = comp.placements[0];
+  if (champ && mine.includes(champ)) {
+    delta += TROPHY_DELTA[comp.tier] ?? 3;
+    judged += TROPHY_DELTA[comp.tier] ?? 3;
+    excellent = comp.tier !== 'qualifier';
+    lines.push(`🏆 ${world.teams[champ].name} won ${comp.name}`);
+  }
+  if (comp.leagueId) {
+    const final = !Object.values(world.comps).some((c) => c.id !== comp.id && c.leagueId === comp.leagueId && c.season === comp.season && c.status !== 'done');
+    for (const tid of mine) {
+      const o = board.objectives.find((x) => x.season === comp.season && x.teamId === tid && x.kind === 'league-rank');
+      const pos = comp.placements.indexOf(tid) + 1;
+      if (!o || pos <= 0) continue;
+      const met = pos <= o.target;
+      const d = met ? 3 + Math.min(4, o.target - pos) : -(3 + 2 * Math.min(5, pos - o.target));
+      judged += d;
+      if (!final) delta += d;
+      if (pos <= Math.max(1, o.target - 2)) excellent = true;
+      lines.push(`${met ? '✓' : '✗'} ${world.teams[tid].name}: ${ORD(pos)} in ${comp.name} (target: top ${o.target})${final ? ' — the season review will judge the final standings' : ''}`);
+    }
+  }
+  if (!lines.length) return;
+  board.confidence = clamp(board.confidence + delta, 0, 100);
+  boardNote(world, `${comp.name}: ${delta > 0 ? '+' : ''}${delta}`, delta);
+  const conf = Math.round(board.confidence);
+  if (delta < 0 && board.confidence < DISMISS_MIDSEASON && board.ultimatum?.season === comp.season && board.ultimatum.day < world.day) {
+    addInbox(world, { from: 'Board', subject: 'You have been dismissed', body: `${lines.join('\n')}\n\nAfter our final warning, results have not improved. The board has terminated your contract with immediate effect (confidence ${conf}/100).`, kind: 'board' });
+    board.history.push({ season: world.season, confidence: conf, verdict: 'dismissed (mid-season)' });
+    dismissUser(world, 'Poor results after a board ultimatum cost the manager their job mid-season.');
+    return;
+  }
+  let extra = '';
+  if (delta < 0 && board.confidence < ULTIMATUM_AT && board.ultimatum?.season !== comp.season) {
+    board.ultimatum = { season: comp.season, day: world.day };
+    extra = '\n\n⚠ ULTIMATUM: the board expects an immediate improvement. Another poor result this season will end your tenure.';
+  }
+  const tone = judged >= 6 ? 'delighted' : judged >= 0 ? 'satisfied' : judged > -8 ? 'concerned' : 'alarmed';
+  addInbox(world, { from: 'Board', subject: `Board ${tone}: ${comp.name}`, body: `${lines.join('\n')}\nBoard confidence: ${conf}/100${delta !== judged ? ' (final standings are judged at the season review)' : ` (${delta >= 0 ? '+' : ''}${delta})`}.${extra}`, kind: 'board' });
+  if (excellent) maybeJobApproach(world, `impressed by ${comp.name}`);
+}
+
+/** Monthly: the board watches the bank balance against its finance objective. */
+export function boardMonthly(world: World): void {
+  const uid = world.meta.userOrgId;
+  const board = world.meta.board;
+  for (const a of world.meta.jobApproaches ?? []) if (a.status === 'pending' && a.expiresDay < world.day) a.status = 'expired';
+  if (!uid || !board || !hasBoard(world) || world.meta.unemployed) return;
+  const org = world.orgs[uid];
+  const fin = board.objectives.find((o) => o.season === world.season && o.kind === 'finance');
+  if (org.balance < 0) {
+    board.confidence = clamp(board.confidence - 3, 0, 100);
+    boardNote(world, 'Negative bank balance: -3', -3);
+    if (board.financeWarned !== world.season) {
+      board.financeWarned = world.season;
+      addInbox(world, { from: 'Board', subject: 'Board alarmed by finances', body: `The organisation is overdrawn ($${Math.round(org.balance).toLocaleString()}). Every month in the red costs board confidence; cut costs or sell players.`, kind: 'board' });
+    }
+  } else if (fin && org.balance < fin.target && board.financeWarned !== world.season) {
+    board.financeWarned = world.season;
+    boardNote(world, 'Balance below the finance objective', 0);
+    addInbox(world, { from: 'Board', subject: 'Board concerned about finances', body: `The balance ($${Math.round(org.balance).toLocaleString()}) is below the board's target of $${fin.target.toLocaleString()} for this season.`, kind: 'board' });
+  }
+}
+
+/** A bigger organisation may approach the user after excellent results (at most one open approach, 60-day gap). */
+export function maybeJobApproach(world: World, reason: string, force = false): JobApproach | null {
+  const uid = world.meta.userOrgId;
+  if (!uid || world.meta.unemployed || !hasBoard(world)) return null;
+  const list = (world.meta.jobApproaches ??= []);
+  if (list.some((a) => a.status === 'pending' && a.expiresDay >= world.day)) return null;
+  const last = list.reduce((m, a) => Math.max(m, a.day), -Infinity);
+  if (!force && last > world.day - 60) return null;
+  const rng = RNG.derive(world.meta.seed, 'approach', world.day, uid, list.length);
+  if (!force && !rng.chance(0.35)) return null;
+  const rep = world.orgs[uid].rep;
+  const pool = Object.values(world.orgs).filter((o) => o.active && !o.federation && !o.user && o.id !== uid && o.teams.some((t) => world.teams[t]?.active));
+  const bigger = pool.filter((o) => o.rep > rep + 3 && o.rep <= rep + 30);
+  const cands = bigger.length ? bigger : pool.filter((o) => o.rep > rep);
+  if (!cands.length) return null;
+  const org = rng.pick(cands);
+  const a: JobApproach = { id: nextId(world, 'ja'), orgId: org.id, day: world.day, expiresDay: world.day + 10, years: rng.int(2, 3), reason, status: 'pending' };
+  list.push(a);
+  if (list.length > 20) list.splice(0, list.length - 20);
+  addInbox(world, {
+    from: org.name,
+    subject: `Job offer from ${org.name}`,
+    body: `${org.name} (reputation ${Math.round(org.rep)}) are ${reason} and offer you the ${ROLE_LABEL[world.meta.careerRole]} job on a ${a.years}-season contract. Accepting moves you immediately; the offer stands until the deadline.`,
+    actions: [
+      { id: 'accept', label: `Join ${org.name}` },
+      { id: 'decline', label: 'Stay' },
+    ],
+    payload: { approachId: a.id },
+    kind: 'board',
+  });
+  addNews(world, { kind: 'org', title: `${org.name} linked with ${world.meta.managerName}`, body: `Reports suggest ${org.name} want to appoint the ${world.orgs[uid].name} ${ROLE_LABEL[world.meta.careerRole].toLowerCase()}.`, refs: [{ type: 'org', id: org.id }, { type: 'org', id: uid }], importance: 1 });
+  return a;
+}
+
+export function respondToApproach(world: World, approachId: string, accept: boolean): { ok: boolean; message: string } {
+  const a = (world.meta.jobApproaches ?? []).find((x) => x.id === approachId);
+  if (!a || a.status !== 'pending') return { ok: false, message: 'The offer is no longer available.' };
+  if (a.expiresDay < world.day) {
+    a.status = 'expired';
+    return { ok: false, message: 'The offer has expired.' };
+  }
+  const org = world.orgs[a.orgId];
+  if (!org?.active || org.user) {
+    a.status = 'expired';
+    return { ok: false, message: 'The offer has been withdrawn.' };
+  }
+  if (!accept) {
+    a.status = 'declined';
+    if (world.meta.board) {
+      world.meta.board.confidence = clamp(world.meta.board.confidence + 2, 0, 100);
+      boardNote(world, `Turned down ${org.name}: +2`, 2);
+    }
+    return { ok: true, message: `You turn down ${org.name}. The board appreciates your loyalty.` };
+  }
+  a.status = 'accepted';
+  const from = world.meta.userOrgId ? world.orgs[world.meta.userOrgId]?.name : null;
+  takeJob(world, a.orgId, a.years);
+  return { ok: true, message: `You leave ${from ?? 'your club'} and join ${org.name}.` };
 }
 
 /** Organisations willing to hire the user (after dismissal or when looking for a move). */
@@ -168,12 +365,23 @@ export function jobOffers(world: World): string[] {
   return rng.sample(cands, Math.min(6, cands.length)).map((o) => o.id);
 }
 
-export function takeJob(world: World, orgId: string): void {
+export function takeJob(world: World, orgId: string, years = MANAGER_YEARS): void {
   const old = world.meta.userOrgId;
-  if (old && world.orgs[old]) world.orgs[old].user = false;
+  if (old && world.orgs[old]) {
+    world.orgs[old].user = false;
+    for (const tid of world.orgs[old].teams) {
+      const t = world.teams[tid];
+      if (!t) continue;
+      t.prefs.delegateLineup = true;
+      t.prefs.delegateDraft = true;
+      t.prefs.delegateTraining = true;
+    }
+  }
+  world.pendingUserMatch = null;
   setUserOrg(world, orgId);
   world.meta.unemployed = false;
-  world.meta.board = { confidence: 55, objectives: [], history: world.meta.board?.history ?? [] };
+  world.meta.managerContract = { orgId, endSeason: world.season + Math.max(1, years) - 1, since: world.day };
+  world.meta.board = { confidence: 55, objectives: [], history: world.meta.board?.history ?? [], notes: [] };
   applyRoleDelegation(world);
   setBoardObjectives(world);
   addNews(world, { kind: 'org', title: `${world.orgs[orgId].name} appoint ${world.meta.managerName}`, body: `New ${ROLE_LABEL[world.meta.careerRole]}.`, refs: [{ type: 'org', id: orgId }], importance: 2 });

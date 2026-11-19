@@ -139,6 +139,18 @@ turnover (e.g. OBS 2027–31, IL 2032–34). Drivers: aging/decline, contract ex
 * Confidence update at season review: `0.7 × previous + 18 + Σ(objective deltas) + 8 × trophies`;
   league objective met `+10 + 3 × margin`, missed `−12 − 2 × shortfall`; Worlds ±10; finance +6/−15.
   Dismissal below 20. Owners and commissioners have no board.
+* Mid-season reactions (per finished competition with user teams): trophy +10 Worlds / +6 international /
+  +5 playoffs / +4 league / +3 cup or challenger; a non-final league split versus its objective: met
+  `+3 + min(4, margin)`, missed `−3 − 2 × min(5, shortfall)`. The final split only produces a message (the
+  season review judges the final standings, avoiding double counting). Below 30 after a negative result →
+  ultimatum (once per season); a negative result on a later day with confidence below 12 under an
+  ultimatum → mid-season dismissal. Monthly: −3 while the balance is negative (one warning per season), a
+  warning when below the finance objective.
+* Manager contract: 2 seasons on appointment (approaches offer 2–3); renewed for 2 more at the season
+  review if confidence ≥ 40, otherwise the manager leaves (verdict "contract not renewed").
+* Job approaches: after an excellent result (trophy, or a split ≥ 2 places above target), 35% chance, at most
+  one open approach and a 60-day gap; from an active organisation with reputation +3…+30 above yours (any
+  bigger one if none); 10 days to answer; declining gives +2 confidence.
 
 ## Persistence
 

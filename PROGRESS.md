@@ -79,7 +79,10 @@ by simulation tests.
   finance, facilities, expansion); AI staff run whatever your role doesn't (e.g. the AI GM recruits for a Head
   Coach). The board sets per-division season objectives, reviews them at rollover, tracks confidence and can
   dismiss you (not owners/commissioners) — then you pick a new job from interested organisations. A
-  **national-team coach** job can be held alongside any club role.
+  **national-team coach** job can be held alongside any club role. **Mid-season**: board reactions after
+  every split / trophy / money worry, ultimatums and mid-season dismissal (the advance pauses), a manager
+  contract renewed only at confidence ≥ 40, and job approaches from bigger organisations while employed.
+  Not yet: negotiating your own contract terms or salary.
 * **Scouting assignments**: scouts auto-scout your titles + focus list; no region assignment UI.
 * **Affiliate/partner organisations & joint ownership**: `partners` field exists; no gameplay yet.
 * **Media/social reactions**: news feed covers major events; no fan-sentiment model.
@@ -91,8 +94,7 @@ by simulation tests.
    series, pre-filter draft candidates, lighter weekly training for free agents, an aggregated engine path
    for low-tier leagues.
 2. AI-initiated pick trades, instalments/add-ons, a trade-block UI.
-3. Mid-season board reactions (warnings after bad splits), contract-length/job offers while employed.
-4. Dual-title rosters with schedule-conflict fatigue.
-5. Richer AI strategic shifts (rebuild vs contend cycles), affiliate partnerships and player exchanges.
-6. More granular commentary (per-round tactical narration), heatmap-style analytics.
-7. Capacitor Android project scaffold and on-device performance tuning.
+3. Dual-title rosters with schedule-conflict fatigue.
+4. Richer AI strategic shifts (rebuild vs contend cycles), affiliate partnerships and player exchanges.
+5. More granular commentary (per-round tactical narration), heatmap-style analytics.
+6. Capacitor Android project scaffold and on-device performance tuning.

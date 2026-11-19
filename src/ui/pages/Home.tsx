@@ -8,7 +8,8 @@ import { sortStandings } from '../../competition/stages';
 import { getTitle } from '../../data/titles/catalogue';
 import { userFixturesOn } from '../../game/advance';
 import { computeTeamStrength } from '../../sim/common/team';
-import { ROLE_LABEL, hasBoard } from '../../systems/career';
+import { ROLE_LABEL, hasBoard, respondToApproach } from '../../systems/career';
+import { OrgLink } from '../components/common';
 
 export function Home() {
   const world = useWorld();
@@ -37,20 +38,10 @@ export function Home() {
         <Stat label="Divisions" value={teams.length} sub={teams.map((t) => getTitle(t.titleId).short).join(', ')} />
         <Stat label="Trophies" value={teams.reduce((a, t) => a + t.trophies.length, 0)} sub={`prestige ${org.prestige.toFixed(0)}`} />
         <Stat label="Unread inbox" value={world.inbox.filter((m) => !m.read).length} sub={pendingOffers.length ? `${pendingOffers.length} offer(s) await you` : undefined} />
-        {hasBoard(world) && world.meta.board && <Stat label="Board confidence" value={`${Math.round(world.meta.board.confidence)}/100`} sub={world.meta.board.confidence < 30 ? 'job at risk!' : world.meta.board.confidence > 70 ? 'secure' : 'stable'} />}
+        {hasBoard(world) && world.meta.board && <Stat label="Board confidence" value={`${Math.round(world.meta.board.confidence)}/100`} sub={world.meta.board.ultimatum?.season === world.season ? 'ULTIMATUM' : world.meta.board.confidence < 30 ? 'job at risk!' : world.meta.board.confidence > 70 ? 'secure' : 'stable'} />}
+        {hasBoard(world) && world.meta.managerContract?.orgId === org.id && <Stat label="Your contract" value={`S${world.meta.managerContract.endSeason}`} sub={world.meta.managerContract.endSeason <= world.season ? 'expires this season' : 'runs until end of'} />}
       </div>
-      {hasBoard(world) && world.meta.board && (
-        <Card title={`Board objectives ${world.season}`}>
-          {world.meta.board.objectives
-            .filter((o) => o.season === world.season)
-            .map((o, i) => (
-              <div key={i} className="attr-row">
-                <span>{o.label}</span>
-                <span className={o.status === 'met' ? 'pos' : o.status === 'failed' ? 'neg' : 'muted'}>{o.status}</span>
-              </div>
-            ))}
-        </Card>
-      )}
+      {hasBoard(world) && world.meta.board && <BoardPanel />}
       <div className="grid2">
         <Card title="Upcoming matches" right={<Link to="/schedule">Schedule</Link>}>
           {!up.length && <div className="muted">No scheduled matches. Competitions are generated as the season progresses.</div>}
@@ -174,6 +165,68 @@ function HelpCard() {
       <button className="btn ghost sm" onClick={() => advance({ kind: 'days', n: 1 })}>
         Advance one day
       </button>
+    </Card>
+  );
+}
+
+/** Board objectives, ultimatum, recent reactions, manager contract and open job approaches. */
+function BoardPanel() {
+  const world = useWorld();
+  const { act, notify } = useGame();
+  const board = world.meta.board!;
+  const mc = world.meta.managerContract;
+  const notes = (board.notes ?? []).filter((n) => n.season === world.season).slice(-5).reverse();
+  const approaches = (world.meta.jobApproaches ?? []).filter((a) => a.status === 'pending' && a.expiresDay >= world.day);
+  const respond = (id: string, accept: boolean) => {
+    if (accept && !confirm('Leave your organisation and take this job now?')) return;
+    const r = act((w) => respondToApproach(w, id, accept), { save: true });
+    if (r) notify(r.message, r.ok ? 'ok' : 'err');
+  };
+  return (
+    <Card title={`Board ${world.season}`} right={mc && mc.orgId === world.meta.userOrgId ? <span className="muted small">contract until end of S{mc.endSeason} · renewed at confidence ≥ 40</span> : undefined}>
+      {board.ultimatum?.season === world.season && (
+        <div className="neg" style={{ marginBottom: 6 }}>
+          ⚠ Ultimatum issued {formatDate(board.ultimatum.day)}: another poor result this season ends your tenure.
+        </div>
+      )}
+      {approaches.map((a) => (
+        <div key={a.id} className="row" style={{ marginBottom: 6 }}>
+          <span>
+            Job offer: <OrgLink org={world.orgs[a.orgId]} /> ({a.years} seasons, reputation {Math.round(world.orgs[a.orgId]?.rep ?? 0)}) — expires {formatDate(a.expiresDay)}
+          </span>
+          <button className="btn sm" onClick={() => respond(a.id, true)}>
+            Accept
+          </button>
+          <button className="btn ghost sm" onClick={() => respond(a.id, false)}>
+            Stay
+          </button>
+        </div>
+      ))}
+      <div className="grid2">
+        <div>
+          <b className="small">Objectives</b>
+          {board.objectives
+            .filter((o) => o.season === world.season)
+            .map((o, i) => (
+              <div key={i} className="attr-row">
+                <span>{o.label}</span>
+                <span className={o.status === 'met' ? 'pos' : o.status === 'failed' ? 'neg' : 'muted'}>{o.status}</span>
+              </div>
+            ))}
+        </div>
+        <div>
+          <b className="small">Recent board reactions</b>
+          {notes.map((n, i) => (
+            <div key={i} className="attr-row">
+              <span>
+                {formatShort(n.day)} {n.text.replace(/: [+-]?\d+$/, '')}
+              </span>
+              <span className={n.delta > 0 ? 'pos' : n.delta < 0 ? 'neg' : 'muted'}>{n.delta > 0 ? `+${n.delta}` : n.delta}</span>
+            </div>
+          ))}
+          {!notes.length && <div className="muted small">The board reacts after each split, trophy and money worry.</div>}
+        </div>
+      </div>
     </Card>
   );
 }

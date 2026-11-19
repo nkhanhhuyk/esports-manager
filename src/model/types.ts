@@ -758,6 +758,16 @@ export interface BoardObjective {
   status: 'pending' | 'met' | 'failed';
 }
 
+export interface JobApproach {
+  id: ID;
+  orgId: ID;
+  day: DayNum;
+  expiresDay: DayNum;
+  years: number;
+  reason: string;
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+}
+
 export type CareerRole = 'coach-gm' | 'head-coach' | 'gm' | 'director' | 'owner' | 'national-coach' | 'commissioner';
 
 export interface DetailSettings {
@@ -785,7 +795,21 @@ export interface WorldMeta {
   managerName: string;
   titlesEnabled: TitleId[];
   /** Board objectives & confidence (career job security). */
-  board?: { confidence: number; objectives: BoardObjective[]; history: Array<{ season: number; confidence: number; verdict: string }> };
+  board?: {
+    confidence: number;
+    objectives: BoardObjective[];
+    history: Array<{ season: number; confidence: number; verdict: string }>;
+    /** Mid-season reactions (splits, trophies, finances), newest last. */
+    notes?: Array<{ day: DayNum; season: number; text: string; delta: number }>;
+    /** Final warning: another poor result this season ends the job. */
+    ultimatum?: { season: number; day: DayNum } | null;
+    /** Season in which the board last warned about finances. */
+    financeWarned?: number;
+  };
+  /** The manager's own contract with the current organisation (job security / renewals). */
+  managerContract?: { orgId: ID; endSeason: number; since: DayNum };
+  /** Approaches from other organisations while employed. */
+  jobApproaches?: JobApproach[];
   /** Set after a dismissal until the user accepts a new job. */
   unemployed?: boolean;
   /** Optional national-team job held alongside the club role. */

@@ -151,6 +151,13 @@ Series keep every game.
   World Championship qualification for contenders, promotion for strong Challenger sides, a cash floor).
   Confidence = 0.7 × previous + 18 + objective/trophy deltas; below 20 at the season review means dismissal
   and a choice of job offers from organisations of similar or lower reputation.
+* During the season the board reacts to every finished competition involving your teams: trophies are
+  praised, league splits are compared with the objective (praise, concern, alarm), months in the red cost
+  confidence. A poor run triggers an **ultimatum**; failing again that season ends the job mid-season and
+  time stops so you can choose your next move.
+* You work on a **manager contract** (two seasons on appointment); at its end the board renews it only if
+  confidence is at least 40, otherwise you leave. Excellent results attract **job offers** from bigger
+  organisations while you are employed: accept to move immediately, or stay (the board appreciates loyalty).
 * National-team coach job can be held in parallel (Nations Cup).
 
 ## 10. History, awards & legacy

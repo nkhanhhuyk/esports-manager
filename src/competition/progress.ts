@@ -5,6 +5,7 @@
 import type { Competition, Fixture, World } from '../model/types';
 import { applyFixtureToStage, checkStage, stagePlacements, startStage } from './stages';
 import { onCompetitionFinished } from '../systems/awards';
+import { boardCompetitionReaction } from '../systems/career';
 import { buildNationalTeams } from '../systems/nations';
 
 function compDone(world: World, id: string): boolean {
@@ -128,4 +129,5 @@ export function finalizeCompetition(world: World, comp: Competition): void {
   comp.placements = order;
   comp.status = 'done';
   onCompetitionFinished(world, comp);
+  boardCompetitionReaction(world, comp);
 }

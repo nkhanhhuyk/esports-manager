@@ -15,6 +15,7 @@ import { dailyCondition, weeklyTraining } from '../systems/training';
 import { processMonthlyFinances } from '../systems/finance';
 import { aiContracts, aiMarketDay, processLoans } from '../systems/transfers';
 import { negotiationsDay } from '../systems/negotiation';
+import { boardMonthly } from '../systems/career';
 import { adaptToMeta, releasePatch } from '../systems/patches';
 import { seasonRollover } from './rollover';
 import { isUserTeam } from '../systems/news';
@@ -93,6 +94,7 @@ export function processDay(world: World): void {
   }
   if (isFirstOfMonth(day) && world.processed.lastMonth !== monthKey(day)) {
     processMonthlyFinances(world);
+    boardMonthly(world);
     aiContracts(world);
   }
   patchCheck(world, day);
@@ -132,6 +134,7 @@ export function advance(world: World, mode: AdvanceMode, opts: AdvanceOptions = 
   const total = Math.max(0, target - world.day);
   let days = 0;
   const limit = opts.maxDays ?? Infinity;
+  const employed = !!world.meta.userOrgId && !world.meta.unemployed;
   while (world.day < target) {
     if (stopForUser && world.meta.userOrgId) {
       const uf = userFixturesOn(world, world.day + 1);
@@ -146,6 +149,8 @@ export function advance(world: World, mode: AdvanceMode, opts: AdvanceOptions = 
     processDay(world);
     days++;
     opts.onProgress?.(days, total, world.day);
+    // Losing the job (season review or mid-season) pauses time so the user can choose what next.
+    if (employed && world.meta.unemployed) return { days, stoppedFor: 'decision' };
     if (days >= limit) return { days, stoppedFor: 'limit' };
   }
   return { days, stoppedFor: 'complete' };

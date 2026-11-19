@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { respondToApproach } from '../../systems/career';
 import { useGame, useWorld } from '../store';
 import { Card, Gate, PageHeader } from '../components/common';
 import { formatDate } from '../../core/date';
@@ -24,8 +25,15 @@ export function Inbox() {
     if (!m) return;
     const offerId = m.payload?.offerId as string | undefined;
     const matchPlayerId = m.payload?.matchPlayerId as string | undefined;
+    const approachId = m.payload?.approachId as string | undefined;
     const r = act((w) => {
-      const res = offerId ? respondToOffer(w, offerId, actionId === 'accept') : matchPlayerId ? decideOfferSheet(w, matchPlayerId, actionId === 'match') : { ok: true, message: 'Done' };
+      const res = offerId
+        ? respondToOffer(w, offerId, actionId === 'accept')
+        : matchPlayerId
+          ? decideOfferSheet(w, matchPlayerId, actionId === 'match')
+          : approachId
+            ? respondToApproach(w, approachId, actionId === 'accept')
+            : { ok: true, message: 'Done' };
       const mm = w.inbox.find((x) => x.id === m.id);
       if (mm) mm.resolved = actionId;
       return res;
