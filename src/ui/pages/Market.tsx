@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame, useWorld } from '../store';
-import { Card, Flag, PageHeader, PlayerLink, Rating, TeamLink, TitleTag, age, Tabs } from '../components/common';
+import { Card, Flag, Gate, PageHeader, PlayerLink, Rating, TeamLink, TitleTag, age, Tabs } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { getTitle } from '../../data/titles/catalogue';
 import { navigate, withQuery, type Route } from '../router';
@@ -71,6 +71,7 @@ export function MarketPage({ route }: { route: Route }) {
         </Card>
       )}
       {tab === 'offers' && (
+        <Gate world={world} perm="transfers">
         <Card title="Offers for your players">
           <table className="table">
             <tbody>
@@ -103,8 +104,13 @@ export function MarketPage({ route }: { route: Route }) {
           </table>
           {!offers.length && <div className="muted">No offers yet. AI clubs bid for your players during transfer windows.</div>}
         </Card>
+        </Gate>
       )}
-      {tab === 'trade' && <TradeBuilder />}
+      {tab === 'trade' && (
+        <Gate world={world} perm="transfers">
+          <TradeBuilder />
+        </Gate>
+      )}
       {tab === 'history' && (
         <Card title="Recent transfers">
           <DataTable

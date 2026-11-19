@@ -8,6 +8,7 @@ import type { AdvanceMode, AdvanceResult } from '../game/advance';
 import { advanceAsync, createWorldAsync } from '../worker/client';
 import type { NewWorldOptions } from '../gen/world';
 import { setUserOrg } from '../gen/world';
+import { applyRoleDelegation, hasBoard, setBoardObjectives } from '../systems/career';
 import { listSaves, loadWorld, markDirty, saveWorld, type SaveMeta } from '../persistence/db';
 import { clearRatingCache } from '../sim/common/ratings';
 
@@ -79,6 +80,8 @@ export const useGame = create<GameStore>((set, get) => ({
     const w = get().world;
     if (!w) return;
     setUserOrg(w, orgId);
+    applyRoleDelegation(w);
+    if (hasBoard(w)) setBoardObjectives(w);
     set({ version: get().version + 1 });
     await get().save(true);
   },

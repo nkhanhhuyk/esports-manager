@@ -35,7 +35,8 @@ Other scripts:
 
 ## How to play
 
-1. **New career** — choose save name, seed, world size (Tiny → Large) and which of the 30 titles exist.
+1. **New career** — choose save name, seed, career role (Head Coach & GM, Head Coach, GM, Sporting
+   Director, Owner, Commissioner), world size (Tiny → Large) and which of the 30 titles exist.
    The world is generated (countries, leagues, organisations, teams, players, staff, finances) and the
    game starts **on today's date**, in the off-season before the new season.
 2. **Pick an organisation** — filter by title; each has divisions, reputation, finances and a board strategy.

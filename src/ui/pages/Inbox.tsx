@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useGame, useWorld } from '../store';
-import { Card, PageHeader } from '../components/common';
+import { Card, Gate, PageHeader } from '../components/common';
 import { formatDate } from '../../core/date';
 import { respondToOffer } from '../../systems/transfers';
 import { useRoute, navigate } from '../router';
@@ -61,6 +61,7 @@ export function Inbox() {
               </button>
             )}
             {m.actions && !m.resolved && (
+              <Gate world={world} perm="transfers">
               <div className="row" style={{ marginTop: 10 }}>
                 {m.actions.map((a) => (
                   <button key={a.id} className={`btn ${a.id === 'reject' ? 'ghost' : ''}`} onClick={() => doAction(a.id)}>
@@ -68,6 +69,7 @@ export function Inbox() {
                   </button>
                 ))}
               </div>
+              </Gate>
             )}
             {m.resolved && <div className="tag">Resolved: {m.resolved}</div>}
           </Card>

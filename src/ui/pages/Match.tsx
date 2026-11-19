@@ -10,6 +10,7 @@ import type { Fixture, GameResult, MatchRecord } from '../../model/types';
 import { userFixturesOn } from '../../game/advance';
 import { brPoints } from '../../sim/shooter/br';
 import { fmtTime } from '../../sim/common/engine';
+import { can, denyReason } from '../../systems/career';
 
 function DraftPanel({ g, f }: { g: GameResult; f: Fixture }) {
   const world = useWorld();
@@ -302,7 +303,7 @@ export function MatchDayPage() {
             <b>{f.format.kind === 'br' ? `Lobby of ${f.teams.length} teams` : `${world.teams[f.teams[0]]?.name} vs ${world.teams[f.teams[1]]?.name}`}</b>
             <span className="muted">{f.format.label}</span>
             <span className="grow" />
-            <button className="btn" onClick={() => navigate(`/live/${f.id}`)}>
+            <button className="btn" disabled={f.format.kind !== 'br' && !can(world, 'tactics')} title={can(world, 'tactics') ? undefined : denyReason(world, 'tactics')} onClick={() => navigate(`/live/${f.id}`)}>
               {f.format.kind === 'br' ? 'Watch live' : 'Play live'}
             </button>
             <button className="btn ghost" onClick={() => navigate(`/tactics?team=${f.teams.find((x) => isUserTeamId(world, x))}`)}>

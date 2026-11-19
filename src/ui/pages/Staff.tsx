@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame, useWorld } from '../store';
-import { Card, Flag, Money, PageHeader, Rating, Stat, StaffLink, TeamLink, TitleTag, age, OrgLink, PlayerLink } from '../components/common';
+import { Card, Flag, Gate, Money, PageHeader, Rating, Stat, StaffLink, TeamLink, TitleTag, age, OrgLink, PlayerLink } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { STAFF_ROLE_LABEL } from '../../gen/staff';
 import { STAFF_ATTRS } from '../../model/attributes';
@@ -105,6 +105,7 @@ export function StaffPage({ id }: { id: string }) {
             ))}
           </Card>
           {free && mine.length > 0 && (
+            <Gate world={world} perm="staff">
             <Card title="Hire">
               <div className="row" style={{ alignItems: 'flex-end' }}>
                 <label className="field">
@@ -126,13 +127,16 @@ export function StaffPage({ id }: { id: string }) {
                 </button>
               </div>
             </Card>
+            </Gate>
           )}
           {isMine && (
+            <Gate world={world} perm="staff">
             <Card title="Contract">
               <button className="btn ghost red" onClick={() => { if (confirm('Release this staff member?')) { const r = act((w) => releaseStaff(w, s.id), { save: true }); if (r) notify(r.message, r.ok ? 'ok' : 'err'); } }}>
                 Release (50% salary compensation)
               </button>
             </Card>
+            </Gate>
           )}
           <Card title="Career">
             {[...s.career].reverse().map((c, i) => (

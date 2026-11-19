@@ -131,7 +131,20 @@ Series keep every game.
 * **News & inbox**: transfers, upsets, champions, awards, retirements, prospects, patches, finance and
   organisation events; actionable inbox offers and board messages.
 
-## 9. History, awards & legacy
+## 9. Career roles & the board
+
+* Roles: Head Coach & GM (all football-manager style powers), Head Coach (lineups, drafts, live matches,
+  training), General Manager (transfers, contracts, staff, budgets), Sporting Director (transfers, contracts,
+  staff, expansion), Owner (finance, facilities, expansion, staff), Commissioner (sandbox, everything, no board).
+  Actions outside the role are disabled with an explanation; AI staff perform them (AI GM recruits and renews,
+  AI head coach picks lineups and drafts).
+* Board: objectives per division each season (league finish based on squad strength rank and board strategy,
+  World Championship qualification for contenders, promotion for strong Challenger sides, a cash floor).
+  Confidence = 0.7 × previous + 18 + objective/trophy deltas; below 20 at the season review means dismissal
+  and a choice of job offers from organisations of similar or lower reputation.
+* National-team coach job can be held in parallel (Nations Cup).
+
+## 10. History, awards & legacy
 
 * Per competition: champion, placements, MVP (in-competition ratings), Finals MVP.
 * Per season & title: Player of the Year, best by role, Rookie of the Year, Most Improved, statistical

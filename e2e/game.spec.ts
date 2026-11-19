@@ -15,7 +15,7 @@ test('new career: generate, pick organisation, browse, advance, play live, save 
   await page.getByLabel('League of Legends', { exact: true }).check();
   await page.getByLabel('Valorant', { exact: true }).check();
   await page.getByLabel('PUBG Mobile', { exact: true }).check();
-  await page.locator('select').first().selectOption('tiny');
+  await page.locator('label:has-text("World size") select').selectOption('tiny');
   await page.getByRole('button', { name: 'Generate world' }).click();
   await expect(page.getByText('Choose your organisation')).toBeVisible({ timeout: 60000 });
   await page.getByRole('button', { name: 'Manage' }).first().click();

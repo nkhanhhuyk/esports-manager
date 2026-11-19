@@ -16,6 +16,7 @@ import { recordLiveSeries, playFixture } from '../../sim/record';
 import { currentPatch } from '../../systems/patches';
 import { GameView, SeriesView } from './Match';
 import { validateLineup } from '../../systems/lineup';
+import { can, denyReason } from '../../systems/career';
 
 export function LiveMatchPage({ id }: { id: string }) {
   const world = useWorld();
@@ -40,6 +41,7 @@ export function LiveMatchPage({ id }: { id: string }) {
     );
   }
   if (ui < 0) return <div>This is not your match.</div>;
+  if (f.format.kind !== 'br' && !can(world, 'tactics')) return <div>{denyReason(world, 'tactics')} Use “Simulate match day” instead.</div>;
   if (f.day !== world.day + 1) return <div>Live matches can be played on match day only ({f.day > world.day ? 'advance until the day before' : 'already past'}).</div>;
 
   // Battle royale: watch the whole event live with full detail.

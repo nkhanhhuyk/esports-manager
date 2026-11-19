@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useGame, useWorld } from '../store';
-import { Card, CompLink, Flag, Money, OrgBadge, PageHeader, Stat, TeamLink, TitleTag } from '../components/common';
+import { Card, CompLink, Flag, Gate, Money, OrgBadge, PageHeader, Stat, TeamLink, TitleTag } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { regionName, COUNTRY_BY_CODE } from '../../data/countries';
 import { getTitle } from '../../data/titles/catalogue';
@@ -117,6 +117,7 @@ export function OrgPage({ id }: { id?: string }) {
         </Card>
       </div>
       {isUser && (
+        <Gate world={world} perm="expansion">
         <Card title="Expansion & structure">
           <div className="row" style={{ alignItems: 'flex-end' }}>
             <label className="field">
@@ -176,6 +177,7 @@ export function OrgPage({ id }: { id?: string }) {
             </button>
           </div>
         </Card>
+        </Gate>
       )}
       <Card title="All teams ever operated">
         <div className="row">

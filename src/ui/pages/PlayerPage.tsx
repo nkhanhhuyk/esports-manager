@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame, useWorld } from '../store';
-import { Card, Flag, Money, PageHeader, Rating, Stat, Tabs, TeamLink, TitleTag, age, CompLink } from '../components/common';
+import { Card, Flag, Gate, Money, PageHeader, Rating, Stat, Tabs, TeamLink, TitleTag, age, CompLink } from '../components/common';
 import { getTitle, TITLES, titleSimilarity, similarityLabel } from '../../data/titles/catalogue';
 import { COUNTRY_BY_CODE } from '../../data/countries';
 import { ATTRS, ATTR_GROUPS, GROUP_INDICES, INPUTS, INPUT_LABEL, summaries, effectiveAttr, inputIndex, ratingBand } from '../../model/attributes';
@@ -41,6 +41,7 @@ function OfferPanel({ p }: { p: Player }) {
     const others = mine.filter((t) => t.id !== p.teamId);
     const aiTeams = Object.values(world.teams).filter((t) => t.active && t.titleId === p.titleId && !isUserTeamId(world, t.id)).sort((a, b) => b.elo - a.elo).slice(0, 30);
     return (
+      <Gate world={world} perm="contracts">
       <Card title="Contract actions">
         <div className="row" style={{ alignItems: 'flex-end' }}>
           <label className="field">
@@ -84,9 +85,11 @@ function OfferPanel({ p }: { p: Player }) {
           </select>
         </div>
       </Card>
+      </Gate>
     );
   }
   return (
+    <Gate world={world} perm="transfers">
     <Card title={p.teamId ? 'Make a transfer bid' : 'Offer a contract'} right={<span className="muted small">{inTransferWindow(world) ? 'Transfer window OPEN' : 'Window closed (free agents only)'}</span>}>
       <div className="row" style={{ alignItems: 'flex-end' }}>
         <label className="field">
@@ -127,6 +130,7 @@ function OfferPanel({ p }: { p: Player }) {
         </div>
       )}
     </Card>
+    </Gate>
   );
 }
 

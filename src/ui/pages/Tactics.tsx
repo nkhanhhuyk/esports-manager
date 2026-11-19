@@ -1,5 +1,5 @@
 import { useGame, useWorld } from '../store';
-import { Card, PageHeader, Rating, TitleTag } from '../components/common';
+import { Card, Gate, PageHeader, Rating, TitleTag } from '../components/common';
 import { navigate, withQuery, type Route } from '../router';
 import { roleE, rosterPlayers, userTeams } from '../helpers';
 import { getTitle } from '../../data/titles/catalogue';
@@ -44,6 +44,7 @@ export function TacticsPage({ route }: { route: Route }) {
           </select>
         }
       />
+      <Gate world={world} perm="tactics">
       <div className="grid2">
         <Card
           title="Starting lineup"
@@ -194,6 +195,7 @@ export function TacticsPage({ route }: { route: Route }) {
       <button className="btn ghost" onClick={() => notify('Tactics saved with your next save/advance.', 'ok')}>
         Done
       </button>
+      </Gate>
     </div>
   );
 }

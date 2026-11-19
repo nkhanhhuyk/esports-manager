@@ -1,5 +1,5 @@
 import { useGame, useWorld } from '../store';
-import { Card, Money, PageHeader, Stat, TeamLink, TitleTag } from '../components/common';
+import { Card, Gate, Money, PageHeader, Stat, TeamLink, TitleTag } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { BarChart, LineChart } from '../components/Charts';
 import { FACILITY_LABEL, facilityUpgradeCost, monthlyBreakdown, upgradeFacility } from '../../systems/finance';
@@ -41,6 +41,7 @@ export function FinancesPage({ route }: { route: Route }) {
       <Card title="Balance history">
         <LineChart series={[{ name: 'Balance', color: 'var(--accent)', points: org.monthly.map((m) => ({ x: m.month, y: m.balance })) }]} xLabel={(x) => `${Math.floor(x / 12)}-${String((x % 12) + 1).padStart(2, '0')}`} yFormat={(y) => formatMoney(y)} />
       </Card>
+      <Gate world={world} perm="finance">
       <Card title="Division budgets">
         <table className="table">
           <thead>
@@ -78,6 +79,7 @@ export function FinancesPage({ route }: { route: Route }) {
           </tbody>
         </table>
       </Card>
+      </Gate>
       <Card title="Ledger">
         <DataTable
           id="ledger"
@@ -111,6 +113,7 @@ export function FacilitiesPage() {
   return (
     <div>
       <PageHeader title="Facilities" sub={`Balance ${formatMoney(org.balance)} — upgrades raise monthly upkeep`} />
+      <Gate world={world} perm="facilities">
       <div className="grid3">
         {(Object.keys(org.facilities) as FacilityKey[]).map((k) => (
           <Card key={k} title={FACILITY_LABEL[k]}>
@@ -130,6 +133,7 @@ export function FacilitiesPage() {
           </Card>
         ))}
       </div>
+      </Gate>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useGame, useWorld } from '../store';
-import { Card, PageHeader, PlayerLink, Rating, TitleTag } from '../components/common';
+import { Card, Gate, PageHeader, PlayerLink, Rating, TitleTag } from '../components/common';
 import { navigate, withQuery, type Route } from '../router';
 import { userTeams, rosterPlayers, roleName } from '../helpers';
 import { FOCUS_LABEL, trainingQuality } from '../../systems/training';
@@ -33,6 +33,7 @@ export function TrainingPage({ route }: { route: Route }) {
           </select>
         }
       />
+      <Gate world={world} perm="tactics">
       <div className="grid2">
         <Card title="Team programme">
           <label className="field">
@@ -108,6 +109,7 @@ export function TrainingPage({ route }: { route: Route }) {
           </tbody>
         </table>
       </Card>
+      </Gate>
     </div>
   );
 }

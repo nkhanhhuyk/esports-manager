@@ -105,6 +105,14 @@ turnover (e.g. OBS 2027–31, IL 2032–34). Drivers: aging/decline, contract ex
   0.8 × headroom with evaluation noise; two-season rookie deals at 1.5 × league minimum with a team option.
 * **Luxury tax**: soft caps tax payroll above the cap at the league tax rate (default 50%), charged monthly.
 
+## Board
+
+* Objective target = squad-strength rank in the league + ambition (win-now/prestige 0, balanced 1,
+  youth/moneyball 2). League finish is judged on the sum of both splits' final placements.
+* Confidence update at season review: `0.7 × previous + 18 + Σ(objective deltas) + 8 × trophies`;
+  league objective met `+10 + 3 × margin`, missed `−12 − 2 × shortfall`; Worlds ±10; finance +6/−15.
+  Dismissal below 20. Owners and commissioners have no board.
+
 ## Persistence
 
 * Saves are stored as structured-cloned objects (no JSON stringify) — fast and compact enough for long saves.

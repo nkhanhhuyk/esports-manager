@@ -6,7 +6,8 @@ import { Card, Flag, OrgBadge, TitleTag } from '../components/common';
 import { regionName } from '../../data/countries';
 import { formatMoney } from '../../core/math';
 import { deleteSave, exportSave, getSession, importSave } from '../../persistence/db';
-import type { Organisation } from '../../model/types';
+import type { CareerRole, Organisation } from '../../model/types';
+import { ROLE_LABEL, jobOffers, takeJob } from '../../systems/career';
 import { computeTeamStrength } from '../../sim/common/team';
 
 const SIZES = [
@@ -28,7 +29,7 @@ function OrgPicker() {
     [world, title],
   );
   return (
-    <Card title="Choose your organisation" right={<span className="muted small">You start as combined Coach / General Manager</span>}>
+    <Card title="Choose your organisation" right={<span className="muted small">You start as {ROLE_LABEL[world.meta.careerRole]}</span>}>
       <div className="row" style={{ marginBottom: 8 }}>
         <label className="field">
           <span>Has a division in</span>
@@ -71,6 +72,7 @@ export function Welcome() {
   const [size, setSize] = useState<'tiny' | 'small' | 'standard' | 'large'>('small');
   const [titles, setTitles] = useState<string[]>(TITLES.map((t) => t.id));
   const [manager, setManager] = useState('Manager');
+  const [role, setRole] = useState<CareerRole>('coach-gm');
   const [session, setSession] = useState<{ saveId: string; dirty: boolean } | undefined>();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -129,6 +131,16 @@ export function Welcome() {
             </label>
           </div>
           <label className="field" style={{ marginTop: 8 }}>
+            <span>Career role</span>
+            <select value={role} onChange={(e) => setRole(e.target.value as CareerRole)}>
+              {(['coach-gm', 'head-coach', 'gm', 'director', 'owner', 'commissioner'] as CareerRole[]).map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABEL[r]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field" style={{ marginTop: 8 }}>
             <span>World size</span>
             <select value={size} onChange={(e) => setSize(e.target.value as typeof size)}>
               {SIZES.map((s) => (
@@ -166,7 +178,7 @@ export function Welcome() {
             <button
               className="btn"
               disabled={!titles.length}
-              onClick={() => newGame({ name, seed, worldSize: size, titles, managerName: manager })}
+              onClick={() => newGame({ name, seed, worldSize: size, titles, managerName: manager, careerRole: role })}
             >
               Generate world
             </button>
@@ -241,6 +253,38 @@ export function Welcome() {
           ))}
         </Card>
       </div>
+    </div>
+  );
+}
+
+/** Shown after a dismissal: pick a new organisation from those interested. */
+export function JobOffers() {
+  const world = useGame((s) => s.world)!;
+  const act = useGame((s) => s.act);
+  const offers = useMemo(() => jobOffers(world), [world]);
+  return (
+    <div className="welcome">
+      <div className="hero">
+        <h1>Looking for a new job</h1>
+        <p className="muted">The board of {world.meta.userOrgId ? world.orgs[world.meta.userOrgId]?.name : 'your club'} dismissed you. These organisations want to talk.</p>
+      </div>
+      <Card title="Job offers">
+        {offers.map((id) => {
+          const o = world.orgs[id];
+          return (
+            <div key={id} className="row" style={{ padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+              <OrgBadge org={o} size={18} />
+              <b className="grow">{o.name}</b>
+              <span>{o.teams.map((t) => <TitleTag key={t} id={world.teams[t].titleId} link={false} />)}</span>
+              <span className="muted small">rep {o.rep.toFixed(0)}</span>
+              <button className="btn sm" onClick={() => act((w) => takeJob(w, id), { save: true })}>
+                Accept
+              </button>
+            </div>
+          );
+        })}
+        {!offers.length && <div className="muted">No offers right now.</div>}
+      </Card>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useRoute, navigate, Link, type Route } from './router';
 import { formatDate } from '../core/date';
 import { getTitle } from '../data/titles/catalogue';
 import { OrgBadge } from './components/common';
-import { Welcome } from './pages/Welcome';
+import { Welcome, JobOffers } from './pages/Welcome';
 import { Home } from './pages/Home';
 import { Inbox } from './pages/Inbox';
 import { OrgPage } from './pages/OrgPage';
@@ -309,6 +309,14 @@ export function App() {
     </>
   );
 
+  if (world?.meta.unemployed) {
+    return (
+      <>
+        <JobOffers />
+        {overlay}
+      </>
+    );
+  }
   if (!world || !world.meta.userOrgId) {
     return (
       <>

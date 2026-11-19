@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { can, denyReason, type Permission } from '../../systems/career';
 import { Link } from '../router';
 import type { Competition, Organisation, Player, Staff, Team, World } from '../../model/types';
 import { flag, COUNTRY_BY_CODE } from '../../data/countries';
@@ -151,4 +152,15 @@ export function DateLabel({ day }: { day: number }) {
 
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
+}
+
+/** Disables its contents (and explains why) when the user's career role lacks a permission. */
+export function Gate({ world, perm, children }: { world: World; perm: Permission; children: ReactNode }) {
+  if (can(world, perm)) return <>{children}</>;
+  return (
+    <fieldset disabled style={{ border: 'none', padding: 0, margin: 0, opacity: 0.6 }}>
+      <div className="tag" style={{ marginBottom: 6 }}>{denyReason(world, perm)}</div>
+      {children}
+    </fieldset>
+  );
 }

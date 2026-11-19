@@ -26,6 +26,7 @@ import { makeOrgName } from '../gen/names';
 import { computeTeamStrength } from '../sim/common/team';
 import { runRookieDrafts } from '../systems/draft';
 import { clearNationalSquads } from '../systems/nations';
+import { boardReview, hasBoard, setBoardObjectives } from '../systems/career';
 
 function leagueTable(world: World, league: League, season: number): Array<{ teamId: string; w: number; l: number; gd: number }> {
   const agg = new Map<string, { teamId: string; w: number; l: number; gd: number }>();
@@ -381,6 +382,8 @@ export function seasonRollover(world: World): void {
     c.placements = c.stages.find((s) => s.status !== 'pending')?.standings.map((r) => r.teamId) ?? c.teamIds;
   }
   seasonAwards(world, season);
+  const dismissed = boardReview(world, season);
+  if (dismissed && world.meta.userOrgId) world.orgs[world.meta.userOrgId].user = false;
   snapshotHistory(world, season);
   clearNationalSquads(world);
   promotionRelegation(world, season, rng);
@@ -411,6 +414,7 @@ export function seasonRollover(world: World): void {
   }
   for (const id of world.meta.titlesEnabled) releasePatch(world, id, true);
   planSeason(world, world.season);
+  if (world.meta.userOrgId && !world.meta.unemployed && hasBoard(world)) setBoardObjectives(world);
   prune(world, season);
   if (world.meta.userOrgId) {
     addInbox(world, { from: 'Board', subject: `Welcome to the ${world.season} season`, body: `The ${season} season is archived in History. The off-season transfer window is open until 12 January. Review contracts, recruit and set training before competition begins.`, kind: 'season' });

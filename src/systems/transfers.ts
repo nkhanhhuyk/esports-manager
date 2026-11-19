@@ -16,6 +16,7 @@ import { expectedSalary, makeContract, marketValue, offerAppeal, teamPayroll, va
 import { ledger } from './finance';
 import { addInbox, addNews, isUserTeam } from './news';
 import { autoLineup } from './lineup';
+import { can } from './career';
 
 export interface OfferResponse {
   ok: boolean;
@@ -440,7 +441,7 @@ function aiTeamMarket(world: World, team: Team, idx: MarketIndex, rng: RNG, emer
   const faPool = idx.fa;
   const t = getTitle(team.titleId);
   const org = world.orgs[team.orgId];
-  if (!org || org.user) return;
+  if (!org || (org.user && can(world, 'transfers'))) return;
   const league = team.leagueId ? world.leagues[team.leagueId] : null;
   const maxR = rosterMax(world, team);
   // 1) Release surplus (never just-signed players)
@@ -519,7 +520,7 @@ function aiTeamMarket(world: World, team: Team, idx: MarketIndex, rng: RNG, emer
   }
   const owner = world.teams[best.p.teamId!];
   const ownerOrg = world.orgs[owner.orgId];
-  if (ownerOrg.user) {
+  if (ownerOrg.user && can(world, 'transfers')) {
     if (world.offers.some((o) => o.status === 'pending' && o.playerId === best!.p.id)) return;
     const offer: Offer = {
       id: nextId(world, 'of'),
@@ -561,7 +562,7 @@ export function aiMarketDay(world: World): void {
   for (const team of Object.values(world.teams)) {
     if (!team.active || team.national) continue;
     const org = world.orgs[team.orgId];
-    if (!org || org.user || org.federation) continue;
+    if (!org || (org.user && can(world, 'transfers')) || org.federation) continue;
     const t = getTitle(team.titleId);
     const short = team.roster.length < t.teamSize;
     if (!short && !(window && rng.chance(1 / 6))) continue;
@@ -582,7 +583,7 @@ export function aiContracts(world: World): void {
     const team = world.teams[p.teamId];
     const org = world.orgs[team?.orgId];
     if (!team || !org) continue;
-    if (org.user) {
+    if (org.user && can(world, 'contracts')) {
       if (p.contract.endSeason === world.season && m === 9 && !team.prefs.delegateTraining) {
         addInbox(world, { from: 'Contracts', subject: `${p.handle}'s contract expires this season`, body: `Offer an extension from the player's Contract tab or ${p.handle} will leave as a free agent at the end of the season.`, kind: 'contract' });
       }

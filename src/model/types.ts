@@ -693,6 +693,15 @@ export interface RetiredSummary {
   awards: number;
 }
 
+export interface BoardObjective {
+  season: number;
+  teamId: ID | null;
+  kind: 'league-rank' | 'qualify-worlds' | 'finance';
+  target: number;
+  label: string;
+  status: 'pending' | 'met' | 'failed';
+}
+
 export type CareerRole = 'coach-gm' | 'head-coach' | 'gm' | 'director' | 'owner' | 'national-coach' | 'commissioner';
 
 export interface DetailSettings {
@@ -719,6 +728,10 @@ export interface WorldMeta {
   autosave: boolean;
   managerName: string;
   titlesEnabled: TitleId[];
+  /** Board objectives & confidence (career job security). */
+  board?: { confidence: number; objectives: BoardObjective[]; history: Array<{ season: number; confidence: number; verdict: string }> };
+  /** Set after a dismissal until the user accepts a new job. */
+  unemployed?: boolean;
   /** Optional national-team job held alongside the club role. */
   nationalJob?: { titleId: TitleId; country: CountryCode; squad: ID[] } | null;
 }

@@ -8,6 +8,7 @@ import { sortStandings } from '../../competition/stages';
 import { getTitle } from '../../data/titles/catalogue';
 import { userFixturesOn } from '../../game/advance';
 import { computeTeamStrength } from '../../sim/common/team';
+import { ROLE_LABEL, hasBoard } from '../../systems/career';
 
 export function Home() {
   const world = useWorld();
@@ -27,7 +28,7 @@ export function Home() {
       <PageHeader
         badge={<OrgBadge org={org} size={40} />}
         title={org.name}
-        sub={`${world.meta.managerName} · Coach / General Manager · ${formatDate(world.day, true)} · Season ${world.season}`}
+        sub={`${world.meta.managerName} · ${ROLE_LABEL[world.meta.careerRole]} · ${formatDate(world.day, true)} · Season ${world.season}`}
         right={<Link to="/matchday">{todayMatches.length ? <span className="btn warn">Match day: {todayMatches.length} match(es)</span> : null}</Link>}
       />
       <div className="stats">
@@ -36,7 +37,20 @@ export function Home() {
         <Stat label="Divisions" value={teams.length} sub={teams.map((t) => getTitle(t.titleId).short).join(', ')} />
         <Stat label="Trophies" value={teams.reduce((a, t) => a + t.trophies.length, 0)} sub={`prestige ${org.prestige.toFixed(0)}`} />
         <Stat label="Unread inbox" value={world.inbox.filter((m) => !m.read).length} sub={pendingOffers.length ? `${pendingOffers.length} offer(s) await you` : undefined} />
+        {hasBoard(world) && world.meta.board && <Stat label="Board confidence" value={`${Math.round(world.meta.board.confidence)}/100`} sub={world.meta.board.confidence < 30 ? 'job at risk!' : world.meta.board.confidence > 70 ? 'secure' : 'stable'} />}
       </div>
+      {hasBoard(world) && world.meta.board && (
+        <Card title={`Board objectives ${world.season}`}>
+          {world.meta.board.objectives
+            .filter((o) => o.season === world.season)
+            .map((o, i) => (
+              <div key={i} className="attr-row">
+                <span>{o.label}</span>
+                <span className={o.status === 'met' ? 'pos' : o.status === 'failed' ? 'neg' : 'muted'}>{o.status}</span>
+              </div>
+            ))}
+        </Card>
+      )}
       <div className="grid2">
         <Card title="Upcoming matches" right={<Link to="/schedule">Schedule</Link>}>
           {!up.length && <div className="muted">No scheduled matches. Competitions are generated as the season progresses.</div>}
