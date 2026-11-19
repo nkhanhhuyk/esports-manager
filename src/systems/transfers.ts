@@ -5,6 +5,8 @@
  * releases, contract extensions, expiries, and user-facing offers that wait for a decision.
  * League policy (roster limits, transfers, trades, loans, minimum age, caps) gates every move.
  */
+import { fansOnTransfer } from './fans';
+import { rivalryTransfer } from './rivalries';
 import { clamp } from '../core/math';
 import { ageAt, ymd } from '../core/date';
 import { RNG } from '../core/rng';
@@ -105,6 +107,7 @@ export function movePlayer(
   loan?: { parentTeamId: string; untilDay: number; wageSplit: number },
   terms: { signingBonus?: number; buyout?: number | null; note?: string } = {},
 ): void {
+  const tenureDays = world.day - p.joinedDay;
   const from = removeFromTeam(world, p);
   if (fee > 0) {
     const buyer = world.orgs[to.orgId];
@@ -141,6 +144,10 @@ export function movePlayer(
   if (to.titleId !== p.titleId) switchTitle(world, p, to.titleId);
   p.career.push({ season: world.season, day: world.day, titleId: to.titleId, teamId: to.id, orgId: to.orgId, roleId: p.roles[0], type: type === 'free' ? 'signed' : type === 'promotion' ? 'promoted' : (type as never), fee: fee || undefined });
   record(world, { playerId: p.id, fromTeamId: from?.id ?? null, toTeamId: to.id, fee, type, titleId: to.titleId, note: terms.note });
+  if (type !== 'loan' && type !== 'loan-return') {
+    fansOnTransfer(world, p, from, to, type, fee, tenureDays);
+    rivalryTransfer(world, p, from, to, fee);
+  }
   if (world.meta.userOrgId === to.orgId) world.scouting[p.id] = 100;
   // Chemistry dips when rosters change.
   to.chemistry = clamp(to.chemistry - 4, 0, 100);
@@ -178,6 +185,7 @@ export function releasePlayer(world: World, playerId: string, note = 'Released')
       return true;
     }
   }
+  if (team) fansOnTransfer(world, p, team, null, 'release', 0, world.day - p.joinedDay);
   removeFromTeam(world, p);
   p.contract = null;
   p.preContract = null;

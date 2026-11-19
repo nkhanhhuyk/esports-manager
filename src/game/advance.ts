@@ -18,6 +18,8 @@ import { negotiationsDay } from '../systems/negotiation';
 import { boardMonthly } from '../systems/career';
 import { registrationReminders } from '../systems/registration';
 import { treasuryMonthly } from '../systems/treasury';
+import { fansMonthly } from '../systems/fans';
+import { rivalriesMonthly } from '../systems/rivalries';
 import { compactMatches, roundProficiencies } from './compact';
 import { adaptToMeta, releasePatch } from '../systems/patches';
 import { seasonRollover } from './rollover';
@@ -101,6 +103,8 @@ export function processDay(world: World): void {
     processMonthlyFinances(world);
     boardMonthly(world);
     treasuryMonthly(world);
+    fansMonthly(world);
+    rivalriesMonthly(world);
     roundProficiencies(world);
     aiContracts(world);
   }

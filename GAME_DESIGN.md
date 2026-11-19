@@ -184,6 +184,22 @@ Series keep every game.
 * Season history snapshots (champions, standings, popularity), team season records, org events, retired
   archive for long saves.
 
+## 11. Supporters, audiences & rivalries
+
+* Every organisation's followers form six segments that care about different things — local loyalists
+  (identity, home-country players, rivalry results), winning-focused fans (results), player fans (stars —
+  they arrive and leave with them), style enthusiasts (aggressive, entertaining play), youth & community
+  followers (academy graduates' debuts) and legacy supporters (finals, trophies, history). They react only to
+  recorded events; a glamorous signing can attract attention while frustrating identity-minded fans.
+* Followers (reach) and paying supporters (conversion by mood) are separate; merchandise, sponsorship value,
+  audiences and reputation follow them. Fans never change a player's ability. Organisation page →
+  Supporters shows segments, moods, paying supporters, a follower history and recent reactions; the inbox
+  warns when a segment turns unhappy.
+* Rivalries between divisions grow from finals, playoff series, deciders, upsets, star transfers and
+  same-country derbies in multi-country leagues, and fade when the teams stop meeting. They raise audiences,
+  fan reactions and match pressure (composure), never ability. Team page → History → Rivalries; match
+  screens show a rivalry badge with the head-to-head and the series audience.
+
 ## 12. Saves & platforms
 
 * Five named manual save slots plus one autosave per career **[spec: user request 19 Nov 2026]**. The

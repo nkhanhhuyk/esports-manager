@@ -60,6 +60,12 @@ by simulation tests.
   bidder's hidden ceiling, one final offer back, then they walk away).
 * **Finance**: monthly accounts per org with division budgets, ledger, charts, facilities upgrades,
   sponsorship renewal, distress → injections/acquisitions.
+* **Supporters & rivalries**: six fan segments per organisation reacting to recorded events (results,
+  trophies, signings, departures, academy debuts, rivalry meetings); followers vs paying supporters;
+  merchandise, sponsorship value, audiences and reputation follow them; rivalries built only from real
+  encounters (finals, playoffs, deciders, upsets, star transfers, derbies) that fade without contact, with
+  head-to-head, moments, news and match-pressure effects; v6 save migration seeds both from history
+  (`tests/fans.test.ts`).
 * **Organisation treasury**: cash vs. budgets vs. commitments vs. forecast kept apart; fundable wage
   authority (revenue + 50% cash − fixed costs) allocated to departments; set/move budgets with an audit log;
   budgets enforced for user signings, renewals and trades; 12-month committed-cash forecast with shortfall
@@ -89,7 +95,7 @@ by simulation tests.
 * **Saves**: IndexedDB slots (two alternating copies per save = built-in backup), autosave from the simulation
   worker (no UI freeze), unsaved-changes marker + close-tab warning, plain-language storage errors, persistent
   storage request, crash-recovery prompt, export/import JSON, zod validation,
-  v1→v2→v3→v4 migrations.
+  v1→v2→v3→v4→v5→v6 migrations (seven-title conversion, supporter segments & rivalries).
 * **UI**: sidebar shell, breadcrumbs, back/forward, global search, sortable/filterable/paginated tables with
   column chooser, profiles for every entity, player comparison, title-adaptive match screens, charts,
   light/dark themes, responsive mobile layout, database editor.
@@ -111,7 +117,8 @@ by simulation tests.
   Not yet: negotiating your own contract terms or salary.
 * **Scouting assignments**: scouts auto-scout your titles + focus list; no region assignment UI.
 * **Affiliate/partner organisations & joint ownership**: `partners` field exists; no gameplay yet.
-* **Media/social reactions**: news feed covers major events; no fan-sentiment model.
+* **Media/social reactions**: news feed covers major events, rivalries and fan reactions (inbox); no social
+  media feed or press conferences yet.
 
 ## Missing / next steps (priority order)
 
@@ -120,6 +127,6 @@ by simulation tests.
 2. Staff capacity and philosophy alignment.
 3. Dual-title rosters with one shared calendar and divided practice time.
 4. Training sessions as scarce capacity (staff, rooms, cancellations without phantom growth).
-5. Fan segments, rivalries from repeated encounters, richer news.
+5. Richer news/press narratives (press conferences, player promises, media questions).
 6. Performance for Standard/Large worlds (seven titles: measure and tune on a phone).
 7. Release signing automation (procedure documented in ANDROID_BUILD.md).

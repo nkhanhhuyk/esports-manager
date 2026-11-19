@@ -4,6 +4,7 @@
  * organisation evolution (rebrands, closures, new divisions, mergers), sponsors, pruning of
  * old detail data, and planning the next season. Idempotent per season.
  */
+import { fansOnRetirement } from '../systems/fans';
 import { clamp } from '../core/math';
 import { ageAt } from '../core/date';
 import { RNG } from '../core/rng';
@@ -118,6 +119,7 @@ function retirements(world: World, rng: RNG): void {
 
 export function retirePlayer(world: World, p: Player, ctx: GenCtx, rng: RNG): void {
   const team = p.teamId ? world.teams[p.teamId] : null;
+  fansOnRetirement(world, p, team);
   if (team) {
     team.roster = team.roster.filter((id) => id !== p.id);
     team.lineup = team.lineup.filter((s) => s.playerId !== p.id);

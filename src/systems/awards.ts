@@ -5,6 +5,7 @@
  * prestige *at that time*, so cross-title / cross-era greatness respects changing popularity
  * without equating raw statistics between games with different rules.
  */
+import { fansOnPlacement } from './fans';
 import { clamp } from '../core/math';
 import { getTitle } from '../data/titles/catalogue';
 import type { AwardRecord, Competition, Player, SeasonAward, Staff, World } from '../model/types';
@@ -74,7 +75,7 @@ export function onCompetitionFinished(world: World, comp: Competition): void {
     if (org) {
       const repGain = (comp.prestige / 100) * (i === 0 ? 6 : i < 4 ? 2 : i < 8 ? 0.5 : -0.3);
       org.rep = clamp(org.rep + repGain, 1, 100);
-      org.fans = Math.max(100, Math.round(org.fans * (1 + repGain / 60)));
+      fansOnPlacement(world, comp, tid, i, repGain);
     }
   });
   const champ = comp.placements[0];

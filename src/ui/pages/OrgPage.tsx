@@ -12,6 +12,8 @@ import { formatDate } from '../../core/date';
 import { navigate } from '../router';
 import { FACILITY_LABEL } from '../../systems/finance';
 import type { FacilityKey } from '../../model/types';
+import { FansCard } from '../components/Fans';
+import { overallMood } from '../../systems/fans';
 
 export function OrgPage({ id }: { id?: string }) {
   const world = useWorld();
@@ -41,7 +43,7 @@ export function OrgPage({ id }: { id?: string }) {
       <div className="stats">
         <Stat label="Reputation" value={org.rep.toFixed(0)} />
         <Stat label="Prestige" value={org.prestige.toFixed(0)} />
-        <Stat label="Fans" value={org.fans.toLocaleString()} />
+        <Stat label="Followers" value={org.fans.toLocaleString()} sub={org.fanbase ? `supporter mood ${Math.round(overallMood(org.fanbase))}` : undefined} />
         <Stat label="Balance" value={<Money v={org.balance} />} />
         <Stat label="Divisions" value={teams.length} />
         <Stat label="Trophies" value={trophies.length} sub={`${trophies.filter((t) => t.tier === 'worlds').length} world titles`} />
@@ -65,6 +67,7 @@ export function OrgPage({ id }: { id?: string }) {
           ]}
         />
       </Card>
+      <FansCard world={world} org={org} />
       <div className="grid2">
         <Card title="Trophy cabinet (all divisions, all eras)">
           {!trophies.length && <div className="muted">No trophies yet.</div>}

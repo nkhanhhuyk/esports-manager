@@ -192,6 +192,47 @@ turnover (e.g. OBS 2027–31, IL 2032–34). Drivers: aging/decline, contract ex
   accepted only when no rematch-free pairing exists (greedy fallback).
 * **Luxury tax**: soft caps tax payroll above the cap at the league tax rate (default 50%), charged monthly.
 
+## Supporters & rivalries
+
+Proposals (editable constants in `src/systems/fans.ts` and `src/systems/rivalries.ts`); calibrated with
+`npx vite-node scripts/fans.ts [seed] [seasons]`.
+
+* **Six segments** per organisation: local loyalists, winning-focused, player fans, style enthusiasts,
+  youth & community, legacy supporters. The initial mix follows the organisation (age → local/legacy,
+  reputation → winning, academy level and youth strategy → community, prestige → legacy); the follower
+  total is unchanged (`org.fans` = Σ segment sizes).
+* **Reach vs conversion**: paying supporters = size × conversion × (0.5 + mood/100); conversion local 6%,
+  winning 2.5%, player 3.5%, style 3%, community 5%, legacy 8%. Merchandise = paying × $0.25 × region
+  economy per month — a new world earns ≈ the old `followers × 0.012 × economy` (ratio 0.99–1.01 over three
+  seasons). Sponsorship deals are valued × (0.85 + 0.3 × overall mood/100). Reputation moves at most
+  ±0.08/month with overall mood.
+* **Reactions** (mood change, diminishing near 0/100, logged when |Δ| ≥ 2.5) come only from recorded events:
+  series results (winning ±(1 + 1.5·stakes), local ±(0.4 + 0.4·stakes)·rivalry, legacy ±(0.2 + 0.8·stakes)·
+  rivalry, style from the team's aggression and sweeps/deciders; stakes league 0.6, playoff 1.6, final 3,
+  ×1.5 internationally; losses weigh 1.1×; rivalry multiplier 1 + intensity/50; academy teams count 30% and
+  multi-division organisations split the weight), trophies, star signings (winning +, foreign glamour
+  signings worry local/community fans), favourites and academy graduates leaving, moves between rivals,
+  academy debuts (community +4), promotions and retirements.
+* **Sizes** drift monthly with mood relative to the club's own baseline (`50 + (rep − 40)/6`; bandwagon fans
+  fastest, loyalists slowest) minus churn; recent attention ("buzz") converts a few casual followers; player
+  fans track the stars on the roster (`(fame − 40)² × 15` followers each, 15%/month), so they arrive and
+  leave with them. Placement growth keeps the old formula (`followers × repGain/60`), now credited to the
+  winning, legacy and style segments.
+* **Audience** per series (interest, not paying spectators) = (followers of both orgs × 0.05 + 2,000) ×
+  stage (1 / 2.2 / 4) × event (Worlds 2.5, international 1.8, challenger 0.4) × (1 + rivalry/80) ×
+  (0.4 + title popularity/100).
+* **Rivalries** link two divisions of one title and are built only from recorded encounters: heat = stakes
+  (league 1, playoff 4, final 9; ×1.4 internationally) + decider (+2.5 in playoffs/finals, +1 otherwise) +
+  playoff upset (+1.5) + clash of contenders (both Elo > 1580, league only, +0.8), ×1.3 for a derby (same
+  country in a multi-country league). A record starts only when one encounter is worth ≥ 2.5 — a single
+  ordinary league defeat never starts a rivalry. Intensity += heat × (1 − intensity/125). Star transfers
+  between the clubs add 5 (×1.4 if already a rivalry). Monthly fade ×0.985 while meeting, ×0.94 after 120
+  days without contact; never-notable records are forgotten below 6; notable faded ones are remembered (40
+  per title). Labels: Emerging 15, Rivalry 30 (news), Fierce 50, Historic 75 (news). Rivalry meetings add
+  up to +0.4 match pressure (`intensity/250`), which tests composure — no attribute ever changes.
+* Old (v5) saves: segments are created from the follower count and rivalries are seeded quietly from the
+  save's own recorded finals (season history) and this season's results.
+
 ## Board
 
 * Objective target = squad-strength rank in the league + ambition (win-now/prestige 0, balanced 1,

@@ -7,6 +7,7 @@
  * The runner is incremental (`createSeries` + `playNextGame`) so the UI can play a series game
  * by game with interactive drafts, while `simulateFixture` runs the same code in one call.
  */
+import { rivalryPressure } from '../systems/rivalries';
 import { RNG } from '../core/rng';
 import { getTitle } from '../data/titles/catalogue';
 import type { MapDef, TitleDef } from '../data/titles/types';
@@ -39,7 +40,8 @@ export interface SeriesState {
 export function pressureFor(world: World, f: Fixture): number {
   const comp = world.comps[f.compId];
   const base = f.formatKey === 'final' ? 1 : f.formatKey === 'playoff' ? 0.5 : 0;
-  return base + (comp && (comp.tier === 'worlds' || comp.tier === 'international') ? 0.3 : 0);
+  // Rivalry meetings add pressure (composure matters more); they never change ability.
+  return base + (comp && (comp.tier === 'worlds' || comp.tier === 'international') ? 0.3 : 0) + rivalryPressure(world, f.teams);
 }
 
 function needWins(f: Fixture): number {

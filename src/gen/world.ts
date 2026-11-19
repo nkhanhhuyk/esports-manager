@@ -14,6 +14,7 @@ import { generateStaff } from './staff';
 import { makeColors, makeCompanyName, makeOrgName } from './names';
 import { expectedSalary, expectedStaffSalary, makeContract, marketValue, titlePopIn } from '../systems/contracts';
 import { sponsorDealValue } from '../systems/finance';
+import { ensureAudience, initFanbase } from '../systems/fans';
 import { ensureDraftPicks } from '../systems/draft';
 import { autoLineup } from '../systems/lineup';
 import { initialPatch } from '../systems/patches';
@@ -136,6 +137,7 @@ export function createOrg(ctx: GenCtx, region: string, names: Set<string>, found
     user: false,
   };
   org.events.push({ season: world.season, day: world.day, type: 'founded', text: `${name} founded in ${COUNTRY_BY_CODE[country]?.name ?? country}.` });
+  org.fanbase = initFanbase(org, world.season);
   world.orgs[org.id] = org;
   return org;
 }
@@ -294,6 +296,7 @@ export function createWorld(opts: NewWorldOptions): World {
     customFormats: {},
     draftPicks: [],
     negotiations: [],
+    rivalries: {},
   };
   const rng = new RNG(`${opts.seed}|worldgen`);
   const ctx: GenCtx = { world, rng, handles: new Set() };
@@ -462,6 +465,7 @@ export function createWorld(opts: NewWorldOptions): World {
 
   planSeason(world, world.season);
   ensureDraftPicks(world);
+  ensureAudience(world);
   return world;
 }
 

@@ -56,6 +56,11 @@ export const MIGRATIONS: Record<number, (w: AnyWorld) => AnyWorld> = {
     if (removed.length) w.meta.scopeConversion = { pending: true, removed };
     return w;
   },
+  // v5 -> v6: supporter segments and rivalries. Nothing is rewritten here: after migration
+  // (src/systems/fans.ts ensureAudience) each organisation's followers are split into segments
+  // (the total is unchanged) and rivalries are seeded from the save's own recorded finals and
+  // this season's results.
+  5: (w) => w,
 };
 
 const metaSchema = z

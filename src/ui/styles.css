@@ -916,3 +916,10 @@ label {
     min-height: 38px;
   }
 }
+
+.tag.rivalry {
+  background: color-mix(in srgb, var(--bad) 18%, transparent);
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 40%, transparent);
+  white-space: nowrap;
+}

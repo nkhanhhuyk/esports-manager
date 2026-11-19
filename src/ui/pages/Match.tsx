@@ -1,3 +1,4 @@
+import { RivalryBadge } from '../components/Fans';
 import { useState } from 'react';
 import { useGame, useWorld } from '../store';
 import { Card, CompLink, PageHeader, PlayerLink, TeamLink, TitleTag, OrgBadge, Tabs } from '../components/common';
@@ -157,6 +158,13 @@ export function MatchPage({ id }: { id: string; route: Route }) {
         sub={
           <span>
             <TitleTag id={f.titleId} /> · <CompLink c={comp} /> · {formatDate(f.day, true)} · {f.format.label} ({f.formatKey})
+            {f.teams.length === 2 && (
+              <>
+                {' '}
+                <RivalryBadge world={world} a={f.teams[0]} b={f.teams[1]} />
+              </>
+            )}
+            {rec?.audience ? ` · ~${rec.audience.toLocaleString()} peak viewers` : ''}
           </span>
         }
       />

@@ -8,6 +8,8 @@ import { getTitle } from '../data/titles/catalogue';
 import type { Fixture, GameResult, MatchRecord, Player, StatLine, World } from '../model/types';
 import { addNews, isUserTeam, addInbox } from '../systems/news';
 import { onFixtureComplete } from '../competition/progress';
+import { fansOnSeries, isHomegrown, seriesAudience } from '../systems/fans';
+import { recordEncounter } from '../systems/rivalries';
 import { runSeries, type SeriesState } from './series';
 
 function statLine(p: Player, season: number, titleId: string, teamId: string | null): StatLine {
@@ -95,6 +97,24 @@ function seriesMorale(world: World, teamId: string, won: boolean, importance: nu
   }
 }
 
+/** Academy graduates who played their first series for a main team in this fixture. */
+function academyDebuts(world: World, f: Fixture, games: GameResult[]): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  f.teams.forEach((tid, i) => {
+    const team = world.teams[tid];
+    if (!team || team.tier !== 'main' || team.national) return;
+    const played = new Map<string, number>();
+    for (const g of games) for (const l of g.players) if (l.teamIdx === i) played.set(l.playerId, (played.get(l.playerId) ?? 0) + 1);
+    for (const [pid, n] of played) {
+      const p = world.players[pid];
+      if (!p) continue;
+      const gp = p.stats.reduce((a, s) => a + (s.teamId === tid ? s.gp : 0), 0);
+      if (gp === n && isHomegrown(world, p, team.orgId)) (out[tid] ??= []).push(pid);
+    }
+  });
+  return out;
+}
+
 /** Simulate and record one fixture. Safe to call twice (second call is a no-op). */
 export function playFixture(world: World, f: Fixture, forceDetail = false): MatchRecord | null {
   if (f.status === 'done') return world.matches[f.id] ?? null;
@@ -137,7 +157,12 @@ function applySeries(world: World, f: Fixture, st: SeriesState, forceDetail: boo
   const margin = Math.abs(st.wins[0] - st.wins[1]) / Math.max(1, Math.max(...st.wins));
   const preWinnerElo = world.teams[winner]?.elo ?? 1500;
   const preLoserElo = world.teams[loser]?.elo ?? 1500;
+  const preElo: [number, number] = [world.teams[f.teams[0]]?.elo ?? 1500, world.teams[f.teams[1]]?.elo ?? 1500];
   eloUpdate(world, f.teams[0], f.teams[1], st.winner === 0, margin);
+  // Rivalry memory and supporter reactions come only from this recorded result.
+  const rivalry = recordEncounter(world, f, st.winner, preElo);
+  fansOnSeries(world, f, st.winner, rivalry, academyDebuts(world, f, games));
+  record.audience = seriesAudience(world, f, rivalry);
   seriesMorale(world, winner, true, importance);
   seriesMorale(world, loser, false, importance);
   if (preLoserElo - preWinnerElo > 160 && importance >= 0.3) {

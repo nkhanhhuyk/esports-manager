@@ -310,6 +310,50 @@ export interface OrgEvent {
   text: string;
 }
 
+/** Supporter segments (master prompt §14 / source "Fans have different reasons to care"). */
+export type FanSegmentId = 'local' | 'winning' | 'player' | 'style' | 'community' | 'legacy';
+
+export interface FanSegment {
+  /** Followers in the segment (reach / interest). */
+  size: number;
+  /** Sentiment 0..100 (50 = neutral). Paying conversion depends on it. */
+  mood: number;
+}
+
+export interface Fanbase {
+  seg: Record<FanSegmentId, FanSegment>;
+  /** Recent attention 0..100 from big matches, rivalries and signings; decays monthly. */
+  buzz: number;
+  /** Player fans who stay regardless of the roster; stars' own followers come on top. */
+  playerBase?: number;
+  /** Recent fan reactions to real events (newest last). */
+  log: Array<{ day: DayNum; seg: FanSegmentId; d: number; note: string }>;
+  /** Monthly snapshots (user organisation only). */
+  history?: Array<{ month: number; followers: number; paying: number; mood: number }>;
+  /** Mood alerts already sent to the user (hysteresis). */
+  alerts?: Partial<Record<FanSegmentId, 'low' | 'high'>>;
+}
+
+/** A rivalry between two divisions of the same title, built only from recorded encounters. */
+export interface Rivalry {
+  id: string;
+  titleId: TitleId;
+  teams: [ID, ID];
+  intensity: number; // 0..100
+  peak: number;
+  meetings: number;
+  wins: [number, number];
+  finals: number;
+  playoffs: number;
+  transfers: number;
+  derby: boolean;
+  firstSeason: number;
+  /** Season the rivalry first became notable (intensity ≥ 30). */
+  since?: number;
+  lastDay: DayNum;
+  moments: Array<{ day: DayNum; season: number; kind: 'final' | 'playoff' | 'decider' | 'upset' | 'transfer' | 'derby'; text: string; fixtureId?: ID }>;
+}
+
 export interface Organisation {
   id: ID;
   name: string;
@@ -319,7 +363,9 @@ export interface Organisation {
   founded: number;
   colors: [string, string];
   rep: number; // 0..100
-  fans: number; // followers
+  fans: number; // followers (= sum of fan segment sizes)
+  /** Supporter segments; absent for federations. */
+  fanbase?: Fanbase;
   prestige: number; // accumulated historic prestige
   owner: { name: string; type: 'founder' | 'investor' | 'public' | 'conglomerate' | 'club'; wealth: number; patience: number };
   strategy: OrgStrategy;
@@ -577,6 +623,8 @@ export interface MatchRecord {
   vetoes?: Array<{ team: number; action: 'ban' | 'pick' | 'decider'; mapId: string; modeId?: string }>;
   mvp?: ID;
   detail: boolean;
+  /** Estimated peak viewers (interest, not paying spectators). */
+  audience?: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -694,7 +742,7 @@ export interface Offer {
 export interface NewsItem {
   id: ID;
   day: DayNum;
-  kind: 'transfer' | 'result' | 'upset' | 'champion' | 'retirement' | 'prospect' | 'patch' | 'finance' | 'org' | 'award' | 'controversy' | 'record' | 'world';
+  kind: 'transfer' | 'result' | 'upset' | 'champion' | 'retirement' | 'prospect' | 'patch' | 'finance' | 'org' | 'award' | 'controversy' | 'record' | 'world' | 'rivalry' | 'fans';
   title: string;
   body: string;
   titleId?: TitleId;
@@ -865,6 +913,8 @@ export interface World {
   negotiations: Negotiation[];
   /** Optional, explicitly named rules presets per title (e.g. LoL "Fearless" draft). */
   rulePresets?: Record<string, { fearless?: 'none' | 'team' | 'global' }>;
+  /** Rivalries keyed by sorted team-id pair. */
+  rivalries?: Record<string, Rivalry>;
 }
 
 export interface DraftPickAsset {

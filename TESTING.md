@@ -15,6 +15,7 @@
 | `tests/transfers.test.ts` | Negotiation flow (lowball rejected → counter → accept → terms counter → signed; fee, bonus, clause and records), club patience & 30-day block, release clause forces acceptance, withdrawal, sell-on payout on the next sale, pre-contract completes at rollover (and blocks extensions/bids), refused for longer contracts, offer sheet matched by the current club, counter-offers vs bidder ceiling, asking price & offer-to-clubs, deterministic outcomes, v3→v4 migration |
 | `tests/registration.test.ts` | Registration lock (5–8 rostered players per entrant, unique across teams, inbox notice); standing plan honoured; changes refused outside windows, limited to 2 in windows, duplicates refused, emergency registrations allowed and flagged; unregistered user signing notice; AI auto-registers signings in a window; season simulation: every player who played a competition was registered for it |
 | `tests/treasury.test.ts` | Cash, authority and commitments kept apart (fundable formula); raising a budget limited to the unallocated reserve, never below payroll, budget changes move no cash; moving budget nets to zero; audit log; user signing over budget refused; forecast drops salaries after contracts end and sponsors after deals end; the board sets budgets at rollover when the role lacks finance authority |
+| `tests/fans.test.ts` | A single ordinary league defeat starts no rivalry; repeated finals build an announced rivalry (H2H, finals, moments) that fades without contact while a minor one is forgotten; a star transfer between rivals adds heat; rivalry raises match pressure but leaves every attribute unchanged; segments react to what they care about (final win → winning fans, academy debut → community, glamour signing → winning up / local down, favourite leaving → local down, moves between rivals sting both clubs); followers vs paying supporters and mood-driven merchandise; player fans arrive and leave with stars; a simulated season keeps rivalries consistent with recorded fixtures and fan totals equal to followers, with audiences recorded; a v5 save gains segments with the same followers and quietly seeded rivalries from its finals |
 | `tests/longterm.test.ts` | 10 seasons (default) / 30 seasons (`LONG_SIM=1`): bounded population, finite finances, bounded save growth, multiple world champions per title, legends & retirees |
 
 End-to-end (`npm run e2e`, Playwright, Chromium): new career → organisation pick → players directory,
@@ -30,7 +31,8 @@ not survive a reload, or any warning/error was logged.
 
 ## Latest results
 
-* Vitest: **111 passed / 111** (19 Nov 2026, seven-title edition + registration + treasury).
+* Vitest: **120 passed / 120** (19 Nov 2026, seven-title edition + registration + treasury + supporters &
+  rivalries).
 * Playwright: **3 passed / 3**; `npm run check:portable` passes (worker loads from file://, no freezes,
   autosave survives reload); Pixel 7 emulation: no horizontal overflow, slot save works by tap.
 * Android: `npm run android:debug-apk` → `android/app/build/outputs/apk/debug/app-debug.apk` built and

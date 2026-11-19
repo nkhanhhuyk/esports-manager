@@ -2,6 +2,7 @@
  * Organisation finances: monthly revenue & expenditure, ledgers, facility upgrades,
  * sponsorship renewal and financial distress.
  */
+import { fanCommercialFactor, merchandiseRevenue } from './fans';
 import { clamp } from '../core/math';
 import { monthKey } from '../core/date';
 import { regionEconomy } from '../data/countries';
@@ -46,7 +47,7 @@ export function orgCommercialValue(world: World, org: Organisation): number {
 
 /** Monthly value of one new sponsorship deal for an organisation. */
 export function sponsorDealValue(world: World, org: Organisation, deals: number, rng: RNG): number {
-  return Math.round((orgCommercialValue(world, org) * 0.065 * (0.5 + org.rep / 100) * rng.float(0.8, 1.2)) / Math.max(1, deals) / 100) * 100;
+  return Math.round((orgCommercialValue(world, org) * 0.065 * (0.5 + org.rep / 100) * fanCommercialFactor(org) * rng.float(0.8, 1.2)) / Math.max(1, deals) / 100) * 100;
 }
 
 export const FACILITY_LABEL: Record<FacilityKey, string> = {
@@ -89,7 +90,7 @@ export function monthlyBreakdown(world: World, org: Organisation, orgStaff?: Map
   const revenue: Record<string, number> = { sponsorship: 0, media: 0, merchandise: 0, league: 0 };
   const expenses: Record<string, number> = { salaries: 0, staff: 0, facilities: facilityUpkeep(org), operations: 0 };
   for (const sp of org.sponsors) if (sp.untilSeason >= world.season) revenue.sponsorship += sp.perMonth;
-  revenue.merchandise = Math.round(org.fans * 0.012 * econ);
+  revenue.merchandise = merchandiseRevenue(org, econ);
   for (const tid of org.teams) {
     const team = world.teams[tid];
     if (!team || !team.active) continue;

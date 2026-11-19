@@ -1,3 +1,4 @@
+import { RivalryBadge } from '../components/Fans';
 import { useWorld, useGame } from '../store';
 import { Card, Money, OrgBadge, PageHeader, Stat, TeamLink, TitleTag, CompLink } from '../components/common';
 import { Link, navigate } from '../router';
@@ -53,7 +54,9 @@ export function Home() {
                   <td>
                     <TitleTag id={f.titleId} link={false} />
                   </td>
-                  <td>{fixtureLabel(world, f)}</td>
+                  <td>
+                    {fixtureLabel(world, f)} {f.teams.length === 2 && <RivalryBadge world={world} a={f.teams[0]} b={f.teams[1]} />}
+                  </td>
                   <td className="muted">{world.comps[f.compId]?.short}</td>
                   <td>{f.format.label}</td>
                 </tr>

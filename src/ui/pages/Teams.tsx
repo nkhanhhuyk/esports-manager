@@ -1,3 +1,4 @@
+import { RivalriesCard } from '../components/Fans';
 import { useState } from 'react';
 import { useGame, useWorld } from '../store';
 import { eligibleNations } from '../../systems/nations';
@@ -233,7 +234,9 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
         </Card>
       )}
       {tab === 'history' && (
-        <div className="grid2">
+        <>
+          <RivalriesCard world={world} team={team} />
+          <div className="grid2">
           <Card title="Season records">
             <table className="table">
               <thead>
@@ -275,6 +278,7 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
             {!team.trophies.length && <div className="muted">No trophies yet.</div>}
           </Card>
         </div>
+        </>
       )}
     </div>
   );
