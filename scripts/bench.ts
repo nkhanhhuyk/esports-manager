@@ -1,0 +1,11 @@
+import { createWorld } from '../src/gen/world';
+import { advance } from '../src/game/advance';
+import { dayFromYMD } from '../src/core/date';
+const titles = (process.env.TITLES ?? 'lol,valorant,pubg,overwatch,brawlstars,deadlock,cod').split(',');
+const size = (process.env.SIZE ?? 'tiny') as 'tiny';
+let t0 = Date.now();
+const w = createWorld({ name: 'T', seed: 'bench', worldSize: size, titles, startDay: dayFromYMD(2026, 11, 19) });
+console.log('gen ms', Date.now() - t0, 'players', Object.keys(w.players).length, 'teams', Object.keys(w.teams).length);
+t0 = Date.now();
+advance(w, { kind: 'end-season' });
+console.log('season ms', Date.now() - t0);
