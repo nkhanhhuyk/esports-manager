@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWorld } from '../store';
 import { Link } from '../router';
-import { cachedArchive, editionsOf, isArchived, loadArchive, seriesKey, seriesName, type Edition } from '../../game/archive';
+import { boxScoresLoaded, cachedArchive, editionsOf, isArchived, loadArchive, seriesKey, seriesName, type Edition } from '../../game/archive';
 import { Card, CompLink, PageHeader, Pic, PlayerLink, Stat, TeamLink, TitleTag, Tabs, Money, OrgBadge, Provenance } from '../components/common';
 import { compPic } from '../pics';
 import { DataTable } from '../components/DataTable';
@@ -182,24 +182,29 @@ function Bracket({ stage, w, season }: { stage: Stage; w: World; season?: number
   );
 }
 
-/** The live world, plus one archived season's competitions, fixtures and matches when needed. */
-export function useArchivedView(live: World, season: number | null): { world: World; loading: boolean; missing: boolean } {
-  const [arch, setArch] = useState(() => (season !== null ? cachedArchive(live, season) : undefined));
-  const [state, setState] = useState<'idle' | 'loading' | 'missing'>('idle');
+/**
+ * The live world plus one past season: its competitions and results come straight from the save
+ * (instant); its box scores are loaded from the match store only when `needMatches` (match pages).
+ */
+export function useArchivedView(live: World, season: number | null, needMatches = false): { world: World; loading: boolean; missing: boolean } {
+  const [tick, setTick] = useState(0);
+  const [missing, setMissing] = useState(false);
+  const base = season !== null ? cachedArchive(live, season) : undefined;
+  const wantLoad = season !== null && (!base || (needMatches && !boxScoresLoaded(live, season)));
   useEffect(() => {
-    if (season === null) return;
-    const hit = cachedArchive(live, season);
-    if (hit) {
-      setArch(hit);
-      return;
-    }
-    setState('loading');
+    if (!wantLoad || season === null) return;
+    let on = true;
     loadArchive(live, season).then((a) => {
-      setArch(a);
-      setState(a ? 'idle' : 'missing');
+      if (!on) return;
+      setMissing(!a);
+      setTick((x) => x + 1);
     });
-  }, [live, season]);
+    return () => {
+      on = false;
+    };
+  }, [live, season, wantLoad]);
   const world = useMemo(() => {
+    const arch = season !== null ? cachedArchive(live, season) : undefined;
     if (season === null || !arch) return live;
     return {
       ...live,
@@ -207,8 +212,9 @@ export function useArchivedView(live: World, season: number | null): { world: Wo
       fixtures: { ...Object.fromEntries(arch.fixtures.map((f) => [f.id, f])), ...live.fixtures },
       matches: { ...Object.fromEntries(arch.matches.map((m) => [m.fixtureId, m])), ...live.matches },
     };
-  }, [live, arch, season]);
-  return { world, loading: season !== null && !arch && state !== 'missing', missing: state === 'missing' };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, season, tick]);
+  return { world, loading: wantLoad && !missing, missing };
 }
 
 export function CompetitionPage({ id, route }: { id: string; route: Route }) {

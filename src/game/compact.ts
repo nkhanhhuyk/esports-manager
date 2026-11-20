@@ -5,7 +5,7 @@
  * depend on when or how often the player saves.
  */
 import type { World } from '../model/types';
-import { slimGame } from '../sim/boxscore';
+import { needsSlim, slimGame } from '../sim/boxscore';
 
 /** Detailed box scores of other clubs' matches are kept this long before being slimmed. */
 export const DETAIL_KEEP_DAYS = 21;
@@ -51,4 +51,20 @@ export function roundProficiencies(world: World): void {
     roundMap(prof.roles);
     for (const nested of [prof.chars, prof.maps, prof.weapons]) if (nested) for (const t in nested) roundMap(nested[t]);
   }
+}
+
+/**
+ * Saves from builds that kept full drafts (pick order, player assignment) and side text on every
+ * background game: slim them once on load (detailed records of the user's own matches stay).
+ */
+export function compactStoredMatches(world: World): number {
+  let n = 0;
+  for (const fid in world.matches) {
+    const m = world.matches[fid];
+    if (m.detail) continue;
+    if (!m.games.some(needsSlim)) continue;
+    world.matches[fid] = { ...m, games: m.games.map((g) => slimGame(g)) };
+    n++;
+  }
+  return n;
 }

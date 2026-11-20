@@ -1106,6 +1106,8 @@ export type DelegationArea = 'signings' | 'sales' | 'contracts' | 'staff' | 'fin
 
 export interface World {
   /** Index of archived competition editions (their data lives in the season archive). */
+  /** Finished seasons' competitions and fixtures (results); box scores live in the match store. */
+  past?: Record<number, { comps: Competition[]; fixtures: Fixture[] }>;
   compIndex?: Array<{ id: string; season: number; titleId: string; tier: CompTier; name: string; short: string; region: string | null; leagueId: string | null; split?: number; startDay: number; champion: string | null; runnerUp: string | null; teams: number; prizePool: number }>;
   meta: WorldMeta;
   day: DayNum;

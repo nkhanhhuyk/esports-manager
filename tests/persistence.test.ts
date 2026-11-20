@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto';
+import { isPacked, unpack } from '../src/persistence/codec';
 import { describe, expect, it } from 'vitest';
 import { clone, makeWorld, withUser } from './helpers';
 import { deleteSave, exportSave, importSave, listSaves, loadWorld, saveWorld } from '../src/persistence/db';
@@ -46,7 +47,10 @@ describe('save / load integrity', () => {
     const m2 = await saveWorld(w);
     expect([m1.slot, m2.slot]).toEqual(['a', 'b']);
     expect(await db.get('backups', w.meta.saveId)).toBeUndefined();
-    expect(((await db.get('worlds', `${w.meta.saveId}#a`)) as any).day).toBe(w.day - 2);
+    // Saves are one compressed value (gzip JSON).
+    const stored = await db.get('worlds', `${w.meta.saveId}#a`);
+    expect(isPacked(stored)).toBe(true);
+    expect(((await unpack(stored)) as any).day).toBe(w.day - 2);
     // Overlapping saves (e.g. an autosave racing a manual save) never interleave.
     advance(w, { kind: 'days', n: 1 }, { stopForUserMatch: false });
     const metas = await Promise.all([saveWorld(w), saveWorld(w), saveWorld(w)]);

@@ -5,7 +5,9 @@
 import { create } from 'zustand';
 import type { World } from '../model/types';
 import type { AdvanceMode, AdvanceResult } from '../game/advance';
-import { advanceAsync, createWorldAsync } from '../worker/client';
+import { createWorldAsync } from '../worker/client';
+import { advanceInSlices } from '../game/advance';
+import { formatDate } from '../core/date';
 import type { NewWorldOptions } from '../gen/world';
 import { setUserOrg } from '../gen/world';
 import { applyRoleDelegation, hasBoard, setBoardObjectives } from '../systems/career';
@@ -164,20 +166,20 @@ export const useGame = create<GameStore>((set, get) => ({
     set({ busy: { label: 'Simulating…', done: 0, total: 0 } });
     try {
       void markDirty(w.meta.saveId).catch(() => undefined);
-      const autosave = !!w.meta.autosave;
-      const { world, result, saved } = await advanceAsync(w, mode, stopForUserMatch, (done, total) => set({ busy: { label: 'Simulating…', done, total } }), autosave);
-      if (world !== w) clearRatingCache();
-      set({ world, version: get().version + 1, busy: null, lastAdvance: result, unsaved: true });
-      if (saved) {
-        // The worker already wrote the autosave off the UI thread.
-        requestPersistentStorage();
-        set({ unsaved: false });
-        void get().refreshSaves();
-      } else if (autosave) await get().save(true);
+      // Simulated in place in short slices (no copy of the world to a worker and back): steady on
+      // phones with large real-data worlds, and faster because nothing is cloned.
+      const result = await advanceInSlices(w, mode, stopForUserMatch, (done, total) => set({ busy: { label: 'Simulating…', done, total } }));
+      set({ world: w, version: get().version + 1, busy: null, lastAdvance: result, unsaved: true });
+      if (w.meta.autosave) {
+        // After the screen has updated; compressed, and never twice at the same time.
+        setTimeout(() => {
+          if (get().world === w) void get().save(true);
+        }, 50);
+      }
       return result;
     } catch (e) {
-      set({ busy: null });
-      get().notify(`Simulation error: ${(e as Error).message}`, 'err');
+      set({ busy: null, version: get().version + 1 });
+      get().notify(`Simulation error on ${formatDate(w.day + 1)}: ${(e as Error).message}. Progress up to ${formatDate(w.day)} is kept.`, 'err');
       return null;
     }
   },

@@ -10,13 +10,15 @@
 import { ensureRealCharacters } from '../game/characterMigration';
 import { ensureRealMaps } from '../game/mapMigration';
 import { ensureRealHistory } from '../game/historyMigration';
+import { compactStoredMatches } from '../game/compact';
 import { ensureAudience } from '../systems/fans';
 import { openDB, type IDBPDatabase } from 'idb';
 import type { World } from '../model/types';
 import { migrate, SaveError } from './migrate';
 import { convertToSevenTitles, removedTitlesIn, ScopeConversionError } from '../game/scope';
 import { formatDate } from '../core/date';
-import { setArchiveBackend, type SeasonArchive } from '../game/archive';
+import { absorbLegacyArchives, setArchiveBackend, type SeasonArchive } from '../game/archive';
+import { pack, unpack } from './codec';
 import { setReplayBackend } from '../sim/moba/replayCache';
 
 export interface SaveMeta {
@@ -76,13 +78,15 @@ const REPLAYS_PER_CAREER = 40;
 if (typeof indexedDB !== 'undefined') {
   setArchiveBackend(
     (career, a) => {
-      db()
-        .then((d) => d.put('archive', a, `${career}|${a.season}`))
+      // Compressed before the transaction opens (IndexedDB transactions close on foreign awaits).
+      pack(a)
+        .then(async (p) => (await db()).put('archive', p, `${career}|${a.season}`))
         .catch(() => undefined);
     },
     async (career, season) => {
       try {
-        return (await (await db()).get('archive', `${career}|${season}`)) as SeasonArchive | undefined;
+        const raw = await (await db()).get('archive', `${career}|${season}`);
+        return raw ? await unpack<SeasonArchive>(raw) : undefined;
       } catch {
         return undefined;
       }
@@ -158,11 +162,14 @@ export function saveToSlot(world: World, n: number): Promise<SaveMeta> {
 
 async function writeWorld(world: World, id: string, extra: Partial<SaveMeta>): Promise<SaveMeta> {
   world.meta.updated = Date.now();
+  // One compressed binary value instead of a deep object graph: far faster on Android WebViews.
+  // Packed before the transaction opens (an IndexedDB transaction closes on unrelated awaits).
+  const packed = await pack(world);
   const d = await db();
   const tx = d.transaction(['saves', 'worlds', 'backups', 'session'], 'readwrite');
   const prev = (await tx.objectStore('saves').get(id)) as SaveMeta | undefined;
   const slot: Slot = prev?.slot ? otherSlot(prev.slot) : 'a';
-  await tx.objectStore('worlds').put(world, slotKey(id, slot));
+  await tx.objectStore('worlds').put(packed, slotKey(id, slot));
   const meta: SaveMeta = { ...metaFor(world), id, careerId: world.meta.saveId, ...extra, slot, legacyBackup: prev?.legacyBackup };
   await tx.objectStore('saves').put(meta);
   // Once both slots exist, the old single-slot copies (older builds) are no longer needed.
@@ -215,6 +222,7 @@ function migrateAndConvert(raw: unknown): { world: World; converted: boolean } {
     ensureRealCharacters(world);
     ensureRealMaps(world);
     ensureRealHistory(world);
+    compactStoredMatches(world);
     return { world, converted };
   } catch (e) {
     if (e instanceof ScopeConversionError) throw new SaveError(e.message);
@@ -231,7 +239,13 @@ export async function loadWorld(id: string): Promise<{ world: World; recovered: 
   candidates.push(['worlds', id], ['backups', id]);
   let error: unknown = null;
   for (let i = 0; i < candidates.length; i++) {
-    const raw = (await d.get(candidates[i][0], candidates[i][1])) as Record<string, any> | undefined;
+    let raw: Record<string, any> | undefined;
+    try {
+      raw = await unpack<Record<string, any> | undefined>(await d.get(candidates[i][0], candidates[i][1]));
+    } catch (e) {
+      error ??= e;
+      continue;
+    }
     if (!raw) continue;
     // Keep the untouched original before a save is converted to the seven-title scope.
     if (removedTitlesIn(raw).length && !(await d.get('backups', legacyKey(id)))) {
@@ -240,6 +254,8 @@ export async function loadWorld(id: string): Promise<{ world: World; recovered: 
     }
     try {
       const { world, converted } = migrateAndConvert(raw);
+      // Older saves kept whole past seasons in the archive store: their results move into the save.
+      await absorbLegacyArchives(world).catch(() => 0);
       return { world, recovered: i > 0, converted };
     } catch (e) {
       error ??= e;

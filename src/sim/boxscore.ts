@@ -17,7 +17,7 @@ export interface CompactBox {
   s: number[];
 }
 
-const r1 = (v: number) => (Number.isInteger(v) ? v : Math.round(v * 10) / 10);
+const r1 = (v: number) => (Number.isInteger(v) ? v : Math.abs(v) >= 10 ? Math.round(v) : Math.round(v * 10) / 10);
 
 export function encodeBox(lines: PlayerGameLine[]): CompactBox {
   const keys = [...new Set(lines.flatMap((l) => Object.keys(l.s)))];
@@ -46,12 +46,25 @@ export function boxLines(g: GameResult): PlayerGameLine[] {
   return g.bx ? decodeBox(g.bx) : [];
 }
 
-/** Drop commentary, draft log and replays; keep result, team stats and the box score (compact). */
+/**
+ * Drop commentary, the draft's pick order and player assignment (the box score holds each player's
+ * character), side-choice text and replays; keep result, team stats, bans/picks/first pick, the
+ * map side and the box score (compact).
+ */
 export function slimGame(g: GameResult): GameResult {
-  const { replay: _r, sreplay: _s, events: _e, ...rest } = g;
+  const { replay: _r, sreplay: _s, events: _e, sides: _sd, ...rest } = g;
   void _r;
   void _s;
   void _e;
+  void _sd;
   const lines = boxLines(g);
-  return { ...rest, events: undefined, players: [], bx: lines.length ? encodeBox(lines) : g.bx };
+  const out: GameResult = { ...rest, events: undefined, players: [], bx: lines.length ? encodeBox(lines) : g.bx };
+  if (g.draft) out.draft = { bans: g.draft.bans, picks: g.draft.picks, order: [], assign: [{}, {}], compScore: [Math.round(g.draft.compScore[0] * 100) / 100, Math.round(g.draft.compScore[1] * 100) / 100], ...(g.draft.firstPick !== undefined ? { firstPick: g.draft.firstPick } : {}) };
+  out.teamStats = g.teamStats.map((ts) => Object.fromEntries(Object.entries(ts).map(([k, v]) => [k, typeof v === 'number' && !Number.isInteger(v) ? Math.round(v) : v])));
+  return out;
+}
+
+/** True when a stored game still carries data that slimming removes. */
+export function needsSlim(g: GameResult): boolean {
+  return !!(g.players.length || g.events || g.sides || (g.draft && (g.draft.order.length || Object.keys(g.draft.assign[0] ?? {}).length)));
 }

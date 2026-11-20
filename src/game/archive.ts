@@ -1,11 +1,12 @@
 /**
- * Season archive: finished seasons' competitions, fixtures and match records (box scores included)
- * leave the live world at rollover and are kept in a separate store, loaded on demand when an old
- * edition or match is opened. The live world keeps a small index of every archived edition so the
- * competitions list, edition dropdowns and honours stay complete.
+ * Finished seasons. At rollover a season's competitions (stages, standings, brackets, placements,
+ * player stats) and fixtures (results) move from the live maps into `world.past`, which is part of
+ * the save — old competitions open instantly, without any loading. Only the per-game box scores of
+ * old seasons' matches go to a separate store (compressed, one record per season) and are loaded
+ * when an old match report is opened.
  *
- * The storage backend is pluggable: IndexedDB in the app (registered by src/persistence/db.ts in
- * both the UI thread and the simulation worker), an in-memory map elsewhere (tests, tools).
+ * The match store backend is pluggable: IndexedDB in the app (registered by src/persistence/db.ts),
+ * an in-memory map elsewhere (tests, tools).
  */
 import type { Competition, Fixture, MatchRecord, World } from '../model/types';
 
@@ -40,7 +41,8 @@ const memory = new Map<string, SeasonArchive>();
 const key = (careerId: string, season: number) => `${careerId}|${season}`;
 let sink: Sink = (c, a) => void memory.set(key(c, a.season), a);
 let source: Source = async (c, s) => memory.get(key(c, s));
-const loaded = new Map<string, SeasonArchive>();
+/** Match records of old seasons loaded this session. */
+const loadedMatches = new Map<string, MatchRecord[]>();
 
 export function setArchiveBackend(s: Sink, src: Source): void {
   sink = (c, a) => {
@@ -70,7 +72,7 @@ export function indexEntry(world: World, c: Competition): ArchivedCompEntry {
   void world;
 }
 
-/** Move one finished season out of the live world into the archive. */
+/** Move one finished season out of the live maps: results into `world.past`, box scores to the match store. */
 export function archiveSeason(world: World, season: number): number {
   const comps = Object.values(world.comps).filter((c) => c.season === season);
   if (!comps.length) return 0;
@@ -80,12 +82,20 @@ export function archiveSeason(world: World, season: number): number {
     for (const st of c.stages)
       for (const fid of st.fixtureIds) {
         const f = world.fixtures[fid];
-        if (f) fixtures.push(f);
+        if (f) {
+          // Results only: the fidelity flags are not needed once a fixture is played.
+          const { detail: _d, spatial: _s, ...rest } = f;
+          void _d;
+          void _s;
+          fixtures.push({ ...rest, detail: false } as Fixture);
+        }
         const m = world.matches[fid];
         if (m) matches.push(m);
       }
   }
-  sink(world.meta.saveId, { season, comps, fixtures, matches });
+  world.past ||= {};
+  world.past[season] = { comps, fixtures };
+  sink(world.meta.saveId, { season, comps: [], fixtures: [], matches });
   world.compIndex ||= [];
   for (const c of comps) if (!world.compIndex.some((e) => e.id === c.id)) world.compIndex.push(indexEntry(world, c));
   for (const c of comps) {
@@ -99,18 +109,53 @@ export function archiveSeason(world: World, season: number): number {
   return comps.length;
 }
 
-/** Load (and cache) an archived season for viewing. */
+/** Old season with its box scores (loads the match store once per session). */
 export async function loadArchive(world: World, season: number): Promise<SeasonArchive | undefined> {
   const k = key(world.meta.saveId, season);
-  const hit = loaded.get(k);
-  if (hit) return hit;
-  const a = await source(world.meta.saveId, season);
-  if (a) loaded.set(k, a);
-  return a;
+  const past = world.past?.[season];
+  if (!loadedMatches.has(k)) {
+    const a = await source(world.meta.saveId, season);
+    loadedMatches.set(k, a?.matches ?? []);
+    // Saves from the build that kept whole seasons in the store: their results move into the save.
+    if (!past && a?.comps.length) {
+      world.past ||= {};
+      world.past[season] = { comps: a.comps, fixtures: a.fixtures };
+    }
+  }
+  const p = world.past?.[season];
+  return p ? { season, comps: p.comps, fixtures: p.fixtures, matches: loadedMatches.get(k) ?? [] } : undefined;
 }
 
+/** Old season, synchronously: results always (they are in the save), box scores once loaded. */
 export function cachedArchive(world: World, season: number): SeasonArchive | undefined {
-  return loaded.get(key(world.meta.saveId, season)) ?? memory.get(key(world.meta.saveId, season));
+  const p = world.past?.[season];
+  if (!p) return undefined;
+  const k = key(world.meta.saveId, season);
+  return { season, comps: p.comps, fixtures: p.fixtures, matches: loadedMatches.get(k) ?? memory.get(k)?.matches ?? [] };
+}
+
+export function boxScoresLoaded(world: World, season: number): boolean {
+  const k = key(world.meta.saveId, season);
+  return loadedMatches.has(k) || memory.has(k);
+}
+
+/**
+ * Saves from the build that kept whole seasons (results included) in the separate store: bring the
+ * results into the save. Called once when a save loads.
+ */
+export async function absorbLegacyArchives(world: World): Promise<number> {
+  let n = 0;
+  const seasons = [...new Set((world.compIndex ?? []).map((e) => e.season))].filter((s) => !world.past?.[s]);
+  for (const season of seasons) {
+    const a = await source(world.meta.saveId, season);
+    if (!a?.comps.length) continue;
+    world.past ||= {};
+    world.past[season] = { comps: a.comps, fixtures: a.fixtures };
+    loadedMatches.set(key(world.meta.saveId, season), a.matches);
+    sink(world.meta.saveId, { season, comps: [], fixtures: [], matches: a.matches });
+    n++;
+  }
+  return n;
 }
 
 export function isArchived(world: World, compId: string): ArchivedCompEntry | undefined {

@@ -54,7 +54,7 @@ function DraftPanel({ g, f }: { g: GameResult; f: Fixture }) {
             ))}
           </div>
           <div>
-            {Object.entries(g.draft!.assign[i]).map(([pid, cid]) => (
+            {(Object.keys(g.draft!.assign[i] ?? {}).length ? Object.entries(g.draft!.assign[i]) : boxLines(g).filter((l) => l.teamIdx === i && l.charId).map((l) => [l.playerId, l.charId!] as [string, string])).map(([pid, cid]) => (
               <span key={pid} className="chip pick">
                 <CharIcon id={cid} size={16} /> <PlayerLink p={world.players[pid]} />: {name(cid)}
               </span>
@@ -205,7 +205,7 @@ export function MatchPage({ id, route }: { id: string; route: Route }) {
   const live = useWorld();
   const { act, advance } = useGame();
   const season = live.fixtures[id] ? null : route.query.season ? Number(route.query.season) : null;
-  const { world, loading } = useArchivedView(live, season);
+  const { world, loading } = useArchivedView(live, season, true);
   const f = world.fixtures[id];
   if (!f) return <div>{loading ? 'Loading the match from the season archive…' : 'Match not found. Open it from its competition page (seasons are browsed with the dropdown there).'}</div>;
   const watchable = f.status === 'scheduled' && !!world.teams[f.teams[0]] && !!world.teams[f.teams[1]];

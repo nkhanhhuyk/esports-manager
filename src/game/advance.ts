@@ -42,13 +42,15 @@ export type AdvanceMode =
 export interface AdvanceOptions {
   /** Stop before a day on which a user team plays (so the user can prepare / play live). */
   stopForUserMatch?: boolean;
+  /** Return after this many milliseconds (stoppedFor 'budget'; call again to continue). */
+  maxMs?: number;
   onProgress?: (done: number, total: number, day: number) => void;
   maxDays?: number;
 }
 
 export interface AdvanceResult {
   days: number;
-  stoppedFor: 'user-match' | 'decision' | 'complete' | 'limit';
+  stoppedFor: 'user-match' | 'decision' | 'complete' | 'limit' | 'budget';
   fixtureId?: string;
 }
 
@@ -149,6 +151,7 @@ export function advance(world: World, mode: AdvanceMode, opts: AdvanceOptions = 
   }
   const total = Math.max(0, target - world.day);
   let days = 0;
+  const t0 = opts.maxMs ? Date.now() : 0;
   const limit = opts.maxDays ?? Infinity;
   const employed = !!world.meta.userOrgId && !world.meta.unemployed;
   while (world.day < target) {
@@ -169,6 +172,45 @@ export function advance(world: World, mode: AdvanceMode, opts: AdvanceOptions = 
     // Losing the job (season review or mid-season) pauses time so the user can choose what next.
     if (employed && world.meta.unemployed) return { days, stoppedFor: 'decision' };
     if (days >= limit) return { days, stoppedFor: 'limit' };
+    if (opts.maxMs && world.day < target && Date.now() - t0 >= opts.maxMs) return { days, stoppedFor: 'budget' };
   }
   return { days, stoppedFor: 'complete' };
+}
+
+/** Absolute target day of an advance mode (so a chunked advance keeps one fixed goal). */
+export function advanceTarget(world: World, mode: AdvanceMode): number {
+  switch (mode.kind) {
+    case 'days':
+      return world.day + mode.n;
+    case 'until':
+      return mode.day;
+    case 'end-season':
+      return seasonEndDay(world.season);
+    case 'seasons':
+      return seasonEndDay(world.season + mode.n - 1);
+    case 'next-event': {
+      for (let d = world.day + 1; d <= world.day + 60; d++) if (watchedFixturesOn(world, d).length) return d;
+      return world.day + 60;
+    }
+  }
+}
+
+/**
+ * Advance on the calling thread in short slices, yielding between them so the screen stays
+ * responsive and the progress bar moves. Nothing is copied: the world is simulated in place, so
+ * there is no memory doubling (large real-data worlds on phones) and no copy-back cost.
+ */
+export async function advanceInSlices(world: World, mode: AdvanceMode, stopForUserMatch: boolean, onProgress?: (done: number, total: number, day: number) => void, sliceMs = 90): Promise<AdvanceResult> {
+  const target = advanceTarget(world, mode);
+  const total = Math.max(0, target - world.day);
+  // 'next-event' keeps its own stop rule (it always stops at the event day).
+  const sliceMode: AdvanceMode = mode.kind === 'next-event' ? mode : { kind: 'until', day: target };
+  let done = 0;
+  for (;;) {
+    const r = advance(world, sliceMode, { stopForUserMatch, maxMs: sliceMs });
+    done += r.days;
+    onProgress?.(done, total, world.day);
+    if (r.stoppedFor !== 'budget') return { ...r, days: done };
+    await new Promise((res) => setTimeout(res, 0));
+  }
 }
