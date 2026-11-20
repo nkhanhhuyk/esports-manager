@@ -959,3 +959,62 @@ label {
 .tt-cell.unsupervised {
   background: color-mix(in srgb, var(--warn) 12%, transparent);
 }
+
+/* ---------------------------------------------------------------- MOBA 2D viewer */
+.moba-viewer .mv-score {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 4px 10px;
+  margin-bottom: 6px;
+}
+.moba-viewer .mv-team {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.moba-viewer .mv-team.right {
+  text-align: right;
+}
+.moba-viewer .mv-nums {
+  font-size: 22px;
+}
+.moba-viewer .mv-clock {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.moba-viewer .mv-sub {
+  grid-column: 1 / -1;
+  text-align: center;
+}
+.moba-viewer .mv-canvas-wrap {
+  width: 100%;
+}
+.moba-viewer .mv-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+.moba-viewer .mv-table td,
+.moba-viewer .mv-table th {
+  padding: 2px 4px;
+  font-size: 12px;
+}
+.moba-viewer .mv-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.moba-viewer .mv-feed li {
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border);
+}
+@media (max-width: 700px) {
+  .moba-viewer .mv-bottom {
+    grid-template-columns: 1fr;
+  }
+}

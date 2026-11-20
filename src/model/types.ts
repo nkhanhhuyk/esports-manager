@@ -635,6 +635,11 @@ export interface Fixture {
   winner?: ID | null;
   score?: number[];
   detail: boolean;
+  /**
+   * MOBA fidelity lock, decided when the series starts (before any result exists): true = the
+   * spatial battlefield simulation (your/followed teams, or opened live), false = fast engine.
+   */
+  spatial?: boolean;
   mvp?: ID;
 }
 
@@ -670,8 +675,54 @@ export interface DraftRecord {
   firstPick?: 0 | 1;
 }
 
+/**
+ * Recorded spatial timeline of one MOBA game (authoritative simulation output). Frames are taken
+ * once per simulated second; per-frame arrays are flattened (frame-major). The renderer only
+ * interpolates between frames — it never changes the simulation.
+ */
+export interface MobaReplay {
+  v: 1;
+  mapId: string;
+  titleId: string;
+  /** Seconds between frames. */
+  dt: number;
+  frames: number;
+  heroes: Array<{ side: 0 | 1; playerId: ID; handle: string; char: string; roleId: string }>;
+  structures: string[];
+  camps: string[];
+  pits: string[];
+  /** Hero x, y (map units), hp % (0..100), level, state code (bit 0 = dead, bits 1..4 = activity), target (−1 none, 0..9 hero, 100+ structure, 200+ pit). */
+  hx: number[];
+  hy: number[];
+  hhp: number[];
+  hlv: number[];
+  hst: number[];
+  htg: number[];
+  /** Structure hp % (0 = destroyed). */
+  sh: number[];
+  /** Per lane (top, mid, bot) × side: front wave position along that side's lane (0..1000‰, −1 none) and minion count. */
+  wf: number[];
+  wn: number[];
+  /** Per pit: objective present (index into `objectives`, −1 none) and hp %. */
+  po: number[];
+  ph: number[];
+  /** Camp alive (1/0). */
+  ca: number[];
+  /** Team gold (total), kills, structures destroyed, per frame × 2. */
+  tg: number[];
+  tk: number[];
+  ts: number[];
+  objectives: string[];
+  wards: Array<{ side: 0 | 1; x: number; y: number; from: number; to: number }>;
+  events: Array<{ t: number; k: string; a?: number; b?: number; x?: number; y?: number; s?: 0 | 1; n?: string; as?: number[] }>;
+}
+
 export interface GameResult {
   idx: number;
+  /** Spatial replay (kept in memory for games watched or played live; not stored in saves). */
+  replay?: MobaReplay;
+  /** Which MOBA engine produced the game: the spatial battlefield or the fast background engine. */
+  engine?: 'spatial' | 'fast';
   winner: number; // team index, -1 for BR
   mapId?: string;
   modeId?: string;

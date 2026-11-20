@@ -14,12 +14,14 @@ import type { MapDef, TitleDef } from '../data/titles/types';
 import type { DraftRecord, Fixture, FormatKey, GameEvent, GameResult, LineupSlot, MatchRecord, Team, UserMatchPlan, World } from '../model/types';
 import { currentPatch } from '../systems/patches';
 import { isUserTeam } from '../systems/news';
+import { isFollowed } from '../systems/follow';
 import { ensureLineup, validateLineup } from '../systems/lineup';
 import { registeredLineup } from '../systems/registration';
 import { evaluateComp, newDraft, runAiDraft, toRecord, validateDraft, type CompEval, type DraftState } from './common/draft';
 import type { GameContext } from './common/engine';
 import { buildTeamCtx, type TeamCtx } from './common/team';
 import { simulateMoba } from './moba/moba';
+import { simulateMobaSpatial } from './moba/spatial';
 import { simulateTactical } from './shooter/tactical';
 
 export interface SeriesState {
@@ -35,6 +37,8 @@ export interface SeriesState {
   winner: number;
   lastLoser: number;
   detail: boolean;
+  /** Record a spatial replay of each game (live viewing). Never changes results. */
+  record?: boolean;
 }
 
 export function pressureFor(world: World, f: Fixture): number {
@@ -120,6 +124,8 @@ export function getPlans(world: World, f: Fixture): [UserMatchPlan | undefined, 
 
 export function createSeries(world: World, f: Fixture, forceDetail = false): SeriesState {
   const t = getTitle(f.titleId);
+  // Lock MOBA fidelity before anything is simulated (instant and live paths both pass here).
+  if (t.engine === 'moba' && f.spatial === undefined) f.spatial = f.teams.some((id) => isUserTeam(world, id) || isFollowed(world, id));
   const teams = f.teams.map((id) => world.teams[id]) as [Team, Team];
   const plans = getPlans(world, f);
   const comp = world.comps[f.compId];
@@ -153,6 +159,7 @@ export function createSeries(world: World, f: Fixture, forceDetail = false): Ser
     winner: -1,
     lastLoser: 1,
     detail: forceDetail || f.detail,
+    record: !!f.spatial,
   };
 }
 
@@ -259,7 +266,17 @@ export function playNextGame(world: World, f: Fixture, st: SeriesState, userDraf
     res = { idx: gi, winner: w, mapId, modeId, duration: 0, score: [w === 0 ? 1 : 0, w === 1 ? 1 : 0], teamStats: [{}, {}], players: [], summary: `${teams[1 - w].name} could not field a lineup — walkover to ${teams[w].name}.` };
   } else switch (t.engine) {
     case 'moba':
-      res = simulateMoba(g);
+      // Fidelity is locked with the fixture before it is played: full-detail fixtures (your and
+      // followed teams, internationals, anything opened live) run the spatial battlefield
+      // simulation; other background fixtures use the fast aggregate engine. Watching never
+      // switches engines for a fixture, so live, text and instant results are identical.
+      if (f.spatial) {
+        res = simulateMobaSpatial(g, !!st.record);
+        res.engine = 'spatial';
+      } else {
+        res = simulateMoba(g);
+        res.engine = 'fast';
+      }
       break;
     case 'tactical':
       res = simulateTactical(g);

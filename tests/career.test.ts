@@ -142,6 +142,10 @@ describe('mid-season board, manager contract and job approaches', () => {
     w.meta.careerRole = 'coach-gm';
     const weakest = Object.values(w.orgs).filter((o) => o.teams.some((t) => w.teams[t].leagueId)).sort((a, b) => a.rep - b.rep)[0];
     setUserOrg(w, weakest.id);
+    // Make the outcome certain: the club's players are far below the league.
+    const { clearRatingCache } = await import('../src/sim/common/ratings');
+    for (const tid of weakest.teams) for (const pid of w.teams[tid].roster) w.players[pid].attrs = w.players[pid].attrs.map((v) => Math.max(1, v - 30));
+    clearRatingCache();
     setBoardObjectives(w);
     for (const o of w.meta.board!.objectives) if (o.kind === 'league-rank') o.target = 1;
     w.meta.board!.confidence = 14;

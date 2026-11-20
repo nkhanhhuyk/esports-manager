@@ -215,7 +215,12 @@ export function MatchPage({ id }: { id: string; route: Route }) {
               </button>
             )}
             {!f.detail && (
-              <button className="btn ghost" onClick={() => act((w) => (w.fixtures[f.id].detail = true))}>
+              <button className="btn ghost" onClick={() => act((w) => {
+                const fx = w.fixtures[f.id];
+                fx.detail = true;
+                // MOBA: also lock the spatial battlefield simulation (replay available after play).
+                if (getTitle(fx.titleId).engine === 'moba') fx.spatial = true;
+              })}>
                 Follow in full detail
               </button>
             )}

@@ -3,6 +3,7 @@
  * competition aggregates, Elo, morale/form/fatigue, proficiency growth from play, chemistry,
  * relationships and news. Idempotent per fixture (guarded by fixture.status).
  */
+import { detachReplays } from './moba/replayCache';
 import { recordH2H } from '../systems/seasonReport';
 import { isFollowed } from '../systems/follow';
 import { clamp } from '../core/math';
@@ -147,7 +148,8 @@ function applySeries(world: World, f: Fixture, st: SeriesState, forceDetail: boo
   const loser = f.teams[1 - st.winner];
   f.winner = winner;
   f.score = [...st.wins];
-  const games = st.games;
+  // Replays stay in the session cache (watchable now), never in the saved world.
+  const games = detachReplays(f.id, st.games);
   for (const g of games) {
     const mvp = [...g.players].filter((l) => l.teamIdx === g.winner).sort((a, b) => b.rating - a.rating)[0]?.playerId;
     applyGame(world, f, g, f.teams, f.teams[g.winner], mvp);

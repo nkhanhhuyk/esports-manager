@@ -1,0 +1,13 @@
+import { createWorld } from '../src/gen/world';
+import { createSeries, playNextGame } from '../src/sim/series';
+import type { Fixture } from '../src/model/types';
+const id = process.argv[2] ?? 'lol';
+const [ia, ib] = (process.argv[3] ?? '2,3').split(',').map(Number);
+const w = createWorld({ name: 'cal', seed: `cal-${id}`, worldSize: 'small', titles: [id], startDay: 20000 });
+const teams = Object.values(w.teams).filter((t) => t.titleId === id && t.tier === 'main');
+const f = { id: `ins2-${id}`, compId: Object.keys(w.comps)[0], titleId: id, teams: [teams[ia].id, teams[ib].id], day: w.day, status: 'scheduled', format: { n: 1, label: 'Bo1' }, formatKey: 'standard', detail: true } as unknown as Fixture;
+const s = createSeries(w, f, true);
+s.record = true;
+const r = playNextGame(w, f, s);
+console.log(r.summary);
+for (const e of r.replay!.events.filter((e) => e.k === 'structure' || e.k === 'objective')) console.log(`${Math.floor(e.t / 60)}:${String(e.t % 60).padStart(2, '0')} side${e.s} ${e.k} ${e.n}`);

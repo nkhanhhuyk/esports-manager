@@ -17,6 +17,7 @@ import { currentPatch } from '../../systems/patches';
 import { GameView, SeriesView } from './Match';
 import { validateLineup } from '../../systems/lineup';
 import { can, denyReason } from '../../systems/career';
+import { MobaViewer } from '../components/MobaViewer';
 
 export function LiveMatchPage({ id }: { id: string }) {
   const world = useWorld();
@@ -29,6 +30,8 @@ export function LiveMatchPage({ id }: { id: string }) {
   const [bans, setBans] = useState<string[]>([]);
   const [picks, setPicks] = useState<string[]>([]);
   const [assignTo, setAssignTo] = useState('');
+  /** Games whose result has been revealed (playback finished or skipped). */
+  const [revealed, setRevealed] = useState(0);
   const t = f ? getTitle(f.titleId) : null;
   const ui = f ? f.teams.findIndex((x) => isUserTeamId(world, x)) : -1;
   const pool = useMemo(() => (t ? currentPatch(world, t.id).mapPool : []), [world, t]);
@@ -75,7 +78,11 @@ export function LiveMatchPage({ id }: { id: string }) {
 
   const start = () => {
     if (t.mapVeto === 'tactical' && !watching) act((w) => (w.overrides[f.id] = { ...(w.overrides[f.id] ?? {}), mapBans: bans, mapPicks: picks }));
+    // Lock the fixture to full detail before anything is simulated: MOBA games then run the
+    // spatial battlefield simulation whether watched, read or skipped.
+    if (t.engine === 'moba' && !f.spatial) act((w) => (w.fixtures[f.id].spatial = true));
     const s = createSeries(world, f, true);
+    s.record = t.engine === 'moba';
     setSt(s);
     startDraftFor(s);
   };
@@ -110,6 +117,8 @@ export function LiveMatchPage({ id }: { id: string }) {
     playNextGame(world, f, st, draft);
     setSt({ ...st });
     setDs(null);
+    // Shooter games (no 2D view yet) are revealed at once; MOBA games when playback ends.
+    if (!st.games[st.games.length - 1]?.replay) setRevealed(st.games.length);
   };
 
   const nextGame = () => st && startDraftFor(st);
@@ -125,6 +134,8 @@ export function LiveMatchPage({ id }: { id: string }) {
   const opts = ds && step && step.team === ui ? legalOptions(ds, step.team, step.action) : [];
   const meta = currentPatch(world, t.id).charMeta;
   const lastGame = st?.games[st.games.length - 1];
+  const hidden = !!st && st.games.length > revealed;
+  const shownWins = st ? st.games.slice(0, revealed).reduce((a, g) => ((a[g.winner] += 1), a), [0, 0]) : [0, 0];
   const awaitingDraft = !!ds && !ds.done;
   const needsDraft = t.characters.length > 0 && t.draft.mode !== 'none';
   const canPlay = !!st && !st.done && !awaitingDraft && (!needsDraft || (!!ds && ds.done));
@@ -137,7 +148,7 @@ export function LiveMatchPage({ id }: { id: string }) {
             <TeamLink t={world.teams[f.teams[0]]} /> vs <TeamLink t={world.teams[f.teams[1]]} />
           </>
         }
-        sub={<span><TitleTag id={t.id} /> · <CompLink c={world.comps[f.compId]} /> · {f.format.label}{st ? ` · series ${st.wins[0]}-${st.wins[1]}` : ''}</span>}
+        sub={<span><TitleTag id={t.id} /> · <CompLink c={world.comps[f.compId]} /> · {f.format.label}{st ? ` · series ${shownWins[0]}-${shownWins[1]}` : ''}</span>}
       />
       {!st && (
         <>
@@ -285,7 +296,17 @@ export function LiveMatchPage({ id }: { id: string }) {
           )}
         </Card>
       )}
-      {st && !st.done && (
+      {st && hidden && lastGame?.replay && (
+        <Card title={`Game ${st.games.length} — live`}>
+          <MobaViewer
+            key={`${f.id}-${st.games.length}`}
+            replay={lastGame.replay}
+            teamNames={[world.teams[f.teams[0]].name, world.teams[f.teams[1]].name]}
+            onEnd={() => setRevealed(st.games.length)}
+          />
+        </Card>
+      )}
+      {st && !st.done && !hidden && (
         <Card>
           <div className="row">
             {canPlay && !awaitingDraft && (
@@ -301,8 +322,13 @@ export function LiveMatchPage({ id }: { id: string }) {
           </div>
         </Card>
       )}
-      {lastGame && <GameView g={lastGame} f={f} />}
-      {st?.done && (
+      {lastGame && !hidden && lastGame.replay && (
+        <Card title={`Game ${st!.games.length} replay`}>
+          <MobaViewer key={`r-${f.id}-${st!.games.length}`} replay={lastGame.replay} teamNames={[world.teams[f.teams[0]].name, world.teams[f.teams[1]].name]} autoplay={false} />
+        </Card>
+      )}
+      {lastGame && !hidden && <GameView g={lastGame} f={f} />}
+      {st?.done && !hidden && (
         <Card>
           <div className="scoreline">
             <TeamLink t={world.teams[f.teams[st.winner]]} /> win {Math.max(...st.wins)}-{Math.min(...st.wins)}
