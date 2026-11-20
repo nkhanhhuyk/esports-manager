@@ -920,7 +920,11 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
         if (t.id === 'dota2') {
           const day = Math.floor(minute / 5) % 2 === 0;
           o.pit = pits.filter((x) => x.p.id.startsWith(o.def.id === 'roshan' ? 'rosh' : 'tormentor'))[day ? 1 : 0]?.i ?? pits[0].i;
-        } else o.pit = o.count === 0 ? pits[0].i : pits[rng.int(0, pits.length - 1)].i;
+        } else {
+          // First spawn in the objective's home pit (listed first there), later spawns at random.
+          const home = pits.find((x) => x.p.objectives[0] === o.def.id) ?? pits[0];
+          o.pit = o.count === 0 ? home.i : pits[rng.int(0, pits.length - 1)].i;
+        }
       }
       // Pit occupied by another live objective → wait.
       if (objs.some((x) => x !== o && x.alive && x.pit === o.pit)) continue;

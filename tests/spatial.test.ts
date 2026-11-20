@@ -111,6 +111,13 @@ describe('spatial MOBA simulation', () => {
         for (const r of s.requires) if (!r.startsWith('any:')) expect(fallen.has(r), `${id}: ${s.id} before ${r}`).toBe(true);
         fallen.add(s.id);
       }
+      // First spawns use the objective's home pit (e.g. MLBB Lord on the Gold side).
+      for (const e of rp.events.filter((x) => x.k === 'spawn')) {
+        const pit = m.pits.reduce((best, p) => (dist(p.pos, { x: e.x!, y: e.y! }) < dist(best.pos, { x: e.x!, y: e.y! }) ? p : best));
+        expect(pit.objectives.some((o) => rp.objectives.includes(e.n!) || o)).toBe(true);
+      }
+      const firstLord = rp.events.find((x) => x.k === 'spawn' && x.n === 'Lord');
+      if (firstLord) expect(dist({ x: firstLord.x!, y: firstLord.y! }, m.pits.find((p) => p.id === 'lord-pit')!.pos)).toBeLessThan(5);
       // Objectives are secured at their pit.
       for (const e of rp.events.filter((x) => x.k === 'objective')) {
         const pit = m.pits.reduce((best, p) => (dist(p.pos, { x: e.x!, y: e.y! }) < dist(best.pos, { x: e.x!, y: e.y! }) ? p : best));
