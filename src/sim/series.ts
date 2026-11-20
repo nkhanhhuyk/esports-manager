@@ -17,7 +17,7 @@ import { isUserTeam } from '../systems/news';
 import { isFollowed } from '../systems/follow';
 import { ensureLineup, validateLineup } from '../systems/lineup';
 import { registeredLineup } from '../systems/registration';
-import { evaluateComp, newDraft, runAiDraft, toRecord, validateDraft, type CompEval, type DraftState } from './common/draft';
+import { evaluateComp, newDraft, runAiDraft, runQuickDraft, toRecord, validateDraft, type CompEval, type DraftState } from './common/draft';
 import type { GameContext } from './common/engine';
 import { buildTeamCtx, type TeamCtx } from './common/team';
 import { simulateMoba } from './moba/moba';
@@ -205,9 +205,15 @@ export function splitSelection(titleId: string): boolean {
 }
 
 /** How much a team values the first pick (>0) over the last pick / counter-pick (<0). */
+const standoutCache = new WeakMap<object, number>();
 export function firstPickWant(world: World, team: Team, titleId: string): number {
-  const vals = Object.values(currentPatch(world, titleId).charMeta).sort((a, b) => b - a);
-  const standout = vals.length >= 6 ? (vals[0] - vals[5]) / 4 : 0;
+  const patch = currentPatch(world, titleId);
+  let standout = standoutCache.get(patch);
+  if (standout === undefined) {
+    const vals = Object.values(patch.charMeta).sort((a, b) => b - a);
+    standout = vals.length >= 6 ? (vals[0] - vals[5]) / 4 : 0;
+    standoutCache.set(patch, standout);
+  }
   const pref = ({ meta: 0.4, comfort: 0.2, balanced: 0, counter: -0.5 } as Record<string, number>)[team.prefs.draftPriority] ?? 0;
   return standout - 0.25 + pref;
 }
@@ -339,7 +345,9 @@ export function playNextGame(world: World, f: Fixture, st: SeriesState, userDraf
     const ds = draftStateFor(world, f, st);
     if (planned && validateDraft(t, planned, ds.unavailable).length === 0) draft = { ...planned, firstPick: sel?.firstPick ?? planned.firstPick };
     else {
-      runAiDraft(world, ds, drng);
+      // Background games (fast engine, nobody watching) use the quick draft; everything else the full AI.
+      if (!f.spatial && !st.detail && !st.record) runQuickDraft(world, ds, drng);
+      else runAiDraft(world, ds, drng);
       draft = toRecord(ds, [0, 0]);
     }
   }

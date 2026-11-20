@@ -313,8 +313,21 @@ export function aiDraftAction(world: World, ds: DraftState, rng: RNG): { charId:
   const anyFit = roleFitApplies(ds.title);
   const fitting = anyFit ? opts.filter((c) => openRoles.some((r) => fitsRole(c, r))) : opts;
   if (fitting.length >= 3) opts.splice(0, opts.length, ...fitting);
-  // Option-level terms (independent of which player takes the pick) computed once per option.
+  // Shortlist (speed): the 40 strongest options by meta and team style, plus every option one of the
+  // still-open players is comfortable on — the detailed per-player scoring then runs on those only.
   const style = side.team.prefs.style;
+  if (opts.length > 48) {
+    const comfortable = new Set<string>();
+    for (const slot of slots) {
+      const p = side.players.find((x) => x.id === slot.playerId);
+      for (const [id, v] of Object.entries(p?.prof.chars[ds.title.id] ?? {})) if (v >= 45) comfortable.add(id);
+    }
+    const pre = opts.map((c) => ({ c, v: (ds.patch.charMeta[c.id] ?? 0) / 10 * wMeta + ((c.styles[style] ?? 5) - 5) / 10 }));
+    pre.sort((a, b) => b.v - a.v);
+    const keep = pre.filter((x, i) => i < 40 || comfortable.has(x.c.id)).map((x) => x.c);
+    opts.splice(0, opts.length, ...keep);
+  }
+  // Option-level terms (independent of which player takes the pick) computed once per option.
   const base = new Float64Array(opts.length);
   for (let i = 0; i < opts.length; i++) {
     const c = opts[i];
@@ -344,6 +357,107 @@ export function aiDraftAction(world: World, ds: DraftState, rng: RNG): { charId:
     }
   }
   return best ? { charId: best.c.id, playerId: best.slot.playerId } : null;
+}
+
+/**
+ * Quick draft for background games (fast engine): each player has a short preference list per patch
+ * (comfort, meta, role fit, team style — cached), and teams ban and pick through the title's real
+ * step order from those lists. Same rules (bans, uniqueness, Fearless) as the full AI draft at a
+ * fraction of the cost; matches you play or watch use the full draft AI.
+ */
+const quickCache = new WeakMap<object, Map<string, CharDef[]>>();
+function preferred(ds: DraftState, team: 0 | 1, slot: LineupSlot): CharDef[] {
+  let m = quickCache.get(ds.patch);
+  if (!m) {
+    m = new Map();
+    quickCache.set(ds.patch, m);
+  }
+  const side = ds.sides[team];
+  const key = `${slot.playerId}|${slot.roleId}|${side.team.prefs.style}`;
+  const hit = m.get(key);
+  if (hit) return hit;
+  const p = side.players.find((x) => x.id === slot.playerId);
+  const role = roleOf(ds, team, slot);
+  const anyFit = roleFitApplies(ds.title);
+  const comfort = comfortFn(ds.title, p);
+  const style = side.team.prefs.style;
+  const list = ds.title.characters
+    .filter((c) => !anyFit || fitsRole(c, role))
+    .map((c) => ({ c, v: (ds.patch.charMeta[c.id] ?? 0) / 10 * 0.8 + comfort(c) / 100 * 1.1 + ((c.styles[style] ?? 5) - 5) / 10 }))
+    .sort((a, b) => b.v - a.v)
+    .slice(0, 14)
+    .map((x) => x.c);
+  m.set(key, list);
+  return list;
+}
+
+export function runQuickDraft(world: World, ds: DraftState, rng: RNG): void {
+  void world;
+  // Legality kept incrementally (no per-step option lists).
+  const banned = new Set<string>([...ds.bans[0], ...ds.bans[1]]);
+  const picked = new Set<string>([...ds.picks[0], ...ds.picks[1]]);
+  const own: [Set<string>, Set<string>] = [new Set(ds.picks[0]), new Set(ds.picks[1])];
+  const unique = ds.title.draft.uniqueAcross;
+  const legal = (team: 0 | 1, action: 'ban' | 'pick', id: string) =>
+    !banned.has(id) && (action === 'ban' ? !picked.has(id) : !own[team].has(id) && !(unique && picked.has(id)) && !ds.unavailable[team].has(id));
+  let guard = 0;
+  while (!ds.done && guard++ < 200) {
+    const step = currentStep(ds);
+    if (!step) break;
+    const team = step.team;
+    let charId: string | undefined;
+    let playerId: string | undefined;
+    if (step.action === 'ban') {
+      // The opponents' favourite still-legal characters, strongest meta first (small jitter).
+      const enemy = (1 - team) as 0 | 1;
+      let first: CharDef | undefined;
+      let second: CharDef | undefined;
+      for (const slot of ds.sides[enemy].lineup)
+        for (const c of preferred(ds, enemy, slot).slice(0, 4)) {
+          if (!legal(team, 'ban', c.id) || c === first || c === second) continue;
+          const v = ds.patch.charMeta[c.id] ?? 0;
+          if (!first || v > (ds.patch.charMeta[first.id] ?? 0)) {
+            second = first;
+            first = c;
+          } else if (!second || v > (ds.patch.charMeta[second.id] ?? 0)) second = c;
+        }
+      charId = (rng.int(0, 1) === 1 && second ? second : first)?.id;
+    } else {
+      // The open player with the best available preferred character picks it.
+      let best = -1;
+      for (const slot of unfilledPlayers(ds, team)) {
+        const list = preferred(ds, team, slot);
+        const idx = list.findIndex((c) => legal(team, 'pick', c.id));
+        if (idx < 0) continue;
+        const v = 14 - idx + rng.next() * 1.5;
+        if (v > best) {
+          best = v;
+          charId = list[idx].id;
+          playerId = slot.playerId;
+        }
+      }
+    }
+    if (!charId) {
+      // Nothing preferred is left: the strongest legal option.
+      let bestC: CharDef | undefined;
+      for (const c of ds.title.characters) if (legal(team, step.action, c.id) && (!bestC || (ds.patch.charMeta[c.id] ?? 0) > (ds.patch.charMeta[bestC.id] ?? 0))) bestC = c;
+      if (!bestC) {
+        ds.done = true;
+        break;
+      }
+      charId = bestC.id;
+    }
+    const r = applyDraftAction(ds, charId, playerId, true);
+    if (!r.ok) {
+      ds.done = true;
+      break;
+    }
+    if (step.action === 'ban') banned.add(charId);
+    else {
+      picked.add(charId);
+      own[team].add(charId);
+    }
+  }
 }
 
 /** Run a whole draft with AI for both sides (or user-provided full draft). */
