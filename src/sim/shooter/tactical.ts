@@ -5,6 +5,7 @@
  * a chain of duels with trades and man-advantage effects, objective plant / retake / defuse,
  * clutch tracking, economy update, halftime side swap and title-specific overtime.
  */
+import { tacticalRules } from '../common/rules';
 import { clamp, logistic } from '../../core/math';
 import type { GameResult } from '../../model/types';
 import { assignRatings, emit, pickWeighted, StatBook, teamName, withChar, type GameContext } from '../common/engine';
@@ -16,7 +17,7 @@ type Buy = 'pistol' | 'eco' | 'force' | 'full';
 export const DUEL_SCALE = 26;
 
 export function simulateTactical(g: GameContext): GameResult {
-  const cfg = g.title.tactical!;
+  const cfg = tacticalRules(g.title, g.patch);
   const { rng } = g;
   const keys = g.title.stats.map((s) => s.key);
   const book = new StatBook(g.teams, keys);

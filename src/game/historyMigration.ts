@@ -1,17 +1,26 @@
 /**
  * One-time addition of the real history snapshot (past teams, former pros, retired pros) to real-world
  * careers started before it existed. New real-world careers get it at creation. Nothing already in the
- * save changes: dormant teams are added outside every league, former pros join the free-agent pool and
- * retired pros are added to the retired archive. Handles already in the save are skipped.
+ * save changes: dormant teams are added outside every league and every former pro (long-inactive ones
+ * included) joins the free-agent pool. Handles already in the save are skipped.
  */
 import { RNG } from '../core/rng';
 import { addRealHistory, orgKey } from '../gen/realWorld';
 import { createOrg } from '../gen/world';
 import { marketValue } from '../systems/contracts';
+import { snapshotRetiredToFree } from '../systems/comeback';
 import type { Organisation, World } from '../model/types';
 
 export function ensureRealHistory(world: World): boolean {
-  if (world.meta.realHistory) return false;
+  if (world.meta.realHistory) {
+    // Saves from the build that archived long-inactive real pros as retired: make them free agents.
+    if (!world.meta.realHistoryFree) {
+      world.meta.realHistoryFree = true;
+      return snapshotRetiredToFree(world) > 0;
+    }
+    return false;
+  }
+  world.meta.realHistoryFree = true;
   world.meta.realHistory = true;
   if (world.meta.dataMode !== 'real') return false;
   const rng = new RNG(`${world.meta.seed}|real-history`);

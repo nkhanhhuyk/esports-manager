@@ -12,6 +12,7 @@ import { useArchivedView } from './Competitions';
 import { useEffect } from 'react';
 import { boxLines } from '../../sim/boxscore';
 import { MobaViewer } from '../components/MobaViewer';
+import { sideOrder } from '../helpers';
 import { formatDate } from '../../core/date';
 import { navigate, type Route } from '../router';
 import { isUserTeamId, kda, roleName } from '../helpers';
@@ -21,6 +22,19 @@ import { userFixturesOn } from '../../game/advance';
 import { fmtTime } from '../../sim/common/engine';
 import { can, denyReason } from '../../systems/career';
 
+/** "Blue" / "Red" (Radiant / Dire in Dota 2) badge for a MOBA team in one game. */
+function SideTag({ g, f, ti }: { g: GameResult; f: Fixture; ti: number }) {
+  const t = getTitle(f.titleId);
+  if (t.engine !== 'moba') return null;
+  const blue = (g.blue ?? 0) === ti;
+  const names = f.titleId === 'dota2' ? ['Radiant', 'Dire'] : ['Blue', 'Red'];
+  return (
+    <span className="tag" style={{ background: blue ? 'rgba(63,167,255,0.25)' : 'rgba(255,93,93,0.25)', color: blue ? '#3fa7ff' : '#ff5d5d' }}>
+      {blue ? names[0] : names[1]}
+    </span>
+  );
+}
+
 function DraftPanel({ g, f }: { g: GameResult; f: Fixture }) {
   const world = useWorld();
   const t = getTitle(f.titleId);
@@ -28,9 +42,9 @@ function DraftPanel({ g, f }: { g: GameResult; f: Fixture }) {
   const name = (id: string) => t.characters.find((c) => c.id === id)?.name ?? id;
   return (
     <div className="draft-board">
-      {[0, 1].map((i) => (
+      {sideOrder(t.engine === 'moba' ? g : undefined, [0, 1]).map((i) => (
         <div key={i}>
-          <b>{world.teams[f.teams[i]]?.short}</b> <span className="muted small">comp score {g.draft!.compScore[i]?.toFixed(2)}</span>
+          <SideTag g={g} f={f} ti={i} /> <b>{world.teams[f.teams[i]]?.short}</b> {g.draft!.firstPick === i && <span className="tag">1st pick</span>} <span className="muted small">comp score {g.draft!.compScore[i]?.toFixed(2)}</span>
           <div>
             {g.draft!.bans[i].map((b) => (
               <span key={b} className="chip ban">
@@ -56,7 +70,8 @@ function Scoreboard({ g, f }: { g: GameResult; f: Fixture }) {
   const t = getTitle(f.titleId);
   const lines = boxLines(g);
   if (!lines.length) return <div className="muted small">No box score was recorded for this game (played before box scores were kept for every match).</div>;
-  const order = [0, 1];
+  // MOBAs: Blue / Radiant side on top, Red / Dire below (game by game).
+  const order = t.engine === 'moba' ? sideOrder(g, [0, 1]) : [0, 1];
   const hasKda = t.stats.some((s) => s.key === 'k') && t.stats.some((s) => s.key === 'd');
   return (
     <div className="dt-scroll">
@@ -65,7 +80,7 @@ function Scoreboard({ g, f }: { g: GameResult; f: Fixture }) {
           <thead>
             <tr>
               <th>
-                <TeamLink t={world.teams[f.teams[ti]]} /> {g.winner === ti ? '🏆' : ''}
+                <SideTag g={g} f={f} ti={ti} /> <TeamLink t={world.teams[f.teams[ti]]} /> {g.winner === ti ? '🏆' : ''}
               </th>
               <th>Role</th>
               {t.characters.length > 0 && <th>{t.charLabel}</th>}
@@ -140,7 +155,7 @@ export function GameView({ g, f }: { g: GameResult; f: Fixture }) {
       </Card>
       {watch && replay && (
         <Card title={`Game ${g.idx + 1} replay`}>
-          <MobaViewer replay={replay} teamNames={[world.teams[f.teams[0]]?.name ?? 'Blue', world.teams[f.teams[1]]?.name ?? 'Red']} autoplay={false} />
+          <MobaViewer replay={replay} teamNames={sideOrder(g, [world.teams[f.teams[0]]?.name ?? 'Team 1', world.teams[f.teams[1]]?.name ?? 'Team 2'])} autoplay={false} />
         </Card>
       )}
       {watch && sreplay && !replay && (

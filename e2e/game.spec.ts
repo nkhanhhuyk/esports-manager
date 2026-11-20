@@ -55,10 +55,13 @@ test('new career: generate, pick organisation, browse, advance, play live, save 
     await start.click();
     for (let g = 0; g < 9; g++) {
       if (await page.getByRole('button', { name: 'Finish & record result' }).count()) break;
-      await page.getByRole('button', { name: /^Draft game|^Play game|Let coach finish draft|Finish & record result/ }).first().waitFor();
+      await page.getByRole('button', { name: /^Draft game|^Play game|Let coach finish draft|Let the coach decide|Finish & record result/ }).first().waitFor();
       if (await page.getByRole('button', { name: 'Finish & record result' }).count()) break;
       const draft = page.getByRole('button', { name: /^Draft game/ });
       if (await draft.count()) await draft.click();
+      // LoL / Dota 2: side or draft-order choice before the draft.
+      const sel = page.getByRole('button', { name: 'Let the coach decide' });
+      if (await sel.count()) await sel.click();
       const coach = page.getByRole('button', { name: 'Let coach finish draft' });
       if (await coach.count()) await coach.click();
       await page.getByRole('button', { name: /^Play game/ }).click();

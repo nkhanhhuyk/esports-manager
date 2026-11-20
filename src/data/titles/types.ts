@@ -105,6 +105,10 @@ export interface ObjectiveDef {
   maxStacks?: number;
   soul?: number; // bonus at maxStacks
   major?: boolean;
+  /** Patch rules: number of spawns per game (absent = unlimited until `until`). */
+  maxSpawns?: number;
+  /** Patch-added objectives spawn in the pits of this objective. */
+  pitAs?: string;
 }
 
 export interface StructureDef {

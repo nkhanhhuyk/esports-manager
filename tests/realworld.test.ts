@@ -78,11 +78,9 @@ describe('real-world start (dated roster snapshot)', () => {
       const handles = Object.values(w.players).filter((p) => p.titleId === id && p.real).map((p) => p.handle.toLowerCase());
       expect(new Set(handles).size, id).toBe(handles.length);
     }
-    // Retired real pros are archived records (not players) with their last team.
-    const ret = w.retired.filter((r) => r.real);
-    expect(ret.length).toBeGreaterThan(50);
-    expect(ret.every((r) => !w.players[r.id])).toBe(true);
-    expect(ret.some((r) => r.lastTeam)).toBe(true);
+    // Nobody from the snapshot is archived as retired: long-inactive pros are free agents too.
+    expect(w.retired.length).toBe(0);
+    expect(fa.some((p) => p.real!.est!.some((e) => e.startsWith('free agent —')))).toBe(true);
   });
 
   it('a dormant real team takes over a league place that is sold; retired pros can come back', () => {
@@ -101,9 +99,12 @@ describe('real-world start (dated roster snapshot)', () => {
     expect(w.orgs[nt.orgId].teams).toContain(nt.id);
     expect(validateLineup(w, nt, nt.lineup).ok).toBe(true);
     expect(nt.real!.est!.some((e) => e.startsWith('dormant'))).toBe(false);
-    // Comeback: a recent real retiree becomes a free agent once.
-    const r = w.retired.find((x) => x.real && canComeBack(w, x))!;
-    expect(r).toBeTruthy();
+    // Comeback: a real pro who retired during the career can return once, as a free agent.
+    const pro = Object.values(w.players).find((p) => p.real && !p.teamId)!;
+    w.retired.push({ id: 'p-gone', handle: pro.handle, name: 'Test Pro', nat: pro.nat, titles: ['lol'], retiredSeason: w.season - 1, legacy: 0, trophies: 0, awards: 0, real: pro.real, roleId: pro.roles[0] });
+    delete w.players[pro.id];
+    const r = w.retired.find((x) => x.id === 'p-gone')!;
+    expect(canComeBack(w, r)).toBe(true);
     const res = arrangeComeback(w, r.id, 'user');
     expect(res.ok).toBe(true);
     const p = w.players[res.playerId!];
@@ -125,14 +126,13 @@ describe('real-world start (dated roster snapshot)', () => {
     const count = () => ({
       dormant: Object.values(w.teams).filter((t) => !t.active && t.lastSeen).length,
       fa: Object.values(w.players).filter((p) => p.real && !p.teamId).length,
-      retired: w.retired.filter((r) => r.real).length,
     });
     const full = count();
     // Simulate an older save: no history entities.
     for (const t of Object.values(w.teams)) if (!t.active && t.lastSeen) delete w.teams[t.id];
     for (const p of Object.values(w.players)) if (p.real && !p.teamId) delete w.players[p.id];
-    w.retired = w.retired.filter((r) => !r.real);
     delete w.meta.realHistory;
+    delete w.meta.realHistoryFree;
     const orgs = Object.keys(w.orgs).length;
     expect(ensureRealHistory(w)).toBe(true);
     expect(count()).toEqual(full);
@@ -140,5 +140,18 @@ describe('real-world start (dated roster snapshot)', () => {
     expect(Object.keys(w.orgs).length).toBe(orgs);
     expect(ensureRealHistory(w)).toBe(false);
     expect(count()).toEqual(full);
+  });
+
+  it('saves that archived snapshot pros as retired turn them into free agents', () => {
+    const w = realWorld(['lol']);
+    const fa = Object.values(w.players).filter((p) => p.real && !p.teamId).slice(0, 5);
+    fa.forEach((p, i) => {
+      w.retired.push({ id: `rr-lol-${i}`, handle: p.handle, name: `${p.first} ${p.last}`, nat: p.nat, titles: ['lol'], retiredSeason: w.season - 4, legacy: 0, trophies: 0, awards: 0, lastTeam: 'Old Team', roleId: p.roles[0], real: { src: 'https://lolesports.com', snap: 'real-2026-11-20', est: ['estimate: no top-league game since 2022'] } });
+      delete w.players[p.id];
+    });
+    delete w.meta.realHistoryFree;
+    expect(ensureRealHistory(w)).toBe(true);
+    expect(w.retired.filter((r) => r.id.startsWith('rr-')).length).toBe(0);
+    for (const p of fa) expect(Object.values(w.players).some((x) => x.handle === p.handle && !x.teamId && !x.retired), p.handle).toBe(true);
   });
 });

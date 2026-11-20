@@ -2,11 +2,15 @@
  * Season planner: builds every title's competitive calendar on the shared world calendar.
  *
  * Template per title (dates shift slightly per title so schedules interleave):
- *   Split 1 regular season (Jan) -> Split 1 playoffs (Mar)
- *   Mid-Season International (late Apr/May)
- *   Split 2 regular season (Jun) -> Split 2 playoffs (Aug)
- *   World Championship (late Sep - Oct)
+ *   Split 1: single round robin (Jan) -> playoffs (Feb)
+ *   First Stand (Mar): split 1 champions; hard Fearless draft in the MOBAs
+ *   Split 2: double round robin (late Mar - May) -> playoffs (Jun)
+ *   Mid-Season Invitational (late Jun - Jul): play-in groups when > 8 teams, then a
+ *     double-elimination bracket
+ *   Split 3: double round robin (late Jul - Aug) -> playoffs (Sep)
+ *   World Championship (late Sep - Oct), qualification by circuit points (split 3 champion seeded)
  *   Season rollover (late Nov)
+ * An international that starts before its qualifying split has finished simply waits for it.
  * All stage types / sizes are data and can be edited per competition.
  */
 import { dayFromYMD } from '../core/date';
@@ -24,7 +28,20 @@ export function seasonEndDay(season: number): number {
 }
 
 const SPLIT_POINTS = [90, 70, 50, 40, 30, 30, 10, 10, 5, 5, 5, 5];
+const FIRST_STAND_POINTS = [70, 50, 40, 40, 20, 20, 20, 20];
 const MSI_POINTS = [100, 80, 60, 60, 40, 40, 40, 40, 20, 20, 20, 20, 10, 10, 10, 10];
+
+/** The three splits: start date, regular-season days of the week, single or double round robin. */
+export const SPLITS = [
+  { n: 1, m: 1, d: 9, dows: [5, 6, 0], double: false },
+  { n: 2, m: 3, d: 27, dows: [5, 6], double: true },
+  { n: 3, m: 7, d: 24, dows: [4, 5, 6, 0], double: true },
+] as const;
+
+/** Circuit-point weight of each split (later splits count more toward the World Championship). */
+export function splitWeight(split: number | undefined): number {
+  return split === 3 ? 1.5 : split === 2 ? 1.25 : 1;
+}
 
 function stage(name: string, type: StageType, startDay: number, config: StageConfig = {}): Stage {
   return { id: `${type}-${Math.random().toString(36).slice(2, 7)}`, name, type, config, startDay, teamIds: [], standings: [], fixtureIds: [], bracket: [], swissRound: 0, status: 'pending', placements: [] };
@@ -62,18 +79,26 @@ function mkComp(world: World, t: TitleDef, season: number, name: string, short: 
   return comp;
 }
 
-function regularStage(t: TitleDef, n: number, start: number): { st: Stage; end: number } {
+function regularStage(t: TitleDef, n: number, start: number, double = n <= 10, dows: readonly number[] = [5, 6]): { st: Stage; end: number } {
   void t;
-  const double = n <= 10;
-  const rounds = (n % 2 === 0 ? n - 1 : n) * (double ? 2 : 1);
-  const days = matchDays(start, rounds, [5, 6]);
-  return { st: stage('Regular Season', double ? 'double-round-robin' : 'round-robin', start, { format: 'standard', matchDaysOfWeek: [5, 6] }), end: days[days.length - 1] };
+  const dbl = double && n <= 10;
+  const rounds = (n % 2 === 0 ? n - 1 : n) * (dbl ? 2 : 1);
+  const days = matchDays(start, rounds, [...dows]);
+  return { st: stage('Regular Season', dbl ? 'double-round-robin' : 'round-robin', start, { format: 'standard', matchDaysOfWeek: [...dows] }), end: days[days.length - 1] };
 }
 
 function playoffStage(t: TitleDef, n: number, start: number, tier: 1 | 2): { st: Stage; take: number } {
   if (tier === 2 || n < 8) return { st: stage('Playoffs', 'single-elim', start, { daysBetweenRounds: 3 }), take: 4 };
   if (t.family === 'SHOOTER') return { st: stage('Playoffs', 'double-elim', start, { daysBetweenRounds: 2 }), take: 8 };
   return { st: stage('Playoffs', 'single-elim', start, { daysBetweenRounds: 3 }), take: 6 };
+}
+
+/** Mid-Season Invitational: play-in groups for larger fields, then a double-elimination bracket. */
+function msiStages(n: number, start: number): Stage[] {
+  if (n > 8) {
+    return [stage('Play-In Groups', 'groups', start, { groups: 2, advance: 4 }), stage('Bracket Stage', 'double-elim', start + 6, { daysBetweenRounds: 2 })];
+  }
+  return [stage('Bracket Stage', 'double-elim', start, { daysBetweenRounds: 2 })];
 }
 
 /** International event stages for n entrants. */
@@ -129,10 +154,10 @@ export function allocateSlots(strengths: number[], total: number, maxPer = 4): n
  * world championship (the formats, dates, entrants and prize pools stay game simulation). Titles
  * without a clear real equivalent keep the game's generic names.
  */
-export const REAL_EVENT_NAMES: Record<string, { msi?: [string, string]; worlds?: [string, string] }> = {
-  lol: { msi: ['Mid-Season Invitational', 'MSI'], worlds: ['League of Legends World Championship', 'Worlds'] },
+export const REAL_EVENT_NAMES: Record<string, { fs?: [string, string]; msi?: [string, string]; worlds?: [string, string] }> = {
+  lol: { fs: ['First Stand', 'FST'], msi: ['Mid-Season Invitational', 'MSI'], worlds: ['League of Legends World Championship', 'Worlds'] },
   mlbb: { msi: ['MLBB Mid Season Cup', 'MSC'], worlds: ['MLBB M-Series World Championship', 'M-Series'] },
-  valorant: { msi: ['VALORANT Masters', 'Masters'], worlds: ['VALORANT Champions', 'Champions'] },
+  valorant: { fs: ['VALORANT Masters (spring)', 'Masters I'], msi: ['VALORANT Masters (summer)', 'Masters II'], worlds: ['VALORANT Champions', 'Champions'] },
   cs2: { msi: ['Counter-Strike Major (first half)', 'Major I'], worlds: ['Counter-Strike Major (second half)', 'Major II'] },
   dota2: { worlds: ['The International', 'TI'] },
   hok: { msi: ['Honor of Kings World Cup', 'KWC'], worlds: ['Honor of Kings International Championship', 'KIC'] },
@@ -154,10 +179,10 @@ export function planSeason(world: World, season: number): void {
       const strength = leagueStrength(world, l);
       const prizeBase = t.prizeScale * 1_000_000 * (l.tier === 1 ? 0.08 : 0.012) * (0.4 + strength / 100);
       splitComps[l.id] = [];
-      for (const split of [1, 2]) {
-        const start = split === 1 ? D(1, 16) : D(6, 5);
-        const reg = regularStage(t, l.size, start);
-        const po = playoffStage(t, l.size, reg.end + 5, l.tier);
+      for (const sp of SPLITS) {
+        const split = sp.n;
+        const reg = regularStage(t, l.size, D(sp.m, sp.d), sp.double, sp.dows);
+        const po = playoffStage(t, l.size, reg.end + 4, l.tier);
         reg.st.config.advance = Math.min(po.take, l.size);
         const comp = mkComp(
           world,
@@ -170,7 +195,7 @@ export function planSeason(world: World, season: number): void {
           l,
           [{ kind: 'league', leagueId: l.id }],
           [reg.st, po.st],
-          prizeBase,
+          prizeBase * (split === 1 ? 0.7 : 1),
           l.tier === 1 ? Math.round(25 + strength * 0.3) : 12,
           l.tier === 1 ? SPLIT_POINTS : [],
           split,
@@ -179,16 +204,26 @@ export function planSeason(world: World, season: number): void {
       }
     }
     if (!tier1.length) return;
-    // Mid-Season International
-    const msiEntrants: EntrantRule[] = [];
-    tier1.forEach((l, i) => {
-      const count = tier1.length <= 2 ? 2 : i < 2 ? 2 : 1;
-      msiEntrants.push({ kind: 'top', compId: splitComps[l.id][0].id, count });
-    });
-    const msiN = msiEntrants.reduce((a, e) => a + (e.kind === 'top' ? e.count : 0), 0);
     const realEv = world.meta.dataMode === 'real' ? REAL_EVENT_NAMES[titleId] : undefined;
-    const msi = mkComp(world, t, season, realEv?.msi ? `${realEv.msi[0]} ${season}` : `${t.short} Mid-Season Invitational ${season}`, realEv?.msi ? realEv.msi[1] : `${t.short} MSI`, 'international', null, null, msiEntrants, internationalStages(t, msiN, D(4, 25), false), t.prizeScale * 400_000, 70, MSI_POINTS);
-    if (realEv?.msi) msi.realName = true;
+    const name = (k: 'fs' | 'msi' | 'worlds', generic: string, short: string): [string, string, boolean] => {
+      const r = realEv?.[k];
+      return r ? [`${r[0]} ${season}`, r[1], true] : [`${t.short} ${generic} ${season}`, `${t.short} ${short}`, false];
+    };
+    const topOf = (split: number, two: (i: number) => boolean): EntrantRule[] => tier1.map((l, i) => ({ kind: 'top', compId: splitComps[l.id][split - 1].id, count: two(i) ? 2 : 1 }));
+    const countOf = (rules: EntrantRule[]) => rules.reduce((a, e) => a + (e.kind === 'top' ? e.count : 0), 0);
+
+    // First Stand: split 1 champions (the two strongest leagues send two), hard Fearless draft.
+    const fsEntrants = topOf(1, (i) => tier1.length <= 3 || i < 2).slice(0, 8);
+    const fsName = name('fs', 'First Stand', 'FST');
+    const fs = mkComp(world, t, season, fsName[0], fsName[1], 'international', null, null, fsEntrants, internationalStages(t, Math.min(8, countOf(fsEntrants)), D(3, 6), false), t.prizeScale * 250_000, 60, FIRST_STAND_POINTS);
+    if (fsName[2]) fs.realName = true;
+    if (t.draft.mode === 'sequential') fs.rules = { fearless: 'global' };
+
+    // Mid-Season Invitational: top two of split 2 (one from the weaker leagues when there are many).
+    const msiEntrants = topOf(2, (i) => tier1.length <= 2 || i < 2 || tier1.length <= 4);
+    const msiName = name('msi', 'Mid-Season Invitational', 'MSI');
+    const msi = mkComp(world, t, season, msiName[0], msiName[1], 'international', null, null, msiEntrants, msiStages(countOf(msiEntrants), D(6, 26)), t.prizeScale * 400_000, 70, MSI_POINTS);
+    if (msiName[2]) msi.realName = true;
 
     // World Championship
     const totalLeagueTeams = tier1.reduce((a, l) => a + l.size, 0);
@@ -197,8 +232,9 @@ export function planSeason(world: World, season: number): void {
     const slots = allocateSlots(tier1.map((l) => leagueStrength(world, l)), target, 4);
     const wEntrants: EntrantRule[] = tier1.map((l, i) => ({ kind: 'circuit', leagueId: l.id, count: Math.min(slots[i], l.size) }));
     const wN = wEntrants.reduce((a, e) => a + (e.kind === 'circuit' ? e.count : 0), 0);
-    const worlds = mkComp(world, t, season, realEv?.worlds ? `${realEv.worlds[0]} ${season}` : `${t.short} World Championship ${season}`, realEv?.worlds ? realEv.worlds[1] : `${t.short} Worlds`, 'worlds', null, null, wEntrants, internationalStages(t, wN, D(9, 22), true), t.prizeScale * 1_000_000, 100, []);
-    if (realEv?.worlds) worlds.realName = true;
+    const wName = name('worlds', 'World Championship', 'Worlds');
+    const worlds = mkComp(world, t, season, wName[0], wName[1], 'worlds', null, null, wEntrants, internationalStages(t, wN, D(9, 24), true), t.prizeScale * 1_000_000, 100, []);
+    if (wName[2]) worlds.realName = true;
   });
 }
 

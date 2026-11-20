@@ -27,7 +27,7 @@ import { isSpectator, watchedFixturesOn } from '../systems/follow';
 import { fansMonthly } from '../systems/fans';
 import { rivalriesMonthly } from '../systems/rivalries';
 import { compactMatches, roundProficiencies } from './compact';
-import { adaptToMeta, releasePatch } from '../systems/patches';
+import { adaptToMeta, patchCheck as patchCheckTitle } from '../systems/patches';
 import { seasonRollover } from './rollover';
 import { isUserTeam } from '../systems/news';
 import { weeklyScouting } from '../systems/scouting';
@@ -59,17 +59,9 @@ export function userFixturesOn(world: World, day: number): Fixture[] {
     .filter((f) => f && f.status === 'scheduled' && f.teams.some((t) => isUserTeam(world, t)));
 }
 
-/** Patch cadence: majors at season start & mid-season, minor balance patches ~every 3 weeks. */
+/** Patch cadence (minor / medium / major) — see src/systems/patches.ts. */
 function patchCheck(world: World, day: number): void {
-  const { m, d } = ymd(day);
-  for (const id of world.meta.titlesEnabled) {
-    if (m === 5 && d === 20) {
-      releasePatch(world, id, true);
-      continue;
-    }
-    const rng = new RNG(`${world.meta.seed}|patchday|${id}|${day}`);
-    if (rng.chance(1 / 21)) releasePatch(world, id, false);
-  }
+  for (const id of world.meta.titlesEnabled) patchCheckTitle(world, id, day);
 }
 
 export function processDay(world: World): void {

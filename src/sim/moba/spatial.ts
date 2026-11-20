@@ -15,6 +15,7 @@
  * Recording (`replay`) and commentary are passive sinks: they never draw from `rng`, so a game
  * watched live, read as text or simulated instantly produces the same result.
  */
+import { mobaMults, mobaRules } from '../common/rules';
 import { clamp } from '../../core/math';
 import type { RNG } from '../../core/rng';
 import type { ObjectiveDef } from '../../data/titles/types';
@@ -264,6 +265,7 @@ interface Obj {
   maxHp: number;
   nextAt: number;
   count: number;
+  spawned: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -275,8 +277,11 @@ const TOWER_SIGHT = 130;
 
 export function simulateMobaSpatial(g: GameContext, record = false): GameResult {
   const t = g.title;
-  const cfg = t.moba!;
-  const T = TUNING[t.id] ?? BASE;
+  // Rules in force under the current patch (objectives, gold, structure health, death timers).
+  const cfg = mobaRules(t, g.patch);
+  const PM = mobaMults(g.patch);
+  const T0 = TUNING[t.id] ?? BASE;
+  const T: typeof T0 = PM.gpm === 1 && PM.structHp === 1 && PM.respawn === 1 ? T0 : { ...T0, goldMult: T0.goldMult * PM.gpm, passiveGold: T0.passiveGold * PM.gpm, structMult: T0.structMult * PM.structHp, respawn: (lv, m) => T0.respawn(lv, m) * PM.respawn };
   const map = mobaMap(t.id);
   const nav = map.nav;
   const { rng } = g;
@@ -393,9 +398,11 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
   });
   const structIdx = new Map(structs.map((s, i) => [s.d.id, i]));
   const camps: Camp[] = map.camps.map((d, i) => ({ i, d, alive: false, hp: d.hp, at: d.spawn }));
+  /** Pits where an objective can spawn (patch-added objectives use another objective's pits). */
+  const pitsOf = (def: ObjectiveDef) => map.pits.map((p, i) => ({ p, i })).filter((x) => x.p.objectives.includes(def.id) || (!!def.pitAs && x.p.objectives.includes(def.pitAs)));
   const objs: Obj[] = cfg.objectives.map((def) => {
-    const pits = map.pits.map((p, i) => ({ p, i })).filter((x) => x.p.objectives.includes(def.id));
-    return { def, pit: pits[0]?.i ?? -1, alive: false, hp: 0, maxHp: 0, nextAt: def.spawn * 60, count: 0 };
+    const pits = pitsOf(def);
+    return { def, pit: pits[0]?.i ?? -1, alive: false, hp: 0, maxHp: 0, nextAt: def.spawn * 60, count: 0, spawned: 0 };
   });
   const teamBuff = [0, 0];
   const execUntil = [0, 0];
@@ -922,8 +929,9 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
       }
       if (o.alive || now < o.nextAt) continue;
       if (o.def.until !== undefined && minute > o.def.until) continue;
+      if (o.def.maxSpawns !== undefined && o.spawned >= o.def.maxSpawns) continue;
       // Pit choice: titles with alternating pits (Roshan day/night, Tempest Dragon, Turtle respawns).
-      const pits = map.pits.map((p, i) => ({ p, i })).filter((x) => x.p.objectives.includes(o.def.id));
+      const pits = pitsOf(o.def);
       if (!pits.length) continue;
       if (pits.length > 1) {
         if (t.id === 'dota2') {
@@ -935,9 +943,15 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
           o.pit = o.count === 0 ? home.i : pits[rng.int(0, pits.length - 1)].i;
         }
       }
-      // Pit occupied by another live objective → wait.
-      if (objs.some((x) => x !== o && x.alive && x.pit === o.pit)) continue;
+      // Pit occupied by another live objective → wait (patch-added objectives take a free pit instead).
+      const busy = (i: number) => objs.some((x) => x !== o && x.alive && x.pit === i);
+      if (busy(o.pit)) {
+        const freePit = o.def.pitAs ? pits.find((x) => !busy(x.i)) : undefined;
+        if (!freePit) continue;
+        o.pit = freePit.i;
+      }
       o.alive = true;
+      o.spawned++;
       o.maxHp = T.objHp(o.def, minute);
       o.hp = o.maxHp;
       emit(g, now, -1, 'spawn', () => `${fmtTime(now)} ${o.def.name} has spawned (${map.pits[o.pit].name}).`);

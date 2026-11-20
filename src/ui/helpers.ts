@@ -105,3 +105,8 @@ export function kda(s: Record<string, number>): string {
 export function pctFmt(a: number, b: number): string {
   return b ? `${Math.round((a / b) * 100)}%` : '—';
 }
+
+/** MOBA games: put a pair given in series order into map-side order (Blue / Radiant first). */
+export function sideOrder<T>(g: { blue?: 0 | 1 } | undefined, pair: [T, T]): [T, T] {
+  return g?.blue === 1 ? [pair[1], pair[0]] : pair;
+}

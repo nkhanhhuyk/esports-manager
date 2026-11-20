@@ -604,6 +604,8 @@ export interface Competition {
   split?: number;
   /** Real-world careers: the event carries the real circuit's name (format, dates, entrants and prizes are game simulation). */
   realName?: boolean;
+  /** Competition rules that override the title's defaults (e.g. First Stand's hard Fearless draft). */
+  rules?: { fearless?: 'none' | 'team' | 'global' };
   /** Per-player aggregate inside this competition (MVP voting). */
   pstats: Record<ID, { gp: number; r: number; m: number; teamId: ID }>;
   /**
@@ -769,6 +771,8 @@ export interface GameResult {
   events?: GameEvent[];
   summary: string;
   sides?: string[];
+  /** MOBAs: series index of the team on Blue / Radiant (map side 0). Absent in older results (= 0). */
+  blue?: 0 | 1;
 }
 
 export interface MatchRecord {
@@ -788,12 +792,48 @@ export interface MatchRecord {
 // Titles (dynamic world state per title)
 // ---------------------------------------------------------------------------------------------
 
+export type PatchKind = 'minor' | 'medium' | 'major';
+export type ObjectiveKind = 'stack' | 'gold' | 'push' | 'aegis' | 'execute' | 'xp' | 'score' | 'siege' | 'buff' | 'shield';
+
+/** An objective added by a major patch; it spawns in the pits of an existing objective (`pitAs`). */
+export interface PatchObjective {
+  id: string;
+  name: string;
+  spawn: number;
+  respawn: number;
+  until?: number;
+  kind: ObjectiveKind;
+  value: number;
+  major?: boolean;
+  maxSpawns?: number;
+  pitAs: string;
+}
+
+/**
+ * Gameplay rules changed by major patches (cumulative: each patch carries the full set in force).
+ * The simulations read them through src/sim/common/rules.ts.
+ */
+export interface PatchRules {
+  /** Changes to the title's own objectives (absolute values). `until: null` removes a cut-off. */
+  objectives?: Record<string, { spawn?: number; respawn?: number; until?: number | null; kind?: ObjectiveKind; value?: number; maxSpawns?: number }>;
+  /** New objectives. */
+  added?: PatchObjective[];
+  /** MOBA multipliers: gold income, structure health, death timers. */
+  moba?: { gpm?: number; structHp?: number; respawn?: number };
+  /** Shooter rules: economy (absolute values / loss-bonus multiplier), defender edge shift (logit), timers (seconds). */
+  tactical?: { startMoney?: number; winReward?: number; lossMult?: number; killReward?: number; plantReward?: number; fullBuy?: number; defenderEdge?: number; roundTime?: number; bombTime?: number; plantTime?: number; defuseTime?: number };
+}
+
 export interface Patch {
   id: string;
   version: string;
   day: DayNum;
   season: number;
+  /** True for medium and major patches (and the season-opening patch of older saves). */
   major: boolean;
+  /** Minor (small balance changes during the season), medium (meta-shifting, before First Stand, MSI and Worlds) or major (after Worlds: gameplay changes). */
+  kind?: PatchKind;
+  rules?: PatchRules;
   charMeta: Record<string, number>; // -10..+10
   styles: Record<string, number>; // style -> weight multiplier
   mapPool: string[];
@@ -1048,6 +1088,8 @@ export interface WorldMeta {
   /** Shooter maps are the real maps (set for new worlds and after converting older saves). */
   /** Real-world careers: past teams, former pros and retired pros from the history snapshot were added. */
   realHistory?: boolean;
+  /** Snapshot pros are free agents (never archived as retired). */
+  realHistoryFree?: boolean;
   realMaps?: boolean;
   /** 'real' = started from the real-world team/player snapshot; 'fictional' (default) = generated. */
   dataMode?: 'real' | 'fictional';

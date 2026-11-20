@@ -10,7 +10,7 @@ import { getTitle } from '../../data/titles/catalogue';
 import { formatDate } from '../../core/date';
 import { navigate } from '../router';
 import { isUserTeamId, roleE } from '../helpers';
-import { createSeries, draftStateFor, playNextGame, type SeriesState } from '../../sim/series';
+import { aiSelection, completeSelection, createSeries, draftStateFor, gameSides, playNextGame, sideChooser, splitSelection, type SeriesState, type SideSel } from '../../sim/series';
 import { aiDraftAction, applyDraftAction, currentStep, legalOptions, toRecord, type DraftState } from '../../sim/common/draft';
 import { RNG } from '../../core/rng';
 import { recordLiveSeries, playFixture } from '../../sim/record';
@@ -19,6 +19,7 @@ import { GameView, SeriesView } from './Match';
 import { validateLineup } from '../../systems/lineup';
 import { can, denyReason } from '../../systems/career';
 import { MobaViewer } from '../components/MobaViewer';
+import { sideOrder } from '../helpers';
 import { ShooterViewer } from '../components/ShooterViewer';
 
 export function LiveMatchPage({ id }: { id: string }) {
@@ -32,6 +33,8 @@ export function LiveMatchPage({ id }: { id: string }) {
   const [bans, setBans] = useState<string[]>([]);
   const [picks, setPicks] = useState<string[]>([]);
   const [assignTo, setAssignTo] = useState('');
+  /** LoL / Dota 2: waiting for your side or draft-order choice before the draft. */
+  const [choosing, setChoosing] = useState(false);
   /** Games whose result has been revealed (playback finished or skipped). */
   const [revealed, setRevealed] = useState(0);
   const t = f ? getTitle(f.titleId) : null;
@@ -111,7 +114,25 @@ export function LiveMatchPage({ id }: { id: string }) {
     const s = createSeries(world, f, true);
     s.record = true;
     setSt(s);
-    startDraftFor(s);
+    beginGame(s);
+  };
+
+  /** Before each game's draft: your side / draft-order choice when the title separates them. */
+  const beginGame = (state: SeriesState) => {
+    if (!watching && t.engine === 'moba' && splitSelection(t.id)) {
+      setChoosing(true);
+      setDs(null);
+      return;
+    }
+    startDraftFor(state);
+  };
+
+  const choose = (sel: SideSel) => {
+    if (!st) return;
+    st.sel = st.sel ?? [];
+    st.sel[st.games.length] = sel;
+    setChoosing(false);
+    startDraftFor(st);
   };
 
   const userAct = (charId: string) => {
@@ -149,7 +170,7 @@ export function LiveMatchPage({ id }: { id: string }) {
     if (!last?.replay && !last?.sreplay) setRevealed(st.games.length);
   };
 
-  const nextGame = () => st && startDraftFor(st);
+  const nextGame = () => st && beginGame(st);
 
   const finish = async () => {
     if (!st) return;
@@ -264,11 +285,65 @@ export function LiveMatchPage({ id }: { id: string }) {
           ))}
         </Card>
       )}
+      {st && choosing && !st.done && (() => {
+        const { chooser, by } = sideChooser(world, f, st);
+        const sideNames = t.id === 'dota2' ? ['Radiant', 'Dire'] : ['Blue', 'Red'];
+        const how = by === 'coin' ? 'won the coin toss' : 'lost the previous game';
+        if (chooser === ui) {
+          const opt = (label: string, pick: { side?: 0 | 1; order?: 'first' | 'second' }) => (
+            <button className="btn" data-testid={`sel-${label.split(' ')[0].toLowerCase()}`} onClick={() => choose(completeSelection(world, f, chooser, by, pick, st.games.length))}>
+              {label}
+            </button>
+          );
+          return (
+            <Card title={`Game ${st.games.length + 1} — first selection`}>
+              <div style={{ marginBottom: 6 }}>You {how}: choose a side <i>or</i> a draft order. {world.teams[f.teams[1 - ui]].short} then makes the other choice.</div>
+              <div className="row">
+                {opt(`${sideNames[0]} side`, { side: 0 })}
+                {opt(`${sideNames[1]} side`, { side: 1 })}
+                {opt('First pick', { order: 'first' })}
+                {opt('Second pick', { order: 'second' })}
+              </div>
+              <button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => choose(gameSides(world, f, st))}>Let the coach decide</button>
+            </Card>
+          );
+        }
+        const ai = aiSelection(world, f, chooser, by, st.games.length);
+        const opp = world.teams[f.teams[chooser]].short;
+        const mine = (patch: Partial<SideSel>) => choose({ ...ai, ...patch });
+        return (
+          <Card title={`Game ${st.games.length + 1} — first selection`}>
+            {ai.choice === 'side' ? (
+              <>
+                <div style={{ marginBottom: 6 }}>{opp} ({how}) chose <b>{ai.blue === chooser ? sideNames[0] : sideNames[1]} side</b>. Choose your draft order:</div>
+                <div className="row">
+                  <button className="btn" data-testid="sel-first" onClick={() => mine({ firstPick: ui as 0 | 1 })}>First pick</button>
+                  <button className="btn" data-testid="sel-second" onClick={() => mine({ firstPick: chooser })}>Second pick</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ marginBottom: 6 }}>{opp} ({how}) chose <b>{ai.firstPick === chooser ? 'first pick' : 'second pick'}</b>. Choose your side:</div>
+                <div className="row">
+                  <button className="btn" data-testid="sel-blue" onClick={() => mine({ blue: ui as 0 | 1 })}>{sideNames[0]} side</button>
+                  <button className="btn" data-testid="sel-red" onClick={() => mine({ blue: chooser })}>{sideNames[1]} side</button>
+                </div>
+              </>
+            )}
+            <button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => choose(ai)}>Let the coach decide</button>
+          </Card>
+        );
+      })()}
       {st && ds && (
-        <Card title={`Draft — game ${st.games.length + 1}`} right={<button className="btn ghost sm" onClick={autoDraft}>Let coach finish draft</button>}>
+        <Card title={`Draft — game ${st.games.length + 1}${ds.unavailable[0].size ? ` · Fearless: ${ds.unavailable[0].size} champions used` : ''}`} right={<button className="btn ghost sm" onClick={autoDraft}>Let coach finish draft</button>}>
           <div className="draft-board">
             {[0, 1].map((i) => (
               <div key={i}>
+                {t.engine === 'moba' && (() => {
+                  const sel = gameSides(world, f, st);
+                  const names = t.id === 'dota2' ? ['Radiant', 'Dire'] : ['Blue', 'Red'];
+                  return <span className="tag">{sel.blue === i ? names[0] : names[1]}{sel.firstPick === i ? ' · 1st pick' : ''}</span>;
+                })()}{' '}
                 <b>{world.teams[f.teams[i]].short}</b> {i === ui && <span className="tag">you</span>}
                 <div>
                   {ds.bans[i].map((b) => (
@@ -334,7 +409,7 @@ export function LiveMatchPage({ id }: { id: string }) {
           <MobaViewer
             key={`${f.id}-${st.games.length}`}
             replay={lastGame.replay}
-            teamNames={[world.teams[f.teams[0]].name, world.teams[f.teams[1]].name]}
+            teamNames={sideOrder(lastGame, [world.teams[f.teams[0]].name, world.teams[f.teams[1]].name])}
             onEnd={() => setRevealed(st.games.length)}
           />
         </Card>
@@ -347,7 +422,7 @@ export function LiveMatchPage({ id }: { id: string }) {
                 Play game {st.games.length + 1}
               </button>
             )}
-            {!ds && needsDraft && (
+            {!ds && !choosing && needsDraft && (
               <button className="btn" onClick={nextGame}>
                 Draft game {st.games.length + 1}
               </button>
@@ -357,7 +432,7 @@ export function LiveMatchPage({ id }: { id: string }) {
       )}
       {lastGame && !hidden && lastGame.replay && (
         <Card title={`Game ${st!.games.length} replay`}>
-          <MobaViewer key={`r-${f.id}-${st!.games.length}`} replay={lastGame.replay} teamNames={[world.teams[f.teams[0]].name, world.teams[f.teams[1]].name]} autoplay={false} />
+          <MobaViewer key={`r-${f.id}-${st!.games.length}`} replay={lastGame.replay} teamNames={sideOrder(lastGame, [world.teams[f.teams[0]].name, world.teams[f.teams[1]].name])} autoplay={false} />
         </Card>
       )}
       {lastGame && !hidden && lastGame.sreplay && (

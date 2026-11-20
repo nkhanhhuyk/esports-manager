@@ -81,21 +81,26 @@ How a real-world start uses it (`addRealHistory` in `src/gen/realWorld.ts`):
   When a league place is sold (a division closes), a dormant real team from that league's region takes the
   place first, re-signs its former players who are still free agents and fills the rest with fictional
   players (`reviveDormant` in `src/game/rollover.ts`).
-* **Former pros** on no current roster who were seen recently are **free agents** (ability is a game estimate a
-  little below the league average). Their career shows "Last real team".
-* **Retired pros** — players not seen at the top level for a long time — are archived as retired records
-  (History → Retired) with their last team. "Retired" is an **estimate** (no top-league game in the covered
-  official schedules since the season named) and is labelled as such.
-* **Comebacks** (`src/systems/comeback.ts`): the user can ask a real retiree who stopped within the last six
-  seasons to return (History → Retired, or the retired player's page); a few also return by themselves at
-  each season rollover. They come back as free agents; ability on return is a game estimate.
+* **Former pros** on no current roster are all **free agents** — including players not seen at the top
+  level for a long time (at the user's request nobody from the snapshot is archived as retired; their
+  provenance says "free agent — no top-league game … since …"). Ability is a game estimate a little below
+  the league average (lower for long-inactive players). Their career shows "Last real team". Unsigned
+  real pros retire more slowly than fictional free agents.
+* **Comebacks** (`src/systems/comeback.ts`): real pros who retire *during* a career can be asked to return
+  within six seasons (History → Retired, or the retired player's page); a few return by themselves at each
+  rollover. Saves from the build that archived snapshot pros as retired convert them to free agents on load.
 * **Competitions**: league names are the real leagues (above). In real-world careers the mid-season
-  international and the world championship use the real circuits' names (LoL Mid-Season Invitational /
-  World Championship, MLBB Mid Season Cup / M-Series, VALORANT Masters / Champions, Counter-Strike Majors,
-  Dota 2 The International, Honor of Kings World Cup / International Championship). Formats, dates,
+  internationals use the real circuits' names (LoL First Stand / Mid-Season Invitational / World
+  Championship, MLBB Mid Season Cup / M-Series, VALORANT Masters (spring, summer) / Champions,
+  Counter-Strike Majors, Dota 2 The International, Honor of Kings World Cup / International Championship). Formats, dates,
   entrants and prize pools are game simulation (shown on the competition page).
 
 ### Access notes
+
+* **Liquipedia API (20 Nov 2026, second attempt, at the user's request for HoK / Wild Rift)**: one
+  `siteinfo` request through the documented MediaWiki API succeeded; the next request (a search, 2.5 s
+  later) returned Liquipedia's "Rate Limited" page with a Cloudflare challenge for this environment's
+  shared IP. Access was stopped there (no retries, no workarounds). HoK and Wild Rift stay fictional.
 
 * **Liquipedia** was tried first for rosters and hero lists; this environment's shared IP was rate-limited
   and served a CAPTCHA that explicitly asks automated agents not to solve it, so Liquipedia is **not used**.

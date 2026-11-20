@@ -149,11 +149,11 @@ describe('mid-season moves', () => {
     const w = makeWorld(['lol', 'valorant', 'cs2'], 'ai-trades', 'small');
     const base = clone(w);
     // Rosters wear down during the season (injuries, breaks, form): trade in the mid-season window.
-    advance(w, { kind: 'until', day: dayFromYMD(w.season, 5, 10) }, { stopForUserMatch: false });
+    advance(w, { kind: 'until', day: dayFromYMD(w.season, 7, 12) }, { stopForUserMatch: false });
     const start = w.transfers.length;
     let trades = 0;
-    for (let i = 0; i < 20 && trades === 0; i++) {
-      w.day = dayFromYMD(w.season, 5, 10) + i;
+    for (let i = 0; i < 12 && trades === 0; i++) {
+      w.day = dayFromYMD(w.season, 7, 12) + i;
       trades += aiTradesWeek(w);
     }
     expect(trades).toBeGreaterThan(0);
@@ -165,7 +165,7 @@ describe('mid-season moves', () => {
     // Outside the windows nothing is traded.
     base.day = dayFromYMD(2027, 3, 3);
     expect(aiTradesWeek(base)).toBe(0);
-    base.day = dayFromYMD(2027, 5, 10);
+    base.day = dayFromYMD(2027, 7, 12);
     transferWindowNotices(base);
     expect(base.news.some((n) => n.title === 'Mid-season transfer window opens')).toBe(true);
   });

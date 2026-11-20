@@ -251,6 +251,7 @@ export function CompetitionPage({ id, route }: { id: string; route: Route }) {
             <b>{comp.season}{comp.split ? ` · Split ${comp.split}` : ''}</b> · <TitleTag id={comp.titleId} /> · {comp.tier} · {comp.region ? regionName(comp.region) : 'International'} · starts {formatDate(comp.startDay)} · {comp.status}
             {entry && ' · archived season'}
             {comp.leagueId && world.leagues[comp.leagueId]?.real && <Provenance world={world} real={world.leagues[comp.leagueId].real} kind="league" />}
+            {comp.rules?.fearless === 'global' && <div className="small"><span className="tag warn">Hard Fearless</span> every champion either team has played in a series is unavailable to both teams for the rest of that series.</div>}
             {comp.realName && <div className="small muted" data-testid="provenance"><span className="tag good">Real</span> event name; format, dates, entrants and prize pool are game simulation.</div>}
           </span>
         }

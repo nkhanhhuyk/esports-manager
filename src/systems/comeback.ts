@@ -1,5 +1,6 @@
 /**
- * Comebacks: real retired players (from the real-data snapshot) can come out of retirement.
+ * Comebacks: real pros who retired during the career can come out of retirement. (Former pros from
+ * the real-data snapshot start as free agents, never as retired records.)
  *
  * - The user can ask any real retired pro who stopped within the last COMEBACK_YEARS seasons to
  *   return; they become a free agent that anyone can sign through the normal transfer system.
@@ -19,8 +20,8 @@ import { addNews } from './news';
 
 export const COMEBACK_YEARS = 6;
 
-export function canComeBack(world: World, r: RetiredSummary): boolean {
-  return !!r.real && !r.cameBack && !world.players[r.id] && world.season - r.retiredSeason <= COMEBACK_YEARS && r.titles.some((t) => world.titles[t]);
+export function canComeBack(world: World, r: RetiredSummary, any = false): boolean {
+  return !!r.real && !r.cameBack && !world.players[r.id] && (any || world.season - r.retiredSeason <= COMEBACK_YEARS) && r.titles.some((t) => world.titles[t]);
 }
 
 function titleAvg(world: World, titleId: string): number {
@@ -34,10 +35,10 @@ function titleAvg(world: World, titleId: string): number {
 }
 
 /** Turn a real retired record into a free agent again. */
-export function arrangeComeback(world: World, id: string, by: 'user' | 'self', rngIn?: RNG): { ok: boolean; message: string; playerId?: string } {
+export function arrangeComeback(world: World, id: string, by: 'user' | 'self' | 'snapshot', rngIn?: RNG, avgIn?: number): { ok: boolean; message: string; playerId?: string } {
   const r = world.retired.find((x) => x.id === id);
   if (!r) return { ok: false, message: 'Retired player not found.' };
-  if (!canComeBack(world, r)) return { ok: false, message: `${r.handle} is not available for a comeback.` };
+  if (!canComeBack(world, r, by === 'snapshot')) return { ok: false, message: `${r.handle} is not available for a comeback.` };
   const titleId = r.titles.find((t) => world.titles[t])!;
   const t = getTitle(titleId);
   const rng = rngIn ?? new RNG(`${world.meta.seed}|comeback|${r.id}|${world.season}`);
@@ -45,14 +46,24 @@ export function arrangeComeback(world: World, id: string, by: 'user' | 'self', r
   const away = Math.max(0, world.season - r.retiredSeason);
   const roleId = r.roleId && t.roles.some((x) => x.id === r.roleId) ? r.roleId : rng.pick(t.lineup);
   const age = Math.round(clamp(rng.normal(27 + away, 2), 21, 38));
-  const p = generatePlayer(ctx, { titleId, roleId, nat: r.nat, age, targetCA: clamp(titleAvg(world, titleId) - 6 - 2 * away + rng.normal(0, 3), 35, 85) });
+  const p = generatePlayer(ctx, { titleId, roleId, nat: r.nat, age, targetCA: clamp((avgIn ?? titleAvg(world, titleId)) - (by === 'snapshot' ? 8 : 6 + 2 * away) + rng.normal(0, 3), 35, 85) });
   p.handle = r.handle;
   const parts = r.name.split(' ').filter(Boolean);
   if (parts.length) {
     p.last = parts.length > 1 ? parts[parts.length - 1] : '';
     p.first = parts.length > 1 ? parts.slice(0, -1).join(' ') : parts[0];
   }
-  p.real = { ...r.real!, est: [...(r.real!.est ?? []), 'age', 'ability after the comeback (game)', `came out of retirement in ${world.season} (game)`] };
+  p.real =
+    by === 'snapshot'
+      ? { ...r.real!, est: [...(r.real!.est ?? []).map((e) => `free agent — ${e.replace(/^estimate: /, '')}`), 'age'] }
+      : { ...r.real!, est: [...(r.real!.est ?? []), 'age', 'ability after the comeback (game)', `came out of retirement in ${world.season} (game)`] };
+  if (by === 'snapshot') {
+    const dormant = r.lastTeam ? Object.values(world.teams).find((x) => x.titleId === titleId && x.name.toLowerCase() === r.lastTeam!.toLowerCase()) : undefined;
+    if (r.lastTeam) p.career.push({ season: r.retiredSeason, day: world.day, titleId, teamId: dormant?.id ?? null, orgId: dormant?.orgId ?? null, type: 'released', note: `Last real team: ${r.lastTeam}` });
+    world.players[p.id] = p;
+    world.retired = world.retired.filter((x) => x !== r);
+    return { ok: true, message: `${r.handle} is a free agent.`, playerId: p.id };
+  }
   if (r.lastTeam) p.career.push({ season: r.retiredSeason, day: world.day, titleId, teamId: null, orgId: null, type: 'retired', note: `Retired (last real team: ${r.lastTeam})` });
   p.career.push({ season: world.season, day: world.day, titleId, teamId: null, orgId: null, type: 'released', note: 'Came out of retirement' });
   world.players[p.id] = p;
@@ -67,6 +78,24 @@ export function arrangeComeback(world: World, id: string, by: 'user' | 'self', r
     importance: 3,
   });
   return { ok: true, message: `${r.handle} is back as a free agent — sign them from the transfer market.`, playerId: p.id };
+}
+
+/**
+ * Saves from the build that archived long-inactive real pros as retired: they become free agents
+ * (the snapshot records are removed from the retired archive). Pros who retired during the career
+ * stay retired and can still be asked to come back.
+ */
+export function snapshotRetiredToFree(world: World): number {
+  const recs = world.retired.filter((r) => r.id.startsWith('rr-') && r.real && !r.cameBack && !world.players[r.id]);
+  const avg = new Map<string, number>();
+  let n = 0;
+  for (const r of recs) {
+    const tid = r.titles.find((t) => world.titles[t]);
+    if (!tid) continue;
+    if (!avg.has(tid)) avg.set(tid, titleAvg(world, tid));
+    if (arrangeComeback(world, r.id, 'snapshot', new RNG(`${world.meta.seed}|free|${r.id}`), avg.get(tid)).ok) n++;
+  }
+  return n;
 }
 
 /** Season rollover: a few real retired pros return on their own. */

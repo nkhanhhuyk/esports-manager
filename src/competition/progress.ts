@@ -8,6 +8,7 @@ import { onCompetitionFinished } from '../systems/awards';
 import { boardCompetitionReaction } from '../systems/career';
 import { lockRegistrations } from '../systems/registration';
 import { buildNationalTeams } from '../systems/nations';
+import { splitWeight } from './season';
 
 function compDone(world: World, id: string): boolean {
   return world.comps[id]?.status === 'done';
@@ -47,9 +48,10 @@ export function resolveEntrants(world: World, comp: Competition): string[] | nul
       const intl = Object.values(world.comps).filter((c) => c.season === comp.season && c.titleId === comp.titleId && c.tier === 'international');
       if (intl.some((c) => c.status !== 'done')) return null;
       const pts = circuitPoints(world, comp.season, comp.titleId);
-      const split2 = splits.find((c) => c.split === 2);
+      // The champion of the last split is seeded first (split 3; split 2 in older two-split seasons).
+      const last = [...splits].sort((a, b) => (b.split ?? 0) - (a.split ?? 0))[0];
       const chosen: string[] = [];
-      if (split2?.placements[0] && world.teams[split2.placements[0]]?.leagueId === league.id) chosen.push(split2.placements[0]);
+      if (last?.placements[0] && world.teams[last.placements[0]]?.leagueId === league.id) chosen.push(last.placements[0]);
       const rest = league.teamIds.filter((t) => !chosen.includes(t)).sort((a, b) => (pts[b] ?? 0) - (pts[a] ?? 0) || (world.teams[b]?.elo ?? 0) - (world.teams[a]?.elo ?? 0));
       for (const t of rest) {
         if (chosen.length >= rule.count) break;
@@ -68,7 +70,7 @@ export function circuitPoints(world: World, season: number, titleId: string): Re
   for (const c of Object.values(world.comps)) {
     if (c.season !== season || c.titleId !== titleId || c.status !== 'done' || !c.circuitPoints.length) continue;
     c.placements.forEach((tid, i) => {
-      const mult = c.split === 2 ? 1.5 : 1;
+      const mult = splitWeight(c.split);
       pts[tid] = (pts[tid] ?? 0) + (c.circuitPoints[i] ?? 0) * mult;
     });
   }

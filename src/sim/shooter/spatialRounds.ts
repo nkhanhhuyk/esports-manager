@@ -9,6 +9,7 @@
  * legal sequence of rounds with halftime and the title's overtime; the result is never chosen first.
  * Recording is a passive sink (no RNG draws), so watching, reading and instant results agree.
  */
+import { shooterTimers, tacticalRules } from '../common/rules';
 import { clamp } from '../../core/math';
 import type { GameResult, ShooterReplay } from '../../model/types';
 import type { PlayerCtx } from '../common/team';
@@ -111,8 +112,11 @@ interface SP {
 export function simulateTacticalSpatial(g: GameContext, record = false): GameResult {
   const map = g.mapId ? shooterMap(g.mapId) : null;
   if (!map) return simulateTactical(g);
-  const cfg = g.title.tactical!;
-  const R = RULES[g.title.id] ?? RULES.valorant;
+  const cfg = tacticalRules(g.title, g.patch);
+  // Round timers and the defender edge under the current patch.
+  const pt = shooterTimers(g.patch);
+  const R0 = RULES[g.title.id] ?? RULES.valorant;
+  const R: Rules = { ...R0, roundTime: pt.roundTime ?? R0.roundTime, bombTime: pt.bombTime ?? R0.bombTime, plantTime: pt.plantTime ?? R0.plantTime, defuseTime: pt.defuseTime ?? R0.defuseTime, defEdge: R0.defEdge + (pt.defenderEdge ?? 0) * 0.6 };
   const W = g.title.id === 'cs2' ? CS_W : VAL_W;
   const { rng } = g;
   const keys = g.title.stats.map((s) => s.key);

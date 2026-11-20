@@ -37,7 +37,8 @@ export interface OfferResponse {
 export function inTransferWindow(world: World): boolean {
   const { m, d } = ymd(world.day);
   if (m === 12 || (m === 11 && d >= 20) || (m === 1 && d <= 12)) return true;
-  if ((m === 5 && d >= 10) || (m === 6 && d === 1)) return true;
+  // Mid-season window: between the Mid-Season Invitational and split 3 (12–23 July).
+  if (m === 7 && d >= 12 && d <= 23) return true;
   return false;
 }
 
@@ -944,19 +945,19 @@ export function expireContracts(world: World, endedSeason: number): void {
 // ---------------------------------------------------------------------------------------------
 
 export function inMidSeasonWindow(world: World): boolean {
-  const { m } = ymd(world.day);
-  return m === 5 || m === 6;
+  const { m, d } = ymd(world.day);
+  return m === 7 && d >= 5 && d <= 24;
 }
 
 /** Daily: announce when transfer windows open and close. */
 export function transferWindowNotices(world: World): void {
   const { m, d } = ymd(world.day);
-  const open = (m === 11 && d === 20) || (m === 5 && d === 10);
-  const close = (m === 1 && d === 13) || (m === 6 && d === 2);
+  const open = (m === 11 && d === 20) || (m === 7 && d === 12);
+  const close = (m === 1 && d === 13) || (m === 7 && d === 24);
   if (!open && !close) return;
-  const mid = m === 5 || m === 6;
+  const mid = m === 7;
   const name = mid ? 'Mid-season transfer window' : 'Pre-season transfer window';
-  const until = mid ? '1 June' : '12 January';
+  const until = mid ? '23 July' : '12 January';
   const title = open ? `${name} opens` : `${name} closed`;
   const body = open
     ? `Clubs can sign players under contract, loan and (where the league allows) trade until ${until}. Free agents can be signed at any time. Players stick to one game per season.`

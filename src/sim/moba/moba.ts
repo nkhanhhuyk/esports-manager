@@ -6,6 +6,7 @@
  * comeback strength, respawn growth and Dota's buyback. A game ends only when the core
  * (Base Crystal / Nexus / Ancient) falls; kills never decide a game by themselves.
  */
+import { mobaMults, mobaRules } from '../common/rules';
 import { clamp, logistic } from '../../core/math';
 import type { RNG } from '../../core/rng';
 import type { ObjectiveDef } from '../../data/titles/types';
@@ -54,7 +55,8 @@ const FAST_TUNE: Record<string, { kill: number; pace: number }> = {
 };
 
 export function simulateMoba(g: GameContext): GameResult {
-  const cfg = g.title.moba!;
+  const cfg = mobaRules(g.title, g.patch);
+  const structHp = mobaMults(g.patch).structHp;
   const { rng } = g;
   const keys = g.title.stats.map((s) => s.key);
   const book = new StatBook(g.teams, keys);
@@ -194,6 +196,8 @@ export function simulateMoba(g: GameContext): GameResult {
     const def = sides[1 - side];
     const st = cfg.structures;
     for (let k = 0; k < n && winner < 0; k++) {
+      // Tougher structures under the patch (rules.moba.structHp > 1) survive some pushes.
+      if (structHp !== 1 && rng.chance(Math.max(0, 1 - 1 / structHp))) continue;
       // Choose the lane with most progress (finish what you started) or weakest defence.
       const openLanes = def.laneDown.map((d, i) => ({ d, i })).filter((x) => x.d < st.perLane);
       if (openLanes.length && !(def.laneDown.some((d) => d >= st.perLane) && rng.chance(0.45))) {
@@ -226,6 +230,7 @@ export function simulateMoba(g: GameContext): GameResult {
 
   // ---------------------------------------------------------------- objectives
   const nextSpawn: Record<string, number> = {};
+  const spawned: Record<string, number> = {};
   for (const o of cfg.objectives) nextSpawn[o.id] = o.spawn;
 
   const takeObjective = (o: ObjectiveDef, side: number, minute: number) => {
@@ -362,8 +367,10 @@ export function simulateMoba(g: GameContext): GameResult {
       if (winner >= 0) break;
       if (o.until !== undefined && minute > o.until) continue;
       if (minute < nextSpawn[o.id]) continue;
+      if (o.maxSpawns !== undefined && (spawned[o.id] ?? 0) >= o.maxSpawns) continue;
       if (!rng.chance(0.55)) continue;
       contestObjective(o, minute);
+      spawned[o.id] = (spawned[o.id] ?? 0) + 1;
       nextSpawn[o.id] = minute + o.respawn;
     }
     if (winner >= 0) break;

@@ -1,3 +1,4 @@
+import { dayFromYMD } from '../src/core/date';
 import { describe, expect, it } from 'vitest';
 import { clone, makeWorld, withUser } from './helpers';
 import type { SessionType, Team, World } from '../src/model/types';
@@ -17,7 +18,8 @@ function selfPlan(t: Team, tpl: SessionType[]) {
 describe('training sessions', () => {
   it('coaches plan around match days, rest, scrims and their own capacity', () => {
     const w = withUser(makeWorld(['lol'], 'sess-plan'));
-    advance(w, { kind: 'until', day: w.day + 70 }, { stopForUserMatch: false });
+    // A week in the split 2 regular season.
+    advance(w, { kind: 'until', day: dayFromYMD(w.season, 4, 14) }, { stopForUserMatch: false });
     const cal = weekCalendar(w);
     const team = Object.values(w.teams).find((t) => t.active && !t.national && cal.matchDays.get(t.id)?.size)!;
     const plan = coachPlan(w, team, cal);

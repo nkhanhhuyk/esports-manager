@@ -270,6 +270,7 @@ export function createWorld(opts: NewWorldOptions): World {
       dataMode: opts.dataMode ?? 'fictional',
       realMaps: true,
       realHistory: true,
+      realHistoryFree: true,
       ...(opts.dataMode === 'real' ? { rosterSnapshot: ROSTER_SNAPSHOT.id } : {}),
       detail: { fullDetailTitles: [], userMatches: true, internationals: true },
       worldSize: opts.worldSize,

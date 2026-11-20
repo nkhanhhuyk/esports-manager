@@ -76,7 +76,10 @@ describe('spatial MOBA simulation', () => {
       // The game ends with the winner destroying the core.
       const core = rp.events.filter((e) => e.k === 'core');
       expect(core.length).toBe(1);
-      expect(core[0].s).toBe(g.winner);
+      // The replay is in map-side order (0 = Blue / Radiant); g.blue maps it to series order.
+      const series = (side: number) => (g.blue === 1 ? 1 - side : side);
+      expect(series(core[0].s!)).toBe(g.winner);
+      rp.heroes.forEach((h) => expect(g.players.find((l) => l.playerId === h.playerId)!.teamIdx, h.handle).toBe(series(h.side)));
       // Kills equal the other side's deaths; replay K/D/A equals the box score.
       const sum = (team: number, k: string) => g.players.filter((l) => l.teamIdx === team).reduce((a, l) => a + (l.s[k] ?? 0), 0);
       expect(sum(0, 'k')).toBe(sum(1, 'd'));

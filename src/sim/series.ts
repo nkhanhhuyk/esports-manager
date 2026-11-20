@@ -40,6 +40,21 @@ export interface SeriesState {
   detail: boolean;
   /** Record a spatial replay of each game (live viewing). Never changes results. */
   record?: boolean;
+  /** MOBA side/pick-order selections made by the user, per game index (AI choices are recomputed). */
+  sel?: Array<SideSel | undefined>;
+}
+
+/**
+ * MOBA side and pick order of one game. `blue` is the series index of the team on side 0 (Blue /
+ * Radiant, bottom-left); `firstPick` the series index that drafts first.
+ */
+export interface SideSel {
+  chooser: 0 | 1;
+  /** What the chooser took: a side (opponent then picks the draft order) or a draft order (opponent picks the side). */
+  choice: 'side' | 'pick';
+  blue: 0 | 1;
+  firstPick: 0 | 1;
+  by: 'coin' | 'loser';
 }
 
 export function pressureFor(world: World, f: Fixture): number {
@@ -169,19 +184,94 @@ function nextMap(t: TitleDef): string | undefined {
   return t.maps[0]?.id;
 }
 
-/** Fearless rule in force for a title: the title default unless a named world preset is enabled. */
-export function fearlessFor(world: World, titleId: string): 'none' | 'team' | 'global' {
-  return world.rulePresets?.[titleId]?.fearless ?? getTitle(titleId).draft.fearless;
+/**
+ * Fearless rule in force: the competition's own rule (First Stand: hard Fearless — every champion
+ * either team has played is unavailable to both teams for the rest of the series), else a named
+ * world preset, else the title default.
+ */
+export function fearlessFor(world: World, titleId: string, compId?: string): 'none' | 'team' | 'global' {
+  const comp = compId ? world.comps[compId] : undefined;
+  return comp?.rules?.fearless ?? world.rulePresets?.[titleId]?.fearless ?? getTitle(titleId).draft.fearless;
 }
 
 /**
- * MOBA side choice. Game 1 by a seeded coin toss; afterwards the previous game's loser chooses
- * and takes the first-pick side (MLBB preset, applied to all five MOBAs). Deterministic, so the
- * live draft screen and the simulation agree on who picks first.
+ * Titles whose side and draft order are chosen separately ("first selection"): League of Legends
+ * (2026 rule) and Dota 2 (Captains Mode). The chooser — a seeded coin toss in game 1, afterwards the
+ * previous game's loser — takes either a side or a draft order; the opponent then gets the other
+ * choice. In MLBB, Honor of Kings and Wild Rift the chooser takes the Blue side, which drafts first.
  */
+export function splitSelection(titleId: string): boolean {
+  return titleId === 'lol' || titleId === 'dota2';
+}
+
+/** How much a team values the first pick (>0) over the last pick / counter-pick (<0). */
+export function firstPickWant(world: World, team: Team, titleId: string): number {
+  const vals = Object.values(currentPatch(world, titleId).charMeta).sort((a, b) => b - a);
+  const standout = vals.length >= 6 ? (vals[0] - vals[5]) / 4 : 0;
+  const pref = ({ meta: 0.4, comfort: 0.2, balanced: 0, counter: -0.5 } as Record<string, number>)[team.prefs.draftPriority] ?? 0;
+  return standout - 0.25 + pref;
+}
+
+/** Value of Blue / Radiant side relative to the pick-order scale above (side win-rate edge in pro play). */
+const SIDE_VALUE: Record<string, number> = { lol: 0.55, dota2: 0.3 };
+
+export function sideChooser(world: World, f: Fixture, st: SeriesState): { chooser: 0 | 1; by: 'coin' | 'loser' } {
+  if (!st.games.length) return { chooser: RNG.derive(world.meta.seed, f.id, 'side').chance(0.5) ? 0 : 1, by: 'coin' };
+  return { chooser: (st.lastLoser === 0 ? 0 : 1) as 0 | 1, by: 'loser' };
+}
+
+/** Complete a selection from the chooser's choice (the other team answers with its preference). */
+export function completeSelection(world: World, f: Fixture, chooser: 0 | 1, by: 'coin' | 'loser', pick: { side?: 0 | 1; order?: 'first' | 'second' }, gi = 0): SideSel {
+  const other = (1 - chooser) as 0 | 1;
+  const noise = RNG.derive(world.meta.seed, f.id, 'sel', gi).normal(0, 0.15);
+  if (pick.side !== undefined) {
+    // Chooser took a side (0 = Blue, 1 = Red); the opponent picks the draft order.
+    const blue = (pick.side === 0 ? chooser : other) as 0 | 1;
+    const want = firstPickWant(world, world.teams[f.teams[other]], f.titleId) + noise;
+    return { chooser, choice: 'side', blue, firstPick: want > 0 ? other : chooser, by };
+  }
+  const firstPick = (pick.order === 'first' ? chooser : other) as 0 | 1;
+  // The opponent picks the side: Blue / Radiant unless it has no edge in this title.
+  return { chooser, choice: 'pick', blue: (SIDE_VALUE[f.titleId] ?? 0.3) + noise > 0 ? other : chooser, firstPick, by };
+}
+
+/** AI selection for the chooser. */
+export function aiSelection(world: World, f: Fixture, chooser: 0 | 1, by: 'coin' | 'loser', gi = 0): SideSel {
+  const want = firstPickWant(world, world.teams[f.teams[chooser]], f.titleId) + RNG.derive(world.meta.seed, f.id, 'selc', gi).normal(0, 0.2);
+  const sideValue = SIDE_VALUE[f.titleId] ?? 0.3;
+  if (Math.abs(want) > sideValue) return completeSelection(world, f, chooser, by, { order: want > 0 ? 'first' : 'second' }, gi);
+  return completeSelection(world, f, chooser, by, { side: 0 }, gi);
+}
+
+/**
+ * Side and draft order of the next game. Deterministic, so the live draft screen and the
+ * simulation agree; a choice the user made on the live screen (`st.sel`) is used as is.
+ */
+export function gameSides(world: World, f: Fixture, st: SeriesState): SideSel {
+  const gi = st.games.length;
+  const own = st.sel?.[gi];
+  if (own) return own;
+  const { chooser, by } = sideChooser(world, f, st);
+  if (!splitSelection(f.titleId)) return { chooser, choice: 'side', blue: chooser, firstPick: chooser, by };
+  return aiSelection(world, f, chooser, by, gi);
+}
+
+/** Series index of the team that drafts first in the next game (kept for callers of the old API). */
 export function mobaFirstSide(world: World, f: Fixture, st: SeriesState): 0 | 1 {
-  if (!st.games.length) return RNG.derive(world.meta.seed, f.id, 'side').chance(0.5) ? 0 : 1;
-  return (st.lastLoser === 0 ? 0 : 1) as 0 | 1;
+  return gameSides(world, f, st).firstPick;
+}
+
+/** Describe a selection for the match report. */
+export function describeSelection(world: World, f: Fixture, sel: SideSel, sideNames: [string, string] = ['Blue', 'Red']): string {
+  const n = (i: number) => world.teams[f.teams[i]]?.short ?? `Team ${i + 1}`;
+  const how = sel.by === 'coin' ? 'won the coin toss' : 'lost the previous game';
+  const other = 1 - sel.chooser;
+  const side = (i: number) => (sel.blue === i ? sideNames[0] : sideNames[1]);
+  const order = (i: number) => (sel.firstPick === i ? 'first pick' : 'second pick');
+  if (!splitSelection(f.titleId)) return `${n(sel.chooser)} (${how}) took ${side(sel.chooser)} side and first pick`;
+  return sel.choice === 'side'
+    ? `${n(sel.chooser)} (${how}) chose ${side(sel.chooser)} side; ${n(other)} chose ${order(other)}`
+    : `${n(sel.chooser)} (${how}) chose ${order(sel.chooser)}; ${n(other)} chose ${side(other)} side`;
 }
 
 export function draftStateFor(world: World, f: Fixture, st: SeriesState): DraftState {
@@ -189,7 +279,7 @@ export function draftStateFor(world: World, f: Fixture, st: SeriesState): DraftS
   const patch = currentPatch(world, t.id);
   const teams = f.teams.map((id) => world.teams[id]) as [Team, Team];
   let fearless: [Set<string>, Set<string>] = [new Set(), new Set()];
-  const fl = fearlessFor(world, t.id);
+  const fl = fearlessFor(world, t.id, f.compId);
   if (fl === 'team') fearless = [new Set(st.fearless[0]), new Set(st.fearless[1])];
   else if (fl === 'global') {
     const all = new Set([...st.fearless[0], ...st.fearless[1]]);
@@ -201,7 +291,7 @@ export function draftStateFor(world: World, f: Fixture, st: SeriesState): DraftS
     patch,
     [0, 1].map((i) => ({ team: teams[i], lineup: st.lineups[i], players: st.lineups[i].map((s) => world.players[s.playerId]).filter(Boolean) })) as never,
     fearless,
-    t.engine === 'moba' ? mobaFirstSide(world, f, st) : 0,
+    t.engine === 'moba' ? gameSides(world, f, st).firstPick : 0,
   );
 }
 
@@ -237,16 +327,18 @@ export function playNextGame(world: World, f: Fixture, st: SeriesState, userDraf
     firstSide = slot.firstSide;
   } else {
     mapId = nextMap(t);
-    firstSide = t.engine === 'moba' ? mobaFirstSide(world, f, st) : mrng.chance(0.5) ? 0 : 1;
+    firstSide = t.engine === 'moba' ? 0 : mrng.chance(0.5) ? 0 : 1;
   }
+  const sel = t.engine === 'moba' ? gameSides(world, f, st) : undefined;
+  if (sel) firstSide = sel.firstPick;
   // Draft
   let draft: DraftRecord | undefined;
   if (t.characters.length && t.draft.mode !== 'none') {
     const plans = getPlans(world, f);
     const planned = userDraft ?? plans.map((p) => p?.drafts?.[gi]).find(Boolean);
-    if (planned && validateDraft(t, planned).length === 0) draft = planned;
+    const ds = draftStateFor(world, f, st);
+    if (planned && validateDraft(t, planned, ds.unavailable).length === 0) draft = { ...planned, firstPick: sel?.firstPick ?? planned.firstPick };
     else {
-      const ds = draftStateFor(world, f, st);
       runAiDraft(world, ds, drng);
       draft = toRecord(ds, [0, 0]);
     }
@@ -254,14 +346,24 @@ export function playNextGame(world: World, f: Fixture, st: SeriesState, userDraf
   const comps = compsFor(world, t, f, st, draft);
   if (draft) draft.compScore = [Math.round(comps[0].total * 100) / 100, Math.round(comps[1].total * 100) / 100];
   const pressure = pressureFor(world, f);
-  const ctxs = [0, 1].map((i) =>
-    buildTeamCtx(world, teams[i], st.lineups[i], i, rng, { mapId, pressure, opponent: teams[1 - i], chars: draft?.assign[i] }),
+  // MOBAs: the simulation runs in map-side order (index 0 = Blue / Radiant, bottom-left). When the
+  // series' second team is on Blue the teams are swapped for the simulation and the result is
+  // mapped back to series order afterwards; the spatial replay stays in side order (`res.blue`).
+  const swap = !!sel && sel.blue === 1;
+  const order = swap ? [1, 0] : [0, 1];
+  const ctxs = order.map((fi, si) =>
+    buildTeamCtx(world, teams[fi], st.lineups[fi], si, rng, { mapId, pressure, opponent: teams[1 - fi], chars: draft?.assign[fi] }),
   ) as [TeamCtx, TeamCtx];
   const events: GameEvent[] | null = st.detail ? [] : null;
-  const g: GameContext = { world, title: t, rng, crng, events, teams: ctxs, gameIdx: gi, mapId, modeId, draft, comp: comps, patch: currentPatch(world, t.id), firstSide, pressure };
+  const simDraft = draft && swap ? swapDraft(draft) : draft;
+  const simComps = (swap ? [comps[1], comps[0]] : comps) as [CompEval, CompEval];
+  const g: GameContext = { world, title: t, rng, crng, events, teams: ctxs, gameIdx: gi, mapId, modeId, draft: simDraft, comp: simComps, patch: currentPatch(world, t.id), firstSide: swap ? 1 - firstSide : firstSide, pressure };
   let res: GameResult;
-  const empty = ctxs.map((c) => c.players.length === 0);
+  const emptySim = ctxs.map((c) => c.players.length === 0);
+  const empty = swap ? [emptySim[1], emptySim[0]] : emptySim;
+  let mapped = !swap;
   if (empty[0] || empty[1]) {
+    mapped = true;
     // A side with nobody available (injuries, breaks, no registrations) forfeits the game.
     const w = empty[0] && !empty[1] ? 1 : empty[1] && !empty[0] ? 0 : mrng.chance(0.5) ? 0 : 1;
     res = { idx: gi, winner: w, mapId, modeId, duration: 0, score: [w === 0 ? 1 : 0, w === 1 ? 1 : 0], teamStats: [{}, {}], players: [], summary: `${teams[1 - w].name} could not field a lineup — walkover to ${teams[w].name}.` };
@@ -290,9 +392,14 @@ export function playNextGame(world: World, f: Fixture, st: SeriesState, userDraf
     default:
       throw new Error(`Unknown engine ${String(t.engine)}`);
   }
-  if (t.engine === 'moba') {
-    // Record the side choice so the match report can explain who picked first and why.
-    res.sides = [`${teams[firstSide].short} took first pick (${gi === 0 ? 'coin toss' : 'chosen by the previous game\'s loser'})`];
+  if (!mapped) {
+    unswapResult(res);
+    if (draft) res.draft = draft;
+  }
+  if (sel) {
+    // Record the side and draft order so the match report can show who was on which side and why.
+    res.blue = sel.blue;
+    res.sides = [describeSelection(world, f, sel, (t.id === 'dota2' ? ['Radiant', 'Dire'] : ['Blue', 'Red']) as [string, string])];
   }
   st.games.push(res);
   // fearless bookkeeping
@@ -312,6 +419,28 @@ export function playNextGame(world: World, f: Fixture, st: SeriesState, userDraf
     st.winner = st.wins[0] >= st.wins[1] ? 0 : 1;
   }
   return res;
+}
+
+/** Swap the two teams of a draft record (series order ↔ map-side order). */
+function swapDraft(d: DraftRecord): DraftRecord {
+  return {
+    ...d,
+    bans: [d.bans[1], d.bans[0]],
+    picks: [d.picks[1], d.picks[0]],
+    assign: [d.assign[1], d.assign[0]],
+    compScore: [d.compScore[1], d.compScore[0]],
+    order: d.order.map((o) => ({ ...o, team: 1 - o.team })),
+    ...(d.firstPick !== undefined ? { firstPick: (1 - d.firstPick) as 0 | 1 } : {}),
+  };
+}
+
+/** Map a game simulated in side order back to series order (the replay keeps side order). */
+function unswapResult(res: GameResult): void {
+  if (res.winner >= 0) res.winner = 1 - res.winner;
+  res.score = [res.score[1], res.score[0]];
+  res.teamStats = [res.teamStats[1] ?? {}, res.teamStats[0] ?? {}];
+  for (const l of res.players) l.teamIdx = 1 - l.teamIdx;
+  if (res.events) for (const e of res.events) if (e.team === 0 || e.team === 1) e.team = (1 - e.team) as 0 | 1;
 }
 
 /** Simulate a complete fixture. */

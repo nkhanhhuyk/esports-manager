@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('real-world history: dormant teams, retired pros with comebacks, real event names', async ({ page }) => {
+test('real-world history: dormant teams, former pros as free agents, real event names', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
@@ -25,14 +25,11 @@ test('real-world history: dormant teams, retired pros with comebacks, real event
   await row.click();
   await expect(page.getByText(/DORMANT \(last seen/)).toBeVisible();
 
-  // Retired real pros: archived with their last team; one can be asked to come back.
-  await page.getByRole('link', { name: 'History', exact: true }).click();
-  await page.getByRole('tab', { name: /Retired/ }).click();
-  await expect(page.getByText('Archived retired players')).toBeVisible();
-  const ask = page.getByTestId('comeback').first();
-  await expect(ask).toBeVisible();
-  await ask.click();
-  await expect(page.getByText(/is back as a free agent/)).toBeVisible();
+  // Former real pros on no current roster are free agents with their last real team.
+  await page.getByLabel('Global search').fill('Peanut');
+  await page.locator('.search-results a', { hasText: 'Peanut' }).first().click();
+  await page.getByRole('tab', { name: 'Career' }).click();
+  await expect(page.getByText(/Last real team/).first()).toBeVisible();
 
   // The world championship carries the real circuit's name.
   await page.getByRole('link', { name: 'Competitions', exact: true }).click();

@@ -1,3 +1,4 @@
+import { mobaMults, mobaRules, tacticalRules } from '../../sim/common/rules';
 import { useWorld } from '../store';
 import { Card, CompLink, Flag, OrgBadge, OrgLink, PageHeader, PlayerLink, Rating, Stat, TeamLink, TitleTag, Tabs } from '../components/common';
 import { DataTable } from '../components/DataTable';
@@ -213,7 +214,7 @@ export function TitlePage({ id, route }: { id: string; route: Route }) {
           <Card title="Format & draft rules">
             <div className="attr-row"><span>Standard / Playoff / Final</span><b>{t.formats.standard.label} / {t.formats.playoff.label} / {t.formats.final.label}</b></div>
             <div className="attr-row"><span>Draft</span><b>{t.draft.mode === 'none' ? 'none (no characters — loadouts only)' : `${t.draft.mode} · ${t.draft.bansPerTeam} bans/team · ${t.draft.uniqueAcross ? 'unique picks' : 'mirrors allowed'} · fresh draft every game`}</b></div>
-            {t.draft.mode !== 'none' && <div className="attr-row"><span>Series reuse rule</span><b>{fearlessFor(world, t.id) === 'none' ? 'none (characters may return in later games)' : `Fearless (${fearlessFor(world, t.id)}) — optional preset enabled`}{t.draft.fearlessPreset && fearlessFor(world, t.id) === 'none' ? ' · Fearless available as an optional preset' : ''}</b></div>}
+            {t.draft.mode !== 'none' && <div className="attr-row"><span>Series reuse rule</span><b>{fearlessFor(world, t.id) === 'none' ? 'none (characters may return in later games)' : `Fearless (${fearlessFor(world, t.id)}) — optional preset enabled`}{t.draft.mode === 'sequential' ? ' · First Stand: hard Fearless (every champion either team has played is unavailable to both for the rest of the series)' : ''}{t.draft.fearlessPreset && fearlessFor(world, t.id) === 'none' ? ' · Fearless available as an optional preset' : ''}</b></div>}
             {t.engine === 'moba' && <div className="attr-row"><span>Side choice</span><b>game 1 by coin toss; afterwards the previous game's loser chooses (first pick)</b></div>}
             <div className="attr-row"><span>Map selection</span><b>{t.mapVeto}</b></div>
             <div className="attr-row"><span>Playstyles</span><b>{t.styles.join(', ')}</b></div>
@@ -281,14 +282,22 @@ export function TitlePage({ id, route }: { id: string; route: Route }) {
         </Card>
       )}
       {tab === 'patches' && (
-        <Card>
-          {[...ts.patches].reverse().map((p) => (
-            <div key={p.id} style={{ padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-              <b>{p.version}</b> {p.major && <span className="tag">major</span>} <span className="muted small">{formatDate(p.day)} · {p.era}</span>
-              <div className="small">{p.notes.join(' · ')}</div>
-            </div>
-          ))}
-        </Card>
+        <>
+          <Card title="Gameplay rules in force">
+            <RulesInForce titleId={t.id} />
+          </Card>
+          <Card title="Patch history" right={<span className="muted small">minor: balance during the splits · medium: before First Stand, MSI and Worlds · major: after Worlds, gameplay changes</span>}>
+            {[...ts.patches].reverse().map((p) => {
+              const kind = p.kind ?? (p.major ? 'major' : 'minor');
+              return (
+                <div key={p.id} style={{ padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                  <b>{p.version}</b> <span className={`tag ${kind === 'major' ? 'warn' : ''}`}>{kind}</span> <span className="muted small">{formatDate(p.day)} · {p.era}</span>
+                  <div className="small">{p.notes.join(' · ')}</div>
+                </div>
+              );
+            })}
+          </Card>
+        </>
       )}
       {tab === 'competition' && (
         <div className="grid2">
@@ -339,4 +348,56 @@ export function TitlePage({ id, route }: { id: string; route: Route }) {
       )}
     </div>
   );
+}
+
+/** Objectives and rules as the current patch has them (what the simulations use). */
+function RulesInForce({ titleId }: { titleId: string }) {
+  const world = useWorld();
+  const t = getTitle(titleId);
+  const patch = currentPatch(world, titleId);
+  const fmt = (m: number) => `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}`;
+  if (t.moba) {
+    const cfg = mobaRules(t, patch);
+    const m = mobaMults(patch);
+    return (
+      <div className="small">
+        {cfg.objectives.map((o) => {
+          const changed = !!patch.rules?.objectives?.[o.id] || !!patch.rules?.added?.some((a) => a.id === o.id);
+          return (
+            <div key={o.id} className="attr-row">
+              <span>
+                {o.name} {changed && <span className="tag warn">patched</span>}
+              </span>
+              <span className="muted">
+                first {fmt(o.spawn)}
+                {o.respawn < 90 ? ` · respawn ${fmt(o.respawn)}` : ' · once'}
+                {o.maxSpawns && o.maxSpawns > 1 ? ` · max ${o.maxSpawns}` : ''}
+                {o.until !== undefined ? ` · until ${fmt(o.until)}` : ''} · {o.kind}
+              </span>
+            </div>
+          );
+        })}
+        {(m.gpm !== 1 || m.structHp !== 1 || m.respawn !== 1) && (
+          <div className="muted" style={{ marginTop: 4 }}>
+            Gold income ×{m.gpm} · structure health ×{m.structHp} · death timers ×{m.respawn}
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (t.tactical) {
+    const cfg = tacticalRules(t, patch);
+    const r = patch.rules?.tactical ?? {};
+    return (
+      <div className="small">
+        <div className="attr-row"><span>Round win / kill reward</span><span>{cfg.winReward} / {cfg.killReward}</span></div>
+        <div className="attr-row"><span>Loss bonus</span><span>{cfg.lossRewards.join(' → ')}</span></div>
+        {r.bombTime !== undefined && <div className="attr-row"><span>{t.tactical.objectiveName} timer</span><span>{r.bombTime}s</span></div>}
+        {r.roundTime !== undefined && <div className="attr-row"><span>Round timer</span><span>{r.roundTime}s</span></div>}
+        {r.plantTime !== undefined && <div className="attr-row"><span>Plant / defuse</span><span>{r.plantTime}s / {r.defuseTime}s</span></div>}
+        {r.defenderEdge !== undefined && <div className="attr-row"><span>Balance shift</span><span>{r.defenderEdge > 0 ? 'toward defenders' : 'toward attackers'} ({r.defenderEdge})</span></div>}
+      </div>
+    );
+  }
+  return null;
 }

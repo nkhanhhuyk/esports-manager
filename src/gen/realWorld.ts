@@ -589,7 +589,6 @@ export function addRealHistory(ctx: GenCtx, orgs: Map<string, Organisation>, mak
   }
   // Players.
   let nFa = 0;
-  let nRet = 0;
   for (const hp of HIST.players) {
     if (!titles.has(hp.title_id)) continue;
     const handles = liveHandles.get(hp.title_id) ?? new Set();
@@ -601,28 +600,18 @@ export function addRealHistory(ctx: GenCtx, orgs: Map<string, Organisation>, mak
     const team = hp.last_team ? dormantByName.get(`${hp.title_id}|${hp.last_team.toLowerCase()}`) : undefined;
     const liveTeam = hp.last_team ? Object.values(world.teams).find((x) => x.titleId === hp.title_id && x.name.toLowerCase() === hp.last_team!.toLowerCase()) : undefined;
     const nat = validCountry(hp.nationality) ?? (team ? pickCountry(rng, team.region) : 'US');
-    if (hp.status === 'retired') {
-      world.retired.push({
-        id: `rr-${hp.title_id}-${nRet}`,
-        handle: hp.handle,
-        name: [hp.first_name, hp.last_name].filter(Boolean).join(' ') || hp.real_name || '',
-        nat,
-        titles: [hp.title_id],
-        retiredSeason: seasonOf(hp.last_season) || world.season - 3,
-        legacy: 0,
-        trophies: 0,
-        awards: 0,
-        lastTeam: hp.last_team ?? undefined,
-        roleId: roleId ?? undefined,
-        real: tag(hp.source_url, [hp.status_source]),
-      });
-      nRet++;
-      continue;
-    }
-    const est: string[] = [hp.status_source, 'age'];
+    // Every former pro is a free agent (long-inactive ones too — the user's choice; nobody is archived as retired).
+    const longGone = hp.status === 'retired';
+    const est: string[] = [longGone ? `free agent — ${hp.status_source.replace(/^estimate: /, '')}` : hp.status_source, 'age'];
     if (!roleId) est.push('role (game assignment)');
     if (!validCountry(hp.nationality)) est.push('nationality');
-    const p = generatePlayer(ctx, { titleId: t.id, roleId: roleId ?? rng.pick(t.lineup), nat, age: Math.round(clamp(rng.normal(24, 2.5), 18, 31)), targetCA: clamp((avg.get(t.id) ?? 62) - 5 + rng.normal(0, 3), 35, 90) });
+    const p = generatePlayer(ctx, {
+      titleId: t.id,
+      roleId: roleId ?? rng.pick(t.lineup),
+      nat,
+      age: Math.round(clamp(rng.normal(longGone ? 27 : 24, 2.5), 18, 33)),
+      targetCA: clamp((avg.get(t.id) ?? 62) - (longGone ? 8 : 5) + rng.normal(0, 3), 35, 90),
+    });
     p.handle = hp.handle;
     p.first = hp.first_name ?? '';
     p.last = hp.last_name ?? '';
@@ -632,5 +621,5 @@ export function addRealHistory(ctx: GenCtx, orgs: Map<string, Organisation>, mak
     world.players[p.id] = p;
     nFa++;
   }
-  return { teams: nTeams, freeAgents: nFa, retired: nRet };
+  return { teams: nTeams, freeAgents: nFa, retired: 0 };
 }

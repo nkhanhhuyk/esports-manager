@@ -82,8 +82,9 @@ function promotionRelegation(world: World, season: number, rng: RNG): void {
     const upTable = leagueTable(world, upper, season);
     const lowTable = leagueTable(world, lower, season);
     // Lower-league split 2 champion has priority, then the best regular-season record.
-    const split2 = Object.values(world.comps).find((c) => c.season === season && c.leagueId === lower.id && c.split === 2);
-    const order = [...(split2?.placements[0] ? [split2.placements[0]] : []), ...lowTable.map((r) => r.teamId)];
+    // The lower league's last-split champion has priority, then the best regular-season record.
+    const lastSplit = Object.values(world.comps).filter((c) => c.season === season && c.leagueId === lower.id && c.split).sort((a, b) => (b.split ?? 0) - (a.split ?? 0))[0];
+    const order = [...(lastSplit?.placements[0] ? [lastSplit.placements[0]] : []), ...lowTable.map((r) => r.teamId)];
     for (let k = 0; k < upper.promotion; k++) {
       const down = upTable[upTable.length - 1 - k]?.teamId;
       const up = order.find((tid) => {
@@ -113,7 +114,8 @@ function retirements(world: World, rng: RNG): void {
     const age = ageAt(p.birth, world.day);
     let chance = 0;
     if (age >= 23) chance = 0.015 + Math.max(0, age - p.dev.declineAge) * 0.045 + Math.max(0, age - 28) * 0.05;
-    if (!p.teamId && age >= 21) chance += 0.1 + (p.ca < 55 ? 0.12 : 0) + (age >= 24 ? 0.1 : 0);
+    // Unsigned players drift out of the game; real pros keep looking for a team longer.
+    if (!p.teamId && age >= 21) chance += (0.1 + (p.ca < 55 ? 0.12 : 0) + (age >= 24 ? 0.1 : 0)) * (p.real ? 0.35 : 1);
     if (p.ca < 45 && age > 20) chance += 0.1;
     if (p.teamId && p.contract && p.contract.endSeason > world.season) chance *= 0.25;
     if (!rng.chance(clamp(chance, 0, 0.95))) continue;
@@ -496,7 +498,8 @@ export function seasonRollover(world: World): void {
     p.fatigue = Math.min(p.fatigue, 10);
     p.form = 0;
   }
-  for (const id of world.meta.titlesEnabled) releasePatch(world, id, true);
+  // The major patch normally comes right after the World Championship; release one now if it did not.
+  for (const id of world.meta.titlesEnabled) if (!world.titles[id].patches.some((p) => p.season === world.season && (p.kind === 'major' || (p.kind === undefined && p.major)))) releasePatch(world, id, 'major');
   planSeason(world, world.season);
   ensureDraftPicks(world);
   if (world.meta.userOrgId && !world.meta.unemployed && hasBoard(world)) setBoardObjectives(world);

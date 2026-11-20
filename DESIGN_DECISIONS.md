@@ -398,3 +398,41 @@ Chosen on the new-career form; Settings → Difficulty & sandbox offers the pres
 * **Engagements from visible information**: heroes and shot-callers act on what their team can see; losing
   teams play safer; chases are limited; escape spells exist — these, not hard caps, keep kill counts plausible.
 * **Replays are session-only** (memory cache of the last 12 games); saves stay small.
+
+## Season format (three splits)
+
+* Every title: Split 1 (single round robin, Jan) → **First Stand** (Mar; split 1 finalists, the two
+  strongest leagues send two) → Split 2 (double round robin) → **Mid-Season Invitational** (late Jun; play-in
+  groups when more than eight teams, then a double-elimination bracket) → Split 3 (double round robin) →
+  **World Championship** (late Sep; circuit points, the split 3 champion seeded). Circuit points weigh splits
+  1 / 1.25 / 1.5. An international that would start before its qualifying split has finished waits for it.
+* **Hard Fearless at First Stand** (`Competition.rules.fearless = 'global'`, MOBAs only): every champion
+  either team has played in the series is unavailable to both teams for the rest of it. Valorant's
+  simultaneous agent select and CS2 have no fearless rule.
+* Mid-season transfer window: 12–23 July (between MSI and split 3); pre-season window unchanged.
+
+## Sides and draft order
+
+* MOBA games are simulated in map-side order (index 0 = Blue / Radiant, bottom-left); when the series'
+  second team is on Blue the teams are swapped for the simulation and the result mapped back
+  (`GameResult.blue`). Replays stay in side order; viewers and box scores use `blue` (Blue on top).
+* **First selection** (LoL 2026 rule, also Dota 2 Captains Mode): game 1 chooser by coin toss, then the
+  previous game's loser; the chooser takes either a side or a draft order, the opponent the other. AI: a team
+  values first pick when the patch has standout champions (top − 6th meta strength) and by draft priority
+  (meta/comfort want first, counter wants last); Blue side's value is a fixed per-title edge. On your own
+  live matches you make the choice (or let the coach). MLBB, HoK and Wild Rift: the chooser takes Blue,
+  which drafts first.
+
+## Patches
+
+* **Minor**: random during the splits (≈1/18 per day, ≥ 7 days apart, never during an international):
+  2–3 nerfs and buffs, sometimes a class-wide item/utility change. **Medium**: exactly 10 days before First
+  Stand, MSI and Worlds: 6–9 nerfs and buffs, 1–2 class changes, style shift, objective value, sometimes the
+  map pool. **Major**: the day after the Worlds final (opens next season's numbering): 8–12 nerfs and buffs,
+  2–3 class changes, map pool, plus 2–3 **gameplay rule changes** stored in `Patch.rules` and read by both
+  engines of each family via `src/sim/common/rules.ts`: objective spawns (once → twice, a cap), first spawn
+  and respawn timers, a different reward kind, reward size, new objectives (Atakhan, Rift Scuttler, a second
+  Turtle, Void Grubs in Wild Rift, …; game patches, not real announcements) or removal of a patch-added one,
+  gold income, structure health and death timers; shooters: bomb/spike, round, plant and defuse timers,
+  economy, loss bonus, attacker/defender balance. Rules accumulate across seasons. World → Patches shows
+  the rules in force.

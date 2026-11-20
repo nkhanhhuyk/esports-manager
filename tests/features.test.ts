@@ -74,9 +74,9 @@ describe('trades', () => {
     let w = tradeWorld('offers');
     for (const seed of ['offers', 'offers-2', 'offers-3', 'offers-4']) {
       w = tradeWorld(seed);
-      advance(w, { kind: 'until', day: dayFromYMD(w.season, 5, 10) }, { stopForUserMatch: false });
-      for (let i = 0; i < 21 && !(w.tradeOffers ?? []).some((o) => o.status === 'pending'); i++) {
-        w.day = dayFromYMD(w.season, 5, 10) + i;
+      advance(w, { kind: 'until', day: dayFromYMD(w.season, 7, 12) }, { stopForUserMatch: false });
+      for (let i = 0; i < 12 && !(w.tradeOffers ?? []).some((o) => o.status === 'pending'); i++) {
+        w.day = dayFromYMD(w.season, 7, 12) + i;
         aiOffersToUser(w);
       }
       if ((w.tradeOffers ?? []).some((o) => o.status === 'pending')) break;

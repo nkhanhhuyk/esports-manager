@@ -17,7 +17,11 @@ by simulation tests.
 | Live 2D MOBA viewer with controls, scoreboard, follow, overlays (§7A) | ✅ all five MOBAs | `MobaViewer`, live match + match report replays; phone layout checked in a browser |
 | MOBA order MLBB → WR → HoK → LoL → Dota | ✅ | all five done in this milestone; MLBB checked first in the browser with real MPL ID teams |
 | Live 2D shooters (§7B) | ✅ Valorant, CS2 | `src/sim/shooter/spatialRounds.ts` (positions, line of sight, plant/defuse, economy), `ShooterViewer`; `tests/shooter.test.ts` (legal scores, kills = deaths, players on walkable ground, recording never changes results) |
-| Past real teams, former pros, retired pros (user request) | ✅ | `src/data/real/history.json` (344 teams, 1,857 players); dormant teams outside leagues revive when a league place is sold; former pros as free agents; retired records with comebacks — `tests/realworld.test.ts` |
+| Past real teams and former pros (user request) | ✅ | `src/data/real/history.json` (344 teams, 1,857 players); dormant teams outside leagues revive when a league place is sold; every former pro (long-inactive ones too) is a free agent — `tests/realworld.test.ts` |
+| Three splits + First Stand (hard Fearless) + MSI double elimination (user request) | ✅ | `src/competition/season.ts`, `tests/calendar.test.ts` (order of events, Fearless never repeats a champion in a series, MSI lower bracket) |
+| LoL / Dota 2 first selection (side or draft order); blue side on top in box scores | ✅ | `src/sim/series.ts` (`gameSides`), live choice on the match screen, `tests/sides.test.ts` |
+| Minor / medium / major patches; major patches change gameplay rules | ✅ | `src/systems/patches.ts`, `src/sim/common/rules.ts` (read by all four engines), `tests/patches.test.ts` |
+| HoK / Wild Rift real teams from Liquipedia | ❌ blocked | Liquipedia API rate-limited this environment after one request (Cloudflare challenge) — not bypassed |
 | Real competition names | ✅ leagues + internationals | real league names; real-world careers name the mid-season international and the world championship after the real circuits (formats/dates/prizes are game simulation) |
 | User fixes: MOBA kill counts, watch any match, one page per competition with a season dropdown, keep box scores/history, KDA in stats | ✅ | `tests/spatial.test.ts` kill bands, `tests/archive.test.ts`, Match/LiveMatch watch & replay buttons |
 | Android: do not re-convert, keep working (§11) | ✅ | Capacitor project untouched; APK rebuilt from the same scripts |
