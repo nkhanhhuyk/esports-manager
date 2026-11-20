@@ -95,6 +95,21 @@ How a real-world start uses it (`addRealHistory` in `src/gen/realWorld.ts`):
   Counter-Strike Majors, Dota 2 The International, Honor of Kings World Cup / International Championship). Formats, dates,
   entrants and prize pools are game simulation (shown on the competition page).
 
+## Snapshot `real-2026-11-20` — birth dates, nationalities, names, roles
+
+`node scripts/data/player_facts.mjs <cache dir>` → `src/data/real/playerFacts.json` (collected 20 Nov 2026).
+Applied to real players when a real-world career starts and once to older real-world saves
+(`src/gen/realFacts.ts`); the player page shows the source ("Birth date, nationality and name: …").
+
+| Game | Source | Matched (of current + past pros) | With exact birth date |
+| --- | --- | --- | --- |
+| League of Legends | [Leaguepedia](https://lol.fandom.com) Cargo API, table Players (CC BY-SA 3.0) — also the listed role | 808 / 898 | 652 |
+| CS2 | [bo3.gg](https://bo3.gg) public API (players: names, birthday, country) — no roles | 732 / 760 | 651 |
+| Valorant | [VALORANT Esports Wiki](https://valorant-esports.fandom.com) Cargo API (sparse) — nationalities of current rosters already come from vlr.gg team pages | 26 / 468 | 17 |
+| Dota 2, MLBB | no reachable source (Liquipedia blocked; bo3.gg's player list is CS2 only) | — | — |
+
+Where no birth date is known the age stays an estimate (labelled "age").
+
 ### Access notes
 
 * **Liquipedia API (20 Nov 2026, second attempt, at the user's request for HoK / Wild Rift)**: one

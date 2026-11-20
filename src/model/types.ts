@@ -99,6 +99,8 @@ export interface RealTag {
   src: string;
   snap: string;
   est?: string[];
+  /** Source of birth date / nationality / name facts (e.g. lol.fandom.com, bo3.gg). */
+  facts?: string;
 }
 
 export interface Player {
@@ -1104,6 +1106,8 @@ export interface WorldMeta {
   realHistory?: boolean;
   /** Snapshot pros are free agents (never archived as retired). */
   realHistoryFree?: boolean;
+  /** Real birth dates / nationalities / names applied (playerFacts.json). */
+  playerFacts?: boolean;
   realMaps?: boolean;
   /** 'real' = started from the real-world team/player snapshot; 'fictional' (default) = generated. */
   dataMode?: 'real' | 'fictional';

@@ -22,6 +22,7 @@ import type { League, LeaguePolicy, Organisation, RealTag, StaffRole, Team } fro
 import { nextId } from '../model/ids';
 import { generatePlayer, type GenCtx } from './player';
 import { generateStaff } from './staff';
+import { applyFacts } from './realFacts';
 import { expectedSalary, expectedStaffSalary, makeContract } from '../systems/contracts';
 
 interface SnapPerson {
@@ -397,6 +398,8 @@ function createRealTeam(ctx: GenCtx, st: SnapTeam, league: League, teamMean: num
       p.last = '';
     }
     p.real = tag(st.source_url, est);
+    // Real birth date, nationality, name and listed role where a source has them.
+    applyFacts(p, { roles: true });
     ctx.handles.add(sp.handle);
     world.players[p.id] = p;
     signReal(ctx, p.id, team);
@@ -616,6 +619,7 @@ export function addRealHistory(ctx: GenCtx, orgs: Map<string, Organisation>, mak
     p.first = hp.first_name ?? '';
     p.last = hp.last_name ?? '';
     p.real = tag(hp.source_url, est);
+    applyFacts(p, { roles: true });
     if (hp.last_team) p.career.push({ season: seasonOf(hp.last_season) || world.season - 1, day: world.day, titleId: t.id, teamId: (team ?? liveTeam)?.id ?? null, orgId: (team ?? liveTeam)?.orgId ?? null, type: 'released', note: `Last real team: ${hp.last_team}` });
     ctx.handles.add(hp.handle);
     world.players[p.id] = p;

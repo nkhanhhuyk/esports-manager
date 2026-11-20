@@ -256,6 +256,7 @@ export function Provenance({ world, real, kind }: { world: World; real?: RealTag
   return (
     <div className="small muted" data-testid="provenance">
       <span className="tag good">Real</span> {kind} from snapshot {real.snap.replace(/^real-/, '')} ({host}).
+      {real.facts ? <> Birth date, nationality and name: {real.facts}.</> : null}
       {real.est?.length ? <> Estimated: {real.est.join(', ')}.</> : null} Ratings and everything after the snapshot are game simulation.
     </div>
   );

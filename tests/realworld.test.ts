@@ -33,7 +33,11 @@ describe('real-world start (dated roster snapshot)', () => {
     const faker = t1.roster.map((id) => w.players[id]).find((p) => p.handle === 'Faker')!;
     expect(faker.real?.snap).toBe(ROSTER_SNAPSHOT.id);
     expect(faker.roles[0]).toBe('mid');
-    expect(faker.real?.est).toContain('age');
+    // Real birth date, nationality and name from Leaguepedia (no longer estimates).
+    expect(faker.real?.est).not.toContain('age');
+    expect(faker.real?.facts).toBe('lol.fandom.com');
+    expect(faker.nat).toBe('KR');
+    expect(new Date(Date.UTC(1970, 0, 1) + faker.birth * 864e5).toISOString().slice(0, 10)).toBe('1996-05-07');
     // Every team can field a legal line-up; no real handle is duplicated within a title.
     for (const team of Object.values(w.teams)) if (team.active) expect(validateLineup(w, team, team.lineup).ok, team.name).toBe(true);
     for (const id of realTitles()) {
