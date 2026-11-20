@@ -3,6 +3,8 @@
  * simulation: positions, health, weapons, spike/bomb, utility and kills. Pausing, speed, round
  * jumps and skipping never change a result.
  */
+import { Pic } from './common';
+import { weaponPic } from '../pics';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ShooterReplay } from '../../model/types';
 import { shooterMap } from '../../sim/shooter/maps';
@@ -370,7 +372,7 @@ export function ShooterViewer({ replay, teamNames, onEnd, autoplay = true }: Pro
                 <td>{derived.k[i]}</td>
                 <td>{derived.d[i]}</td>
                 <td>{replay.php[fi * 10 + i] > 0 ? replay.php[fi * 10 + i] : <span className="muted">dead</span>}</td>
-                <td className="small">{replay.weapons[replay.pwp[fi * 10 + i]]}</td>
+                <td className="small"><Pic src={weaponPic(replay.titleId, replay.weapons[replay.pwp[fi * 10 + i]])} size={16} /> {replay.weapons[replay.pwp[fi * 10 + i]]}</td>
               </tr>
             ))}
           </tbody>
@@ -380,7 +382,7 @@ export function ShooterViewer({ replay, teamNames, onEnd, autoplay = true }: Pro
             <li key={i}>
               {e.k === 'kill' ? (
                 <>
-                  <span style={{ color: COL[replay.players[e.a!]?.side ?? 0] }}>{replay.players[e.a!]?.handle}</span> [{e.n}
+                  <span style={{ color: COL[replay.players[e.a!]?.side ?? 0] }}>{replay.players[e.a!]?.handle}</span> <Pic src={weaponPic(replay.titleId, e.n)} size={16} alt={e.n} title={e.n} />[{e.n}
                   {e.hs ? ' ⦿' : ''}] <span style={{ color: COL[replay.players[e.b!]?.side ?? 1] }}>{replay.players[e.b!]?.handle}</span>
                 </>
               ) : e.k === 'plant' ? (

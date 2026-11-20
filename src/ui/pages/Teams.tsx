@@ -5,7 +5,7 @@ import { useGame, useWorld } from '../store';
 import { eligibleNations } from '../../systems/nations';
 import { COUNTRY_BY_CODE } from '../../data/countries';
 import { userNationalTeam } from '../helpers';
-import { Card, CompLink, Flag, Money, OrgLink, PageHeader, PlayerLink, Provenance, Rating, Stat, StaffLink, TeamLink, TitleTag, Tabs, OrgBadge, age, compRef } from '../components/common';
+import { Card, CompLink, Flag, Money, OrgLink, PageHeader, PlayerLink, Provenance, Rating, Stat, StaffLink, TeamLink, TitleTag, Tabs, OrgBadge, TeamBadge, age, compRef } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { getTitle } from '../../data/titles/catalogue';
 import { computeTeamStrength } from '../../sim/common/team';
@@ -72,7 +72,7 @@ export function TeamsPage() {
           onRowClick={(t) => navigate(`/team/${t.id}`)}
           highlight={(t) => isUserTeamId(world, t.id)}
           columns={[
-            { key: 'name', label: 'Team', value: (t) => t.name, render: (t) => (<span><OrgBadge org={world.orgs[t.orgId]} size={12} /> {t.name}</span>) },
+            { key: 'name', label: 'Team', value: (t) => t.name, render: (t) => (<span><TeamBadge world={world} team={t} size={14} /> {t.name}</span>) },
             { key: 'title', label: 'Title', value: (t) => t.titleId, render: (t) => <TitleTag id={t.titleId} link={false} /> },
             { key: 'region', label: 'Region', value: (t) => regionName(t.region) },
             { key: 'league', label: 'League', value: (t) => (t.leagueId ? world.leagues[t.leagueId]?.short : '—') ?? '' },
@@ -133,7 +133,7 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
   return (
     <div>
       <PageHeader
-        badge={<OrgBadge org={org} size={40} />}
+        badge={<TeamBadge world={world} team={team} size={48} />}
         title={team.name}
         sub={
           <span>

@@ -1,5 +1,6 @@
 import { difficulty, DIFFICULTY_LABEL, PRESETS, type DifficultyPreset } from '../../systems/difficulty';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import { onlinePictures, setOnlinePictures } from '../pics';
 import { navigate } from '../router';
 import { saveFile } from '../fileExport';
 import { useGame, useWorld } from '../store';
@@ -204,6 +205,7 @@ export function SettingsPage() {
           <label>
             <input type="radio" checked={theme === 'light'} onChange={() => setTheme('light')} /> Light
           </label>
+          <OnlinePicturesToggle />
         </Card>
         <Card title="Saving">
           <label style={{ display: 'block' }}>
@@ -277,6 +279,27 @@ export function SettingsPage() {
           <div className="attr-row"><span>Career role</span><b>{world.meta.mode === 'spectator' ? 'Spectator' : ROLE_LABEL[world.meta.careerRole]}</b></div>
         </Card>
       </div>
+    </div>
+  );
+}
+
+/** Real logos, photos, characters and weapons load from their owners' servers when online. */
+function OnlinePicturesToggle() {
+  const [on, setOn] = useState(onlinePictures());
+  return (
+    <div style={{ marginTop: 8 }}>
+      <label>
+        <input
+          type="checkbox"
+          checked={on}
+          onChange={(e) => {
+            setOnlinePictures(e.target.checked);
+            setOn(e.target.checked);
+          }}
+        />{' '}
+        Online pictures (characters, weapons, team &amp; competition logos, player photos)
+      </label>
+      <div className="muted small">Loaded from the official / source websites when this device is online; never stored in the game or the save. Offline or switched off, the game shows its own badges. Applies when a page is reopened.</div>
     </div>
   );
 }

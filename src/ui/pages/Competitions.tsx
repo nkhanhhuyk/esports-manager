@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useWorld } from '../store';
 import { Link } from '../router';
 import { cachedArchive, editionsOf, isArchived, loadArchive, seriesKey, seriesName, type Edition } from '../../game/archive';
-import { Card, CompLink, PageHeader, PlayerLink, Stat, TeamLink, TitleTag, Tabs, Money, OrgBadge, Provenance } from '../components/common';
+import { Card, CompLink, PageHeader, Pic, PlayerLink, Stat, TeamLink, TitleTag, Tabs, Money, OrgBadge, Provenance } from '../components/common';
+import { compPic } from '../pics';
 import { DataTable } from '../components/DataTable';
 import { getTitle } from '../../data/titles/catalogue';
 import { regionName } from '../../data/countries';
@@ -69,7 +70,7 @@ export function CompetitionsPage({ route }: { route: Route }) {
           onRowClick={(sr) => navigate(`/comp/${(sr.latest ?? sr.editions[0]).id}`)}
           highlight={(sr) => !!sr.latest?.teamIds.some((t) => isUserTeamId(world, t))}
           columns={[
-            { key: 'name', label: 'Competition', value: (sr) => sr.name, render: (sr) => <Link to={`/comp/${(sr.latest ?? sr.editions[0]).id}`} className="elink">{sr.name}</Link> },
+            { key: 'name', label: 'Competition', value: (sr) => sr.name, render: (sr) => <Link to={`/comp/${(sr.latest ?? sr.editions[0]).id}`} className="elink"><Pic src={sr.latest ? compPic(world, sr.latest) : undefined} size={16} /> {sr.name}</Link> },
             { key: 'title', label: 'Title', value: (sr) => sr.titleId, render: (sr) => <TitleTag id={sr.titleId} link={false} /> },
             { key: 'tier', label: 'Tier', value: (sr) => sr.tier },
             { key: 'region', label: 'Region', value: (sr) => (sr.region ? regionName(sr.region) : 'International') },
@@ -233,6 +234,7 @@ export function CompetitionPage({ id, route }: { id: string; route: Route }) {
   return (
     <div>
       <PageHeader
+        badge={<Pic src={compPic(world, comp)} size={48} alt={comp.name} />}
         title={seriesName(comp, world)}
         right={
           editions.length > 1 ? (

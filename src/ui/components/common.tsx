@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { charPic, failedPics, onlinePictures, orgPic, teamPic } from '../pics';
+import { useGame } from '../store';
 import { can, denyReason, type Permission } from '../../systems/career';
 import { Link } from '../router';
 import type { Competition, Organisation, Player, RealTag, Staff, Team, World } from '../../model/types';
@@ -26,20 +28,85 @@ export function PlayerLink({ p, showName }: { p: Player | undefined; showName?: 
   );
 }
 
-export function TeamLink({ t, short }: { t: Team | undefined; short?: boolean }) {
+/**
+ * A picture loaded from its owner's server (real logos, photos, characters, weapons). Offline, when
+ * switched off in Settings, without a link, or when loading fails, the fallback (the game's own badge)
+ * is shown instead.
+ */
+export function Pic({ src, size = 18, round, alt = '', fallback, title }: { src: string | undefined; size?: number; round?: boolean; alt?: string; fallback?: ReactNode; title?: string }) {
+  const [bad, setBad] = useState(false);
+  if (!src || bad || failedPics.has(src) || !onlinePictures()) return <>{fallback ?? null}</>;
+  return (
+    <img
+      className={`pic${round ? ' round' : ''}`}
+      src={src}
+      width={size}
+      height={size}
+      alt={alt}
+      title={title}
+      loading="lazy"
+      decoding="async"
+      referrerPolicy="no-referrer"
+      onError={() => {
+        failedPics.add(src);
+        setBad(true);
+      }}
+    />
+  );
+}
+
+/** Character / champion / agent icon (real game art, linked). */
+export function CharIcon({ id, size = 18, name }: { id: string | undefined; size?: number; name?: string }) {
+  return <Pic src={charPic(id)} size={size} alt={name ?? ''} title={name} />;
+}
+
+export function TeamLink({ t, short, logo = true }: { t: Team | undefined; short?: boolean; logo?: boolean }) {
   if (!t) return <span className="muted">Free agent</span>;
+  const url = logo && t.real ? teamPicNoWorld(t) : undefined;
   return (
     <Link to={`/team/${t.id}`} className="elink">
+      {url && <Pic src={url} size={14} />}
+      {url && ' '}
       {short ? t.short : t.name}
     </Link>
   );
 }
 
+/** Team logo without the organisation fallback (no world needed). */
+function teamPicNoWorld(t: Team): string | undefined {
+  return teamPic({ orgs: {} } as unknown as World, t);
+}
+
+/** Team logo with the organisation's logo / badge as fallback. */
+export function TeamBadge({ world, team, size = 18 }: { world: World; team: Team | undefined; size?: number }) {
+  if (!team) return null;
+  return <Pic src={teamPic(world, team)} size={size} alt={team.name} fallback={<OrgBadge org={world.orgs[team.orgId]} size={size} />} />;
+}
+
 export function OrgBadge({ org, size = 18 }: { org: Organisation | undefined; size?: number }) {
+  const world = useGame((st) => st.world);
   if (!org) return null;
-  return (
-    <span className="orgbadge" style={{ width: size, height: size, background: `linear-gradient(135deg, ${org.colors[0]} 50%, ${org.colors[1]} 50%)` }} title={org.name} aria-hidden="true" />
-  );
+  const badge = <span className="orgbadge" style={{ width: size, height: size, background: `linear-gradient(135deg, ${org.colors[0]} 50%, ${org.colors[1]} 50%)` }} title={org.name} aria-hidden="true" />;
+  return <Pic src={orgLogo(world, org)} size={size} alt={org.name} title={org.name} fallback={badge} />;
+}
+
+/** An organisation's logo: the logo of one of its real teams (active first), else by name. */
+const orgLogoCache = new Map<string, string | null>();
+function orgLogo(world: World | null, org: Organisation): string | undefined {
+  if (!org.real) return undefined;
+  const hit = orgLogoCache.get(org.id);
+  if (hit !== undefined) return hit ?? undefined;
+  let url: string | undefined;
+  if (world) {
+    const teams = [...org.teams.map((id) => world.teams[id]), ...Object.values(world.teams).filter((t) => t.orgId === org.id && !org.teams.includes(t.id))].filter(Boolean);
+    for (const t of teams) {
+      url = teamPic({ orgs: {} } as unknown as World, t);
+      if (url) break;
+    }
+  }
+  url = url ?? orgPic(org);
+  orgLogoCache.set(org.id, url ?? null);
+  return url;
 }
 
 export function OrgLink({ org }: { org: Organisation | undefined }) {

@@ -6,7 +6,8 @@ import { seasonTitle } from '../../systems/availability';
 import { RichText } from '../components/RichText';
 import { useMemo, useState } from 'react';
 import { useGame, useWorld } from '../store';
-import { Card, Flag, Gate, Money, PageHeader, Rating, Stat, Tabs, TeamLink, TitleTag, age, CompLink, Provenance } from '../components/common';
+import { Card, Flag, Gate, Money, PageHeader, Pic, Rating, Stat, Tabs, TeamLink, TitleTag, age, CompLink, Provenance } from '../components/common';
+import { playerPic } from '../pics';
 import { getTitle, TITLES, titleSimilarity, similarityLabel } from '../../data/titles/catalogue';
 import { COUNTRY_BY_CODE } from '../../data/countries';
 import { ATTRS, ATTR_GROUPS, GROUP_INDICES, INPUTS, INPUT_LABEL, summaries, effectiveAttr, inputIndex, ratingBand } from '../../model/attributes';
@@ -366,6 +367,7 @@ export function PlayerPage({ id, route }: { id: string; route: Route }) {
   return (
     <div>
       <PageHeader
+        badge={<Pic src={playerPic(p)} size={64} round alt={p.handle} fallback={<span className="pic-initials" style={{ width: 56, height: 56, fontSize: 20 }}>{p.handle.slice(0, 2).toUpperCase()}</span>} />}
         title={
           <span>
             <Flag cc={p.nat} />

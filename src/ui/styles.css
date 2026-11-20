@@ -491,6 +491,27 @@ label {
   height: 100%;
   background: var(--accent);
 }
+.pic {
+  display: inline-block;
+  vertical-align: middle;
+  object-fit: contain;
+  border-radius: 3px;
+}
+.pic.round {
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.06);
+}
+.pic-initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--panel-2, rgba(255, 255, 255, 0.08));
+  color: var(--muted, #9aa4b2);
+  font-weight: 700;
+  vertical-align: middle;
+}
 .orgbadge {
   display: inline-block;
   border-radius: 4px;

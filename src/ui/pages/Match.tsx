@@ -3,7 +3,8 @@ import { watchedFixturesOn } from '../../systems/follow';
 import { RivalryBadge } from '../components/Fans';
 import { useState } from 'react';
 import { useGame, useWorld } from '../store';
-import { Card, CompLink, PageHeader, PlayerLink, TeamLink, TitleTag, OrgBadge, Tabs } from '../components/common';
+import { Card, CharIcon, CompLink, PageHeader, Pic, PlayerLink, TeamLink, TitleTag, OrgBadge, Tabs } from '../components/common';
+import { playerPic } from '../pics';
 import { getTitle } from '../../data/titles/catalogue';
 import { getAnyReplay, getReplay, loadReplay, type AnyReplay } from '../../sim/moba/replayCache';
 import { ShooterViewer } from '../components/ShooterViewer';
@@ -48,14 +49,14 @@ function DraftPanel({ g, f }: { g: GameResult; f: Fixture }) {
           <div>
             {g.draft!.bans[i].map((b) => (
               <span key={b} className="chip ban">
-                {name(b)}
+                <CharIcon id={b} size={16} /> {name(b)}
               </span>
             ))}
           </div>
           <div>
             {Object.entries(g.draft!.assign[i]).map(([pid, cid]) => (
               <span key={pid} className="chip pick">
-                <PlayerLink p={world.players[pid]} />: {name(cid)}
+                <CharIcon id={cid} size={16} /> <PlayerLink p={world.players[pid]} />: {name(cid)}
               </span>
             ))}
           </div>
@@ -97,10 +98,10 @@ function Scoreboard({ g, f }: { g: GameResult; f: Fixture }) {
               .map((l) => (
                 <tr key={l.playerId}>
                   <td>
-                    <PlayerLink p={world.players[l.playerId]} />
+                    <Pic src={playerPic(world.players[l.playerId])} size={20} round /> <PlayerLink p={world.players[l.playerId]} />
                   </td>
                   <td>{roleName(f.titleId, l.roleId)}</td>
-                  {t.characters.length > 0 && <td>{t.characters.find((c) => c.id === l.charId)?.name ?? ''}</td>}
+                  {t.characters.length > 0 && <td><CharIcon id={l.charId} size={20} /> {t.characters.find((c) => c.id === l.charId)?.name ?? ''}</td>}
                   {t.stats.map((s) => (
                     <td key={s.key}>{Math.round(l.s[s.key] ?? 0).toLocaleString()}</td>
                   ))}

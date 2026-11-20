@@ -5,7 +5,7 @@
  */
 import { useMemo, useRef, useState } from 'react';
 import { useGame, useWorld } from '../store';
-import { Card, CompLink, PageHeader, PlayerLink, TeamLink, TitleTag } from '../components/common';
+import { Card, CharIcon, CompLink, PageHeader, PlayerLink, TeamLink, TitleTag } from '../components/common';
 import { getTitle } from '../../data/titles/catalogue';
 import { formatDate } from '../../core/date';
 import { navigate } from '../router';
@@ -348,14 +348,14 @@ export function LiveMatchPage({ id }: { id: string }) {
                 <div>
                   {ds.bans[i].map((b) => (
                     <span key={b} className="chip ban">
-                      {t.characters.find((c) => c.id === b)?.name}
+                      <CharIcon id={b} size={16} /> {t.characters.find((c) => c.id === b)?.name}
                     </span>
                   ))}
                 </div>
                 <div>
                   {Object.entries(ds.assign[i]).map(([pid, cid]) => (
                     <span key={pid} className="chip pick">
-                      <PlayerLink p={world.players[pid]} />: {t.characters.find((c) => c.id === cid)?.name}
+                      <CharIcon id={cid} size={16} /> <PlayerLink p={world.players[pid]} />: {t.characters.find((c) => c.id === cid)?.name}
                     </span>
                   ))}
                 </div>
@@ -387,7 +387,7 @@ export function LiveMatchPage({ id }: { id: string }) {
                     const comfort = ds.sides[ui].players.some((p) => (p.prof.chars[t.id]?.[c.id] ?? 0) >= 75);
                     return (
                       <button key={c.id} onClick={() => userAct(c.id)}>
-                        <b>{c.name}</b> {comfort ? '★' : ''}
+                        <CharIcon id={c.id} size={32} name={c.name} /> <b>{c.name}</b> {comfort ? '★' : ''}
                         <div className="muted small">
                           {c.cls} · <span className={(meta[c.id] ?? 0) >= 0 ? 'pos' : 'neg'}>{(meta[c.id] ?? 0).toFixed(1)}</span>
                         </div>

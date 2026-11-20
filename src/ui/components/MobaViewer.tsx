@@ -7,6 +7,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MobaReplay } from '../../model/types';
 import { mobaMap } from '../../sim/moba/maps';
+import { getTitle } from '../../data/titles/catalogue';
+import { CharIcon } from './common';
 import type { MapDefinition } from '../../sim/moba/map';
 
 const TEAM_COL = ['#3fa7ff', '#ff5d5d'];
@@ -85,6 +87,7 @@ function staticLayer(m: MapDefinition): HTMLCanvasElement {
 }
 
 export function MobaViewer({ replay, teamNames, onEnd, autoplay = true }: Props) {
+  const charIds = useMemo(() => Object.fromEntries(getTitle(replay.titleId).characters.map((c) => [c.name, c.id])), [replay.titleId]);
   const map = useMemo(() => mobaMap(replay.titleId), [replay.titleId]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -522,7 +525,7 @@ export function MobaViewer({ replay, teamNames, onEnd, autoplay = true }: Props)
               return (
                 <tr key={i} onClick={() => setFollow(follow === i ? -1 : i)} style={{ cursor: 'pointer', background: follow === i ? 'var(--panel2)' : undefined }}>
                   <td>
-                    <span style={{ color: TEAM_COL[h.side] }}>■</span> {h.handle} <span className="muted small">{h.char}</span>
+                    <span style={{ color: TEAM_COL[h.side] }}>■</span> <CharIcon id={charIds[h.char]} size={18} name={h.char} /> {h.handle} <span className="muted small">{h.char}</span>
                   </td>
                   <td>{replay.hlv[fi * 10 + i]}</td>
                   <td>

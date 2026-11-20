@@ -1,6 +1,6 @@
 import { mobaMults, mobaRules, tacticalRules } from '../../sim/common/rules';
 import { useWorld } from '../store';
-import { Card, CompLink, Flag, OrgBadge, OrgLink, PageHeader, PlayerLink, Rating, Stat, TeamLink, TitleTag, Tabs } from '../components/common';
+import { Card, CharIcon, CompLink, Flag, OrgBadge, OrgLink, PageHeader, PlayerLink, Rating, Stat, TeamLink, TitleTag, Tabs } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { getTitle, TITLES, similarityLabel, titleSimilarity } from '../../data/titles/catalogue';
 import { COUNTRIES, REGIONS, regionName } from '../../data/countries';
@@ -271,7 +271,7 @@ export function TitlePage({ id, route }: { id: string; route: Route }) {
               rowKey={(c) => c.id}
               initialSort={{ key: 'meta', desc: true }}
               columns={[
-                { key: 'name', label: t.charLabel, value: (c) => c.name, render: (c) => <b>{c.name}</b> },
+                { key: 'name', label: t.charLabel, value: (c) => c.name, render: (c) => <b><CharIcon id={c.id} size={22} name={c.name} /> {c.name}</b> },
                 { key: 'cls', label: 'Class', value: (c) => c.cls },
                 { key: 'meta', label: 'Meta strength', align: 'right', value: (c) => patch.charMeta[c.id] ?? 0, render: (c) => <span className={(patch.charMeta[c.id] ?? 0) >= 0 ? 'pos' : 'neg'}>{(patch.charMeta[c.id] ?? 0).toFixed(1)}</span> },
                 { key: 'diff', label: 'Difficulty', align: 'right', value: (c) => c.difficulty },
