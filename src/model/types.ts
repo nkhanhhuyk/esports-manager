@@ -1033,6 +1033,8 @@ export interface WorldMeta {
   stopForFollowed?: boolean;
   /** Real-character snapshot the world uses (absent = generated fictional characters, pre-v7). */
   characterSnapshot?: string;
+  /** Shooter maps are the real maps (set for new worlds and after converting older saves). */
+  realMaps?: boolean;
   /** 'real' = started from the real-world team/player snapshot; 'fictional' (default) = generated. */
   dataMode?: 'real' | 'fictional';
   /** Roster snapshot id for real-world starts. */

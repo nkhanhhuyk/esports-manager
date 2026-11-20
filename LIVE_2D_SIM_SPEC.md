@@ -119,7 +119,8 @@ Interpolates positions/HP between frames; cannot change the simulation.
 | Honor of Kings | ✅ (guides; sides per CN convention) | ✅ | ✅ | camp names generic; Tempest buff modelled as execute |
 | LoL | ✅ (Riot coordinate frame; 2026 objectives) | ✅ | ✅ | kills run ≈ 1.6–1.8× pro averages — tuning continues; drake elements abstracted |
 | Dota 2 | ✅ (7.38–7.41 patch notes/guides; schematic) | ✅ | ✅ | Twin Gates, Lotus Pools, Watchers, outposts drawn as notes only; items/abilities abstracted |
-| Valorant / CS2 | map data (agents, callouts available) | ❌ (round engine is aggregate) | ❌ | next milestone (§7B) |
+| Valorant | ✅ 13 maps (official callouts, inferred connections) | ✅ | ✅ | round-level utility per agent class, not per individual ability |
+| CS2 | ✅ 9 schematic maps (callout guides) | ✅ | ✅ | grenade line-ups abstracted; no per-weapon spray model |
 
 Calibration (20 seeded games each, spatial engine; `npx vite-node scripts/calibrate-spatial.ts`):
 
@@ -142,8 +143,46 @@ recorded game: core decides, kills = opposing deaths, replay K/D/A = box score, 
 frame, structures fall only after prerequisites, objectives taken at their pits; recording / repeat equality;
 fidelity lock. `e2e/game.spec.ts` plays a live series through the viewer (skip).
 
-## Shooters (next)
+## Shooters (Valorant, CS2)
 
-Same read-only renderer architecture with a round-based spatial model: per-map sites, spawns, routes, cover and
-callouts (valorant-api.com map callouts; CS2 active-duty pool researched), utility occlusion, economy and
-round flow, before any 2D shooter view is claimed.
+**Maps** (`src/sim/shooter/map.ts`, `maps.ts`, `cs2Maps.ts`): attackers spawn at the bottom, defenders at the
+top. A map is a graph of named callouts joined by walkable connections; walls are derived from those corridors on
+a 10-unit grid and **line of sight uses the same grid plus active smokes**.
+
+* Valorant: 13 competitive maps from valorant-api.com (official callout names and coordinates, minimap transform),
+  rotated so attackers are at the bottom; connections are inferred from callout positions (relative-neighbourhood
+  rule, every site linked toward the defender side) — schematic. Competitive pool as of the snapshot (Strafe,
+  V26 Act 6, 14 Oct 2026): Summit, Abyss, Sunset, Lotus, Corrode, Haven, Bind. Haven and Lotus have three sites.
+* CS2: 9 schematic maps authored from public callout guides with explicit connections (Dust II, Inferno,
+  Mirage, Nuke, Ancient, Anubis, Cache, Train, Overpass). Active duty (csdb.gg, July 2026): Mirage, Inferno,
+  Dust II, Anubis, Ancient, Nuke, Cache.
+
+**Round engine** (`src/sim/shooter/spatialRounds.ts`, 0.5 s steps): buy phase from the economy (pistol, eco,
+force, full; survivors keep weapons; AWP/Operator for the sniper role; Valorant utility from the agent class, CS2
+grenades from the buy) → attack plan (default with map control, a lurker and an execute, rush, split; spike
+carrier) and defender setup (one anchor per site, a mid player, the rest on the IGL's read) → movement along
+the callout graph → **duels only with line of sight** (walls and smokes block it) weighing aim/skill, weapon and
+range, holding versus peeking, site cover, crossfires and local numbers, flashes (blind), Valorant recon
+(reveal), traps (reveal flankers), trades (a killer gives his position away), armour and wounds → defenders
+rotate on what they see, hear or trap, give up a site when badly outnumbered and play for the retake → plant
+(only on a site, not while contested; planters and defusers cannot shoot) → post-plant holds, retake, defuse
+(attackers move in when they hear it), molly on the spike, saves when a defuse is impossible → round result,
+KAST, clutches, multi-kills, economy, halftime, Valorant win-by-two overtime, CS2 MR12 + 6-round blocks.
+
+Fidelity uses the same per-fixture lock as MOBAs (spatial for your/followed/opened fixtures; the existing round
+engine for other background maps). Recording is passive.
+
+Calibration (16 maps per title, `npx vite-node scripts/calibrate-shooter.ts`): Valorant ≈ 20 rounds per map,
+7.4 kills per round, 0.48 plants per round, attack wins 52 %, first-kill team wins ≈ 68 %; CS2 ≈ 20 rounds,
+7.1 kills, 0.58 plants, attack 49 %. A calibrated defender edge stands in for set-ups and cover the schematic
+does not draw. ≈ 40–55 ms per map.
+
+**Viewer** (`ShooterViewer`): map floor, sites, spawns and callouts; players with handle, agent, weapon, HP,
+spike/bomb, blinded, planting/defusing; shot lines; smokes, mollies, flashes, recon, traps; round, clock or bomb
+timer, alive counts, buys and credits; per-player K/D; kill feed with weapon and headshots; round history
+(finished rounds only — no spoilers) with jump-to-round; play, pause, 1–8×, next round, instant finish, zoom,
+follow player, callout labels. The live match screen hides each map's result until playback ends or is skipped.
+
+Tests (`tests/shooter.test.ts`): every map connected with spawns and ≥ 2 sites; legal map scores; kills = deaths;
+plants only on sites; defuses only after plants; dead players never move; live players never inside walls;
+recording never changes a result.

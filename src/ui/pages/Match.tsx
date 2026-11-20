@@ -5,7 +5,9 @@ import { useState } from 'react';
 import { useGame, useWorld } from '../store';
 import { Card, CompLink, PageHeader, PlayerLink, TeamLink, TitleTag, OrgBadge, Tabs } from '../components/common';
 import { getTitle } from '../../data/titles/catalogue';
-import { getReplay, loadReplay, type AnyReplay } from '../../sim/moba/replayCache';
+import { getAnyReplay, getReplay, loadReplay, type AnyReplay } from '../../sim/moba/replayCache';
+import { ShooterViewer } from '../components/ShooterViewer';
+import type { ShooterReplay } from '../../model/types';
 import { useArchivedView } from './Competitions';
 import { useEffect } from 'react';
 import { boxLines } from '../../sim/boxscore';
@@ -105,7 +107,7 @@ export function GameView({ g, f }: { g: GameResult; f: Fixture }) {
   const t = getTitle(f.titleId);
   const [stored, setStored] = useState<AnyReplay | undefined>(undefined);
   useEffect(() => {
-    if (g.replay || getReplay(f.id, g.idx)) return;
+    if (g.replay || g.sreplay || getReplay(f.id, g.idx)) return;
     let on = true;
     loadReplay(world, f.id, g.idx).then((r) => on && setStored(r));
     return () => {
@@ -113,6 +115,7 @@ export function GameView({ g, f }: { g: GameResult; f: Fixture }) {
     };
   }, [world, f.id, g.idx, g.replay]);
   const replay = g.replay ?? getReplay(f.id, g.idx) ?? (stored?.kind === 'moba' ? stored.r : undefined);
+  const sreplay = g.sreplay ?? (stored?.kind === 'shooter' ? stored.r : getAnyReplay(f.id, g.idx)?.kind === 'shooter' ? (getAnyReplay(f.id, g.idx)!.r as ShooterReplay) : undefined);
   const [watch, setWatch] = useState(false);
   const map = t.maps.find((m) => m.id === g.mapId);
   const mode = t.modes.find((m) => m.id === g.modeId);
@@ -128,8 +131,8 @@ export function GameView({ g, f }: { g: GameResult; f: Fixture }) {
         {g.sides && g.sides.length > 0 && <div className="muted small" style={{ marginBottom: 6 }}>{g.sides.join(' · ')}</div>}
         <Scoreboard g={g} f={f} />
         {g.engine === 'fast' && <div className="muted small">Background fixture simulated with the fast engine — no battlefield replay. Open a match before it is played (Watch live / Follow in full detail) to get the 2D simulation.</div>}
-        {g.engine === 'spatial' && !replay && !g.replay && <div className="muted small">Replay no longer stored on this device (the 40 most recent battlefield games per career are kept).</div>}
-        {replay && !g.replay && (
+        {g.engine === 'spatial' && !replay && !sreplay && <div className="muted small">Replay no longer stored on this device (the 40 most recent battlefield games per career are kept).</div>}
+        {((replay && !g.replay) || (sreplay && !g.sreplay)) && (
           <button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => setWatch(!watch)}>
             {watch ? 'Hide replay' : 'Watch 2D replay'}
           </button>
@@ -138,6 +141,11 @@ export function GameView({ g, f }: { g: GameResult; f: Fixture }) {
       {watch && replay && (
         <Card title={`Game ${g.idx + 1} replay`}>
           <MobaViewer replay={replay} teamNames={[world.teams[f.teams[0]]?.name ?? 'Blue', world.teams[f.teams[1]]?.name ?? 'Red']} autoplay={false} />
+        </Card>
+      )}
+      {watch && sreplay && !replay && (
+        <Card title={`Map ${g.idx + 1} replay`}>
+          <ShooterViewer replay={sreplay} teamNames={[world.teams[f.teams[0]]?.name ?? 'Team 1', world.teams[f.teams[1]]?.name ?? 'Team 2']} autoplay={false} />
         </Card>
       )}
       {g.events && g.events.length > 0 && (
@@ -258,7 +266,7 @@ export function MatchPage({ id, route }: { id: string; route: Route }) {
                   act((w) => {
                     const fx = w.fixtures[f.id];
                     fx.detail = true;
-                    if (getTitle(fx.titleId).engine === 'moba') fx.spatial = true;
+                    fx.spatial = true;
                   });
                   await advance({ kind: 'days', n: daysAway - 1 });
                   navigate(`/live/${f.id}`);
@@ -277,7 +285,7 @@ export function MatchPage({ id, route }: { id: string; route: Route }) {
                 const fx = w.fixtures[f.id];
                 fx.detail = true;
                 // MOBA: also lock the spatial battlefield simulation (replay available after play).
-                if (getTitle(fx.titleId).engine === 'moba') fx.spatial = true;
+                fx.spatial = true;
               })}>
                 Follow in full detail
               </button>

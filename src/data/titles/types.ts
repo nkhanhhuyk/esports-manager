@@ -193,6 +193,8 @@ export interface StatDef {
 }
 
 export interface TitleDef {
+  /** Real competitive map pool at the snapshot (map ids); patches rotate from here. */
+  activePool?: string[];
   id: string;
   /** Stable source-specification ID (S220 MLBB … S234 CS2). */
   sourceId: string;

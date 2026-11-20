@@ -85,6 +85,13 @@ locations and timers come from the references below; see LIVE_2D_SIM_SPEC.md for
 
 Objective timings were updated in `src/data/titles/catalogue.ts` with the same references (comments in code).
 
+## Shooter maps — `src/sim/shooter/`
+
+| Game | Source | Status |
+| --- | --- | --- |
+| Valorant (13 competitive maps) | valorant-api.com `/v1/maps` (community mirror of game data): callout region/super-region names and in-game coordinates, minimap transform. Pool: Strafe "Valorant Map Pool: Current Competitive Maps (V26 Act 6)", 14 Oct 2026 | positions official (transformed and rotated); connections inferred (estimate) |
+| CS2 (9 maps) | csdb.gg map hub (July 2026 active duty), PlayNews 2026 callout guide, tradeit.gg callout guide | schematic: callout names and routes from the guides, positions approximate |
+
 ## Licences and attribution
 
 * Riot Data Dragon: Riot Games developer data; used under Riot's developer policies for a non-commercial

@@ -8,9 +8,11 @@
  * interest names are generated fictional placeholders. Input assignments are deliberate design
  * decisions from the specification and must not be substituted.
  */
+import { VALORANT_MAP_SPECS, VALORANT_POOL } from '../../sim/shooter/maps';
+import { CS2_MAPS, CS2_POOL } from '../../sim/shooter/cs2Maps';
 import { realCharacters } from './realCharacters';
 import type { SeriesFormat } from '../../model/types';
-import { generateCharacters, generateMaps } from './generate';
+import { generateCharacters } from './generate';
 import { MOBA_ROLE, SHOOTER_ROLE, SPEC, role } from './phases';
 import type { CharDef, DraftStep, ModeDef, StatDef, TitleDef } from './types';
 
@@ -439,8 +441,15 @@ export function legacyCharacters(t: TitleDef): CharDef[] {
 function finalise(t: TitleDef): TitleDef {
   // Real heroes / champions / agents from the offline snapshot; CS2 has none.
   if (t.charCount > 0) t.characters = realCharacters(t) ?? legacyCharacters(t);
-  if (t.id === 'valorant') t.maps = generateMaps(t.id, 10, { sideBiasSpread: 0.08, style: 'compound' });
-  if (t.id === 'cs2') t.maps = generateMaps(t.id, 9, { sideBiasSpread: 0.1, style: 'compound' });
+  // Real maps: Valorant's competitive maps (official callout data) and CS2's active duty + rotation maps.
+  if (t.id === 'valorant') {
+    t.maps = VALORANT_MAP_SPECS.map((m) => ({ id: m.id, name: m.name, sideBias: 0, size: 'mixed' as const }));
+    t.activePool = VALORANT_POOL;
+  }
+  if (t.id === 'cs2') {
+    t.maps = CS2_MAPS.map((m) => ({ id: m.id, name: m.name, sideBias: 0, size: 'mixed' as const }));
+    t.activePool = CS2_POOL;
+  }
   return t;
 }
 

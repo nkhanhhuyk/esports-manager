@@ -23,6 +23,7 @@ import { buildTeamCtx, type TeamCtx } from './common/team';
 import { simulateMoba } from './moba/moba';
 import { simulateMobaSpatial } from './moba/spatial';
 import { simulateTactical } from './shooter/tactical';
+import { simulateTacticalSpatial } from './shooter/spatialRounds';
 
 export interface SeriesState {
   fixtureId: string;
@@ -124,8 +125,8 @@ export function getPlans(world: World, f: Fixture): [UserMatchPlan | undefined, 
 
 export function createSeries(world: World, f: Fixture, forceDetail = false): SeriesState {
   const t = getTitle(f.titleId);
-  // Lock MOBA fidelity before anything is simulated (instant and live paths both pass here).
-  if (t.engine === 'moba' && f.spatial === undefined) f.spatial = f.teams.some((id) => isUserTeam(world, id) || isFollowed(world, id));
+  // Lock fidelity before anything is simulated (instant and live paths both pass here).
+  if (f.spatial === undefined) f.spatial = f.teams.some((id) => isUserTeam(world, id) || isFollowed(world, id));
   const teams = f.teams.map((id) => world.teams[id]) as [Team, Team];
   const plans = getPlans(world, f);
   const comp = world.comps[f.compId];
@@ -279,7 +280,12 @@ export function playNextGame(world: World, f: Fixture, st: SeriesState, userDraf
       }
       break;
     case 'tactical':
-      res = simulateTactical(g);
+      // Same fidelity lock as MOBAs: the spatial round simulation on the real map, or the fast engine.
+      if (f.spatial) res = simulateTacticalSpatial(g, !!st.record);
+      else {
+        res = simulateTactical(g);
+        res.engine = 'fast';
+      }
       break;
     default:
       throw new Error(`Unknown engine ${String(t.engine)}`);

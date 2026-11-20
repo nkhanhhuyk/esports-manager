@@ -65,6 +65,10 @@ export const MIGRATIONS: Record<number, (w: AnyWorld) => AnyWorld> = {
   // (src/game/characterMigration.ts) generated characters are remapped to real ones of the same
   // class, once, and the world records the snapshot id.
   6: (w) => w,
+  // v7 -> v8: real Valorant and CS2 maps, season archive and compact box scores. Nothing is
+  // rewritten here: after migration (src/game/mapMigration.ts) generated map ids are remapped to the
+  // real maps once; seasons are archived from the next rollover on.
+  7: (w) => w,
 };
 
 const metaSchema = z

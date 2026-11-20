@@ -17,7 +17,7 @@ export function initialPatch(world: World, titleId: string): Patch {
   for (const c of t.characters) charMeta[c.id] = Math.round(clamp(rng.normal(0, 2.5), -10, 10) * 10) / 10;
   const styles: Record<string, number> = {};
   for (const s of t.styles) styles[s] = Math.round(clamp(1 + rng.normal(0, 0.15), 0.6, 1.5) * 100) / 100;
-  const pool = t.maps.length > t.mapPool ? rng.sample(t.maps, t.mapPool).map((m) => m.id) : t.maps.map((m) => m.id);
+  const pool = t.activePool?.length ? [...t.activePool] : t.maps.length > t.mapPool ? rng.sample(t.maps, t.mapPool).map((m) => m.id) : t.maps.map((m) => m.id);
   const yy = world.season % 100;
   return { id: `${titleId}-${yy}.01`, version: `${yy}.01`, day: world.day, season: world.season, major: true, charMeta, styles, mapPool: pool, objectiveMods: {}, notes: ['Season opening patch.'], era: 'Modern era' };
 }

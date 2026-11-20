@@ -99,6 +99,7 @@ describe('competition registration (separate from contracts)', () => {
     const { offerFreeAgent } = await import('../src/systems/transfers');
     const { w, mine, comp } = lockedWorld('reg-sign');
     w.orgs[mine.orgId].balance += 1e7;
+    mine.salaryBudget += 2e6;
     while (mine.roster.length > 7) releasePlayer(w, mine.roster[mine.roster.length - 1]);
     const adult = (p: { birth: number }) => w.day - p.birth > 18 * 365.25;
     const fa = Object.values(w.players).filter((p) => !p.teamId && !p.retired && p.titleId === 'valorant' && adult(p)).sort((a, b) => a.ca - b.ca)[0];

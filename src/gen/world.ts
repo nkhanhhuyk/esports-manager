@@ -268,6 +268,7 @@ export function createWorld(opts: NewWorldOptions): World {
       difficulty: { ...PRESETS[opts.difficulty ?? 'standard'] },
       characterSnapshot: CHARACTER_SNAPSHOT.id,
       dataMode: opts.dataMode ?? 'fictional',
+      realMaps: true,
       ...(opts.dataMode === 'real' ? { rosterSnapshot: ROSTER_SNAPSHOT.id } : {}),
       detail: { fullDetailTitles: [], userMatches: true, internationals: true },
       worldSize: opts.worldSize,

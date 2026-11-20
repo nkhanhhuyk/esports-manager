@@ -19,6 +19,7 @@ import { GameView, SeriesView } from './Match';
 import { validateLineup } from '../../systems/lineup';
 import { can, denyReason } from '../../systems/career';
 import { MobaViewer } from '../components/MobaViewer';
+import { ShooterViewer } from '../components/ShooterViewer';
 
 export function LiveMatchPage({ id }: { id: string }) {
   const world = useWorld();
@@ -62,7 +63,7 @@ export function LiveMatchPage({ id }: { id: string }) {
             act((w) => {
               const fx = w.fixtures[f.id];
               fx.detail = true;
-              if (t.engine === 'moba') fx.spatial = true;
+              fx.spatial = true;
             });
             await advanceGame({ kind: 'days', n: f.day - world.day - 1 });
           }}
@@ -106,9 +107,9 @@ export function LiveMatchPage({ id }: { id: string }) {
     if (t.mapVeto === 'tactical' && !watching) act((w) => (w.overrides[f.id] = { ...(w.overrides[f.id] ?? {}), mapBans: bans, mapPicks: picks }));
     // Lock the fixture to full detail before anything is simulated: MOBA games then run the
     // spatial battlefield simulation whether watched, read or skipped.
-    if (t.engine === 'moba' && !f.spatial) act((w) => (w.fixtures[f.id].spatial = true));
+    if (!f.spatial) act((w) => (w.fixtures[f.id].spatial = true));
     const s = createSeries(world, f, true);
-    s.record = t.engine === 'moba';
+    s.record = true;
     setSt(s);
     startDraftFor(s);
   };
@@ -143,8 +144,9 @@ export function LiveMatchPage({ id }: { id: string }) {
     playNextGame(world, f, st, draft);
     setSt({ ...st });
     setDs(null);
-    // Shooter games (no 2D view yet) are revealed at once; MOBA games when playback ends.
-    if (!st.games[st.games.length - 1]?.replay) setRevealed(st.games.length);
+    // Games without a recorded view are revealed at once; others when playback ends.
+    const last = st.games[st.games.length - 1];
+    if (!last?.replay && !last?.sreplay) setRevealed(st.games.length);
   };
 
   const nextGame = () => st && startDraftFor(st);
@@ -322,6 +324,11 @@ export function LiveMatchPage({ id }: { id: string }) {
           )}
         </Card>
       )}
+      {st && hidden && lastGame?.sreplay && (
+        <Card title={`Map ${st.games.length} — live`}>
+          <ShooterViewer key={`s-${f.id}-${st.games.length}`} replay={lastGame.sreplay} teamNames={[world.teams[f.teams[0]].name, world.teams[f.teams[1]].name]} onEnd={() => setRevealed(st.games.length)} />
+        </Card>
+      )}
       {st && hidden && lastGame?.replay && (
         <Card title={`Game ${st.games.length} — live`}>
           <MobaViewer
@@ -351,6 +358,11 @@ export function LiveMatchPage({ id }: { id: string }) {
       {lastGame && !hidden && lastGame.replay && (
         <Card title={`Game ${st!.games.length} replay`}>
           <MobaViewer key={`r-${f.id}-${st!.games.length}`} replay={lastGame.replay} teamNames={[world.teams[f.teams[0]].name, world.teams[f.teams[1]].name]} autoplay={false} />
+        </Card>
+      )}
+      {lastGame && !hidden && lastGame.sreplay && (
+        <Card title={`Map ${st!.games.length} replay`}>
+          <ShooterViewer key={`sr-${f.id}-${st!.games.length}`} replay={lastGame.sreplay} teamNames={[world.teams[f.teams[0]].name, world.teams[f.teams[1]].name]} autoplay={false} />
         </Card>
       )}
       {lastGame && !hidden && <GameView g={lastGame} f={f} />}
