@@ -70,7 +70,8 @@ describe('breaks', () => {
     const w = withUser(makeWorld(['lol'], 'break-grant'));
     inSeason(w);
     const t = userMain(w);
-    const p = w.players[t.lineup[0].playerId];
+    // The youngest starter: no age-related decline, so any attribute change would be training.
+    const p = t.lineup.map((s) => w.players[s.playerId]).sort((a, b) => b.birth - a.birth)[0];
     p.leaveRequest = { kind: 'break', reason: 'Mental health break', days: 14, day: w.day };
     expect(decideBreakRequest(w, p.id, true).ok).toBe(true);
     expect(isAvailable(p, w.day)).toBe(false);
@@ -128,7 +129,8 @@ describe('breaks', () => {
   it('AI clubs replace a starter who steps away for the season', () => {
     const w = makeWorld(['lol'], 'break-replace');
     inSeason(w);
-    const t = Object.values(w.teams).find((x) => x.tier === 'main' && x.roster.length === getTitle(x.titleId).teamSize) ?? Object.values(w.teams).find((x) => x.tier === 'main')!;
+    const clubs = Object.values(w.teams).filter((x) => x.tier === 'main' && !x.national);
+    const t = clubs.find((x) => x.roster.length === getTitle(x.titleId).teamSize) ?? clubs[0];
     while (t.roster.length > getTitle(t.titleId).teamSize) releasePlayer(w, t.roster[t.roster.length - 1]);
     const p = w.players[t.lineup[0].playerId];
     startLeave(w, p, 'hiatus', 'Personal reasons', 0);

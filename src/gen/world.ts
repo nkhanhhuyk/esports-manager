@@ -2,6 +2,7 @@
  * World generator: titles, countries, leagues, organisations, teams, players, staff, finances
  * and the first season's competition calendar.
  */
+import { CHARACTER_SNAPSHOT } from '../data/titles/realCharacters';
 import { PRESETS, type DifficultyPreset } from '../systems/difficulty';
 import { clamp } from '../core/math';
 import { RNG } from '../core/rng';
@@ -262,6 +263,7 @@ export function createWorld(opts: NewWorldOptions): World {
       userOrgId: null,
       careerRole: opts.careerRole ?? 'coach-gm',
       difficulty: { ...PRESETS[opts.difficulty ?? 'standard'] },
+      characterSnapshot: CHARACTER_SNAPSHOT.id,
       detail: { fullDetailTitles: [], userMatches: true, internationals: true },
       worldSize: opts.worldSize,
       autosave: true,

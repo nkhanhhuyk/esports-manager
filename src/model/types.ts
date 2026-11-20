@@ -932,6 +932,8 @@ export interface WorldMeta {
   followed?: ID[];
   /** Spectator: stop the advance the day before a followed team plays (to watch it live). */
   stopForFollowed?: boolean;
+  /** Real-character snapshot the world uses (absent = generated fictional characters, pre-v7). */
+  characterSnapshot?: string;
   /** Difficulty & sandbox options (absent = standard). */
   difficulty?: { preset: 'relaxed' | 'standard' | 'hard' | 'custom'; income: number; board: number; injuries: number; breaks: number; bargaining: number };
   /** Areas the manager hands to AI staff even though the role could do them. */

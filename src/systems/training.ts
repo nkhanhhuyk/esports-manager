@@ -7,6 +7,7 @@
  * - Form fluctuates quickly (per game), fatigue accumulates with games & training intensity.
  * - Repeating the same team focus has diminishing returns.
  */
+import { fitsRole } from '../data/titles/realCharacters';
 import { difficulty } from './difficulty';
 import { onLeave } from './availability';
 import { clamp } from '../core/math';
@@ -232,7 +233,7 @@ export function weeklyTraining(world: World): void {
       if (poolBlocks > 0 && t.characters.length) {
         const role = t.roles.find((r) => r.id === roleId)!;
         const cm = (p.prof.chars[tId] ||= {});
-        const pool = t.characters.filter((c) => role.classes.includes(c.cls)).slice(0, 10);
+        const pool = t.characters.filter((c) => fitsRole(c, role)).slice(0, 10);
         for (let k = 0; k < poolBlocks; k++) for (const c of rng.sample(pool, 2)) cm[c.id] = clamp((cm[c.id] ?? 15) + 0.6 * learn * q, 0, 100);
       }
       const mapBlocks = away ? 0 : Math.min(6, Math.round((ws ? ws.held.maps : focus === 'maps' ? 2 : 0) + (focus === 'maps' ? indiv / 2 : 0)));

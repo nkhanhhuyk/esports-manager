@@ -70,11 +70,16 @@ describe('difficulty & sandbox', () => {
 
 describe('trades', () => {
   it('AI clubs send trade proposals to the user that can be accepted or rejected', () => {
-    const w = tradeWorld('offers');
-    advance(w, { kind: 'until', day: dayFromYMD(w.season, 5, 10) }, { stopForUserMatch: false });
-    for (let i = 0; i < 21 && !(w.tradeOffers ?? []).some((o) => o.status === 'pending'); i++) {
-      w.day = dayFromYMD(w.season, 5, 10) + i;
-      aiOffersToUser(w);
+    // Proposals need a mutually useful deal: try a few fixed worlds until one produces one.
+    let w = tradeWorld('offers');
+    for (const seed of ['offers', 'offers-2', 'offers-3', 'offers-4']) {
+      w = tradeWorld(seed);
+      advance(w, { kind: 'until', day: dayFromYMD(w.season, 5, 10) }, { stopForUserMatch: false });
+      for (let i = 0; i < 21 && !(w.tradeOffers ?? []).some((o) => o.status === 'pending'); i++) {
+        w.day = dayFromYMD(w.season, 5, 10) + i;
+        aiOffersToUser(w);
+      }
+      if ((w.tradeOffers ?? []).some((o) => o.status === 'pending')) break;
     }
     const pending = (w.tradeOffers ?? []).filter((o) => o.status === 'pending');
     expect(pending.length).toBeGreaterThan(0);

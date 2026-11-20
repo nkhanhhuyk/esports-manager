@@ -5,6 +5,7 @@
  * apply bans then let each team pick independently (mirrors allowed where the title allows).
  * The same functions power the interactive draft UI, AI drafting and coach delegation.
  */
+import { fitsRole } from '../../data/titles/realCharacters';
 import { clamp } from '../../core/math';
 import type { RNG } from '../../core/rng';
 import type { CharDef, TitleDef } from '../../data/titles/types';
@@ -243,7 +244,7 @@ function bestSlotFor(ds: DraftState, team: 0 | 1, charId: string, slots: LineupS
   for (const s of slots) {
     const p = ds.sides[team].players.find((x) => x.id === s.playerId);
     const role = roleOf(ds, team, s);
-    const fit = role.classes.includes(c.cls) ? 30 : 0;
+    const fit = fitsRole(c, role) ? 30 : 0;
     const comfort = p ? charProf(p, ds.title, role, charId) : 0;
     if (fit + comfort > bs) {
       bs = fit + comfort;
@@ -256,6 +257,16 @@ function bestSlotFor(ds: DraftState, team: 0 | 1, charId: string, slots: LineupS
 function draftSkill(world: World, team: Team): number {
   const coach = headCoach(world, team);
   return coach ? (coach.attrs.drafting * 0.6 + staffQuality(coach) * 0.4) / 100 : 0.35;
+}
+
+const fitApplies = new Map<string, boolean>();
+function roleFitApplies(t: TitleDef): boolean {
+  let v = fitApplies.get(t.id);
+  if (v === undefined) {
+    v = t.roles.some((r) => r.classes.length > 0) || t.characters.some((c) => c.lanes?.length);
+    fitApplies.set(t.id, v);
+  }
+  return v;
 }
 
 /** AI choice for the current step. */
@@ -280,9 +291,11 @@ export function aiDraftAction(world: World, ds: DraftState, rng: RNG): { charId:
     let best: CharDef | null = null;
     let bs = -Infinity;
     const enemyPlayers = ds.sides[enemy].players;
+    // Enemy comfort once (players' pools are small) instead of per option × player.
+    const enemyComfort = new Map<string, number>();
+    for (const p of enemyPlayers) for (const [id, v] of Object.entries(p.prof.chars[ds.title.id] ?? {})) if (v > (enemyComfort.get(id) ?? 0)) enemyComfort.set(id, v);
     for (const c of opts) {
-      let comfort = 0;
-      for (const p of enemyPlayers) comfort = Math.max(comfort, p.prof.chars[ds.title.id]?.[c.id] ?? 0);
+      const comfort = enemyComfort.get(c.id) ?? 0;
       const pref = side.team.prefs.bans.includes(c.id) ? 0.6 : 0;
       const score = (ds.patch.charMeta[c.id] ?? 0) / 10 * wMeta + (comfort / 100) * 0.9 * wComfort + pref + (rng.next() - 0.5) * noise * 3.4;
       if (score > bs) {
@@ -295,6 +308,11 @@ export function aiDraftAction(world: World, ds: DraftState, rng: RNG): { charId:
   const slots = unfilledPlayers(ds, team);
   let best: { c: CharDef; slot: LineupSlot } | null = null;
   let bs = -Infinity;
+  // Shortlist: characters that fit a still-open role (real rosters have 100–170 characters).
+  const openRoles = slots.map((s) => roleOf(ds, team, s));
+  const anyFit = roleFitApplies(ds.title);
+  const fitting = anyFit ? opts.filter((c) => openRoles.some((r) => fitsRole(c, r))) : opts;
+  if (fitting.length >= 3) opts.splice(0, opts.length, ...fitting);
   // Option-level terms (independent of which player takes the pick) computed once per option.
   const style = side.team.prefs.style;
   const base = new Float64Array(opts.length);
@@ -310,7 +328,6 @@ export function aiDraftAction(world: World, ds: DraftState, rng: RNG): { charId:
     const role = roleOf(ds, team, slot);
     const pool = side.team.prefs.pool[role.id];
     const prefSet = pool && pool.length ? new Set(pool) : null;
-    const classSet = role.classes.length ? new Set(role.classes) : null;
     let comfortOf = p ? ds.comfortCache.get(p.id) : undefined;
     if (!comfortOf) {
       comfortOf = comfortFn(ds.title, p);
@@ -318,7 +335,7 @@ export function aiDraftAction(world: World, ds: DraftState, rng: RNG): { charId:
     }
     for (let i = 0; i < opts.length; i++) {
       const c = opts[i];
-      const fit = !classSet || classSet.has(c.cls) ? 0.5 : -0.4;
+      const fit = !(anyFit || role.classes.length > 0) || fitsRole(c, role) ? 0.5 : -0.4;
       const score = base[i] + fit + (comfortOf(c) / 100) * 1.1 * wComfort + (prefSet?.has(c.id) ? 0.35 : 0);
       if (score > bs) {
         bs = score;

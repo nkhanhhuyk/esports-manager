@@ -7,6 +7,7 @@
  * backup. Saves made by older builds (`worlds[<id>]` + `backups[<id>]`) still load and are
  * migrated to the slot layout on the next saves.
  */
+import { ensureRealCharacters } from '../game/characterMigration';
 import { ensureAudience } from '../systems/fans';
 import { openDB, type IDBPDatabase } from 'idb';
 import type { World } from '../model/types';
@@ -151,6 +152,7 @@ function migrateAndConvert(raw: unknown): { world: World; converted: boolean } {
   try {
     const converted = !!convertToSevenTitles(world);
     ensureAudience(world);
+    ensureRealCharacters(world);
     return { world, converted };
   } catch (e) {
     if (e instanceof ScopeConversionError) throw new SaveError(e.message);

@@ -64,10 +64,17 @@ export interface RoleDef {
 export interface CharDef {
   id: string;
   name: string;
+  /** Primary class (one of the title's charClasses). */
   cls: string;
   styles: Record<string, number>; // 0..10
   difficulty: number; // 1..10
   side?: 'atk' | 'def';
+  /** All classes of a real character (e.g. Fighter + Tank). */
+  classes?: string[];
+  /** Title role ids (lanes/positions) the character is played in, from the real-data snapshot. */
+  lanes?: string[];
+  /** True for characters from the verified real-world snapshot. */
+  real?: boolean;
 }
 
 export interface MapDef {

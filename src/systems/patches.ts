@@ -81,6 +81,10 @@ export function releasePatch(world: World, titleId: string, major: boolean): Pat
   }
   const patch: Patch = { id: `${titleId}-${version}-${world.day}`, version, day: world.day, season: world.season, major, charMeta, styles, mapPool, objectiveMods, notes, era };
   world.titles[titleId].patches.push(patch);
+  // Only recent patches keep per-character meta values (real rosters have 100–170 characters);
+  // older patches keep their version, notes, styles and map pool.
+  const ps = world.titles[titleId].patches;
+  for (let i = 0; i < ps.length - 6; i++) if (Object.keys(ps[i].charMeta).length) ps[i].charMeta = {};
   // Keep patch history bounded in very long saves (older patches summarised in history).
   if (world.titles[titleId].patches.length > 60) {
     const keep = world.titles[titleId].patches;

@@ -252,7 +252,12 @@ export function playNextGame(world: World, f: Fixture, st: SeriesState, userDraf
   const events: GameEvent[] | null = st.detail ? [] : null;
   const g: GameContext = { world, title: t, rng, crng, events, teams: ctxs, gameIdx: gi, mapId, modeId, draft, comp: comps, patch: currentPatch(world, t.id), firstSide, pressure };
   let res: GameResult;
-  switch (t.engine) {
+  const empty = ctxs.map((c) => c.players.length === 0);
+  if (empty[0] || empty[1]) {
+    // A side with nobody available (injuries, breaks, no registrations) forfeits the game.
+    const w = empty[0] && !empty[1] ? 1 : empty[1] && !empty[0] ? 0 : mrng.chance(0.5) ? 0 : 1;
+    res = { idx: gi, winner: w, mapId, modeId, duration: 0, score: [w === 0 ? 1 : 0, w === 1 ? 1 : 0], teamStats: [{}, {}], players: [], summary: `${teams[1 - w].name} could not field a lineup — walkover to ${teams[w].name}.` };
+  } else switch (t.engine) {
     case 'moba':
       res = simulateMoba(g);
       break;

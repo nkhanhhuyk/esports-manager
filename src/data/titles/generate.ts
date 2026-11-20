@@ -38,7 +38,7 @@ const MAP_C = ['Foundry', 'Market', 'Terminal', 'Gardens', 'Temple', 'Observator
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Class -> style affinities (keyword matched, lowercase). */
-const CLASS_STYLE: Array<[string, Record<string, number>]> = [
+export const CLASS_STYLE: Array<[string, Record<string, number>]> = [
   ['assassin', { pick: 8, early: 6, dive: 8, aggro: 7, gank: 7, aggressive: 7, fight: 7 }],
   ['tank', { teamfight: 8, early: 4, brawl: 8, control: 6, fight: 6 }],
   ['guardian', { teamfight: 8, brawl: 7, control: 6 }],

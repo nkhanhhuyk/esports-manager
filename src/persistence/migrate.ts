@@ -61,6 +61,10 @@ export const MIGRATIONS: Record<number, (w: AnyWorld) => AnyWorld> = {
   // (the total is unchanged) and rivalries are seeded from the save's own recorded finals and
   // this season's results.
   5: (w) => w,
+  // v6 -> v7: real heroes/champions/agents. Nothing is rewritten here: after migration
+  // (src/game/characterMigration.ts) generated characters are remapped to real ones of the same
+  // class, once, and the world records the snapshot id.
+  6: (w) => w,
 };
 
 const metaSchema = z

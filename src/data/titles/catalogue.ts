@@ -8,10 +8,11 @@
  * interest names are generated fictional placeholders. Input assignments are deliberate design
  * decisions from the specification and must not be substituted.
  */
+import { realCharacters } from './realCharacters';
 import type { SeriesFormat } from '../../model/types';
 import { generateCharacters, generateMaps } from './generate';
 import { MOBA_ROLE, SHOOTER_ROLE, SPEC, role } from './phases';
-import type { DraftStep, ModeDef, StatDef, TitleDef } from './types';
+import type { CharDef, DraftStep, ModeDef, StatDef, TitleDef } from './types';
 
 // ---------------------------------------------------------------------------------------------
 // Helpers
@@ -423,8 +424,14 @@ const FLAVOUR: Record<string, 'fantasy' | 'mythic' | 'scifi' | 'creature' | 'cal
   mlbb: 'fantasy', wildrift: 'fantasy', hok: 'mythic', lol: 'fantasy', dota2: 'fantasy', valorant: 'callsign',
 };
 
+/** The fictional characters of saves made before the real-world snapshot (for migrating ids). */
+export function legacyCharacters(t: TitleDef): CharDef[] {
+  return t.charCount > 0 ? generateCharacters(t.id, t.charCount, t.charClasses, t.styles, FLAVOUR[t.id] ?? 'fantasy') : [];
+}
+
 function finalise(t: TitleDef): TitleDef {
-  if (t.charCount > 0) t.characters = generateCharacters(t.id, t.charCount, t.charClasses, t.styles, FLAVOUR[t.id] ?? 'fantasy');
+  // Real heroes / champions / agents from the offline snapshot; CS2 has none.
+  if (t.charCount > 0) t.characters = realCharacters(t) ?? legacyCharacters(t);
   if (t.id === 'valorant') t.maps = generateMaps(t.id, 10, { sideBiasSpread: 0.08, style: 'compound' });
   if (t.id === 'cs2') t.maps = generateMaps(t.id, 9, { sideBiasSpread: 0.1, style: 'compound' });
   return t;
