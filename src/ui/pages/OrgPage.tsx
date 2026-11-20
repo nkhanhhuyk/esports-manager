@@ -1,7 +1,7 @@
 import { RichText } from '../components/RichText';
 import { useState } from 'react';
 import { useGame, useWorld } from '../store';
-import { Card, CompLink, Flag, Gate, Money, OrgBadge, PageHeader, Stat, TeamLink, TitleTag } from '../components/common';
+import { Card, CompLink, Flag, Gate, Money, OrgBadge, PageHeader, Provenance, Stat, TeamLink, TitleTag } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { regionName, COUNTRY_BY_CODE } from '../../data/countries';
 import { getTitle } from '../../data/titles/catalogue';
@@ -36,8 +36,9 @@ export function OrgPage({ id }: { id?: string }) {
         sub={
           <span>
             <Flag cc={org.country} />
-            {COUNTRY_BY_CODE[org.country]?.name} · {regionName(org.region)} · founded {org.founded} · owner {org.owner.name} ({org.owner.type}) · strategy: {org.strategy}
+            {COUNTRY_BY_CODE[org.country]?.name}{org.real?.est?.includes('country') ? ' (estimated)' : ''} · {regionName(org.region)} · {org.real ? 'in the game since' : 'founded'} {org.founded} · owner {org.owner.name} ({org.owner.type}{org.real ? ', game simulation' : ''}) · strategy: {org.strategy}
             {!org.active && ' · DEFUNCT'}
+            <Provenance world={world} real={org.real} kind="organisation" />
           </span>
         }
       />

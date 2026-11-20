@@ -23,6 +23,7 @@ import { initialPatch } from '../systems/patches';
 import { planSeason } from '../competition/season';
 import { SAVE_VERSION } from '../persistence/version';
 import { computeTeamStrength } from '../sim/common/team';
+import { buildRealTitle, realTitles, ROSTER_SNAPSHOT } from './realWorld';
 
 export type WorldSize = 'tiny' | 'small' | 'standard' | 'large';
 
@@ -35,6 +36,8 @@ export interface NewWorldOptions {
   managerName?: string;
   careerRole?: CareerRole;
   difficulty?: DifficultyPreset;
+  /** 'real' starts from the dated real-world roster snapshot; default 'fictional'. */
+  dataMode?: 'real' | 'fictional';
 }
 
 const SIZE: Record<WorldSize, { single: number; macro: number; tier2: number; teamScale: number; brScale: number }> = {
@@ -264,6 +267,8 @@ export function createWorld(opts: NewWorldOptions): World {
       careerRole: opts.careerRole ?? 'coach-gm',
       difficulty: { ...PRESETS[opts.difficulty ?? 'standard'] },
       characterSnapshot: CHARACTER_SNAPSHOT.id,
+      dataMode: opts.dataMode ?? 'fictional',
+      ...(opts.dataMode === 'real' ? { rosterSnapshot: ROSTER_SNAPSHOT.id } : {}),
       detail: { fullDetailTitles: [], userMatches: true, internationals: true },
       worldSize: opts.worldSize,
       autosave: true,
@@ -327,10 +332,27 @@ export function createWorld(opts: NewWorldOptions): World {
     return o;
   };
 
+  const realMode = opts.dataMode === 'real';
+  const realOrgs = new Map<string, Organisation>();
+  const withReal = new Set(realMode ? realTitles() : []);
   for (const id of titleIds) {
     const t = getTitle(id);
     const pop = world.titles[id].popularity;
-    const regions = planLeagueRegions(id, opts.worldSize, pop);
+    let regions = planLeagueRegions(id, opts.worldSize, pop);
+    if (withReal.has(id)) {
+      // Real leagues and teams first; fictional leagues only for regions they do not cover
+      // (and only in the larger world sizes, to keep the world a manageable size).
+      const realOrg = (region: string): Organisation => createOrg(ctx, region, orgNames);
+      const fill = (org: Organisation, league: League, mean: number): Team => {
+        const team = createTeam(ctx, org, id, league.region, 'main', league, null);
+        populateTeam(ctx, team, mean + rng.normal(0, 2), league.region, t.family, 0.1);
+        staffTeam(ctx, team, 50 + rng.normal(0, 6));
+        return team;
+      };
+      const { covered } = buildRealTitle(ctx, id, realOrgs, realOrg, fill);
+      const keepFictional = opts.worldSize === 'standard' || opts.worldSize === 'large';
+      regions = keepFictional ? regions.filter((lr) => !expandRegion(lr.region).some((r) => covered.has(r))).slice(0, 2) : [];
+    }
     regions.forEach((lr, idx) => {
       const size = Math.max(6, Math.round(t.leagueSize * cfg.teamScale));
       const franchised = !!REGION_BY_ID[lr.region] && lr.strength >= 80 && t.family !== 'MOBA' ? rng.chance(0.6) : lr.strength >= 85 && rng.chance(0.4);

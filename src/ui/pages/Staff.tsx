@@ -1,7 +1,7 @@
 import { RichText } from '../components/RichText';
 import { useMemo, useState } from 'react';
 import { useGame, useWorld } from '../store';
-import { Card, Flag, Gate, Money, PageHeader, Rating, Stat, StaffLink, TeamLink, TitleTag, age, OrgLink, PlayerLink } from '../components/common';
+import { Card, Flag, Gate, Money, PageHeader, Rating, Stat, StaffLink, TeamLink, TitleTag, age, OrgLink, PlayerLink, Provenance } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { STAFF_ROLE_LABEL } from '../../gen/staff';
 import { STAFF_ATTRS } from '../../model/attributes';
@@ -72,12 +72,13 @@ export function StaffPage({ id }: { id: string }) {
   return (
     <div>
       <PageHeader
-        title={<span><Flag cc={s.nat} />{s.handle ? `${s.handle} — ` : ''}{s.first} {s.last}</span>}
+        title={<span><Flag cc={s.nat} />{s.handle && (s.first || s.last) ? `${s.handle} — ` : s.handle ?? ''}{s.first} {s.last}</span>}
         sub={
           <span>
             {STAFF_ROLE_LABEL[s.role as StaffRole]} · {s.titleId && <TitleTag id={s.titleId} />} · {s.teamId ? <TeamLink t={world.teams[s.teamId]} /> : s.orgId ? <OrgLink org={world.orgs[s.orgId]} /> : 'Unattached'} · age {age(world, s.birth)}
             {s.formerPlayerId && (<> · former pro <PlayerLink p={world.players[s.formerPlayerId]} /></>)}
             {s.retired && ' · retired'}
+            <Provenance world={world} real={s.real} kind="staff member" />
           </span>
         }
       />

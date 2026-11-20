@@ -464,6 +464,10 @@ label {
   color: var(--shooter);
   border-color: var(--shooter);
 }
+.tag.good {
+  color: var(--good);
+  border-color: var(--good);
+}
 .tag {
   display: inline-block;
   font-size: 10px;

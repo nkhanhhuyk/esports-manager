@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { can, denyReason, type Permission } from '../../systems/career';
 import { Link } from '../router';
-import type { Competition, Organisation, Player, Staff, Team, World } from '../../model/types';
+import type { Competition, Organisation, Player, RealTag, Staff, Team, World } from '../../model/types';
 import { flag, COUNTRY_BY_CODE } from '../../data/countries';
 import { getTitle } from '../../data/titles/catalogue';
 import { ageAt, formatDate } from '../../core/date';
@@ -162,5 +162,29 @@ export function Gate({ world, perm, children }: { world: World; perm: Permission
       <div className="tag" style={{ marginBottom: 6 }}>{denyReason(world, perm)}</div>
       {children}
     </fieldset>
+  );
+}
+
+/** Real-world provenance label: real (with source and estimated fields) or fictional. */
+export function Provenance({ world, real, kind }: { world: World; real?: RealTag; kind: string }) {
+  if (!real) {
+    if (world.meta.dataMode !== 'real') return null;
+    return (
+      <div className="small muted" data-testid="provenance">
+        <span className="tag">Fictional</span> Game-generated {kind}.
+      </div>
+    );
+  }
+  let host = real.src;
+  try {
+    host = new URL(real.src).hostname.replace(/^www\./, '');
+  } catch {
+    /* keep raw */
+  }
+  return (
+    <div className="small muted" data-testid="provenance">
+      <span className="tag good">Real</span> {kind} from snapshot {real.snap.replace(/^real-/, '')} ({host}).
+      {real.est?.length ? <> Estimated: {real.est.join(', ')}.</> : null} Ratings and everything after the snapshot are game simulation.
+    </div>
   );
 }

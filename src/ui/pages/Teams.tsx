@@ -5,7 +5,7 @@ import { useGame, useWorld } from '../store';
 import { eligibleNations } from '../../systems/nations';
 import { COUNTRY_BY_CODE } from '../../data/countries';
 import { userNationalTeam } from '../helpers';
-import { Card, CompLink, Flag, Money, OrgLink, PageHeader, PlayerLink, Rating, Stat, StaffLink, TeamLink, TitleTag, Tabs, OrgBadge, age } from '../components/common';
+import { Card, CompLink, Flag, Money, OrgLink, PageHeader, PlayerLink, Provenance, Rating, Stat, StaffLink, TeamLink, TitleTag, Tabs, OrgBadge, age } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { getTitle } from '../../data/titles/catalogue';
 import { computeTeamStrength } from '../../sim/common/team';
@@ -134,6 +134,7 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
             {team.leagueId && ` · ${world.leagues[team.leagueId]?.name}`}
             {parent && (<> · academy of <TeamLink t={parent} /></>)}
             {!team.active && ' · CLOSED'}
+            <Provenance world={world} real={team.real} kind="team" />
           </span>
         }
         right={isUserTeamId(world, team.id) ? (<><button className="btn ghost sm" onClick={() => navigate(`/tactics?team=${team.id}`)}>Tactics</button><button className="btn ghost sm" onClick={() => navigate(`/training?team=${team.id}`)}>Training</button></>) : undefined}

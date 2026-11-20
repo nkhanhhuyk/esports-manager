@@ -5,7 +5,7 @@ import { seasonTitle } from '../../systems/availability';
 import { RichText } from '../components/RichText';
 import { useMemo, useState } from 'react';
 import { useGame, useWorld } from '../store';
-import { Card, Flag, Gate, Money, PageHeader, Rating, Stat, Tabs, TeamLink, TitleTag, age, CompLink } from '../components/common';
+import { Card, Flag, Gate, Money, PageHeader, Rating, Stat, Tabs, TeamLink, TitleTag, age, CompLink, Provenance } from '../components/common';
 import { getTitle, TITLES, titleSimilarity, similarityLabel } from '../../data/titles/catalogue';
 import { COUNTRY_BY_CODE } from '../../data/countries';
 import { ATTRS, ATTR_GROUPS, GROUP_INDICES, INPUTS, INPUT_LABEL, summaries, effectiveAttr, inputIndex, ratingBand } from '../../model/attributes';
@@ -361,6 +361,7 @@ export function PlayerPage({ id, route }: { id: string; route: Route }) {
             <TitleTag id={p.titleId} /> {t.roles.find((r) => r.id === p.roles[0])?.name} / {roleName(p.titleId, p.roles[1])} · <TeamLink t={team} /> · age {age(world, p.birth)} ({formatDate(p.birth)}) · {COUNTRY_BY_CODE[p.nat]?.name}
             {p.nat2 && ` / ${COUNTRY_BY_CODE[p.nat2]?.name}`} · speaks {p.langs.join(', ')}
             {p.retired && ` · RETIRED ${p.retired.season}`}
+            <Provenance world={world} real={p.real} kind="player" />
             {p.injury && ` · injured (${p.injury.label}) until ${formatDate(p.injury.untilDay)}`}
             {p.leave && p.leave.untilDay > world.day && <span className="warn"> · {p.leave.kind === 'hiatus' ? 'stepped away for the rest of the season' : `on a break until ${formatDate(p.leave.untilDay)}`} ({p.leave.reason.toLowerCase()})</span>}
             {(() => {

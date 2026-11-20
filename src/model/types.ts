@@ -90,7 +90,20 @@ export interface AwardRecord {
   pts?: number;
 }
 
+/**
+ * Provenance of an entity created from the real-world snapshot. Absent = fictional (game-generated).
+ * `est` lists fields that are estimates rather than published facts. Ratings, attributes,
+ * personalities, contracts and finances are always game simulation.
+ */
+export interface RealTag {
+  src: string;
+  snap: string;
+  est?: string[];
+}
+
 export interface Player {
+  /** Real-world provenance (absent = fictional). */
+  real?: RealTag;
   id: ID;
   first: string;
   last: string;
@@ -162,6 +175,7 @@ export type StaffRole =
   | 'performance-coach';
 
 export interface Staff {
+  real?: RealTag;
   id: ID;
   first: string;
   last: string;
@@ -302,6 +316,7 @@ export interface TrophyRecord {
 }
 
 export interface Team {
+  real?: RealTag;
   id: ID;
   orgId: ID;
   titleId: TitleId;
@@ -409,6 +424,7 @@ export interface Rivalry {
 }
 
 export interface Organisation {
+  real?: RealTag;
   id: ID;
   name: string;
   short: string;
@@ -467,6 +483,7 @@ export interface LeaguePolicy {
 }
 
 export interface League {
+  real?: RealTag;
   id: ID;
   titleId: TitleId;
   region: RegionId;
@@ -934,6 +951,10 @@ export interface WorldMeta {
   stopForFollowed?: boolean;
   /** Real-character snapshot the world uses (absent = generated fictional characters, pre-v7). */
   characterSnapshot?: string;
+  /** 'real' = started from the real-world team/player snapshot; 'fictional' (default) = generated. */
+  dataMode?: 'real' | 'fictional';
+  /** Roster snapshot id for real-world starts. */
+  rosterSnapshot?: string;
   /** Difficulty & sandbox options (absent = standard). */
   difficulty?: { preset: 'relaxed' | 'standard' | 'hard' | 'custom'; income: number; board: number; injuries: number; breaks: number; bargaining: number };
   /** Areas the manager hands to AI staff even though the role could do them. */

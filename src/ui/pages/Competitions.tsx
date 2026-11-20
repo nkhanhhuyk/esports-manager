@@ -1,5 +1,5 @@
 import { useWorld } from '../store';
-import { Card, CompLink, PageHeader, PlayerLink, Stat, TeamLink, TitleTag, Tabs, Money, OrgBadge } from '../components/common';
+import { Card, CompLink, PageHeader, PlayerLink, Stat, TeamLink, TitleTag, Tabs, Money, OrgBadge, Provenance } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { getTitle } from '../../data/titles/catalogue';
 import { regionName } from '../../data/countries';
@@ -156,6 +156,7 @@ export function CompetitionPage({ id, route }: { id: string; route: Route }) {
         sub={
           <span>
             <TitleTag id={comp.titleId} /> · {comp.tier} · {comp.region ? regionName(comp.region) : 'International'} · starts {formatDate(comp.startDay)} · {comp.status}
+            {comp.leagueId && world.leagues[comp.leagueId]?.real && <Provenance world={world} real={world.leagues[comp.leagueId].real} kind="league" />}
           </span>
         }
       />

@@ -1,8 +1,11 @@
 import type { DifficultyPreset } from '../../systems/difficulty';
+import { realTitles, ROSTER_SNAPSHOT } from '../../gen/realWorld';
 import { navigate } from '../router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../store';
 import { TITLES, getTitle } from '../../data/titles/catalogue';
+
+const REAL_TITLE_NAMES = realTitles().map((id) => getTitle(id).short).join(', ');
 import { DataTable } from '../components/DataTable';
 import { Card, Flag, OrgBadge, TitleTag } from '../components/common';
 import { regionName } from '../../data/countries';
@@ -80,6 +83,7 @@ export function Welcome() {
   const [manager, setManager] = useState('Manager');
   const [role, setRole] = useState<CareerRole>('coach-gm');
   const [diff, setDiff] = useState<DifficultyPreset>('standard');
+  const [data, setData] = useState<'real' | 'fictional'>('real');
   const [session, setSession] = useState<{ saveId: string; dirty: boolean } | undefined>();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -162,6 +166,20 @@ export function Welcome() {
             </select>
           </label>
           <label className="field" style={{ marginTop: 8 }}>
+            <span>Teams & players</span>
+            <select value={data} onChange={(e) => setData(e.target.value as typeof data)} aria-label="World data">
+              <option value="real">Real teams & pro players (snapshot {ROSTER_SNAPSHOT.asOf})</option>
+              <option value="fictional">Fictional world (generated teams & players)</option>
+            </select>
+          </label>
+          {data === 'real' && (
+            <p className="muted small" style={{ margin: '4px 0 0' }}>
+              Real leagues, teams and player handles for {REAL_TITLE_NAMES}, as published on {ROSTER_SNAPSHOT.asOf}. All ratings, contracts,
+              finances and everything after that date are game simulation. Honor of Kings and Wild Rift (no verifiable roster source) and
+              uncovered regions use fictional teams.
+            </p>
+          )}
+          <label className="field" style={{ marginTop: 8 }}>
             <span>World size</span>
             <select value={size} onChange={(e) => setSize(e.target.value as typeof size)}>
               {SIZES.map((s) => (
@@ -201,7 +219,7 @@ export function Welcome() {
             <button
               className="btn"
               disabled={!titles.length}
-              onClick={() => newGame({ name, seed, worldSize: size, titles, managerName: manager, careerRole: role, difficulty: diff })}
+              onClick={() => newGame({ name, seed, worldSize: size, titles, managerName: manager, careerRole: role, difficulty: diff, dataMode: data })}
             >
               Generate world
             </button>

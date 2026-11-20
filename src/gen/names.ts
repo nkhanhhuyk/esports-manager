@@ -12,7 +12,7 @@ export function isEastern(nat: string): boolean {
 }
 
 export function displayName(first: string, last: string, nat: string): string {
-  return isEastern(nat) ? `${last} ${first}` : `${first} ${last}`;
+  return (isEastern(nat) ? `${last} ${first}` : `${first} ${last}`).trim();
 }
 
 const LEET: Record<string, string> = { a: '4', e: '3', i: '1', o: '0', s: '5' };
