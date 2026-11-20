@@ -1,4 +1,7 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useWorld } from '../store';
+import { Link } from '../router';
+import { cachedArchive, editionsOf, isArchived, loadArchive, seriesKey, seriesName, type Edition } from '../../game/archive';
 import { Card, CompLink, PageHeader, PlayerLink, Stat, TeamLink, TitleTag, Tabs, Money, OrgBadge, Provenance } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { getTitle } from '../../data/titles/catalogue';
@@ -8,17 +11,38 @@ import { navigate, withQuery, type Route } from '../router';
 import { formatFor, sortStandings } from '../../competition/stages';
 import { prizeFor } from '../../systems/awards';
 import { fixtureLabel, isUserTeamId, scoreLabel } from '../helpers';
-import type { BracketNode, Competition, Stage } from '../../model/types';
+import type { BracketNode, Competition, Stage, World } from '../../model/types';
 import { formatMoney } from '../../core/math';
 
 export function CompetitionsPage({ route }: { route: Route }) {
   const world = useWorld();
   const title = route.query.title ?? '';
   const tier = route.query.tier ?? '';
-  const comps = Object.values(world.comps).filter((c) => (!title || c.titleId === title) && (!tier || c.tier === tier));
+  // One row per competition (a league or a recurring event), across all its editions.
+  const series = useMemo(() => {
+    const map = new Map<string, { key: string; name: string; titleId: string; tier: string; region: string | null; editions: Edition[]; latest: Competition | null }>();
+    const add = (c: { titleId: string; tier: string; name: string; leagueId: string | null; region: string | null }) => {
+      const k = seriesKey(c);
+      if (map.has(k)) return;
+      map.set(k, { key: k, name: seriesName(c, world), titleId: c.titleId, tier: c.tier, region: c.region, editions: editionsOf(world, c), latest: null });
+    };
+    for (const c of Object.values(world.comps)) add(c);
+    for (const e of world.compIndex ?? []) add(e);
+    for (const sr of map.values()) {
+      const live = sr.editions.find((e) => !e.archived && world.comps[e.id]?.status !== 'done') ?? sr.editions.find((e) => !e.archived);
+      sr.latest = live ? world.comps[live.id] : null;
+    }
+    return [...map.values()].filter((sr) => (!title || sr.titleId === title) && (!tier || sr.tier === tier));
+  }, [world, title, tier]);
+  const mostTitles = (eds: Edition[]) => {
+    const n = new Map<string, number>();
+    for (const e of eds) if (e.champion) n.set(e.champion, (n.get(e.champion) ?? 0) + 1);
+    const best = [...n].sort((a, b) => b[1] - a[1])[0];
+    return best ? { team: best[0], n: best[1] } : null;
+  };
   return (
     <div>
-      <PageHeader title="Competitions" sub="Regional leagues, challenger circuits, international events and world championships" />
+      <PageHeader title="Competitions" sub="Every league and event once — open one to browse its seasons with the dropdown" />
       <div className="row" style={{ marginBottom: 8 }}>
         <select value={title} onChange={(e) => navigate(withQuery(route, { title: e.target.value || undefined }))} aria-label="Title">
           <option value="">All titles</option>
@@ -30,31 +54,51 @@ export function CompetitionsPage({ route }: { route: Route }) {
         </select>
         <select value={tier} onChange={(e) => navigate(withQuery(route, { tier: e.target.value || undefined }))} aria-label="Tier">
           <option value="">All tiers</option>
-          {['league', 'challenger', 'international', 'worlds'].map((t) => (
+          {['league', 'challenger', 'international', 'worlds', 'cup'].map((t) => (
             <option key={t}>{t}</option>
           ))}
         </select>
       </div>
       <Card>
         <DataTable
-          id="comps"
-          rows={comps}
-          rowKey={(c) => c.id}
-          initialSort={{ key: 'start', desc: false }}
-          filter={(c, q) => c.name.toLowerCase().includes(q)}
-          onRowClick={(c) => navigate(`/comp/${c.id}`)}
-          highlight={(c) => c.teamIds.some((t) => isUserTeamId(world, t))}
+          id="comp-series"
+          rows={series}
+          rowKey={(sr) => sr.key}
+          initialSort={{ key: 'title', desc: false }}
+          filter={(sr, q) => sr.name.toLowerCase().includes(q)}
+          onRowClick={(sr) => navigate(`/comp/${(sr.latest ?? sr.editions[0]).id}`)}
+          highlight={(sr) => !!sr.latest?.teamIds.some((t) => isUserTeamId(world, t))}
           columns={[
-            { key: 'name', label: 'Competition', value: (c) => c.name, render: (c) => <CompLink c={c} /> },
-            { key: 'title', label: 'Title', value: (c) => c.titleId, render: (c) => <TitleTag id={c.titleId} link={false} /> },
-            { key: 'season', label: 'Season', align: 'right', value: (c) => c.season },
-            { key: 'tier', label: 'Tier', value: (c) => c.tier },
-            { key: 'region', label: 'Region', value: (c) => (c.region ? regionName(c.region) : 'International') },
-            { key: 'start', label: 'Start', value: (c) => c.startDay, render: (c) => formatShort(c.startDay) },
-            { key: 'status', label: 'Status', value: (c) => c.status },
-            { key: 'teams', label: 'Teams', align: 'right', value: (c) => c.teamIds.length },
-            { key: 'prize', label: 'Prize pool', align: 'right', value: (c) => c.prizePool, render: (c) => formatMoney(c.prizePool) },
-            { key: 'champ', label: 'Champion', value: (c) => (c.status === 'done' ? world.teams[c.placements[0]]?.name : '') ?? '', render: (c) => (c.status === 'done' ? <TeamLink t={world.teams[c.placements[0]]} /> : '') },
+            { key: 'name', label: 'Competition', value: (sr) => sr.name, render: (sr) => <Link to={`/comp/${(sr.latest ?? sr.editions[0]).id}`} className="elink">{sr.name}</Link> },
+            { key: 'title', label: 'Title', value: (sr) => sr.titleId, render: (sr) => <TitleTag id={sr.titleId} link={false} /> },
+            { key: 'tier', label: 'Tier', value: (sr) => sr.tier },
+            { key: 'region', label: 'Region', value: (sr) => (sr.region ? regionName(sr.region) : 'International') },
+            { key: 'eds', label: 'Editions', align: 'right', value: (sr) => sr.editions.length },
+            { key: 'now', label: 'Current', value: (sr) => (sr.latest ? `${sr.latest.season}${sr.latest.split ? ` S${sr.latest.split}` : ''} · ${sr.latest.status}` : 'archived') },
+            {
+              key: 'holder',
+              label: 'Holder',
+              value: (sr) => world.teams[sr.editions.find((e) => e.champion)?.champion ?? '']?.name ?? '',
+              render: (sr) => {
+                const e = sr.editions.find((x) => x.champion);
+                return e ? <TeamLink t={world.teams[e.champion!]} /> : '';
+              },
+            },
+            {
+              key: 'most',
+              label: 'Most titles',
+              value: (sr) => mostTitles(sr.editions)?.n ?? 0,
+              render: (sr) => {
+                const m = mostTitles(sr.editions);
+                return m ? (
+                  <span>
+                    <TeamLink t={world.teams[m.team]} short /> ×{m.n}
+                  </span>
+                ) : (
+                  ''
+                );
+              },
+            },
           ]}
         />
       </Card>
@@ -62,8 +106,8 @@ export function CompetitionsPage({ route }: { route: Route }) {
   );
 }
 
-function Standings({ stage, comp }: { stage: Stage; comp: Competition }) {
-  const world = useWorld();
+function Standings({ stage, comp, w }: { stage: Stage; comp: Competition; w: World }) {
+  const world = w;
   const groups = stage.type === 'groups' ? [...new Set(stage.standings.map((r) => r.group ?? 0))] : [undefined];
   return (
     <>
@@ -108,14 +152,14 @@ function Standings({ stage, comp }: { stage: Stage; comp: Competition }) {
   );
 }
 
-function Bracket({ stage }: { stage: Stage }) {
-  const world = useWorld();
+function Bracket({ stage, w, season }: { stage: Stage; w: World; season?: number }) {
+  const world = w;
   const rounds = [...new Set(stage.bracket.map((n) => n.round))].sort((a, b) => a - b);
   const cell = (n: BracketNode) => {
     const f = n.fixtureId ? world.fixtures[n.fixtureId] : null;
     const name = (id: string | null | undefined) => (id === null ? <span className="muted">bye</span> : id === undefined ? <span className="muted">TBD</span> : <TeamLink t={world.teams[id]} short />);
     return (
-      <div key={n.id} className="bnode" onClick={() => f && navigate(`/match/${f.id}`)} style={{ cursor: f ? 'pointer' : 'default' }}>
+      <div key={n.id} className="bnode" onClick={() => f && navigate(`/match/${f.id}${season ? `?season=${season}` : ''}`)} style={{ cursor: f ? 'pointer' : 'default' }}>
         <div className="lbl">{n.label}</div>
         <div className={n.winner && n.winner === n.teamA ? 'w' : ''}>
           {name(n.teamA)} {f?.status === 'done' ? f.score?.[0] : ''}
@@ -137,10 +181,47 @@ function Bracket({ stage }: { stage: Stage }) {
   );
 }
 
+/** The live world, plus one archived season's competitions, fixtures and matches when needed. */
+export function useArchivedView(live: World, season: number | null): { world: World; loading: boolean; missing: boolean } {
+  const [arch, setArch] = useState(() => (season !== null ? cachedArchive(live, season) : undefined));
+  const [state, setState] = useState<'idle' | 'loading' | 'missing'>('idle');
+  useEffect(() => {
+    if (season === null) return;
+    const hit = cachedArchive(live, season);
+    if (hit) {
+      setArch(hit);
+      return;
+    }
+    setState('loading');
+    loadArchive(live, season).then((a) => {
+      setArch(a);
+      setState(a ? 'idle' : 'missing');
+    });
+  }, [live, season]);
+  const world = useMemo(() => {
+    if (season === null || !arch) return live;
+    return {
+      ...live,
+      comps: { ...Object.fromEntries(arch.comps.map((c) => [c.id, c])), ...live.comps },
+      fixtures: { ...Object.fromEntries(arch.fixtures.map((f) => [f.id, f])), ...live.fixtures },
+      matches: { ...Object.fromEntries(arch.matches.map((m) => [m.fixtureId, m])), ...live.matches },
+    };
+  }, [live, arch, season]);
+  return { world, loading: season !== null && !arch && state !== 'missing', missing: state === 'missing' };
+}
+
 export function CompetitionPage({ id, route }: { id: string; route: Route }) {
-  const world = useWorld();
+  const live = useWorld();
+  const entry = live.comps[id] ? undefined : isArchived(live, id);
+  const { world, loading, missing } = useArchivedView(live, entry ? entry.season : null);
   const comp = world.comps[id];
-  if (!comp) return <div>Competition not found (older seasons are archived in History).</div>;
+  if (!comp) {
+    if (entry && loading) return <div className="muted">Loading {entry.name} from the season archive…</div>;
+    if (entry && missing) return <div>{entry.name}: this edition's details are not on this device (archived by another copy of the save). Champion: {world.teams[entry.champion ?? '']?.name ?? '—'}.</div>;
+    return <div>Competition not found.</div>;
+  }
+  const editions = editionsOf(world, comp);
+  const archivedSeason = entry ? entry.season : undefined;
   const t = getTitle(comp.titleId);
   const stageIdx = Number(route.query.stage ?? Math.min(comp.current, comp.stages.length - 1));
   const stage = comp.stages[stageIdx];
@@ -152,10 +233,23 @@ export function CompetitionPage({ id, route }: { id: string; route: Route }) {
   return (
     <div>
       <PageHeader
-        title={comp.name}
+        title={seriesName(comp, world)}
+        right={
+          editions.length > 1 ? (
+            <select value={comp.id} onChange={(e) => navigate(`/comp/${e.target.value}`)} aria-label="Season">
+              {editions.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.label}
+                  {e.champion ? ` — ${world.teams[e.champion]?.short ?? ''}` : ''}
+                </option>
+              ))}
+            </select>
+          ) : undefined
+        }
         sub={
           <span>
-            <TitleTag id={comp.titleId} /> · {comp.tier} · {comp.region ? regionName(comp.region) : 'International'} · starts {formatDate(comp.startDay)} · {comp.status}
+            <b>{comp.season}{comp.split ? ` · Split ${comp.split}` : ''}</b> · <TitleTag id={comp.titleId} /> · {comp.tier} · {comp.region ? regionName(comp.region) : 'International'} · starts {formatDate(comp.startDay)} · {comp.status}
+            {entry && ' · archived season'}
             {comp.leagueId && world.leagues[comp.leagueId]?.real && <Provenance world={world} real={world.leagues[comp.leagueId].real} kind="league" />}
           </span>
         }
@@ -185,13 +279,13 @@ export function CompetitionPage({ id, route }: { id: string; route: Route }) {
         active={tab}
         onChange={(x) => navigate(withQuery(route, { tab: x }))}
       />
-      {tab === 'standings' && <Card>{stage.status === 'pending' ? <div className="muted">Stage not started. Entrants are decided by: {comp.entrants.map((e) => e.kind).join(', ')}.</div> : stage.bracket.length ? <Bracket stage={stage} /> : <Standings stage={stage} comp={comp} />}</Card>}
+      {tab === 'standings' && <Card>{stage.status === 'pending' ? <div className="muted">Stage not started. Entrants are decided by: {comp.entrants.map((e) => e.kind).join(', ')}.</div> : stage.bracket.length ? <Bracket stage={stage} w={world} season={archivedSeason} /> : <Standings stage={stage} comp={comp} w={world} />}</Card>}
       {tab === 'matches' && (
         <Card>
           <table className="table">
             <tbody>
               {fixtures.map((f) => (
-                <tr key={f.id} className={`clickable ${f.teams.some((x) => isUserTeamId(world, x)) ? 'hl' : ''}`} onClick={() => navigate(`/match/${f.id}`)}>
+                <tr key={f.id} className={`clickable ${f.teams.some((x) => isUserTeamId(world, x)) ? 'hl' : ''}`} onClick={() => navigate(`/match/${f.id}${archivedSeason ? `?season=${archivedSeason}` : ''}`)}>
                   <td>{formatShort(f.day)}</td>
                   <td>{f.group !== undefined ? `Group ${String.fromCharCode(65 + f.group)}` : f.nodeId ?? `Round ${(f.round ?? 0) + 1}`}</td>
                   <td>{fixtureLabel(world, f)}</td>

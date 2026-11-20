@@ -5,6 +5,7 @@
  * depend on when or how often the player saves.
  */
 import type { World } from '../model/types';
+import { slimGame } from '../sim/boxscore';
 
 /** Detailed box scores of other clubs' matches are kept this long before being slimmed. */
 export const DETAIL_KEEP_DAYS = 21;
@@ -20,9 +21,8 @@ function roundMap(m: Record<string, number> | undefined): void {
 }
 
 /**
- * Weekly: slim detailed records (commentary, player lines, team stats, draft log) of matches that
- * did not involve the user, are not finals and are older than DETAIL_KEEP_DAYS. Results, scores,
- * maps and summaries stay; season statistics were already accumulated when the match was played.
+ * Weekly: slim detailed records of matches that did not involve the user, are not finals and are
+ * older than DETAIL_KEEP_DAYS: commentary goes, the box score is kept in compact form.
  */
 export function compactMatches(world: World): number {
   const uid = world.meta.userOrgId;
@@ -34,7 +34,8 @@ export function compactMatches(world: World): number {
     const f = world.fixtures[fid];
     if (f?.formatKey === 'final') continue;
     if (uid && m.teams.some((t) => world.teams[t]?.orgId === uid)) continue;
-    world.matches[fid] = { ...m, detail: false, games: m.games.map((g) => ({ ...g, events: undefined, draft: undefined, players: [], teamStats: [] })) };
+    // Commentary goes; the box score stays (compact form).
+    world.matches[fid] = { ...m, detail: false, games: m.games.map((g) => slimGame(g)) };
     n++;
   }
   return n;

@@ -14,6 +14,8 @@ import type { World } from '../model/types';
 import { migrate, SaveError } from './migrate';
 import { convertToSevenTitles, removedTitlesIn, ScopeConversionError } from '../game/scope';
 import { formatDate } from '../core/date';
+import { setArchiveBackend, type SeasonArchive } from '../game/archive';
+import { setReplayBackend } from '../sim/moba/replayCache';
 
 export interface SaveMeta {
   id: string;
@@ -48,16 +50,72 @@ let dbp: Promise<IDBPDatabase> | null = null;
 
 function db(): Promise<IDBPDatabase> {
   if (!dbp) {
-    dbp = openDB(DB_NAME, 1, {
+    dbp = openDB(DB_NAME, 2, {
       upgrade(d) {
         if (!d.objectStoreNames.contains('saves')) d.createObjectStore('saves', { keyPath: 'id' });
         if (!d.objectStoreNames.contains('worlds')) d.createObjectStore('worlds');
         if (!d.objectStoreNames.contains('backups')) d.createObjectStore('backups');
         if (!d.objectStoreNames.contains('session')) d.createObjectStore('session');
+        // v2: season archive (old competitions, fixtures, box scores) and match replays.
+        if (!d.objectStoreNames.contains('archive')) d.createObjectStore('archive');
+        if (!d.objectStoreNames.contains('replays')) d.createObjectStore('replays', { keyPath: 'k' }).createIndex('byCareer', ['c', 'at']);
       },
     });
   }
   return dbp;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Season archive and replays (also used from the simulation worker)
+// ---------------------------------------------------------------------------------------------
+
+const REPLAYS_PER_CAREER = 40;
+
+if (typeof indexedDB !== 'undefined') {
+  setArchiveBackend(
+    (career, a) => {
+      db()
+        .then((d) => d.put('archive', a, `${career}|${a.season}`))
+        .catch(() => undefined);
+    },
+    async (career, season) => {
+      try {
+        return (await (await db()).get('archive', `${career}|${season}`)) as SeasonArchive | undefined;
+      } catch {
+        return undefined;
+      }
+    },
+  );
+  setReplayBackend(
+    (career, key, data) => {
+      db()
+        .then(async (d) => {
+          await d.put('replays', { k: `${career}|${key}`, c: career, at: Date.now(), data });
+          // Keep the most recent games of this career only.
+          const range = IDBKeyRange.bound([career, 0], [career, Infinity]);
+          const n = await d.countFromIndex('replays', 'byCareer', range);
+          if (n <= REPLAYS_PER_CAREER) return;
+          const tx = d.transaction('replays', 'readwrite');
+          let cur = await tx.store.index('byCareer').openKeyCursor(range);
+          let drop = n - REPLAYS_PER_CAREER;
+          while (cur && drop > 0) {
+            await tx.store.delete(cur.primaryKey);
+            drop--;
+            cur = await cur.continue();
+          }
+          await tx.done;
+        })
+        .catch(() => undefined);
+    },
+    async (career, key) => {
+      try {
+        const row = (await (await db()).get('replays', `${career}|${key}`)) as { data: unknown } | undefined;
+        return row?.data;
+      } catch {
+        return undefined;
+      }
+    },
+  );
 }
 
 export function metaFor(world: World): SaveMeta {

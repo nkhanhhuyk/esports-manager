@@ -24,7 +24,7 @@ describe('save / load integrity', () => {
     await saveWorld(w);
     // Corrupt the newest copy: the other slot (previous save) is the backup.
     const { openDB } = await import('idb');
-    const db = await openDB('ultimate-esports-manager', 1);
+    const db = await openDB('ultimate-esports-manager', 2);
     const meta = (await listSaves()).find((s) => s.id === w.meta.saveId)!;
     expect(meta.slot).toBe('b');
     await db.put('worlds', { meta: { version: SAVE_VERSION } }, `${w.meta.saveId}#b`);
@@ -40,7 +40,7 @@ describe('save / load integrity', () => {
   it('alternates save slots without rewriting a backup, and serialises overlapping saves', async () => {
     const w = withUser(makeWorld(['valorant'], 'slots'));
     const { openDB } = await import('idb');
-    const db = await openDB('ultimate-esports-manager', 1);
+    const db = await openDB('ultimate-esports-manager', 2);
     const m1 = await saveWorld(w);
     advance(w, { kind: 'days', n: 2 }, { stopForUserMatch: false });
     const m2 = await saveWorld(w);
@@ -59,7 +59,7 @@ describe('save / load integrity', () => {
   it('loads saves written in the old single-slot layout and upgrades them on later saves', async () => {
     const w = withUser(makeWorld(['lol'], 'legacy'));
     const { openDB } = await import('idb');
-    const db = await openDB('ultimate-esports-manager', 1);
+    const db = await openDB('ultimate-esports-manager', 2);
     const { metaFor } = await import('../src/persistence/db');
     const legacyMeta = metaFor(w);
     await db.put('worlds', clone(w), w.meta.saveId);
@@ -207,7 +207,7 @@ describe('converting saves from the wider (30-title) edition', () => {
 
   async function putLegacy(raw: Record<string, any>) {
     const { openDB } = await import('idb');
-    const db = await openDB('ultimate-esports-manager', 1);
+    const db = await openDB('ultimate-esports-manager', 2);
     const { metaFor } = await import('../src/persistence/db');
     await db.put('worlds', raw, raw.meta.saveId);
     await db.put('saves', { ...metaFor(raw as never), version: 4 });

@@ -5,11 +5,14 @@ import { useState } from 'react';
 import { useGame, useWorld } from '../store';
 import { Card, CompLink, PageHeader, PlayerLink, TeamLink, TitleTag, OrgBadge, Tabs } from '../components/common';
 import { getTitle } from '../../data/titles/catalogue';
-import { getReplay } from '../../sim/moba/replayCache';
+import { getReplay, loadReplay, type AnyReplay } from '../../sim/moba/replayCache';
+import { useArchivedView } from './Competitions';
+import { useEffect } from 'react';
+import { boxLines } from '../../sim/boxscore';
 import { MobaViewer } from '../components/MobaViewer';
 import { formatDate } from '../../core/date';
 import { navigate, type Route } from '../router';
-import { isUserTeamId, roleName } from '../helpers';
+import { isUserTeamId, kda, roleName } from '../helpers';
 import { computeTeamStrength } from '../../sim/common/team';
 import type { Fixture, GameResult, MatchRecord } from '../../model/types';
 import { userFixturesOn } from '../../game/advance';
@@ -49,8 +52,10 @@ function DraftPanel({ g, f }: { g: GameResult; f: Fixture }) {
 function Scoreboard({ g, f }: { g: GameResult; f: Fixture }) {
   const world = useWorld();
   const t = getTitle(f.titleId);
-  if (!g.players.length) return <div className="muted small">Aggregated simulation — box score not retained for unobserved matches (enable full detail in Settings).</div>;
+  const lines = boxLines(g);
+  if (!lines.length) return <div className="muted small">No box score was recorded for this game (played before box scores were kept for every match).</div>;
   const order = [0, 1];
+  const hasKda = t.stats.some((s) => s.key === 'k') && t.stats.some((s) => s.key === 'd');
   return (
     <div className="dt-scroll">
       {order.map((ti) => (
@@ -65,11 +70,12 @@ function Scoreboard({ g, f }: { g: GameResult; f: Fixture }) {
               {t.stats.map((s) => (
                 <th key={s.key}>{s.label}</th>
               ))}
+              {hasKda && <th title="(Kills + Assists) / Deaths">KDA</th>}
               <th>Rating</th>
             </tr>
           </thead>
           <tbody>
-            {g.players
+            {lines
               .filter((l) => l.teamIdx === ti)
               .map((l) => (
                 <tr key={l.playerId}>
@@ -79,8 +85,9 @@ function Scoreboard({ g, f }: { g: GameResult; f: Fixture }) {
                   <td>{roleName(f.titleId, l.roleId)}</td>
                   {t.characters.length > 0 && <td>{t.characters.find((c) => c.id === l.charId)?.name ?? ''}</td>}
                   {t.stats.map((s) => (
-                    <td key={s.key}>{(l.s[s.key] ?? 0).toLocaleString()}</td>
+                    <td key={s.key}>{Math.round(l.s[s.key] ?? 0).toLocaleString()}</td>
                   ))}
+                  {hasKda && <td>{kda(l.s)}</td>}
                   <td>
                     <b>{l.rating.toFixed(2)}</b>
                   </td>
@@ -96,7 +103,16 @@ function Scoreboard({ g, f }: { g: GameResult; f: Fixture }) {
 export function GameView({ g, f }: { g: GameResult; f: Fixture }) {
   const world = useWorld();
   const t = getTitle(f.titleId);
-  const replay = g.replay ?? getReplay(f.id, g.idx);
+  const [stored, setStored] = useState<AnyReplay | undefined>(undefined);
+  useEffect(() => {
+    if (g.replay || getReplay(f.id, g.idx)) return;
+    let on = true;
+    loadReplay(world, f.id, g.idx).then((r) => on && setStored(r));
+    return () => {
+      on = false;
+    };
+  }, [world, f.id, g.idx, g.replay]);
+  const replay = g.replay ?? getReplay(f.id, g.idx) ?? (stored?.kind === 'moba' ? stored.r : undefined);
   const [watch, setWatch] = useState(false);
   const map = t.maps.find((m) => m.id === g.mapId);
   const mode = t.modes.find((m) => m.id === g.modeId);
@@ -111,7 +127,8 @@ export function GameView({ g, f }: { g: GameResult; f: Fixture }) {
         {g.draft && <DraftPanel g={g} f={f} />}
         {g.sides && g.sides.length > 0 && <div className="muted small" style={{ marginBottom: 6 }}>{g.sides.join(' · ')}</div>}
         <Scoreboard g={g} f={f} />
-        {g.engine === 'fast' && <div className="muted small">Background fixture: simulated with the fast engine (no battlefield replay).</div>}
+        {g.engine === 'fast' && <div className="muted small">Background fixture simulated with the fast engine — no battlefield replay. Open a match before it is played (Watch live / Follow in full detail) to get the 2D simulation.</div>}
+        {g.engine === 'spatial' && !replay && !g.replay && <div className="muted small">Replay no longer stored on this device (the 40 most recent battlefield games per career are kept).</div>}
         {replay && !g.replay && (
           <button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => setWatch(!watch)}>
             {watch ? 'Hide replay' : 'Watch 2D replay'}
@@ -160,11 +177,15 @@ export function SeriesView({ f, rec }: { f: Fixture; rec: MatchRecord }) {
   );
 }
 
-export function MatchPage({ id }: { id: string; route: Route }) {
-  const world = useWorld();
-  const { act } = useGame();
+export function MatchPage({ id, route }: { id: string; route: Route }) {
+  const live = useWorld();
+  const { act, advance } = useGame();
+  const season = live.fixtures[id] ? null : route.query.season ? Number(route.query.season) : null;
+  const { world, loading } = useArchivedView(live, season);
   const f = world.fixtures[id];
-  if (!f) return <div>Match not found (older seasons are summarised in History).</div>;
+  if (!f) return <div>{loading ? 'Loading the match from the season archive…' : 'Match not found. Open it from its competition page (seasons are browsed with the dropdown there).'}</div>;
+  const watchable = f.status === 'scheduled' && !!world.teams[f.teams[0]] && !!world.teams[f.teams[1]];
+  const daysAway = f.day - world.day;
   const comp = world.comps[f.compId];
   const rec = world.matches[f.id];
   const t = getTitle(f.titleId);
@@ -222,6 +243,28 @@ export function MatchPage({ id }: { id: string; route: Route }) {
             {isMine && world.day + 1 === f.day && (
               <button className="btn" onClick={() => navigate(`/live/${f.id}`)}>
                 Play live (veto, draft, game by game)
+              </button>
+            )}
+            {!isMine && watchable && daysAway === 1 && (
+              <button className="btn" onClick={() => navigate(`/live/${f.id}`)}>
+                Watch live
+              </button>
+            )}
+            {watchable && daysAway > 1 && (
+              <button
+                className="btn"
+                title="Simulates the days in between (stopping earlier if something needs your decision), then opens the live view"
+                onClick={async () => {
+                  act((w) => {
+                    const fx = w.fixtures[f.id];
+                    fx.detail = true;
+                    if (getTitle(fx.titleId).engine === 'moba') fx.spatial = true;
+                  });
+                  await advance({ kind: 'days', n: daysAway - 1 });
+                  navigate(`/live/${f.id}`);
+                }}
+              >
+                Advance to match day & {isMine ? 'play' : 'watch'} live
               </button>
             )}
             {isMine && (

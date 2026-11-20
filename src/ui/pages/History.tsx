@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useWorld } from '../store';
-import { Card, CompLink, Flag, OrgLink, PageHeader, PlayerLink, TeamLink, TitleTag, Tabs, StaffLink } from '../components/common';
+import { Card, CompLink, Flag, OrgLink, PageHeader, PlayerLink, TeamLink, TitleTag, Tabs, StaffLink, compRef } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { navigate, withQuery, type Route } from '../router';
 import { legacy, HOF_THRESHOLD } from '../../systems/awards';
@@ -63,7 +63,7 @@ export function HistoryPage({ route }: { route: Route }) {
                         <td>
                           <TitleTag id={c.titleId} />
                         </td>
-                        <td>{world.comps[c.compId] ? <CompLink c={world.comps[c.compId]} /> : c.compName}</td>
+                        <td>{compRef(world, c.compId) ? <CompLink c={compRef(world, c.compId)} /> : c.compName}</td>
                         <td>
                           <b>
                             <TeamLink t={world.teams[c.teamId]} />

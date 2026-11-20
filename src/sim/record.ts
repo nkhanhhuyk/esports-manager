@@ -4,6 +4,7 @@
  * relationships and news. Idempotent per fixture (guarded by fixture.status).
  */
 import { detachReplays } from './moba/replayCache';
+import { slimGame } from './boxscore';
 import { recordH2H } from '../systems/seasonReport';
 import { isFollowed } from '../systems/follow';
 import { clamp } from '../core/math';
@@ -132,7 +133,7 @@ export function playFixture(world: World, f: Fixture, forceDetail = false): Matc
   if (!record.detail) {
     // Aggregated simulation for unobserved matches: results are identical, only the box score
     // detail is discarded (player season stats were already accumulated above).
-    record = { ...record, games: record.games.map((g) => ({ ...g, events: undefined, draft: undefined, players: [], teamStats: [] })) };
+    record = { ...record, games: record.games.map((g) => slimGame(g)) };
   }
   world.matches[f.id] = record;
   onFixtureComplete(world, f);
@@ -149,7 +150,7 @@ function applySeries(world: World, f: Fixture, st: SeriesState, forceDetail: boo
   f.winner = winner;
   f.score = [...st.wins];
   // Replays stay in the session cache (watchable now), never in the saved world.
-  const games = detachReplays(f.id, st.games);
+  const games = detachReplays(world, f.id, st.games);
   for (const g of games) {
     const mvp = [...g.players].filter((l) => l.teamIdx === g.winner).sort((a, b) => b.rating - a.rating)[0]?.playerId;
     applyGame(world, f, g, f.teams, f.teams[g.winner], mvp);

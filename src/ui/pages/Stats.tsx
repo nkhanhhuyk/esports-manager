@@ -5,7 +5,7 @@
  */
 import { useMemo, useState } from 'react';
 import { useWorld } from '../store';
-import { Card, CompLink, OrgLink, PageHeader, PlayerLink, StaffLink, TeamLink, TitleTag, Tabs } from '../components/common';
+import { Card, CompLink, OrgLink, PageHeader, PlayerLink, StaffLink, TeamLink, TitleTag, Tabs, compRef } from '../components/common';
 import { RichText } from '../components/RichText';
 import { RivalryBadge } from '../components/Fans';
 import { navigate, withQuery, type Route } from '../router';
@@ -61,8 +61,9 @@ function Leaderboards({ world, route }: { world: World; route: Route }) {
     const maxGp = Math.max(1, ...list.map((x) => x.gp));
     const minGp = Math.ceil(maxGp * 0.3);
     const def = t.stats.find((s) => s.key === stat);
+    const kdaOf = (x: (typeof list)[number]) => ((x.s.k ?? 0) + (x.s.a ?? 0)) / Math.max(1, x.s.d ?? 0);
     const value = (x: (typeof list)[number]) =>
-      stat === 'rating' ? x.r / x.gp : stat === 'mvps' ? x.mvps : stat === 'gp' ? x.gp : stat === 'winrate' ? x.w / x.gp : def?.avg ? (x.s[stat] ?? 0) / x.gp : (x.s[stat] ?? 0);
+      stat === 'rating' ? x.r / x.gp : stat === 'kda' ? kdaOf(x) : stat === 'mvps' ? x.mvps : stat === 'gp' ? x.gp : stat === 'winrate' ? x.w / x.gp : def?.avg ? (x.s[stat] ?? 0) / x.gp : (x.s[stat] ?? 0);
     const higher = def ? def.good !== false : true;
     return list
       .filter((x) => x.gp >= (stat === 'gp' || stat === 'mvps' ? 1 : minGp))
@@ -72,7 +73,8 @@ function Leaderboards({ world, route }: { world: World; route: Route }) {
       .map((x) => ({ ...x, minGp }));
   }, [world, title, season, stat, t]);
   const def = t.stats.find((s) => s.key === stat);
-  const fmt = (v: number) => (stat === 'rating' ? v.toFixed(2) : stat === 'winrate' ? `${Math.round(v * 100)}%` : def?.avg ? v.toFixed(1) : Math.round(v).toLocaleString());
+  const hasKda = t.stats.some((s) => s.key === 'k') && t.stats.some((s) => s.key === 'd');
+  const fmt = (v: number) => (stat === 'rating' || stat === 'kda' ? v.toFixed(2) : stat === 'winrate' ? `${Math.round(v * 100)}%` : def?.avg ? v.toFixed(1) : Math.round(v).toLocaleString());
   return (
     <Card
       title="Leaderboards"
@@ -88,6 +90,7 @@ function Leaderboards({ world, route }: { world: World; route: Route }) {
           </select>
           <select value={stat} onChange={(e) => navigate(withQuery(route, { stat: e.target.value }))} aria-label="Statistic">
             <option value="rating">Average rating</option>
+            {hasKda && <option value="kda">KDA ((K+A)/D)</option>}
             <option value="winrate">Win rate</option>
             <option value="mvps">Game MVPs</option>
             <option value="gp">Games played</option>
@@ -111,7 +114,9 @@ function Leaderboards({ world, route }: { world: World; route: Route }) {
               <th>Player</th>
               <th>Team</th>
               <th className="num">Games</th>
-              <th className="num">{stat === 'rating' ? 'Rating' : stat === 'winrate' ? 'Win rate' : stat === 'mvps' ? 'MVPs' : stat === 'gp' ? 'Games' : def?.label}</th>
+              {hasKda && <th className="num">K / D / A</th>}
+              {hasKda && <th className="num" title="(Kills + Assists) / Deaths">KDA</th>}
+              <th className="num">{stat === 'rating' ? 'Rating' : stat === 'kda' ? 'KDA' : stat === 'winrate' ? 'Win rate' : stat === 'mvps' ? 'MVPs' : stat === 'gp' ? 'Games' : def?.label}</th>
             </tr>
           </thead>
           <tbody>
@@ -123,6 +128,12 @@ function Leaderboards({ world, route }: { world: World; route: Route }) {
                 </td>
                 <td>{x.teamId ? <TeamLink t={world.teams[x.teamId]} short /> : '—'}</td>
                 <td className="num">{x.gp}</td>
+                {hasKda && (
+                  <td className="num">
+                    {Math.round(x.s.k ?? 0)} / {Math.round(x.s.d ?? 0)} / {Math.round(x.s.a ?? 0)}
+                  </td>
+                )}
+                {hasKda && <td className="num">{(((x.s.k ?? 0) + (x.s.a ?? 0)) / Math.max(1, x.s.d ?? 0)).toFixed(2)}</td>}
                 <td className="num">
                   <b>{fmt(x.v)}</b>
                 </td>
@@ -282,7 +293,7 @@ function HeadToHead({ world, route }: { world: World; route: Route }) {
               {finals.map((c, i) => (
                 <div key={i} className="attr-row small">
                   <span>
-                    {c.season} · {world.comps[c.compId] ? <CompLink c={world.comps[c.compId]} /> : c.compName}
+                    {c.season} · {compRef(world, c.compId) ? <CompLink c={compRef(world, c.compId)} /> : c.compName}
                   </span>
                   <span>
                     won by <TeamLink t={world.teams[c.teamId]} />
@@ -470,7 +481,7 @@ export function SeasonPage({ route }: { route: Route }) {
                 .map((c) => (
                   <div key={c.compId} className="attr-row">
                     <span>
-                      <TitleTag id={c.titleId} /> {world.comps[c.compId] ? <CompLink c={world.comps[c.compId]} /> : c.compName}
+                      <TitleTag id={c.titleId} /> {compRef(world, c.compId) ? <CompLink c={compRef(world, c.compId)} /> : c.compName}
                     </span>
                     <TeamLink t={world.teams[c.teamId]} />
                   </div>

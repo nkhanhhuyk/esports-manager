@@ -717,8 +717,39 @@ export interface MobaReplay {
   events: Array<{ t: number; k: string; a?: number; b?: number; x?: number; y?: number; s?: 0 | 1; n?: string; as?: number[] }>;
 }
 
+/** Recorded spatial timeline of one shooter map (frames every `dt` seconds, frame-major arrays). */
+export interface ShooterReplay {
+  v: 1;
+  mapId: string;
+  titleId: string;
+  dt: number;
+  frames: number;
+  players: Array<{ side: 0 | 1; playerId: ID; handle: string; char: string; roleId: string }>;
+  /** Per frame × 10: x, y, hp (0 = dead), state bits (1 spike, 2 planting, 4 defusing, 8 blinded, 16 moving), weapon code, target (−1 none). */
+  px: Int16Array;
+  py: Int16Array;
+  php: Int16Array;
+  pst: Int16Array;
+  pwp: Int16Array;
+  ptg: Int16Array;
+  /** Per frame: round index, seconds left in the round (or on the spike), spike state (0 carried, 1 dropped, 2 planted, 3 defused, 4 exploded), spike x, y. */
+  fr: Int16Array;
+  ft: Int16Array;
+  fs: Int16Array;
+  fx: Int16Array;
+  fy: Int16Array;
+  weapons: string[];
+  rounds: Array<{ idx: number; from: number; to: number; attack: 0 | 1; buys: [string, string]; winner: 0 | 1; reason: string; site?: string; score: [number, number]; money: [number, number] }>;
+  utility: Array<{ t: number; kind: string; side: 0 | 1; x: number; y: number; r: number; until: number; by: number }>;
+  events: Array<{ t: number; k: string; a?: number; b?: number; x?: number; y?: number; s?: 0 | 1; n?: string; hs?: boolean }>;
+}
+
 export interface GameResult {
   idx: number;
+  /** Shooter map replay (session only, like `replay`). */
+  sreplay?: ShooterReplay;
+  /** Compact box score (when `players` was slimmed away). See src/sim/boxscore.ts. */
+  bx?: { ids: string[]; ti: number[]; ro: string[]; ch: Array<string | null>; r: number[]; k: string[]; s: number[] };
   /** Spatial replay (kept in memory for games watched or played live; not stored in saves). */
   replay?: MobaReplay;
   /** Which MOBA engine produced the game: the spatial battlefield or the fast background engine. */
@@ -1016,6 +1047,8 @@ export interface WorldMeta {
 export type DelegationArea = 'signings' | 'sales' | 'contracts' | 'staff' | 'finance' | 'registration';
 
 export interface World {
+  /** Index of archived competition editions (their data lives in the season archive). */
+  compIndex?: Array<{ id: string; season: number; titleId: string; tier: CompTier; name: string; short: string; region: string | null; leagueId: string | null; split?: number; startDay: number; champion: string | null; runnerUp: string | null; teams: number; prizePool: number }>;
   meta: WorldMeta;
   day: DayNum;
   season: number;

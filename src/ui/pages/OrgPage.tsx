@@ -1,7 +1,7 @@
 import { RichText } from '../components/RichText';
 import { useState } from 'react';
 import { useGame, useWorld } from '../store';
-import { Card, CompLink, Flag, Gate, Money, OrgBadge, PageHeader, Provenance, Stat, TeamLink, TitleTag } from '../components/common';
+import { Card, CompLink, Flag, Gate, Money, OrgBadge, PageHeader, Provenance, Stat, TeamLink, TitleTag, compRef } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { regionName, COUNTRY_BY_CODE } from '../../data/countries';
 import { getTitle } from '../../data/titles/catalogue';
@@ -81,7 +81,7 @@ export function OrgPage({ id }: { id?: string }) {
                   <td>
                     <TitleTag id={tr.titleId} />
                   </td>
-                  <td>{world.comps[tr.compId] ? <CompLink c={world.comps[tr.compId]} /> : tr.compName}</td>
+                  <td>{compRef(world, tr.compId) ? <CompLink c={compRef(world, tr.compId)} /> : tr.compName}</td>
                   <td className="muted">{tr.tier}</td>
                 </tr>
               ))}

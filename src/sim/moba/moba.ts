@@ -40,11 +40,25 @@ interface Side {
 
 const CS_VALUE = 22;
 
+/**
+ * Per-title calibration of the fast engine against the spatial battlefield simulation (and pro-scene
+ * averages): `kill` scales lane kills, ganks, pick-offs and how often teamfights break out; `pace`
+ * scales structure pressure (game length).
+ */
+const FAST_TUNE: Record<string, { kill: number; pace: number }> = {
+  mlbb: { kill: 1.35, pace: 1 },
+  wildrift: { kill: 1.3, pace: 1 },
+  hok: { kill: 1.6, pace: 0.55 },
+  lol: { kill: 0.7, pace: 1.15 },
+  dota2: { kill: 0.9, pace: 1.8 },
+};
+
 export function simulateMoba(g: GameContext): GameResult {
   const cfg = g.title.moba!;
   const { rng } = g;
   const keys = g.title.stats.map((s) => s.key);
   const book = new StatBook(g.teams, keys);
+  const TUNE = FAST_TUNE[g.title.id] ?? { kill: 1, pace: 1 };
   const sides: [Side, Side] = g.teams.map((tc) => ({
     tc,
     gold: tc.players.map(() => 500),
@@ -119,8 +133,8 @@ export function simulateMoba(g: GameContext): GameResult {
     const w = sides[winner];
     const l = sides[1 - winner];
     const alive = (s: Side) => s.tc.players;
-    let wKills = 1 + [0, 0, 0].reduce((a) => a + (rng.chance(0.25 + 0.35 * dom) ? 1 : 0), 0);
-    let lKills = [0, 0].reduce((a) => a + (rng.chance(0.3 * (1 - dom * 0.6)) ? 1 : 0), 0);
+    let wKills = (rng.chance(Math.min(1, TUNE.kill)) ? 1 : 0) + [0, 0, 0].reduce((a) => a + (rng.chance(Math.min(0.95, (0.25 + 0.35 * dom) * TUNE.kill)) ? 1 : 0), 0);
+    let lKills = [0, 0].reduce((a) => a + (rng.chance(Math.min(0.95, 0.3 * (1 - dom * 0.6) * TUNE.kill)) ? 1 : 0), 0);
     wKills = Math.min(wKills, l.tc.players.length);
     lKills = Math.min(lKills, w.tc.players.length - 1);
     if (l.aegis && wKills > 0) {
@@ -168,7 +182,7 @@ export function simulateMoba(g: GameContext): GameResult {
         }
       }
     }
-    if (window > 1.5 && minute > cfg.laneEnd * 0.8) pushStructures(winner, minute, Math.round(window * 0.4 + (minute <= w.pushUntil ? 1 : 0)));
+    if (window > 1.5 && minute > cfg.laneEnd * 0.8) pushStructures(winner, minute, Math.round(window * 0.4 * TUNE.pace + (minute <= w.pushUntil ? 1 : 0)));
     return winner;
   };
 
@@ -263,7 +277,7 @@ export function simulateMoba(g: GameContext): GameResult {
   const contestObjective = (o: ObjectiveDef, minute: number) => {
     const ctrl = (s: Side) => s.tc.phase.jungle * 0.32 + s.tc.phase.macro * 0.25 + s.tc.phase.vision * 0.2 + s.tc.phase.skirmish * 0.23;
     const diff = (ctrl(sides[0]) - ctrl(sides[1])) / 10 + goldLead(0) * 2.2 + (g.comp[0].total - g.comp[1].total) * 0.5;
-    const fightChance = 0.2 + (sides[0].tc.aggression + sides[1].tc.aggression) / 500 + (o.major ? 0.25 : 0) - Math.abs(diff) * 0.08;
+    const fightChance = (0.2 + (sides[0].tc.aggression + sides[1].tc.aggression) / 500 + (o.major ? 0.25 : 0) - Math.abs(diff) * 0.08) * Math.min(1, TUNE.kill);
     if (rng.chance(clamp(fightChance, 0.1, 0.85))) {
       const w = teamfight(minute, `Fight at ${o.name}`);
       if (winner >= 0) return;
@@ -315,7 +329,7 @@ export function simulateMoba(g: GameContext): GameResult {
         }
         // Solo kill chance
         const aggr = (sides[0].tc.aggression + sides[1].tc.aggression) / 100;
-        if (rng.chance(0.018 * tickMin * 2 * (1 + Math.abs(d) * 1.5) * aggr)) {
+        if (rng.chance(0.018 * tickMin * 2 * (1 + Math.abs(d) * 1.5) * aggr * TUNE.kill)) {
           const ws = rng.chance(logistic(d * 1.4)) ? 0 : 1;
           const victim = rng.pick(ws === 0 ? lb : la);
           awardKill(ws, victim, minute, ws === 0 ? la : lb);
@@ -327,7 +341,7 @@ export function simulateMoba(g: GameContext): GameResult {
         const o = sides[1 - i];
         const jg = s.tc.players.find((pc) => cfg.junglers.includes(pc.roleId));
         if (!jg) continue;
-        const gankRate = 0.08 * tickMin * 2 * (0.6 + (jg.base.phaseS.jungle ?? jg.phase.jungle) / 120) * (0.7 + s.tc.aggression / 160);
+        const gankRate = 0.08 * tickMin * 2 * (0.6 + (jg.base.phaseS.jungle ?? jg.phase.jungle) / 120) * (0.7 + s.tc.aggression / 160) * TUNE.kill;
         if (!rng.chance(gankRate)) continue;
         const targets = o.tc.players.filter((pc) => !cfg.junglers.includes(pc.roleId));
         if (!targets.length) continue;
@@ -356,7 +370,7 @@ export function simulateMoba(g: GameContext): GameResult {
     // Mid/late game skirmishes & fights
     if (minute > cfg.laneEnd) {
       const aggr = (sides[0].tc.aggression + sides[1].tc.aggression) / 100;
-      if (rng.chance(0.17 * tickMin * 2 * aggr)) {
+      if (rng.chance(0.17 * tickMin * 2 * aggr * TUNE.kill)) {
         // pick-off
         const sa = sides[0].tc.phase.skirmish * (1 + g.comp[0].total * 0.1) * (1 + ((g.comp[0].profile.pick ?? 5) - 5) * 0.01);
         const sb = sides[1].tc.phase.skirmish * (1 + g.comp[1].total * 0.1) * (1 + ((g.comp[1].profile.pick ?? 5) - 5) * 0.01);
@@ -366,12 +380,12 @@ export function simulateMoba(g: GameContext): GameResult {
         emit(g, t, w as 0 | 1, 'pick', () => `${fmtTime(t)} ${teamName(g, w)} catch ${victim.p.handle} out of position.`);
         if (rng.chance(0.25)) pushStructures(w, minute, 1);
       }
-      if (winner < 0 && rng.chance(0.14 * tickMin * 2 * aggr * (1 + minute / cfg.avgLength))) teamfight(minute, '');
+      if (winner < 0 && rng.chance(0.14 * tickMin * 2 * aggr * (1 + minute / cfg.avgLength) * TUNE.kill)) teamfight(minute, '');
       // Lane pressure / split pushing.
       for (let i = 0; i < 2 && winner < 0; i++) {
         const s = sides[i];
         const pressure = (s.tc.phase.macro - sides[1 - i].tc.phase.macro) / 25 + goldLead(i) * 2.5 + ((g.comp[i].profile.split ?? 5) - 5) * 0.05 + (minute <= s.pushUntil ? s.pushValue * 2 : 0);
-        if (rng.chance(clamp((0.42 * tickMin / cfg.avgLength) * (1 + pressure), 0, 0.5))) pushStructures(i, minute, 1);
+        if (rng.chance(clamp((0.42 * tickMin / cfg.avgLength) * (1 + pressure) * TUNE.pace, 0, 0.6))) pushStructures(i, minute, 1);
       }
     }
     // Overtime safeguard: sudden-death fights decide very long games.

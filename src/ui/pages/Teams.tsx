@@ -5,7 +5,7 @@ import { useGame, useWorld } from '../store';
 import { eligibleNations } from '../../systems/nations';
 import { COUNTRY_BY_CODE } from '../../data/countries';
 import { userNationalTeam } from '../helpers';
-import { Card, CompLink, Flag, Money, OrgLink, PageHeader, PlayerLink, Provenance, Rating, Stat, StaffLink, TeamLink, TitleTag, Tabs, OrgBadge, age } from '../components/common';
+import { Card, CompLink, Flag, Money, OrgLink, PageHeader, PlayerLink, Provenance, Rating, Stat, StaffLink, TeamLink, TitleTag, Tabs, OrgBadge, age, compRef } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { getTitle } from '../../data/titles/catalogue';
 import { computeTeamStrength } from '../../sim/common/team';
@@ -285,7 +285,7 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
           <Card title="Trophies">
             {team.trophies.map((tr, i) => (
               <div key={i}>
-                {tr.season} · {world.comps[tr.compId] ? <CompLink c={world.comps[tr.compId]} /> : tr.compName}
+                {tr.season} · {compRef(world, tr.compId) ? <CompLink c={compRef(world, tr.compId)} /> : tr.compName}
               </div>
             ))}
             {!team.trophies.length && <div className="muted">No trophies yet.</div>}

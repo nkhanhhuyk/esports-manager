@@ -65,6 +65,8 @@ interface SpatialTuning {
   siegeMult: number;
   /** Multiplier on the power edge needed to start a fight (pro-scene caution). */
   caution: number;
+  /** Gold display scale (income and item costs scale together, so fights are unaffected). */
+  goldMult: number;
 }
 
 const BASE: SpatialTuning = {
@@ -97,12 +99,13 @@ const BASE: SpatialTuning = {
   structMult: 1,
   siegeMult: 0.6,
   caution: 1,
+  goldMult: 2,
 };
 
 const TUNING: Record<string, SpatialTuning> = {
-  mlbb: { ...BASE, structMult: 1.25, siegeMult: 0.5, caution: 1.05, firstWave: 22, waveSpeed: 24, minionGold: 24, passiveGold: 2.2, xpK: 62, respawn: (lv, m) => Math.min(55, 6 + lv * 1.4 + m * 1.2), ultCd: 45, recallSec: 6 },
-  wildrift: { ...BASE, escapeCd: 150, structMult: 1.6, siegeMult: 0.45, caution: 1.15, firstWave: 30, waveSpeed: 26, minionGold: 22, passiveGold: 1.9, xpK: 70, respawn: (lv, m) => Math.min(58, 6 + lv * 2 + m * 0.7), ultCd: 50, recallSec: 5 },
-  hok: { ...BASE, structMult: 2.0, siegeMult: 0.42, caution: 1.3, firstWave: 30, waveSpeed: 23, minionGold: 25, passiveGold: 2.3, xpK: 66, respawn: (lv, m) => Math.min(55, 7 + lv * 1.5 + m * 1.0), ultCd: 45 },
+  mlbb: { ...BASE, goldMult: 2.45, structMult: 1.25, siegeMult: 0.5, caution: 1.05, firstWave: 22, waveSpeed: 24, minionGold: 24, passiveGold: 2.2, xpK: 62, respawn: (lv, m) => Math.min(55, 6 + lv * 1.4 + m * 1.2), ultCd: 45, recallSec: 6 },
+  wildrift: { ...BASE, goldMult: 2.25, escapeCd: 150, structMult: 1.6, siegeMult: 0.45, caution: 1.15, firstWave: 30, waveSpeed: 26, minionGold: 22, passiveGold: 1.9, xpK: 70, respawn: (lv, m) => Math.min(58, 6 + lv * 2 + m * 0.7), ultCd: 50, recallSec: 5 },
+  hok: { ...BASE, goldMult: 2.6, structMult: 2.0, siegeMult: 0.42, caution: 1.3, firstWave: 30, waveSpeed: 23, minionGold: 25, passiveGold: 2.3, xpK: 66, respawn: (lv, m) => Math.min(55, 7 + lv * 1.5 + m * 1.0), ultCd: 45 },
   lol: {
     ...BASE,
     firstWave: 65,
@@ -122,6 +125,7 @@ const TUNING: Record<string, SpatialTuning> = {
     structMult: 2.1,
     siegeMult: 0.38,
     caution: 1.7,
+    goldMult: 1.65,
     heroHp: 2000,
     heroHpLv: 230,
     wardLife: 150,
@@ -146,6 +150,7 @@ const TUNING: Record<string, SpatialTuning> = {
     structMult: 1.15,
     siegeMult: 0.45,
     caution: 1.2,
+    goldMult: 2.4,
     recallSec: 7,
     ultCd: 90,
     wardLife: 360,
@@ -201,6 +206,8 @@ interface Hero {
   bbReadyAt: number;
   escapeAt: number;
   chaseFrom: number;
+  /** Last time an enemy committed (all-in) on this hero — pokes do not count. */
+  engagedAt: number;
   aegis: boolean;
   // derived
   dmgW: number;
@@ -312,7 +319,7 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
         maxHp: 1,
         level: 1,
         xp: 0,
-        gold: T.startGold,
+        gold: T.startGold * T.goldMult,
         unspent: 0,
         dead: false,
         respawnAt: 0,
@@ -325,6 +332,7 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
         bbReadyAt: 0,
         escapeAt: 0,
         chaseFrom: -1,
+        engagedAt: -999,
         aegis: false,
         dmgW: dmgWeight(g, pc),
         tankW: tankWeight(g, pc),
@@ -355,7 +363,7 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
 
   /** Item power from gold already spent on items: diminishing returns (later items add less). */
   function itemPower(h: Hero): number {
-    return 1 + 0.8 * Math.sqrt(Math.max(0, h.gold - h.unspent - T.startGold) / T.itemScale);
+    return 1 + 0.6 * Math.sqrt(Math.max(0, h.gold - h.unspent - T.startGold * T.goldMult) / (T.itemScale * T.goldMult));
   }
   function maxHp(h: Hero): number {
     return (T.heroHp + T.heroHpLv * (h.level - 1)) * (0.75 + 0.25 * itemPower(h)) * (0.8 + 0.35 * h.tankW);
@@ -372,7 +380,8 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
     return (T.heroDps + T.heroDpsLv * (h.level - 1)) * itemPower(h) * h.dmgW * sk * compMod * (1 + buffs) * (0.94 + 0.12 * (g.teams[h.side].chem / 100));
   }
   function speed(h: Hero): number {
-    return map.moveSpeed * (1 + 0.04 * Math.min(itemPower(h) - 1, 3)) * (h.act === Act.Retreat ? 1.06 : 1);
+    // Retreating players kite, use minions and terrain: they outpace chasers a little.
+    return map.moveSpeed * (1 + 0.04 * Math.min(itemPower(h) - 1, 3)) * (h.act === Act.Retreat ? 1.15 : 1);
   }
 
   // ------------------------------------------------------------- structures, camps, objectives
@@ -602,8 +611,8 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
     }
   };
   const giveGold = (h: Hero, x: number) => {
-    h.gold += x;
-    h.unspent += x;
+    h.gold += x * T.goldMult;
+    h.unspent += x * T.goldMult;
   };
   const teamGold = (side: number) => bySide[side].reduce((a, h) => a + h.gold, 0);
   /** Gold lead per side, refreshed once per tick. */
@@ -1156,9 +1165,7 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
     const myHp = h.hp / h.maxHp;
     const theirHp = e.hp / e.maxHp;
     // Fight back when committed on (cannot simply walk away from a melee range engage).
-    let lastHitAt = -999;
-    for (const x of bySide[e.side]) if (h.lastHit[x.i] > lastHitAt) lastHitAt = h.lastHit[x.i];
-    const underAttack = now - lastHitAt <= 2;
+    const underAttack = now - h.engagedAt <= 2;
     const fighting = h.target === e.i;
     if (myHp < 0.22) return 0;
     const laning = now / 60 < cfg.laneEnd && h.job === 'lane' && e.job === 'lane' && h.lane === e.lane;
@@ -1171,6 +1178,11 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
     // Teams that are behind play safer; teams ahead press their advantage.
     const behind = Math.max(0, -leadNow[h.side]);
     const startBar = (laning && alliesNear <= enemiesNear ? 1.7 : 1.3) * T.caution * (1 + behind * 2.5);
+    // In lane, 1-on-1 all-ins only on a clearly weakened opponent; ganks (numbers) are different.
+    if (laning && alliesNear <= enemiesNear && theirHp > 0.45 && !(h.target === e.i)) {
+      if (now - h.engagedAt <= 2 && ratio > 1.05) return 2;
+      return myHp > 0.5 && myHp >= theirHp - 0.15 && ratio > 0.75 ? 1 : 0;
+    }
     if (ratio > (fighting ? 0.95 : startBar) || (theirHp < 0.2 && ratio > 1.0) || (underAttack && ratio > 1.05)) return 2;
     if (laning && ratio > 0.75 && myHp > 0.5 && myHp >= theirHp - 0.15) return 1;
     return 0;
@@ -1208,6 +1220,10 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
     if (now < h.stunUntil) return;
     // Recall channel.
     if (h.act === Act.Recall) {
+      // Taking damage interrupts the channel.
+      let hitAt = -999;
+      for (const e of bySide[1 - h.side]) if (h.lastHit[e.i] > hitAt) hitAt = h.lastHit[e.i];
+      if (now - hitAt <= dt && now < h.recallUntil) h.target = Math.max(h.target, 0);
       if (h.target >= 0 || now >= h.recallUntil) {
         if (now >= h.recallUntil && h.target < 0) {
           h.x = fountainPt(h.side).x;
@@ -1235,11 +1251,18 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
     let mode: 0 | 1 | 2 = 0;
     if (tgt && (tgt.dead || !visible[h.side][tgt.i] || dist(h, tgt) > AGGRO * 1.6)) tgt = null;
     if (tgt) mode = engage(h, tgt, now);
-    // Chase limits: give up a retreating target after a few seconds or at its tower.
-    if (tgt && tgt.act === Act.Retreat) {
-      if (h.chaseFrom < 0) h.chaseFrom = now;
-      const underTower = structs.some((s2) => s2.alive && s2.d.team === tgt!.side && s2.d.dps > 0 && dist(s2.d.pos, tgt!) < s2.d.range);
-      if (now - h.chaseFrom > 6 || underTower) {
+    // Chase and dive limits: give up a retreating target after a few seconds; never follow a target
+    // under its own tower without a numbers advantage.
+    if (tgt) {
+      const t2 = tgt;
+      const underTower = structs.some((s2) => s2.alive && s2.d.team === t2.side && s2.d.dps > 0 && dist(s2.d.pos, t2) < s2.d.range + 5);
+      let us = 0;
+      let them = 0;
+      for (const x of bySide[h.side]) if (!x.dead && dist(x, t2) < 140) us++;
+      for (const x of bySide[t2.side]) if (!x.dead && dist(x, t2) < 140) them++;
+      if (t2.act === Act.Retreat && h.chaseFrom < 0) h.chaseFrom = now;
+      if (t2.act !== Act.Retreat) h.chaseFrom = -1;
+      if ((h.chaseFrom >= 0 && now - h.chaseFrom > 4) || (underTower && us <= them)) {
         tgt = null;
         mode = 0;
         h.target = -1;
@@ -1304,6 +1327,7 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
           if (rng.chance(0.25 + 0.35 * (h.tankW > 1.2 ? 1 : 0.4))) tgt.stunUntil = now + 1.2;
           ev(now, 'cast', h.i, tgt.i, tgt, h.side);
         }
+        if (mode === 2) tgt.engagedAt = now;
         if (now < execUntil[h.side] && tgt.hp / tgt.maxHp < 0.1 + execVal[h.side] * 0.2) dmg += tgt.hp;
         damageHero(h, tgt, dmg, now, 'champion');
         if (h.healW > 0.3) {
@@ -1335,7 +1359,7 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
       }
     }
     // Low HP or rich: recall when nothing is around.
-    if ((h.hp / h.maxHp < 0.4 || h.unspent > T.itemScale * 1.1) && !bySide[1 - h.side].some((e) => !e.dead && visible[h.side][e.i] && dist(e, h) < 110) && dist(h, fountainPt(h.side)) > 250) {
+    if ((h.hp / h.maxHp < 0.4 || h.unspent > T.itemScale * T.goldMult * 1.1) && !bySide[1 - h.side].some((e) => !e.dead && visible[h.side][e.i] && dist(e, h) < 85) && dist(h, fountainPt(h.side)) > 250) {
       h.act = Act.Recall;
       h.recallUntil = now + T.recallSec;
       return;
@@ -1478,11 +1502,12 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
     }
     h.act = Act.Lane;
     let spot = laneSpot(h, lane);
-    if (h.hp / h.maxHp < 0.45) {
+    if (h.hp / h.maxHp < (now / 60 < cfg.laneEnd ? 0.55 : 0.45)) {
       // Hurt: play safe under the nearest own structure of the lane until the recall is safe.
       let safe: Struct | null = null;
       for (const s2 of structs) if (s2.alive && s2.d.team === h.side && s2.d.lane === lane && (!safe || dist(s2.d.pos, h) < dist(safe.d.pos, h))) safe = s2;
-      if (safe) spot = safe.d.pos;
+      // Behind the tower (toward the own base), out of the enemy laner's reach.
+      if (safe) spot = laneAt(lane, safe.laneS + (h.side === 0 ? -70 : 70));
     }
     setGoal(h, spot);
     move(h, sp);
@@ -1562,7 +1587,8 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
     if (winner >= 0) break;
     towersFire(now, dt);
     // Regeneration out of combat.
-    for (const h of heroes) if (!h.dead && h.target < 0 && h.hp < h.maxHp) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.004 * dt);
+    const regen = now / 60 < cfg.laneEnd ? 0.009 : 0.005; // early sustain (potions, lane regen items)
+    for (const h of heroes) if (!h.dead && h.target < 0 && h.hp < h.maxHp) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * regen * dt);
     // Overtime safeguard: very long games end in a decisive base race.
     if (now >= maxT) {
       for (const side of [0, 1] as const) siegeBuff[side] += 0.02;

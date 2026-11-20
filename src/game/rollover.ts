@@ -4,6 +4,8 @@
  * organisation evolution (rebrands, closures, new divisions, mergers), sponsors, pruning of
  * old detail data, and planning the next season. Idempotent per season.
  */
+import { archiveSeason } from './archive';
+import { slimGame } from '../sim/boxscore';
 import { publishReview } from '../systems/seasonReport';
 import { fansOnRetirement } from '../systems/fans';
 import { clamp } from '../core/math';
@@ -327,23 +329,17 @@ function staffAging(world: World, rng: RNG): void {
 
 /** Remove heavy, no-longer-needed detail data to keep very long saves fast and small. */
 function prune(world: World, endedSeason: number): void {
-  const keepSeason = endedSeason; // keep the season just finished for browsing; drop older ones
-  for (const [id, c] of Object.entries(world.comps)) {
-    if (c.season < keepSeason) {
-      for (const st of c.stages) for (const fid of st.fixtureIds) {
-        delete world.fixtures[fid];
-        delete world.matches[fid];
-      }
-      delete world.comps[id];
-    }
-  }
+  // Older seasons move to the season archive (competitions, fixtures, box scores, standings); the
+  // live world keeps the season just finished for browsing plus an index of every edition.
+  const old = [...new Set(Object.values(world.comps).map((c) => c.season))].filter((s) => s < endedSeason);
+  for (const s of old) archiveSeason(world, s);
   for (const k of Object.keys(world.schedule)) {
     const d = Number(k);
     const ids = world.schedule[d].filter((id) => world.fixtures[id]);
     if (!ids.length) delete world.schedule[d];
     else world.schedule[d] = ids;
   }
-  // Compact detail of the finished season's non-user matches (keep finals).
+  // Slim the finished season's non-user matches (commentary goes, box scores stay; finals kept whole).
   for (const [fid, m] of Object.entries(world.matches)) {
     const f = world.fixtures[fid];
     if (!f) {
@@ -352,7 +348,7 @@ function prune(world: World, endedSeason: number): void {
     }
     if (f.formatKey === 'final') continue;
     if (world.meta.userOrgId && f.teams.some((t) => world.teams[t]?.orgId === world.meta.userOrgId)) continue;
-    if (m.detail) world.matches[fid] = { ...m, detail: false, games: m.games.map((g) => ({ ...g, events: undefined, players: [], teamStats: [] })) };
+    if (m.detail) world.matches[fid] = { ...m, detail: false, games: m.games.map((g) => slimGame(g)) };
   }
   // Archive long-retired, low-legacy players to compact summaries.
   for (const p of Object.values(world.players)) {

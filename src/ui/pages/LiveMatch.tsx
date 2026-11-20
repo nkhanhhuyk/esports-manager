@@ -7,6 +7,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useGame, useWorld } from '../store';
 import { Card, CompLink, PageHeader, PlayerLink, TeamLink, TitleTag } from '../components/common';
 import { getTitle } from '../../data/titles/catalogue';
+import { formatDate } from '../../core/date';
 import { navigate } from '../router';
 import { isUserTeamId, roleE } from '../helpers';
 import { createSeries, draftStateFor, playNextGame, type SeriesState } from '../../sim/series';
@@ -21,7 +22,7 @@ import { MobaViewer } from '../components/MobaViewer';
 
 export function LiveMatchPage({ id }: { id: string }) {
   const world = useWorld();
-  const { act, notify, save } = useGame();
+  const { act, notify, save, advance: advanceGame } = useGame();
   const f = world.fixtures[id];
   const [st, setSt] = useState<SeriesState | null>(null);
   const [ds, setDs] = useState<DraftState | null>(null);
@@ -33,7 +34,8 @@ export function LiveMatchPage({ id }: { id: string }) {
   /** Games whose result has been revealed (playback finished or skipped). */
   const [revealed, setRevealed] = useState(0);
   const t = f ? getTitle(f.titleId) : null;
-  const ui = f ? f.teams.findIndex((x) => isUserTeamId(world, x)) : -1;
+  // Your side (−1 when watching; without tactical control your own matches are watched too).
+  const ui = f && can(world, 'tactics') ? f.teams.findIndex((x) => isUserTeamId(world, x)) : -1;
   const pool = useMemo(() => (t ? currentPatch(world, t.id).mapPool : []), [world, t]);
   if (!f || !t) return <div>Match not found.</div>;
   if (f.status === 'done') {
@@ -44,9 +46,33 @@ export function LiveMatchPage({ id }: { id: string }) {
     );
   }
   // Not your match: watch it — both coaching staffs handle the veto and the drafts.
-  const watching = ui < 0;
-  if (!watching && !can(world, 'tactics')) return <div>{denyReason(world, 'tactics')} Use “Simulate match day” instead.</div>;
-  if (f.day !== world.day + 1) return <div>Live matches can be {watching ? 'watched' : 'played'} on match day only ({f.day > world.day ? 'advance until the day before' : 'already past'}).</div>;
+  // Without tactical control (e.g. a GM-only role) your own matches are watched: staff handle veto and draft.
+  const watching = ui < 0 || !can(world, 'tactics');
+  void denyReason;
+  if (f.day !== world.day + 1) {
+    if (f.day <= world.day) return <div>This match has already been played. <button className="btn ghost sm" onClick={() => navigate(`/match/${f.id}`)}>Open the match report</button></div>;
+    return (
+      <div>
+        <p>
+          This match is on {formatDate(f.day, true)} — {f.day - world.day - 1} day(s) to simulate first.
+        </p>
+        <button
+          className="btn"
+          onClick={async () => {
+            act((w) => {
+              const fx = w.fixtures[f.id];
+              fx.detail = true;
+              if (t.engine === 'moba') fx.spatial = true;
+            });
+            await advanceGame({ kind: 'days', n: f.day - world.day - 1 });
+          }}
+        >
+          Advance to match day
+        </button>
+        <p className="muted small">The advance stops earlier if something needs your decision (your own match days, offers, the board).</p>
+      </div>
+    );
+  }
 
   const userTeam = watching ? null : world.teams[f.teams[ui]];
   const lineupCheck = userTeam ? validateLineup(world, userTeam, userTeam.lineup) : { ok: true, errors: [] as string[] };

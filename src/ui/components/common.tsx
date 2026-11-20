@@ -51,7 +51,7 @@ export function OrgLink({ org }: { org: Organisation | undefined }) {
   );
 }
 
-export function CompLink({ c }: { c: Competition | undefined }) {
+export function CompLink({ c }: { c: Competition | { id: string; name: string } | undefined }) {
   if (!c) return <span className="muted">—</span>;
   return (
     <Link to={`/comp/${c.id}`} className="elink">
@@ -163,6 +163,11 @@ export function Gate({ world, perm, children }: { world: World; perm: Permission
       {children}
     </fieldset>
   );
+}
+
+/** A competition edition, live or archived (archived editions keep a small index entry). */
+export function compRef(world: World, id: string): { id: string; name: string } | undefined {
+  return world.comps[id] ?? world.compIndex?.find((e) => e.id === id);
 }
 
 /** Real-world provenance label: real (with source and estimated fields) or fictional. */
