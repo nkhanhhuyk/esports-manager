@@ -16,14 +16,17 @@ function realWorld(titles?: string[]) {
 }
 
 describe('real-world start (dated roster snapshot)', () => {
-  it('builds real leagues, teams and players with provenance; HoK and Wild Rift stay fictional', () => {
+  it('builds real leagues, teams and players with provenance; HoK stays fictional; Wild Rift from the 2021 wiki data', () => {
     const w = realWorld();
     expect(w.meta.dataMode).toBe('real');
     expect(w.meta.rosterSnapshot).toBe(ROSTER_SNAPSHOT.id);
-    expect(realTitles().sort()).toEqual(['cs2', 'dota2', 'lol', 'mlbb', 'valorant']);
+    expect(realTitles().sort()).toEqual(['cs2', 'dota2', 'lol', 'mlbb', 'valorant', 'wildrift']);
+    // Wild Rift: regional Icon Series leagues with real teams (Wild Rift Esports Wiki, early 2021).
+    expect(Object.values(w.leagues).some((l) => l.titleId === 'wildrift' && l.real && /Icon Series/.test(l.name))).toBe(true);
+    expect(Object.values(w.teams).some((t) => t.titleId === 'wildrift' && t.real && t.name === 'Execration')).toBe(true);
     const leagues = Object.values(w.leagues);
     for (const name of ['LCK', 'LPL', 'LEC', 'MPL Indonesia', 'MPL Philippines', 'VCT Pacific']) expect(leagues.some((l) => l.name === name && l.real), name).toBe(true);
-    for (const id of ['hok', 'wildrift']) {
+    for (const id of ['hok']) {
       expect(Object.values(w.teams).filter((t) => t.titleId === id).length, id).toBeGreaterThan(0);
       expect(Object.values(w.teams).some((t) => t.titleId === id && t.real), id).toBe(false);
     }

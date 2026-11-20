@@ -14,6 +14,8 @@
  * source) are filled with fictional teams, which stay unmarked (`real` absent).
  */
 import ROSTERS from '../data/real/rosters.json';
+import WILDRIFT from '../data/real/wildrift.json';
+import { countryCode } from './realFacts';
 import { clamp } from '../core/math';
 import type { RNG } from '../core/rng';
 import { COUNTRIES, COUNTRY_BY_CODE, expandRegion, regionEconomy } from '../data/countries';
@@ -63,7 +65,33 @@ interface SnapLeague {
   source_url: string;
   season?: string;
 }
-const SNAP = ROSTERS as unknown as { snapshot_id: string; as_of: string; leagues: SnapLeague[]; teams: SnapTeam[] };
+const BASE_SNAP = ROSTERS as unknown as { snapshot_id: string; as_of: string; leagues: SnapLeague[]; teams: SnapTeam[] };
+
+/**
+ * Wild Rift (src/data/real/wildrift.json, Wild Rift Esports Wiki — the most recent reachable data,
+ * as of early 2021): regional leagues and their teams join the snapshot; teams from regions with too
+ * few teams for a league (league_id null) join the history as dormant teams.
+ */
+interface WrPerson extends SnapPerson {
+  nationality_name?: string | null;
+}
+interface WrTeam extends Omit<SnapTeam, 'league_id' | 'roster'> {
+  league_id: string | null;
+  country_name?: string | null;
+  roster: WrPerson[];
+}
+const WR = WILDRIFT as unknown as { leagues: SnapLeague[]; teams: WrTeam[] };
+const NAT_ALIAS: Record<string, string> = { thai: 'TH', england: 'GB', uk: 'GB', laos: 'LA', myanmar: 'MM', india: 'IN', korea: 'KR', vietnam: 'VN', philippines: 'PH', usa: 'US' };
+function natCode(x: string | null | undefined): string | null {
+  if (!x) return null;
+  const s = x.trim();
+  if (s.length === 2 && COUNTRY_BY_CODE[s.toUpperCase()]) return s.toUpperCase();
+  return NAT_ALIAS[s.toLowerCase()] ?? countryCode(s);
+}
+const wrTeams: SnapTeam[] = WR.teams
+  .filter((t) => t.league_id)
+  .map((t) => ({ ...t, league_id: t.league_id!, country: natCode(t.country_name), roster: t.roster.map((p) => ({ ...p, nationality: natCode(p.nationality_name) })) }));
+const SNAP = { ...BASE_SNAP, leagues: [...BASE_SNAP.leagues, ...WR.leagues], teams: [...BASE_SNAP.teams, ...wrTeams] };
 
 export const ROSTER_SNAPSHOT = { id: SNAP.snapshot_id, asOf: SNAP.as_of };
 
@@ -91,6 +119,9 @@ const LEAGUE_REGION: Record<string, string> = {
   'cs2-vrs-europe': EMEA,
   'cs2-vrs-americas': AMER,
   'cs2-vrs-asia': 'APS-CN.KR.JP.PCS.MYSG.OCE.SA.ID.PH.TH.VN',
+  'wr-sea-pi': 'APS-PH.ID',
+  'wr-sea-m': 'APS-MYSG.TH.VN.OCE.SA',
+  'wr-emea': EMEA,
 };
 /** Dota 2 has no regional leagues in the source: teams are grouped by their estimated region. */
 const DOTA_GROUP: Record<string, { region: string; name: string; short: string }> = {
@@ -239,7 +270,7 @@ export function buildRealTitle(
         titleId,
         region: g.region,
         tier,
-        name: tier === 1 ? g.name : g.name.replace(/League$/, 'Challengers'),
+        name: tier === 1 ? g.name : /League$/.test(g.name) ? g.name.replace(/League$/, 'Challengers') : `${g.name} — Challengers`,
         short: tier === 1 ? g.short : `${g.short} C`,
         teamIds: [],
         size: 0,
@@ -491,7 +522,39 @@ interface HistPlayer {
   status_source: string;
   source_url: string;
 }
-const HIST = HISTORY as unknown as { snapshot_id: string; teams: HistTeam[]; players: HistPlayer[] };
+const BASE_HIST = HISTORY as unknown as { snapshot_id: string; teams: HistTeam[]; players: HistPlayer[] };
+const WR_DORMANT = WR.teams.filter((t) => !t.league_id);
+const HIST = {
+  ...BASE_HIST,
+  teams: [
+    ...BASE_HIST.teams,
+    ...WR_DORMANT.map((t) => ({ title_id: 'wildrift', team_id: t.team_id, name: t.name, short: t.short, region: t.region === 'APN' ? 'APN-KR.JP.PCS' : t.region === 'AMER' ? 'AMER' : t.region ?? null, league: 'Wild Rift Icon Series', last_season: 2021, source_url: t.source_url, roster: t.roster.filter((p) => p.status === 'player').map((p) => p.handle) })),
+  ],
+  players: [
+    ...BASE_HIST.players,
+    ...WR_DORMANT.flatMap((t) =>
+      t.roster
+        .filter((p) => p.status === 'player')
+        .map((p) => {
+          const parts = (p.real_name ?? '').split(/\s+/).filter(Boolean);
+          return {
+            title_id: 'wildrift',
+            handle: p.handle,
+            first_name: parts.length > 1 ? parts.slice(0, -1).join(' ') : null,
+            last_name: parts.length > 1 ? parts[parts.length - 1] : null,
+            real_name: p.real_name ?? null,
+            nationality: natCode(p.nationality_name),
+            role: p.role ?? null,
+            last_team: t.name,
+            last_season: 2021,
+            status: 'free-agent' as const,
+            status_source: 'estimate: last listed on a 2021 Wild Rift Esports Wiki roster',
+            source_url: t.source_url,
+          };
+        }),
+    ),
+  ],
+};
 
 const HIST_REGION: Record<string, string> = {
   AMER: 'AMER-NA.LATN.LATS.BR',

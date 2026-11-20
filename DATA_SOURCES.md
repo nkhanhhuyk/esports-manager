@@ -110,6 +110,19 @@ Applied to real players when a real-world career starts and once to older real-w
 
 Where no birth date is known the age stays an estimate (labelled "age").
 
+## Wild Rift — `src/data/real/wildrift.json`
+
+`node scripts/data/wildrift.mjs <cache dir>`: the [Wild Rift Esports Wiki](https://wildrift-esports.fandom.com)
+(Fandom, CC BY-SA 3.0) team pages — the most recent Wild Rift roster data reachable from here (the wiki
+was last updated in early 2021; Wild Rift esports continued — Icons 2022, Horizon Cup 2023, the Chinese
+Super League in 2025 — but those rosters are on Liquipedia, which blocks this environment). 38 teams,
+211 players (handle, country, real name, role; abbreviated wiki roles mapped to Baron / Jungle / Mid /
+Dragon / Support; 10 players without a listed role are assigned by the game), 31 team logos. Leagues
+are named after Riot's 2021 regional circuits: **Wild Rift SEA Icon Series** (Philippines & Indonesia;
+Mainland & Oceania, with a Challengers tier) and **Wild Rift Europe Icon Series**. Teams from regions
+with too few teams for a league (Americas, Asia Pacific North) are dormant teams and their players free
+agents. Applies to new real-world careers. Norra's icon: the [League of Legends Wiki](https://wiki.leagueoflegends.com/en-us/Universe:Norra).
+
 ### Access notes
 
 * **Liquipedia API (20 Nov 2026, second attempt, at the user's request for HoK / Wild Rift)**: one
@@ -158,13 +171,13 @@ from its owners' servers for this personal, non-commercial game and is not redis
 
 | Pictures | Source | Count |
 | --- | --- | --- |
-| LoL & Wild Rift champions | Riot Data Dragon (Wild Rift by champion name; Norra has none) | 173 + 142 |
+| LoL & Wild Rift champions | Riot Data Dragon (Wild Rift by champion name); Norra from the League of Legends Wiki | 173 + 143 |
 | Valorant agents and weapons | valorant-api.com | 30 agents, 21 weapons |
 | Dota 2 heroes | OpenDota hero list → Valve's Dota 2 CDN | 127 |
 | Honor of Kings heroes | Tencent's official CDN by official hero id (12 global-only heroes have none) | 106 |
 | MLBB heroes | mlbbhub.com hero pages → Moonton's official CDN | 131 |
 | CS2 weapons | ByMykel/CSGO-API (Steam images) | 66 |
-| Team logos | LoL Esports gateway (177), vlr.gg (32), OpenDota (67), MPL Indonesia (9), bo3.gg (150) | 435 |
+| Team logos | LoL Esports gateway (177), vlr.gg (32), OpenDota (67), MPL Indonesia (9), bo3.gg (150), Wild Rift Esports Wiki (31) | 466 |
 | Player photos | LoL Esports gateway (533), vlr.gg (188), bo3.gg (743); MPL photos are expiring signed links — not used | 1,464 |
 | League & event logos | LoL Esports gateway (incl. First Stand, MSI, Worlds), vlr.gg VCT events, MPL Indonesia | 59 |
 

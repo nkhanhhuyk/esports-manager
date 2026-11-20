@@ -1,0 +1,2765 @@
+{
+ "snapshot_id": "real-2026-11-20",
+ "as_of": "2021 (wiki)",
+ "leagues": [
+  {
+   "league_id": "wr-sea-pi",
+   "name": "Wild Rift SEA Icon Series — Philippines & Indonesia",
+   "short": "WR PH/ID",
+   "title_id": "wildrift",
+   "region": "SEA-PI",
+   "tier": 1,
+   "season": "Wild Rift 2021 (wiki data as of early 2021)",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Category:Teams"
+  },
+  {
+   "league_id": "wr-sea-m",
+   "name": "Wild Rift SEA Icon Series — Mainland & Oceania",
+   "short": "WR SEA",
+   "title_id": "wildrift",
+   "region": "SEA-M",
+   "tier": 1,
+   "season": "Wild Rift 2021 (wiki data as of early 2021)",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Category:Teams"
+  },
+  {
+   "league_id": "wr-emea",
+   "name": "Wild Rift Europe Icon Series",
+   "short": "WR EU",
+   "title_id": "wildrift",
+   "region": "EMEA",
+   "tier": 1,
+   "season": "Wild Rift 2021 (wiki data as of early 2021)",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Category:Teams"
+  }
+ ],
+ "teams": [
+  {
+   "logo_file": null,
+   "team_id": "wildrift-16-bit-esports",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "16-Bit Esports",
+   "short": "16-BIT",
+   "org": "16-Bit Esports",
+   "country_name": "Japan",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/16-Bit_Esports",
+   "collected_at": "2026-11-20T22:50:22.948Z",
+   "roster": [
+    {
+     "handle": "TarteTatin",
+     "real_name": "Tham Hong Yee",
+     "nationality_name": "sg",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Top"
+    },
+    {
+     "handle": "JTCGaming",
+     "real_name": null,
+     "nationality_name": "Australia",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Yamikaze",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "JSide",
+     "real_name": "Joshua Seidler",
+     "nationality_name": "us",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "AD"
+    },
+    {
+     "handle": "Attilio the Hun",
+     "real_name": "Andrew Tormenti",
+     "nationality_name": "us",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ]
+  },
+  {
+   "logo_file": "Berjaya Dragonslogo square.png",
+   "team_id": "wildrift-berjaya-dragons",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "Berjaya Dragons",
+   "short": "BERJAY",
+   "org": "Berjaya Dragons",
+   "country_name": "Malaysia",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Berjaya_Dragons",
+   "collected_at": "2026-11-20T22:50:22.949Z",
+   "roster": [
+    {
+     "handle": "Emotion",
+     "real_name": null,
+     "nationality_name": "malaysia",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Top"
+    },
+    {
+     "handle": "TaintedOnes",
+     "real_name": "Chin Wei Song",
+     "nationality_name": "malaysia",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Karuto",
+     "real_name": null,
+     "nationality_name": "malaysia",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Sagi",
+     "real_name": null,
+     "nationality_name": "malaysia",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "AD"
+    },
+    {
+     "handle": "Hoki",
+     "real_name": "Lim Tou Jye",
+     "nationality_name": "malaysia",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/a/a9/Berjaya_Dragonslogo_square.png/revision/latest?cb=20210126132535"
+  },
+  {
+   "logo_file": "Alliance.png",
+   "team_id": "wildrift-alliance",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "Alliance",
+   "short": "ALLIAN",
+   "org": "Alliance",
+   "country_name": "Sweden",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Alliance",
+   "collected_at": "2026-11-20T22:50:22.949Z",
+   "roster": [
+    {
+     "handle": "Cwj",
+     "real_name": "Chua Wee Kiat",
+     "nationality_name": "singapore",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Shinsekai",
+     "real_name": "Alex Tan Yew Ming",
+     "nationality_name": "singapore",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Kryonics",
+     "real_name": "Hoong Fan Kai",
+     "nationality_name": "singapore",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Raven",
+     "real_name": "Kenneth Goh",
+     "nationality_name": "singapore",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Rich",
+     "real_name": "Warich Kittiwattanawong",
+     "nationality_name": "thai",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ]
+  },
+  {
+   "logo_file": "Execration.png",
+   "team_id": "wildrift-execration",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-pi",
+   "name": "Execration",
+   "short": "EXECRA",
+   "org": "Execration",
+   "country_name": "Philippines",
+   "region": "SEA-PI",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Execration",
+   "collected_at": "2026-11-20T22:50:22.949Z",
+   "roster": [
+    {
+     "handle": "Tontey",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Mico",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Dedenne",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Hito",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Tsinelas",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/7/71/Execration.png/revision/latest?cb=20210127064707"
+  },
+  {
+   "logo_file": "Geek Fam.png",
+   "team_id": "wildrift-geek-fam",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "Geek Fam",
+   "short": "GEEKFA",
+   "org": "Geek Fam",
+   "country_name": "Malaysia",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Geek_Fam",
+   "collected_at": "2026-11-20T22:50:22.949Z",
+   "roster": [
+    {
+     "handle": "OzoraVeki",
+     "real_name": null,
+     "nationality_name": "my",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Top"
+    },
+    {
+     "handle": "Rumpel",
+     "real_name": null,
+     "nationality_name": "my",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "TheShang",
+     "real_name": null,
+     "nationality_name": "my",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "XIII",
+     "real_name": null,
+     "nationality_name": "my",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "AD"
+    },
+    {
+     "handle": "Dalgom",
+     "real_name": null,
+     "nationality_name": "my",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/7/7b/Geek_Fam.png/revision/latest?cb=20210131171727"
+  },
+  {
+   "logo_file": "Boom_Esports_logo.png",
+   "team_id": "wildrift-boom-esports",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-pi",
+   "name": "Boom Esports",
+   "short": "BOOMES",
+   "org": "Boom Esports",
+   "country_name": "Indonesia",
+   "region": "SEA-PI",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/BOOM_Esports",
+   "collected_at": "2026-11-20T22:50:22.949Z",
+   "roster": [
+    {
+     "handle": "Raymond",
+     "real_name": null,
+     "nationality_name": "id",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Top"
+    },
+    {
+     "handle": "Axxio",
+     "real_name": null,
+     "nationality_name": "id",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Platypus",
+     "real_name": null,
+     "nationality_name": "id",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Wezkey",
+     "real_name": null,
+     "nationality_name": "id",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "AD"
+    },
+    {
+     "handle": "Zixtean",
+     "real_name": null,
+     "nationality_name": "id",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/f/f6/Boom_Esports_logo.png/revision/latest?cb=20210203160707"
+  },
+  {
+   "logo_file": "Flash Wolves.png",
+   "team_id": "wildrift-flash-wolves",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "Flash Wolves",
+   "short": "FLASHW",
+   "org": "Flash Wolves",
+   "country_name": "Taiwan",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Flash_Wolves",
+   "collected_at": "2026-11-20T22:50:22.949Z",
+   "roster": [
+    {
+     "handle": "Ysera",
+     "real_name": "Wang Tsung-Chih (汪宗志)",
+     "nationality_name": "tw",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "top"
+    },
+    {
+     "handle": "Cookie",
+     "real_name": "Chan Yun-Shang (陳昀尚)",
+     "nationality_name": "tw",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "jungle"
+    },
+    {
+     "handle": "Bruce",
+     "real_name": "Chiu Chih-Chun (邱致鈞)",
+     "nationality_name": "tw",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "mid"
+    },
+    {
+     "handle": "Lock1ng",
+     "real_name": null,
+     "nationality_name": "tw",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "mid"
+    },
+    {
+     "handle": "Demon",
+     "real_name": "Tsai Tung-Jung (蔡宗融)",
+     "nationality_name": "tw",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "adc"
+    },
+    {
+     "handle": "Eason",
+     "real_name": "Yin Yi-Shen (尹以伸)",
+     "nationality_name": "tw",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/2/22/Flash_Wolves.png/revision/latest?cb=20210219174047"
+  },
+  {
+   "logo_file": "Bigetron Infinity.png",
+   "team_id": "wildrift-bigetron-infinity",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-pi",
+   "name": "Bigetron Infinity",
+   "short": "BIGETR",
+   "org": "Bigetron Infinity",
+   "country_name": "Indonesia",
+   "region": "SEA-PI",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Bigetron_Infinity",
+   "collected_at": "2026-11-20T22:50:22.949Z",
+   "roster": [
+    {
+     "handle": "Falp1",
+     "real_name": "Muhammad Fajri",
+     "nationality_name": "id",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Control",
+     "real_name": "Steven Verdianta",
+     "nationality_name": "id",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "jungle"
+    },
+    {
+     "handle": "Henry",
+     "real_name": "Henry Nathaniel",
+     "nationality_name": "id",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "mid"
+    },
+    {
+     "handle": "Nuts",
+     "real_name": "Rully Sutanto",
+     "nationality_name": "id",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "mid"
+    },
+    {
+     "handle": "Dewa",
+     "real_name": "Dewa Fabian",
+     "nationality_name": "id",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Harry",
+     "real_name": "Harry Rainier",
+     "nationality_name": "id",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/e/eb/Bigetron_Infinity.png/revision/latest?cb=20210220052150"
+  },
+  {
+   "logo_file": "Cerberus Esports.png",
+   "team_id": "wildrift-cerberus-esports",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "CERBERUS Esports",
+   "short": "CERBER",
+   "org": "CERBERUS Esports",
+   "country_name": "Vietnam",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/CERBERUS_Esports",
+   "collected_at": "2026-11-20T22:50:22.949Z",
+   "roster": [
+    {
+     "handle": "Nal",
+     "real_name": null,
+     "nationality_name": "vn",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "KT",
+     "real_name": "Nguyễn Thiên Kỳ",
+     "nationality_name": "vn",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Hide",
+     "real_name": null,
+     "nationality_name": "vn",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Bean",
+     "real_name": null,
+     "nationality_name": "vn",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Bee1",
+     "real_name": null,
+     "nationality_name": "vn",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Bon",
+     "real_name": null,
+     "nationality_name": "vn",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Kyne",
+     "real_name": "Phạm Gia Kỳ",
+     "nationality_name": "vn",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/b/be/Cerberus_Esports.png/revision/latest?cb=20210221031142"
+  },
+  {
+   "logo_file": "EVOS Esports.png",
+   "team_id": "wildrift-evos-esports",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "EVOS Esports",
+   "short": "EVOSES",
+   "org": "EVOS Esports",
+   "country_name": "Indonesia",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/EVOS_Esports",
+   "collected_at": "2026-11-20T22:50:22.949Z",
+   "roster": [
+    {
+     "handle": "CatSatan",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Valdus",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "G4",
+     "real_name": "Nuttapong Menkasikan",
+     "nationality_name": "th",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Sek",
+     "real_name": "Jakkid Krinbai",
+     "nationality_name": "th",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Miracle",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/9/92/EVOS_Esportslogo_square.png/revision/latest?cb=20210330230500"
+  },
+  {
+   "logo_file": "Clutch Gamers.png",
+   "team_id": "wildrift-clutch-gamers",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "Clutch Gamers",
+   "short": "CLUTCH",
+   "org": "Clutch Gamers",
+   "country_name": "Thailand",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Clutch_Gamers",
+   "collected_at": "2026-11-20T22:50:22.949Z",
+   "roster": [
+    {
+     "handle": "VanillaYuki",
+     "real_name": "Sittisak Tohsuwanvanich",
+     "nationality_name": "th",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Duke",
+     "real_name": "Kasidit Sirichusup",
+     "nationality_name": "th",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Ramilla",
+     "real_name": "Teejuta Im-oat",
+     "nationality_name": "th",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Yukirinrin",
+     "real_name": "Naphat Huang",
+     "nationality_name": "th",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Nemmy",
+     "real_name": "Krittapast Namsin",
+     "nationality_name": "th",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    },
+    {
+     "handle": "Zaphkiel",
+     "real_name": "Napat Sountorn",
+     "nationality_name": "th",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/2/26/Clutch_Gamers.png/revision/latest?cb=20210223084551"
+  },
+  {
+   "logo_file": "Ahq eSports Clublogo square.png",
+   "team_id": "wildrift-ahq-e-sports-club",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "Ahq e-Sports Club",
+   "short": "AHQE-S",
+   "org": "Ahq e-Sports Club",
+   "country_name": "Taiwan",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Ahq_e-Sports_Club",
+   "collected_at": "2026-11-20T22:50:22.949Z",
+   "roster": [
+    {
+     "handle": "QingLiu",
+     "real_name": null,
+     "nationality_name": "tw",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Wolf",
+     "real_name": null,
+     "nationality_name": "tw",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Wen",
+     "real_name": null,
+     "nationality_name": "tw",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Juan",
+     "real_name": null,
+     "nationality_name": "tw",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Eckru",
+     "real_name": null,
+     "nationality_name": "tw",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/a/a3/Ahq_eSports_Clublogo_square.png/revision/latest?cb=20210304050343"
+  },
+  {
+   "logo_file": "Bren Esportslogo square.png",
+   "team_id": "wildrift-bren-esports",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-pi",
+   "name": "Bren Esports",
+   "short": "BRENES",
+   "org": "Bren Esports",
+   "country_name": "Philippines",
+   "region": "SEA-PI",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Bren_Esports",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Jeth",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Ace",
+     "real_name": "Yi Shun Shin",
+     "nationality_name": "myanmar",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Rebengga",
+     "real_name": "Kurt Cristobal",
+     "nationality_name": "ph",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Haze",
+     "real_name": "Jeniel Bata-anon",
+     "nationality_name": "ph",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Cosmo",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Buck",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/7/72/Bren_Esportslogo_square.png/revision/latest?cb=20210304162115"
+  },
+  {
+   "logo_file": "Arctic Fox square.jpg",
+   "team_id": "wildrift-arctic-fox",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "Arctic Fox",
+   "short": "ARCTIC",
+   "org": "Arctic Fox",
+   "country_name": "Thailand",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Arctic_Fox",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Thipper",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "NookNick",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Kumamoto",
+     "real_name": null,
+     "nationality_name": "laos",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/a/a0/Arctic_Fox_square.jpg/revision/latest?cb=20210312041117"
+  },
+  {
+   "logo_file": "281px-Crescent Gaming.png",
+   "team_id": "wildrift-crescent-gaming",
+   "title_id": "wildrift",
+   "league_id": null,
+   "name": "Crescent Gaming",
+   "short": "CRESCE",
+   "org": "Crescent Gaming",
+   "country_name": "Japan",
+   "region": "APN",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Crescent_Gaming",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Kent0",
+     "real_name": null,
+     "nationality_name": "jp",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "TnkMaikeru",
+     "real_name": null,
+     "nationality_name": "jp",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Kuuta",
+     "real_name": null,
+     "nationality_name": "jp",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Garubo",
+     "real_name": null,
+     "nationality_name": "jp",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Ktake",
+     "real_name": null,
+     "nationality_name": "jp",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/f/f1/281px-Crescent_Gaming.png/revision/latest?cb=20210405183205"
+  },
+  {
+   "logo_file": "BlackDragonslogo square.png",
+   "team_id": "wildrift-black-dragons",
+   "title_id": "wildrift",
+   "league_id": null,
+   "name": "Black Dragons",
+   "short": "BLACKD",
+   "org": "Black Dragons",
+   "country_name": "Brazil",
+   "region": "AMER",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Black_Dragons",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Carryy",
+     "real_name": null,
+     "nationality_name": "br",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Mike",
+     "real_name": null,
+     "nationality_name": "br",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Petroni",
+     "real_name": null,
+     "nationality_name": "br",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Sonyy",
+     "real_name": null,
+     "nationality_name": "br",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/e/ea/BlackDragonslogo_square.png/revision/latest?cb=20210410023910"
+  },
+  {
+   "logo_file": "Galaxy Racerlogo square.png",
+   "team_id": "wildrift-gxr-dreamfyre",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-pi",
+   "name": "GXR Dreamfyre",
+   "short": "GXRDRE",
+   "org": "GXR Dreamfyre",
+   "country_name": "United Arab Emirates",
+   "region": "SEA-PI",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Galaxy_Racer",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Ikaros",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "xSpe4r",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Jaycee",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Zivs",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "dragon"
+    },
+    {
+     "handle": "Dr4w",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/6/61/Galaxy_Racerlogo_square.png/revision/latest?cb=20210410025729"
+  },
+  {
+   "logo_file": null,
+   "team_id": "wildrift-noble-esports",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "Noble Esports",
+   "short": "NOBLEE",
+   "org": "Noble Esports",
+   "country_name": "United States",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Noble_Esports",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Swifty",
+     "real_name": "Jeet Kundra (जीत कुंद्रा)",
+     "nationality_name": "india",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Top"
+    },
+    {
+     "handle": "Crowley",
+     "real_name": "Raunak Sen (रौनक सेन)",
+     "nationality_name": "india",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Divine",
+     "real_name": "Shahab Saleha",
+     "nationality_name": "india",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Capt Kirk",
+     "real_name": "Kirk Zebadayah",
+     "nationality_name": "india",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "AD"
+    },
+    {
+     "handle": "Zapheto",
+     "real_name": "Amit Malwal",
+     "nationality_name": "india",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ]
+  },
+  {
+   "logo_file": "Nova Esports logo square.png",
+   "team_id": "wildrift-nova-esports",
+   "title_id": "wildrift",
+   "league_id": "wr-emea",
+   "name": "Nova Esports",
+   "short": "NOVAES",
+   "org": "Nova Esports",
+   "country_name": "Hong Kong",
+   "region": "EMEA",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Nova_esports",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "DARKBREAKER",
+     "real_name": "Duc Hieu Nguyen",
+     "nationality_name": "germany",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Top"
+    },
+    {
+     "handle": "Vex",
+     "real_name": "Nedelcu Cezar",
+     "nationality_name": "romania",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "KNIGHT",
+     "real_name": "Halil Berke Öztürk",
+     "nationality_name": "tr",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": false,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Clemarez",
+     "real_name": "Miguel Lopez",
+     "nationality_name": "spain",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Ruiz",
+     "real_name": "Abraham Ruiz",
+     "nationality_name": "spain",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Poseidon",
+     "real_name": "Vladyslav Maksymchuk",
+     "nationality_name": "ukraine",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "ADC"
+    },
+    {
+     "handle": "GrizzlyQ",
+     "real_name": "Dmitrii Svistov",
+     "nationality_name": "russia",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/8/81/Nova_Esports_logo_square.png/revision/latest?cb=20210127033917"
+  },
+  {
+   "logo_file": "Nexplay.png",
+   "team_id": "wildrift-nexplay-esports",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-pi",
+   "name": "Nexplay Esports",
+   "short": "NEXPLA",
+   "org": "Nexplay Esports",
+   "country_name": "Philippines",
+   "region": "SEA-PI",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Nexplay_Esports",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Arisen",
+     "real_name": "Miguel Vincent Pison",
+     "nationality_name": "ph",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Juschie",
+     "real_name": "Juschie Tan",
+     "nationality_name": "ph",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Chuley",
+     "real_name": "Aaron Mark Bingay",
+     "nationality_name": "ph",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "zMitch",
+     "real_name": "Ralph Soriano Alvarez",
+     "nationality_name": "ph",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Ooozee",
+     "real_name": "Jovannie Artajo Colang",
+     "nationality_name": "ph",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "D1ZASTR",
+     "real_name": "Jazzfer Villahermosa",
+     "nationality_name": "ph",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    },
+    {
+     "handle": "L1DER",
+     "real_name": "Charles Lumaque",
+     "nationality_name": "ph",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/0/06/Nexplay.png/revision/latest?cb=20210126145727"
+  },
+  {
+   "logo_file": "QLASH Spain.png",
+   "team_id": "wildrift-qlash-spain",
+   "title_id": "wildrift",
+   "league_id": "wr-emea",
+   "name": "QLASH Spain",
+   "short": "QLASHS",
+   "org": "QLASH Spain",
+   "country_name": "Italy",
+   "region": "EMEA",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/QLASH_Spain",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "TheNoob",
+     "real_name": null,
+     "nationality_name": "spain",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Top"
+    },
+    {
+     "handle": "IAmMario",
+     "real_name": null,
+     "nationality_name": "spain",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Zero",
+     "real_name": null,
+     "nationality_name": "spain",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Victim",
+     "real_name": null,
+     "nationality_name": "spain",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "AD"
+    },
+    {
+     "handle": "Ayman",
+     "real_name": null,
+     "nationality_name": "spain",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/e/e1/QLASH_Spain.png/revision/latest?cb=20210126191041"
+  },
+  {
+   "logo_file": "King_of_Gamers.png",
+   "team_id": "wildrift-king-of-gamers-club",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "King of Gamers Club",
+   "short": "KINGOF",
+   "org": "King of Gamers Club",
+   "country_name": "Thailand",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/King_of_Gamers_Club",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "H1wko",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": null,
+     "role_source": null,
+     "status": "player",
+     "starter": true,
+     "role_text": ""
+    },
+    {
+     "handle": "Chitawan",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": null,
+     "role_source": null,
+     "status": "player",
+     "starter": true,
+     "role_text": ""
+    },
+    {
+     "handle": "Uz",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": null,
+     "role_source": null,
+     "status": "player",
+     "starter": true,
+     "role_text": ""
+    },
+    {
+     "handle": "KinKin",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": null,
+     "role_source": null,
+     "status": "player",
+     "starter": true,
+     "role_text": ""
+    },
+    {
+     "handle": "Voldemort",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": null,
+     "role_source": null,
+     "status": "player",
+     "starter": true,
+     "role_text": ""
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/f/f3/King_of_Gamers.png/revision/latest?cb=20210201115059"
+  },
+  {
+   "logo_file": "Omega Esports.png",
+   "team_id": "wildrift-omega-esports",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-pi",
+   "name": "Omega Esports",
+   "short": "OMEGAE",
+   "org": "Omega Esports",
+   "country_name": "Philippines",
+   "region": "SEA-PI",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Omega_Esports",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "JLC",
+     "real_name": "Jaiby Paglingayen",
+     "nationality_name": "ph",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Impressive",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Arise",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Taymlaps",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Stronger",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/c/cb/Omega_Esports.png/revision/latest?cb=20210207173413"
+  },
+  {
+   "logo_file": "INVATE Esportslogo Square.png",
+   "team_id": "wildrift-invate-esports",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "Invate Esports",
+   "short": "INVATE",
+   "org": "Invate Esports",
+   "country_name": "Thailand",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Invate_Esports",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "CatType",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "t"
+    },
+    {
+     "handle": "Syndicate",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Bellbee",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "KazeTARuler",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "a"
+    },
+    {
+     "handle": "Whatthejes",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    },
+    {
+     "handle": "KingSauce",
+     "real_name": null,
+     "nationality_name": "th",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/a/aa/INVATE_Esportslogo_Square.png/revision/latest?cb=20210219032929"
+  },
+  {
+   "logo_file": "RSG.png",
+   "team_id": "wildrift-rsg",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "RSG",
+   "short": "RSG",
+   "org": "RSG",
+   "country_name": "Singapore",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/RSG",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Dark22",
+     "real_name": null,
+     "nationality_name": "vn",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "t"
+    },
+    {
+     "handle": "Lamsu",
+     "real_name": "Nguyễn Đức Tùng Lâm",
+     "nationality_name": "vn",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Trumhp",
+     "real_name": null,
+     "nationality_name": "vn",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Kirito",
+     "real_name": null,
+     "nationality_name": "vn",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "a"
+    },
+    {
+     "handle": "Nam",
+     "real_name": null,
+     "nationality_name": "vn",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "a"
+    },
+    {
+     "handle": "Cozy",
+     "real_name": null,
+     "nationality_name": "vn",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    },
+    {
+     "handle": "PS Man",
+     "real_name": "Nguyễn Vũ Hoàng Dũng",
+     "nationality_name": "vn",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    },
+    {
+     "handle": "Nguyễn \"'''TOP'''\" Đồng Phương",
+     "real_name": null,
+     "nationality_name": null,
+     "role": "head-coach",
+     "status": "staff",
+     "role_text": "Head coach"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/3/38/RSG.png/revision/latest?cb=20210220034532"
+  },
+  {
+   "logo_file": "M8HEXA.png",
+   "team_id": "wildrift-m8hexa",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "M8HEXA",
+   "short": "M8HEXA",
+   "org": "M8HEXA",
+   "country_name": "Malaysia",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/M8HEXA",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Seven",
+     "real_name": "Yim Zhen Hao",
+     "nationality_name": "my",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Zen",
+     "real_name": null,
+     "nationality_name": "my",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Vivi",
+     "real_name": null,
+     "nationality_name": "kr",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Ryo",
+     "real_name": "Chan Choung Guan",
+     "nationality_name": "my",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Xian",
+     "real_name": null,
+     "nationality_name": "my",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Chicken",
+     "real_name": null,
+     "nationality_name": "kr",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "KC",
+     "real_name": "Tam Ka Chun",
+     "nationality_name": "my",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    },
+    {
+     "handle": "Jang \"'''YK'''\" Hyoen Jun",
+     "real_name": null,
+     "nationality_name": null,
+     "role": "head-coach",
+     "status": "staff",
+     "role_text": "Head coach"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/e/e0/M8HEXA.png/revision/latest?cb=20210305091117"
+  },
+  {
+   "logo_file": "Monaco eSportslogo square.png",
+   "team_id": "wildrift-monaco-esports",
+   "title_id": "wildrift",
+   "league_id": "wr-emea",
+   "name": "Monaco Esports",
+   "short": "MONACO",
+   "org": "Monaco Esports",
+   "country_name": "Monaco",
+   "region": "EMEA",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Monaco_Esports",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Nuutt",
+     "real_name": null,
+     "nationality_name": "switzerland",
+     "role": null,
+     "role_source": null,
+     "status": "player",
+     "starter": true,
+     "role_text": ""
+    },
+    {
+     "handle": "Kjiu",
+     "real_name": null,
+     "nationality_name": "france",
+     "role": null,
+     "role_source": null,
+     "status": "player",
+     "starter": true,
+     "role_text": ""
+    },
+    {
+     "handle": "Kirienfer",
+     "real_name": null,
+     "nationality_name": "france",
+     "role": null,
+     "role_source": null,
+     "status": "player",
+     "starter": true,
+     "role_text": ""
+    },
+    {
+     "handle": "SASROYAL",
+     "real_name": null,
+     "nationality_name": "france",
+     "role": null,
+     "role_source": null,
+     "status": "player",
+     "starter": true,
+     "role_text": ""
+    },
+    {
+     "handle": "Fawgo",
+     "real_name": null,
+     "nationality_name": "france",
+     "role": null,
+     "role_source": null,
+     "status": "player",
+     "starter": true,
+     "role_text": ""
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/4/45/Monaco_eSportslogo_square.png/revision/latest?cb=20210304181108"
+  },
+  {
+   "logo_file": null,
+   "team_id": "wildrift-natus-vincere",
+   "title_id": "wildrift",
+   "league_id": "wr-emea",
+   "name": "Natus Vincere",
+   "short": "NATUSV",
+   "org": "Natus Vincere",
+   "country_name": "Ukraine",
+   "region": "EMEA",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Natus_Vincere",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Garen",
+     "real_name": null,
+     "nationality_name": "cn",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "ghost",
+     "real_name": null,
+     "nationality_name": "cn",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "SkyFL",
+     "real_name": null,
+     "nationality_name": "cn",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Mumu",
+     "real_name": null,
+     "nationality_name": "cn",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Juzi",
+     "real_name": null,
+     "nationality_name": "cn",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    }
+   ]
+  },
+  {
+   "logo_file": "Rex Regum Qeon Logo Simple.png",
+   "team_id": "wildrift-rex-regum-qeon-ph",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-pi",
+   "name": "Rex Regum Qeon PH",
+   "short": "REXREG",
+   "org": "Rex Regum Qeon PH",
+   "country_name": "Indonesia",
+   "region": "SEA-PI",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/RRQ_Philippines",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Ecila",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Chaazz",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Helios",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "M"
+    },
+    {
+     "handle": "V1PER",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Danyel",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/0/0e/Rex_Regum_Qeon_Logo_Simple.png/revision/latest?cb=20210405174514"
+  },
+  {
+   "logo_file": null,
+   "team_id": "wildrift-godsent",
+   "title_id": "wildrift",
+   "league_id": null,
+   "name": "GODSENT",
+   "short": "GODSEN",
+   "org": "GODSENT",
+   "country_name": "Sweden",
+   "region": "AMER",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/GODSENT",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Dohko",
+     "real_name": null,
+     "nationality_name": "br",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Ranker",
+     "real_name": null,
+     "nationality_name": "br",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Neo",
+     "real_name": null,
+     "nationality_name": "br",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "9Six",
+     "real_name": null,
+     "nationality_name": "br",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Crow",
+     "real_name": null,
+     "nationality_name": "br",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Angra",
+     "real_name": null,
+     "nationality_name": "br",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Tarrivel",
+     "real_name": null,
+     "nationality_name": "br",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    }
+   ]
+  },
+  {
+   "logo_file": "Victim esports.png",
+   "team_id": "wildrift-victim-esports",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-pi",
+   "name": "Victim Esports",
+   "short": "VICTIM",
+   "org": "Victim Esports",
+   "country_name": "Indonesia",
+   "region": "SEA-PI",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Victim_Esports",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "iLy",
+     "real_name": null,
+     "nationality_name": "indonesia",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Saanji",
+     "real_name": null,
+     "nationality_name": "indonesia",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Ares",
+     "real_name": null,
+     "nationality_name": "indonesia",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Kyu",
+     "real_name": null,
+     "nationality_name": "indonesia",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Han",
+     "real_name": null,
+     "nationality_name": "indonesia",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/f/f2/Victim_esports.png/revision/latest?cb=20210126141659"
+  },
+  {
+   "logo_file": null,
+   "team_id": "wildrift-team-secret",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-pi",
+   "name": "Team Secret",
+   "short": "TEAMSE",
+   "org": "Team Secret",
+   "country_name": "Europe",
+   "region": "SEA-PI",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Team_Secret",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Azar",
+     "real_name": "Eleazar Salle",
+     "nationality_name": "ph",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Top"
+    },
+    {
+     "handle": "Trebor",
+     "real_name": "Robert Dan Mansilungan",
+     "nationality_name": "ph",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Core",
+     "real_name": "Morris Raymundo",
+     "nationality_name": "ph",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Tatsurii",
+     "real_name": "Heri Garcia",
+     "nationality_name": "ph",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Chewy",
+     "real_name": "Caster Dela Cruz",
+     "nationality_name": "ph",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Bot"
+    },
+    {
+     "handle": "Hamezz",
+     "real_name": "James Karl Santos",
+     "nationality_name": "ph",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ]
+  },
+  {
+   "logo_file": "Team Singularity.png",
+   "team_id": "wildrift-team-singularity",
+   "title_id": "wildrift",
+   "league_id": "wr-emea",
+   "name": "Team Singularity",
+   "short": "TEAMSI",
+   "org": "Team Singularity",
+   "country_name": "Denmark",
+   "region": "EMEA",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Team_Singularity",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Random",
+     "real_name": null,
+     "nationality_name": "france",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Top"
+    },
+    {
+     "handle": "Zour",
+     "real_name": null,
+     "nationality_name": "sweden",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "Zefta",
+     "real_name": null,
+     "nationality_name": "belgium",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "YeQiu",
+     "real_name": null,
+     "nationality_name": "france",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Redemption",
+     "real_name": null,
+     "nationality_name": "france",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "AD"
+    },
+    {
+     "handle": "Ryuh",
+     "real_name": null,
+     "nationality_name": "Denmark",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "AD"
+    },
+    {
+     "handle": "Schow",
+     "real_name": null,
+     "nationality_name": "Denmark",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Suport"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/d/d9/Team_Singularity.png/revision/latest?cb=20210131181944"
+  },
+  {
+   "logo_file": "SCARZ.png",
+   "team_id": "wildrift-scarz",
+   "title_id": "wildrift",
+   "league_id": null,
+   "name": "SCARZ",
+   "short": "SCARZ",
+   "org": "SCARZ",
+   "country_name": "Japan",
+   "region": "APN",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/SCARZ",
+   "collected_at": "2026-11-20T22:50:22.950Z",
+   "roster": [
+    {
+     "handle": "Hokazu",
+     "real_name": null,
+     "nationality_name": "jp",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "top"
+    },
+    {
+     "handle": "Machi",
+     "real_name": null,
+     "nationality_name": "jp",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "top"
+    },
+    {
+     "handle": "Wanun",
+     "real_name": null,
+     "nationality_name": "jp",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "jungle"
+    },
+    {
+     "handle": "Royal",
+     "real_name": null,
+     "nationality_name": "jp",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "mid"
+    },
+    {
+     "handle": "JXXXXXL",
+     "real_name": null,
+     "nationality_name": "jp",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "ad"
+    },
+    {
+     "handle": "Fujidai",
+     "real_name": null,
+     "nationality_name": "jp",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "ad"
+    },
+    {
+     "handle": "Ouki",
+     "real_name": null,
+     "nationality_name": "jp",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/2/2a/SCARZ.png/revision/latest?cb=20210405173317"
+  },
+  {
+   "logo_file": "Team Flashlogo Square.png",
+   "team_id": "wildrift-team-flash",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "Team Flash",
+   "short": "TEAMFL",
+   "org": "Team Flash",
+   "country_name": "Singapore",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Team_Flash",
+   "collected_at": "2026-11-20T22:50:22.951Z",
+   "roster": [
+    {
+     "handle": "Sai",
+     "real_name": "Lâm Văn Kiệt",
+     "nationality_name": "vn",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "t"
+    },
+    {
+     "handle": "Joyce",
+     "real_name": "Phạm Quốc Thắng",
+     "nationality_name": "vn",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Fly",
+     "real_name": "Bùi Trọng Tín",
+     "nationality_name": "vn",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Dyling",
+     "real_name": "Mai Văn Thắng Phúc",
+     "nationality_name": "vn",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "a"
+    },
+    {
+     "handle": "glorY",
+     "real_name": "Đặng Quang Vinh",
+     "nationality_name": "vn",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/0/04/Team_Flashlogo_square.png/revision/latest?cb=20210218164530"
+  },
+  {
+   "logo_file": "Tribe Gaming.png",
+   "team_id": "wildrift-tribe-gaming-eu",
+   "title_id": "wildrift",
+   "league_id": "wr-emea",
+   "name": "Tribe Gaming EU",
+   "short": "TRIBEG",
+   "org": "Tribe Gaming EU",
+   "country_name": "North America",
+   "region": "EMEA",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/Tribe_Gaming",
+   "collected_at": "2026-11-20T22:50:22.951Z",
+   "roster": [
+    {
+     "handle": "L3on",
+     "real_name": "Leon Pham",
+     "nationality_name": "denmark",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Emperor",
+     "real_name": null,
+     "nationality_name": "germany",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "j"
+    },
+    {
+     "handle": "Snitch",
+     "real_name": "Joshua Bennet",
+     "nationality_name": "england",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "m"
+    },
+    {
+     "handle": "Doom",
+     "real_name": null,
+     "nationality_name": "germany",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "HelloFriend",
+     "real_name": null,
+     "nationality_name": "germany",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    },
+    {
+     "handle": "Clue",
+     "real_name": null,
+     "nationality_name": "france",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "s"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/4/41/Tribe_Gaming.png/revision/latest?cb=20210219050248"
+  },
+  {
+   "logo_file": null,
+   "team_id": "wildrift-wulf-esports",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-m",
+   "name": "WULF Esports",
+   "short": "WULFES",
+   "org": "WULF Esports",
+   "country_name": "Malaysia",
+   "region": "SEA-M",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/WULF_Esports",
+   "collected_at": "2026-11-20T22:50:22.951Z",
+   "roster": [
+    {
+     "handle": "Brages",
+     "real_name": "Muhammad Faiz",
+     "nationality_name": "my",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Top"
+    },
+    {
+     "handle": "Kazuo",
+     "real_name": "Muhammad Faiz",
+     "nationality_name": "my",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "WildRabbit",
+     "real_name": "Mohamad Aiman Khalis",
+     "nationality_name": "my",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "ADC"
+    },
+    {
+     "handle": "Arrhedge",
+     "real_name": "Chan Roonghan",
+     "nationality_name": "my",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Top"
+    },
+    {
+     "handle": "Ravens",
+     "real_name": "Lim Choon Keat",
+     "nationality_name": "my",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Swak",
+     "real_name": "Harsewak Singh",
+     "nationality_name": "my",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ]
+  },
+  {
+   "logo_file": "SunSparkslogo square.png",
+   "team_id": "wildrift-sunsparks",
+   "title_id": "wildrift",
+   "league_id": "wr-sea-pi",
+   "name": "SunSparks",
+   "short": "SUNSPA",
+   "org": "SunSparks",
+   "country_name": "Philippines",
+   "region": "SEA-PI",
+   "source_url": "https://wildrift-esports.fandom.com/wiki/SunSparks",
+   "collected_at": "2026-11-20T22:50:22.951Z",
+   "roster": [
+    {
+     "handle": "RTG",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "baron",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Baron"
+    },
+    {
+     "handle": "Fate",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "jungle",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Jungle"
+    },
+    {
+     "handle": "5722",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "mid",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Mid"
+    },
+    {
+     "handle": "Setz",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "dragon",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Dragon"
+    },
+    {
+     "handle": "Maze",
+     "real_name": null,
+     "nationality_name": "ph",
+     "role": "support",
+     "role_source": "Wild Rift Esports Wiki roster",
+     "status": "player",
+     "starter": true,
+     "role_text": "Support"
+    }
+   ],
+   "logo_url": "https://static.wikia.nocookie.net/wildrift-esports/images/9/98/SunSparkslogo_square.png/revision/latest?cb=20210312033702"
+  }
+ ]
+}
