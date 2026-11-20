@@ -35,6 +35,18 @@ not survive a reload, or any warning/error was logged.
 
 ## Latest results
 
+* 20 Nov 2026 (real data + live 2D MOBAs): Vitest **159 passed / 159** — new `tests/realworld.test.ts`
+  (real-world start: real leagues/teams/players with provenance, legal line-ups, no duplicate handles,
+  cross-title organisations, a full season with uneven real league sizes) and `tests/spatial.test.ts` (five
+  battlefield maps: connected navigation on walkable ground, legal placements, mirrored structures,
+  title-specific structures/objectives; per-title spatial games: core decides, kills = deaths, replay K/D/A =
+  box score, heroes never inside walls in any frame, structure prerequisites respected, objectives at their
+  pits; recording/repeat equality; fidelity lock). Playwright **5 / 5** (the career flow plays a live MOBA game
+  through the 2D viewer and skips to the result). `npm run check:portable` passes. Debug APK rebuilt with the
+  existing Capacitor scripts (not installed on a device — no emulator here). 10-season soak ≈ 31 s.
+* Spatial calibration: `npx vite-node scripts/calibrate-spatial.ts [titles] [n]` (add `fast` as 4th argument to
+  compare the background engine); `scripts/inspect-spatial.ts` (kills by phase/location, activity mix);
+  `scripts/render-maps.ts <dir>` (SVG of every compiled map with nav graph and walls).
 * Vitest: **146 passed / 146** (+ difficulty, trades, youth intake & trials, season preview/review, head-to-head);
   previously 139 passed / 139 (20 Nov 2026: + training sessions & scrims, spectator mode, delegation, one
   game per season, breaks, AI trades). Test worlds clear the rating cache (worlds reuse player ids).

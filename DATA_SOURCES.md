@@ -70,6 +70,21 @@ Standard/Large world sizes only.
 * OpenDota requests were spaced ≥ 1.1 s apart (free-tier limit). Bayes Esports' tower-coordinate page and
   several HoK guide pages were unreachable from the build environment.
 
+## Battlefield maps (MOBAs) — `src/sim/moba/maps.ts`
+
+Original schematic geometry (no game art, textures or client files). Topology, structure counts, objective
+locations and timers come from the references below; see LIVE_2D_SIM_SPEC.md for what is modelled.
+
+| Map | References | Status of positions |
+| --- | --- | --- |
+| MLBB — Land of Dawn | mlbbhub.com/map (community interactive schematic: lanes, turrets, buffs, creeps, crabs, Turtle/Lord pits, timers); ONE Esports Turtle guide; VCGamers lane guide | community schematic, scaled |
+| Wild Rift — Summoner's Rift | riftpatchnotes.com Wild Rift unit histories (Baron 11:00 & respawn 3:30, Herald, Elder 19:00); official Wild Rift patch notes 5.2 | layout schematic; dragon timing / Nexus turrets unverified |
+| Honor of Kings — Kings' Canyon | Sportskeeda map guide; BlueStacks map guide; BitTopup 2025 monster timers | schematic; sides follow the CN-server convention |
+| League of Legends — Summoner's Rift | Riot dev blog "2026 Season One gameplay preview" (objectives); Sheep Esports 2026 S1 summary; Riot match-timeline coordinate system (riot-api-libraries docs); Bayes Esports tower-coordinate reference (blue top outer turret 981, 10441 confirmed via search; page unreachable from the build environment) | Riot coordinates scaled; values other than the confirmed turret approximate |
+| Dota 2 | GosuGamers 7.38 (Roshan pits, day/night); bo3.gg 7.39 (pit changes, Tormentor 20:00); Hawk Live 7.41 (Tormentor near Lotus Pools, Twin Gates); PlayNews 7.41e objectives guide | schematic |
+
+Objective timings were updated in `src/data/titles/catalogue.ts` with the same references (comments in code).
+
 ## Licences and attribution
 
 * Riot Data Dragon: Riot Games developer data; used under Riot's developer policies for a non-commercial

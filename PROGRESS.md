@@ -3,6 +3,23 @@
 Status of the specification, honestly assessed. "Playable" means usable end-to-end in the UI and covered
 by simulation tests.
 
+## Audit against the updated master prompt (20 Nov 2026 — real data + live 2D)
+
+| Requirement (section) | Status | Evidence / gap |
+| --- | --- | --- |
+| Keep existing game; do not restart (§0) | ✅ | same codebase, saves v7, all earlier systems and tests kept |
+| Seven titles only (§2) | ✅ | unchanged registry gates |
+| Real characters for all MOBAs + Valorant agents; CS2 without heroes (§2A) | ✅ | `src/data/real/characters.json` (snapshot real-2026-11-20), DATA_SOURCES.md |
+| Real orgs, teams, pro players with provenance; ratings as estimates (§2A) | ✅ MLBB, LoL, Dota 2, Valorant, CS2 · ❌ HoK, Wild Rift | `src/data/real/rosters.json`, New Game → "Real teams & pro players"; Real/Fictional labels on player, team, org, staff, league pages; HoK/WR had no reachable verifiable roster source → fictional |
+| Liquipedia | not used | its CAPTCHA instructs automated agents not to solve it — respected |
+| Research real maps for all seven (§7A, §7B) | ✅ MOBAs · 🔶 shooters | five MOBA MapDefinitions with sources; Valorant callouts available from valorant-api.com, CS2 active-duty pool identified; shooter MapDefinitions not yet built |
+| Authoritative spatial MOBA simulation, same result live/text/instant (§7, §7A) | ✅ | `src/sim/moba/spatial.ts`, `tests/spatial.test.ts` (recording/repeat equality); fidelity locked per fixture before play (background AI fixtures use the fast engine — documented) |
+| Live 2D MOBA viewer with controls, scoreboard, follow, overlays (§7A) | ✅ all five MOBAs | `MobaViewer`, live match + match report replays; phone layout checked in a browser |
+| MOBA order MLBB → WR → HoK → LoL → Dota | ✅ | all five done in this milestone; MLBB checked first in the browser with real MPL ID teams |
+| Live 2D shooters (§7B) | ❌ next | round engine still aggregate; no shooter viewer yet |
+| Android: do not re-convert, keep working (§11) | ✅ | Capacitor project untouched; APK rebuilt from the same scripts |
+| Press conferences, promises (deferred by the user earlier) | ⏳ | later |
+
 ## Milestone status (master prompt of 19 Nov 2026)
 
 | Milestone | Status | Evidence |
@@ -21,6 +38,10 @@ by simulation tests.
   formats, objectives, structures, economies, stats and popularity.
 * **All seven titles run full seasons** (regional splits → playoffs → MSI → Worlds → rollover) under their
   own rules — verified in `tests/season.test.ts`.
+* **Live 2D MOBA battlefields** — five researched maps, spatial simulation and Canvas viewer
+  (LIVE_2D_SIM_SPEC.md).
+* **Real-world start** — dated snapshot of real leagues, teams, pro players and coaches for MLBB, LoL,
+  Dota 2, Valorant and CS2, with provenance and estimate labels (DATA_SOURCES.md).
 * **Two engine families** — Engine A (5v5 MOBA, five adapters; Dota 2 buyback; core destruction wins;
   coin-toss then loser-chooses side; fresh draft every game; optional LoL Fearless preset) and Engine B
   (round-based tactical shooter; Valorant agents/abilities/Spike/credits and win-by-two overtime; CS2

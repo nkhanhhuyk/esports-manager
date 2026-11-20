@@ -62,6 +62,12 @@ test('new career: generate, pick organisation, browse, advance, play live, save 
       const coach = page.getByRole('button', { name: 'Let coach finish draft' });
       if (await coach.count()) await coach.click();
       await page.getByRole('button', { name: /^Play game/ }).click();
+      // MOBA games open the 2D battlefield; skip to the end to reveal the result.
+      const skip = page.getByTestId('mv-skip');
+      if (await skip.count()) {
+        await expect(page.getByTestId('moba-viewer').first()).toBeVisible();
+        await skip.first().click();
+      }
     }
     await page.getByRole('button', { name: 'Finish & record result' }).click();
   } else {

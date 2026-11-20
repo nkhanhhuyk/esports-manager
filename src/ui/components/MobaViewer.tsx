@@ -265,12 +265,15 @@ export function MobaViewer({ replay, teamNames, onEnd, autoplay = true }: Props)
         const s = lerp(front, f2, alpha) / 1000;
         const pos = lanePoint(map, lane, side ? 1 - s : s);
         ctx.fillStyle = TEAM_COL[side];
+        ctx.strokeStyle = '#0b0f14';
+        ctx.lineWidth = 1.5;
         const dots = Math.min(8, Math.max(1, Math.round(n)));
         for (let i = 0; i < dots; i++) {
           const ang = (i / dots) * Math.PI * 2;
           ctx.beginPath();
-          ctx.arc(pos.x + Math.cos(ang) * 7, pos.y + Math.sin(ang) * 7, 3, 0, Math.PI * 2);
+          ctx.rect(pos.x + Math.cos(ang) * 8 - 3.5, pos.y + Math.sin(ang) * 8 - 3.5, 7, 7);
           ctx.fill();
+          ctx.stroke();
         }
       }
     });

@@ -14,7 +14,7 @@ for (const id of titles) {
     const a = teams[(i * 7) % teams.length];
     const b = teams[(i * 7 + 3 + (i % 5)) % teams.length];
     if (a === b) continue;
-    const f = { id: `cal-${i}`, compId: Object.keys(w.comps)[0], titleId: id, teams: [a.id, b.id], day: w.day, status: 'scheduled', format: { n: 1, label: 'Bo1' }, formatKey: 'standard', detail: false } as unknown as Fixture;
+    const f = { id: `cal-${i}`, compId: Object.keys(w.comps)[0], titleId: id, teams: [a.id, b.id], day: w.day, status: 'scheduled', format: { n: 1, label: 'Bo1' }, formatKey: 'standard', detail: false, spatial: process.argv[4] !== 'fast' } as unknown as Fixture;
     const s = createSeries(w, f);
     const t0 = performance.now();
     const r = playNextGame(w, f, s);

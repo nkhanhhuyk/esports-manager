@@ -481,7 +481,15 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
     }
     return n;
   };
-  const setGoal = (h: Hero, p: Pt) => {
+  // Formation: heroes heading to the same spot spread around it (by slot) instead of stacking.
+  const FORM = Array.from({ length: 10 }, (_, i) => {
+    const a = ((i % 5) * 72 + (i >= 5 ? 36 : 0)) * (Math.PI / 180);
+    return { dx: Math.cos(a) * 16, dy: Math.sin(a) * 16 };
+  });
+  const setGoal = (h: Hero, p0: Pt) => {
+    const o = FORM[h.i];
+    const cand = { x: p0.x + o.dx, y: p0.y + o.dy };
+    const p = walkable(map, cand) ? cand : p0;
     if (h.goalPt && Math.abs(h.goalPt.x - p.x) + Math.abs(h.goalPt.y - p.y) < 12) {
       h.goalPt = p;
       return;
@@ -897,6 +905,12 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
   const spawnObjectives = (now: number) => {
     const minute = now / 60;
     for (const o of objs) {
+      // Objectives whose window has closed leave their pit (e.g. Shadow forms when the Tempest Dragon arrives).
+      if (o.alive && o.def.until !== undefined && minute > o.def.until + 0.1) {
+        o.alive = false;
+        o.nextAt = Infinity;
+        continue;
+      }
       if (o.alive || now < o.nextAt) continue;
       if (o.def.until !== undefined && minute > o.def.until) continue;
       // Pit choice: titles with alternating pits (Roshan day/night, Tempest Dragon, Turtle respawns).

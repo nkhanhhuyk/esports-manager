@@ -367,3 +367,34 @@ Chosen on the new-career form; Settings → Difficulty & sandbox offers the pres
 * Rollover pruning: competitions/fixtures/matches older than the previous season are deleted (history keeps
   champions/standings); detail is compacted except finals and the user's matches; retirees with legacy < 35
   are archived to compact summaries after 4 seasons. 10 seasons × 3 titles: save grows 3.4MB → 5.5MB.
+
+## Real-world data (snapshot real-2026-11-20)
+
+* **Offline, dated snapshot**; nothing is fetched at runtime. Each real entity carries `real = { src, snap,
+  est[] }`; anything without it is fictional. Ratings, attributes, personalities, contracts, salaries,
+  finances, owners, sponsors and everything after the snapshot are game simulation, shown as such.
+* **Sources preferred in this order**: official league/publisher data (MPL ID/PH sites, LoL Esports, Valve
+  Regional Standings) → named community databases (OpenDota, vlr.gg). Liquipedia is not used: its CAPTCHA
+  asks automated agents not to solve it. MLBB's signed API was not reverse-engineered.
+* **Estimates are explicit**: Dota positions from lanes/last hits, Valorant roles from agents played, CS2 roles
+  unknown (game assignment), ages and unpublished nationalities, organisation countries, cross-title
+  organisation grouping by name.
+* **No invented private facts**: only handles, roles, published real names (LoL official data) and listed
+  nationalities are stored.
+* **Structure**: real leagues where the source is a league; ranked pools (CS2 standings, Dota ratings) are
+  grouped into game leagues and labelled as game structure; leagues with fewer than six real teams are topped up
+  with fictional teams; HoK and Wild Rift stay fictional.
+
+## Live 2D MOBA simulation
+
+* **One authoritative spatial simulation per spatial fixture**; the renderer only plays back recorded frames.
+  Recording and commentary never draw from the game RNG.
+* **2-second step** (rates per second × step): fights last several steps; viewer interpolation keeps motion
+  smooth. A 1-second step doubled the cost without visibly better outcomes.
+* **Fidelity lock instead of simulating every background game spatially**: ≈ 2 700 MOBA games per season would
+  add minutes per season on phones. Spatial = your/followed teams' fixtures and anything opened live or marked
+  full detail before play; the decision is stored on the fixture (`spatial`) before any result exists.
+* **Terrain derived from walkable corridors** so walls drawn on screen and movement rules always agree.
+* **Engagements from visible information**: heroes and shot-callers act on what their team can see; losing
+  teams play safer; chases are limited; escape spells exist — these, not hard caps, keep kill counts plausible.
+* **Replays are session-only** (memory cache of the last 12 games); saves stay small.

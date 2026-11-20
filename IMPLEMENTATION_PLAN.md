@@ -49,6 +49,19 @@ Done: deterministic seeded simulation, idempotent days, save-size compaction, 10
 Next: per-title calibration reports, phone/foldable performance profiling on a real device, difficulty
 presets, release-signing automation (documented in ANDROID_BUILD.md).
 
+## Master prompt of 20 Nov 2026 (real data + live 2D) — milestones
+
+1. ✅ **Real characters** for all seven titles (snapshot real-2026-11-20).
+2. ✅ **Real teams & players** for MLBB, LoL, Dota 2, Valorant, CS2 with provenance; HoK / Wild Rift fictional
+   until a verifiable roster source is reachable.
+3. ✅ **MOBA maps** researched and implemented for MLBB, Wild Rift, HoK, LoL, Dota 2.
+4. ✅ **Spatial MOBA engine + live 2D viewer** (all five; MLBB verified first in the browser with real MPL ID
+   teams). Next: calibration of LoL kill counts, Lord evolution / dragon elements, replay persistence for the
+   user's last series, reduced-animation mode.
+5. ⏭ **Shooter maps** (Valorant map catalogue with callouts; CS2 active-duty pool) → spatial round engine →
+   2D shooter viewer (Valorant first, then CS2).
+6. ⏭ Press conferences & player promises (deferred by the user).
+
 ## Changing a title's rules
 Titles are fixed to the seven above. Their presets live in `src/data/titles/catalogue.ts` (roles, draft
 steps, formats, engine config, stats, salary/prize scale, popularity row). After changing a preset run

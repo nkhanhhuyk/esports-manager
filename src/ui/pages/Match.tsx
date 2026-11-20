@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { useGame, useWorld } from '../store';
 import { Card, CompLink, PageHeader, PlayerLink, TeamLink, TitleTag, OrgBadge, Tabs } from '../components/common';
 import { getTitle } from '../../data/titles/catalogue';
+import { getReplay } from '../../sim/moba/replayCache';
+import { MobaViewer } from '../components/MobaViewer';
 import { formatDate } from '../../core/date';
 import { navigate, type Route } from '../router';
 import { isUserTeamId, roleName } from '../helpers';
@@ -94,6 +96,8 @@ function Scoreboard({ g, f }: { g: GameResult; f: Fixture }) {
 export function GameView({ g, f }: { g: GameResult; f: Fixture }) {
   const world = useWorld();
   const t = getTitle(f.titleId);
+  const replay = g.replay ?? getReplay(f.id, g.idx);
+  const [watch, setWatch] = useState(false);
   const map = t.maps.find((m) => m.id === g.mapId);
   const mode = t.modes.find((m) => m.id === g.modeId);
   return (
@@ -107,7 +111,18 @@ export function GameView({ g, f }: { g: GameResult; f: Fixture }) {
         {g.draft && <DraftPanel g={g} f={f} />}
         {g.sides && g.sides.length > 0 && <div className="muted small" style={{ marginBottom: 6 }}>{g.sides.join(' · ')}</div>}
         <Scoreboard g={g} f={f} />
+        {g.engine === 'fast' && <div className="muted small">Background fixture: simulated with the fast engine (no battlefield replay).</div>}
+        {replay && !g.replay && (
+          <button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => setWatch(!watch)}>
+            {watch ? 'Hide replay' : 'Watch 2D replay'}
+          </button>
+        )}
       </Card>
+      {watch && replay && (
+        <Card title={`Game ${g.idx + 1} replay`}>
+          <MobaViewer replay={replay} teamNames={[world.teams[f.teams[0]]?.name ?? 'Blue', world.teams[f.teams[1]]?.name ?? 'Red']} autoplay={false} />
+        </Card>
+      )}
       {g.events && g.events.length > 0 && (
         <Card title="Commentary">
           <div className="feed">
