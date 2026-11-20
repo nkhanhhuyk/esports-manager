@@ -148,6 +148,26 @@ Objective timings were updated in `src/data/titles/catalogue.ts` with the same r
 | Valorant (13 competitive maps) | valorant-api.com `/v1/maps` (community mirror of game data): callout region/super-region names and in-game coordinates, minimap transform. Pool: Strafe "Valorant Map Pool: Current Competitive Maps (V26 Act 6)", 14 Oct 2026 | positions official (transformed and rotated); connections inferred (estimate) |
 | CS2 (9 maps) | csdb.gg map hub (July 2026 active duty), PlayNews 2026 callout guide, tradeit.gg callout guide | schematic: callout names and routes from the guides, positions approximate |
 
+## Pictures — `src/data/real/images.json`
+
+`node scripts/data/images.mjs <cache dir>` collects **links only** (no image files are copied into the
+repository or the APK). Pictures load from the owners' own servers when the device is online; offline,
+when switched off (Settings → Display → Online pictures) or when a picture fails, the game shows its own
+badges. Riot's fan-content policy covers Riot game art (LoL, Wild Rift, Valorant); other art is shown
+from its owners' servers for this personal, non-commercial game and is not redistributed.
+
+| Pictures | Source | Count |
+| --- | --- | --- |
+| LoL & Wild Rift champions | Riot Data Dragon (Wild Rift by champion name; Norra has none) | 173 + 142 |
+| Valorant agents and weapons | valorant-api.com | 30 agents, 21 weapons |
+| Dota 2 heroes | OpenDota hero list → Valve's Dota 2 CDN | 127 |
+| Honor of Kings heroes | Tencent's official CDN by official hero id (12 global-only heroes have none) | 106 |
+| MLBB heroes | mlbbhub.com hero pages → Moonton's official CDN | 131 |
+| CS2 weapons | ByMykel/CSGO-API (Steam images) | 66 |
+| Team logos | LoL Esports gateway (177), vlr.gg (32), OpenDota (67), MPL Indonesia (9), bo3.gg (150) | 435 |
+| Player photos | LoL Esports gateway (533), vlr.gg (188), bo3.gg (743); MPL photos are expiring signed links — not used | 1,464 |
+| League & event logos | LoL Esports gateway (incl. First Stand, MSI, Worlds), vlr.gg VCT events, MPL Indonesia | 59 |
+
 ## Licences and attribution
 
 * Riot Data Dragon: Riot Games developer data; used under Riot's developer policies for a non-commercial

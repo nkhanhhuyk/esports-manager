@@ -17,6 +17,7 @@
  *  - Valorant team logos & player photos: vlr.gg team pages; VCT league logos: vlr.gg event pages
  *  - Dota 2 team logos: OpenDota team records
  *  - MLBB team logos: id-mpl.com / ph-mpl.com team pages (player photos there are expiring signed links — not used)
+ *  - CS2 team logos and player photos: bo3.gg public API
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -188,6 +189,30 @@ out.sources.mlbb = 'mlbbhub.com hero pages → Moonton official CDN (akmweb.youn
     const m = html?.match(/<img src="([^"]+LOGO[^"]+)"\s+alt="MPL logo">/i);
     if (m) out.leagues[`mlbb|${norm(l.name)}`] = m[1];
   }
+}
+
+// ---------------------------------------------------------------- bo3.gg (CS2 team logos, player photos)
+{
+  const norm2 = (x) => String(x).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '');
+  const ourTeams = new Set([...rosters.teams, ...history.teams].filter((t) => t.title_id === 'cs2').map((t) => norm2(t.name)));
+  const ourPlayers = new Set([...rosters.teams.filter((t) => t.title_id === 'cs2').flatMap((t) => t.roster.map((p) => norm2(p.handle))), ...history.players.filter((p) => p.title_id === 'cs2').map((p) => norm2(p.handle))]);
+  const first = json('https://api.bo3.gg/api/v1/players?page%5Blimit%5D=100&page%5Boffset%5D=0', { gap: 1200 });
+  const total = first?.total?.count ?? 0;
+  const pages = [first];
+  for (let off = 100; off < total; off += 100) pages.push(json(`https://api.bo3.gg/api/v1/players?page%5Blimit%5D=100&page%5Boffset%5D=${off}`, { gap: 1200 }));
+  for (const pg of pages) for (const p of pg?.results ?? []) {
+    if (!p.image_url || p.is_deleted || !ourPlayers.has(norm2(p.nickname))) continue;
+    out.players[`cs2|${norm2(p.nickname)}`] ??= p.image_url;
+  }
+  const t1 = json('https://api.bo3.gg/api/v1/teams?page%5Blimit%5D=100&page%5Boffset%5D=0', { gap: 1200 });
+  const tt = t1?.total?.count ?? 0;
+  const tpages = [t1];
+  for (let off = 100; off < tt; off += 100) tpages.push(json(`https://api.bo3.gg/api/v1/teams?page%5Blimit%5D=100&page%5Boffset%5D=${off}`, { gap: 1200 }));
+  for (const pg of tpages) for (const t of pg?.results ?? []) {
+    if (!t.image_url || t.discipline_id !== 1 || !ourTeams.has(norm2(t.name))) continue;
+    out.teams[`cs2|${norm2(t.name)}`] ??= t.image_url;
+  }
+  out.sources.cs2teams = 'bo3.gg API (CS2 team logos and player photos)';
 }
 
 // Android WebViews block plain-http images inside the https app page.
