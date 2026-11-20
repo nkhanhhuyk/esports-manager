@@ -2,10 +2,13 @@ import { createWorld } from '../src/gen/world';
 import { dayFromYMD } from '../src/core/date';
 import type { World } from '../src/model/types';
 import { setUserOrg } from '../src/gen/world';
+import { clearRatingCache } from '../src/sim/common/ratings';
 
 export const START = dayFromYMD(2026, 11, 19);
 
 export function makeWorld(titles: string[], seed = 'test', size: 'tiny' | 'small' = 'tiny'): World {
+  // Worlds reuse player ids: drop ratings cached for another test's world (the app does this on load).
+  clearRatingCache();
   return createWorld({ name: 'Test', seed, worldSize: size, titles, startDay: START });
 }
 

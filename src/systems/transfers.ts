@@ -5,6 +5,7 @@
  * releases, contract extensions, expiries, and user-facing offers that wait for a decision.
  * League policy (roster limits, transfers, trades, loans, minimum age, caps) gates every move.
  */
+import { isAvailable, longTermOut, titleLockReason } from './availability';
 import { fansOnTransfer } from './fans';
 import { rivalryTransfer } from './rivalries';
 import { clamp } from '../core/math';
@@ -252,6 +253,8 @@ export function clubValuation(world: World, p: Player, owner: Team): number {
 export function checkPolicy(world: World, team: Team, p: Player, kind: Offer['kind'], salary: number, years: number): string | null {
   const league = team.leagueId ? world.leagues[team.leagueId] : null;
   if (team.roster.length >= rosterMax(world, team) && !team.roster.includes(p.id)) return 'Roster is full (league roster limit).';
+  const lock = titleLockReason(world, p, team.titleId);
+  if (lock) return lock;
   if (league && kind === 'trade' && !league.policy.trades) return 'This league does not permit trades.';
   if (league && kind === 'loan' && !league.policy.loans) return 'This league does not permit loans.';
   if (league && kind === 'transfer' && !league.policy.transferFees && p.teamId) return 'This league does not permit paid transfers.';
@@ -435,6 +438,8 @@ export function promotePlayer(world: World, playerId: string, toTeamId: string):
   if (!p || !to || !p.teamId) return { ok: false, status: 'invalid', message: 'Invalid move.' };
   const from = world.teams[p.teamId];
   if (from.orgId !== to.orgId) return { ok: false, status: 'invalid', message: 'Promotions/demotions only within the organisation.' };
+  const lock = titleLockReason(world, p, to.titleId);
+  if (lock) return { ok: false, status: 'invalid', message: lock };
   if (to.roster.length >= rosterMax(world, to)) return { ok: false, status: 'invalid', message: `${to.name} roster is full.` };
   const league = to.leagueId ? world.leagues[to.leagueId] : null;
   if (league && ageAt(p.birth, world.day) < league.policy.minAge) return { ok: false, status: 'invalid', message: 'Below league minimum age.' };
@@ -479,6 +484,8 @@ export function proposeTrade(world: World, teamId: string, give: string[], take:
   if (!takeP.length && !takePk.length) return { ok: false, status: 'invalid', message: 'Ask for at least one player or pick.' };
   if (takeP.some((p) => p.teamId !== other.id)) return { ok: false, status: 'invalid', message: 'All requested players must come from one team.' };
   const giveP = give.map((id) => world.players[id]).filter((p) => p && p.teamId === team.id);
+  const lock = takeP.map((p) => titleLockReason(world, p, team.titleId)).find(Boolean) ?? giveP.map((p) => titleLockReason(world, p, other.titleId)).find(Boolean);
+  if (lock) return { ok: false, status: 'invalid', message: lock };
   const lg = team.leagueId ? world.leagues[team.leagueId] : null;
   const olg = other.leagueId ? world.leagues[other.leagueId] : null;
   if ((lg && !lg.policy.trades) || (olg && !olg.policy.trades)) return { ok: false, status: 'invalid', message: 'Trades are not permitted by league rules (franchised leagues only by default).' };
@@ -621,12 +628,14 @@ interface Need {
 
 function teamNeeds(world: World, team: Team): Need[] {
   const t = getTitle(team.titleId);
-  const players = team.roster.map((id) => world.players[id]).filter((p) => p && !p.retired);
+  const players = team.roster.map((id) => world.players[id]).filter((p) => p && !p.retired && !longTermOut(p, world.day));
   const needs: Need[] = [];
   for (const roleId of t.lineup) {
     const role = t.roles.find((r) => r.id === roleId)!;
     const slot = team.lineup.find((s) => s.roleId === roleId);
-    const cur = slot ? world.players[slot.playerId] : undefined;
+    const sp = slot ? world.players[slot.playerId] : undefined;
+    // A starter out for weeks (injury or break) leaves the role uncovered.
+    const cur = sp && !longTermOut(sp, world.day) ? sp : undefined;
     const e = cur ? effectivenessLight(cur, t, role) : 0;
     needs.push({ roleId, currentE: e, urgent: !cur });
   }
@@ -703,7 +712,7 @@ function aiTeamMarket(world: World, team: Team, idx: MarketIndex, rng: RNG, emer
   while (team.roster.length > maxR) {
     const worst = team.roster
       .map((id) => world.players[id])
-      .filter((p) => p && world.day - p.joinedDay > 30 && !team.lineup.some((s) => s.playerId === p.id))
+      .filter((p) => p && world.day - p.joinedDay > 30 && !team.lineup.some((s) => s.playerId === p.id) && !longTermOut(p, world.day))
       .sort((a, b) => a.ca - b.ca)[0];
     if (!worst) break;
     releasePlayer(world, worst.id, 'Surplus to requirements');
@@ -737,7 +746,7 @@ function aiTeamMarket(world: World, team: Team, idx: MarketIndex, rng: RNG, emer
   }
   const minAge = league?.policy.minAge ?? t.minAge;
   for (const p of candidates) {
-    if (p.teamId || p.retired) continue;
+    if (p.teamId || p.retired || titleLockReason(world, p, t.id)) continue;
     const age = ageAt(p.birth, world.day);
     if (age < minAge) continue;
     const e = effectivenessLight(p, t, role);
@@ -832,7 +841,13 @@ export function aiMarketDay(world: World): void {
     const org = world.orgs[team.orgId];
     if (!org || (org.user && userHandles(world, 'signings')) || org.federation) continue;
     const t = getTitle(team.titleId);
-    const short = team.roster.length < t.teamSize;
+    // Players out long-term (injury, break) do not count: clubs replace them mid-season.
+    let avail = 0;
+    for (const id of team.roster) {
+      const p = world.players[id];
+      if (p && !p.retired && !longTermOut(p, world.day)) avail++;
+    }
+    const short = avail < t.teamSize;
     if (!short && !(window && rng.chance(1 / 6))) continue;
     index ||= buildIndex(world);
     aiTeamMarket(world, team, index, rng, short);
@@ -919,4 +934,154 @@ export function expireContracts(world: World, endedSeason: number): void {
     if (org && org.active) s.contract.endSeason = endedSeason + 2;
     else s.contract = null;
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// AI-to-AI trades and transfer-window notices
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Weekly in transfer windows (pre-season and mid-season): AI clubs in leagues that permit trades
+ * swap players 1-for-1 when the swap improves both clubs' best lineups (sum of starters'
+ * effectiveness, re-picked for every role) by ≥ 0.6 points — typically each side gives up a player
+ * at a position it is deep in for one at its weaker role. Market values within 35%, or within 70%
+ * with cash (80% of the gap) from the club receiving more value; only
+ * contracted, available players who joined over 30 days ago move. At most two trades per title
+ * per week.
+ */
+export function aiTradesWeek(world: World): number {
+  if (!inTransferWindow(world)) return 0;
+  const rng = new RNG(`${world.meta.seed}|aitrade|${world.day}`);
+  const byTitle = new Map<string, Team[]>();
+  for (const t of Object.values(world.teams)) {
+    if (!t.active || t.national || t.tier !== 'main' || !t.leagueId) continue;
+    if (!world.leagues[t.leagueId]?.policy.trades) continue;
+    const org = world.orgs[t.orgId];
+    if (!org || org.federation || (org.user && userHandles(world, 'signings'))) continue;
+    if (!byTitle.has(t.titleId)) byTitle.set(t.titleId, []);
+    byTitle.get(t.titleId)!.push(t);
+  }
+  let total = 0;
+  for (const [titleId, teams] of byTitle) {
+    if (teams.length < 2) continue;
+    const title = getTitle(titleId);
+    const roles = title.lineup;
+    const eCache = new Map<string, number>();
+    const eff = (p: Player, roleId: string) => {
+      const k = `${p.id}|${roleId}`;
+      let v = eCache.get(k);
+      if (v === undefined) {
+        v = effectivenessLight(p, title, title.roles.find((r) => r.id === roleId)!);
+        eCache.set(k, v);
+      }
+      return v;
+    };
+    // Best lineup value: greedy pick of the best (player, role) pairs.
+    const lineupValue = (ps: Player[]) => {
+      const pairs: Array<[number, number, number]> = [];
+      ps.forEach((p, i) => roles.forEach((r, j) => pairs.push([eff(p, r), i, j])));
+      pairs.sort((a, b) => b[0] - a[0]);
+      const usedP = new Set<number>();
+      const usedR = new Set<number>();
+      let sum = 0;
+      for (const [e, i, j] of pairs) {
+        if (usedP.has(i) || usedR.has(j)) continue;
+        usedP.add(i);
+        usedR.add(j);
+        sum += e;
+        if (usedR.size === roles.length) break;
+      }
+      return sum;
+    };
+    const ok = (p: Player | undefined): p is Player => !!p && !p.retired && !!p.contract && !p.contract.loan && !p.preContract && world.day - p.joinedDay > 30 && isAvailable(p, world.day);
+    const squad = new Map<string, Player[]>();
+    const base = new Map<string, number>();
+    for (const tm of teams) {
+      const ps = tm.roster.map((id) => world.players[id]).filter((p): p is Player => !!p && isAvailable(p, world.day));
+      squad.set(tm.id, ps);
+      base.set(tm.id, lineupValue(ps));
+    }
+    let trades = 0;
+    const done = new Set<string>();
+    for (const A of rng.shuffle([...teams])) {
+      if (trades >= 2) break;
+      if (done.has(A.id) || !rng.chance(0.5)) continue;
+      const sqA = squad.get(A.id)!;
+      let best: { B: Team; x: Player; y: Player; score: number; cash: number } | null = null;
+      for (const B of teams) {
+        if (B.id === A.id || done.has(B.id) || B.orgId === A.orgId) continue;
+        const sqB = squad.get(B.id)!;
+        for (const x of sqA) {
+          if (!ok(x)) continue;
+          const vx = marketValue(world, x);
+          const restA = sqA.filter((p) => p !== x);
+          for (const y of sqB) {
+            if (!ok(y)) continue;
+            const vy = marketValue(world, y);
+            // Up to 35% apart straight; up to 70% with cash from the club receiving more value.
+            if (Math.abs(vx - vy) > 0.7 * Math.max(vx, vy)) continue;
+            const cash = Math.abs(vx - vy) > 0.35 * Math.max(vx, vy) ? Math.round(((vy - vx) * 0.8) / 1000) * 1000 : 0;
+            const payer = cash > 0 ? A : B;
+            if (cash && (world.orgs[payer.orgId]?.balance ?? 0) < Math.abs(cash) * 2) continue;
+            const gA = lineupValue([...restA, y]) - base.get(A.id)!;
+            if (gA < 0.6) continue;
+            const gB = lineupValue([...sqB.filter((p) => p !== y), x]) - base.get(B.id)!;
+            if (gB < 0.6) continue;
+            const score = Math.min(gA, gB) + 0.1 * (gA + gB) - (cash ? 0.2 : 0);
+            if (!best || score > best.score) best = { B, x, y, score, cash };
+          }
+        }
+      }
+      if (!best) continue;
+      const { B, x, y, cash } = best;
+      // Positive cash: A (receiving the more valuable player) pays B; negative: B pays A.
+      if (cash) {
+        const [from, to] = cash > 0 ? [A, B] : [B, A];
+        ledger(world, world.orgs[from.orgId], 'trade-cash', -Math.abs(cash), from.id, `Trade with ${to.short}`);
+        ledger(world, world.orgs[to.orgId], 'trade-cash', Math.abs(cash), to.id, `Trade with ${from.short}`);
+      }
+      const yearsOf = (p: Player) => Math.max(1, (p.contract?.endSeason ?? world.season) - world.season + 1);
+      const sx = x.contract!.salary;
+      const sy = y.contract!.salary;
+      const yx = yearsOf(x);
+      const yy = yearsOf(y);
+      movePlayer(world, x, B, sx, yx, 'trade', 0, undefined, { note: `Trade with ${A.short} for ${y.handle}`, signingBonus: 0 });
+      movePlayer(world, y, A, sy, yy, 'trade', 0, undefined, { note: `Trade with ${B.short} for ${x.handle}`, signingBonus: 0 });
+      addNews(world, {
+        kind: 'transfer',
+        title: `Trade: ${x.handle} to ${B.name}, ${y.handle} to ${A.name}`,
+        body: `${A.name} and ${B.name} swap players to strengthen each other's weaker role${cash ? ` (${(cash > 0 ? A : B).short} add $${Math.round(Math.abs(cash) / 1000)}K)` : ''}${inMidSeasonWindow(world) ? ' in the mid-season window' : ''}.`,
+        titleId,
+        refs: [{ type: 'player', id: x.id }, { type: 'player', id: y.id }, { type: 'team', id: A.id }, { type: 'team', id: B.id }],
+        importance: x.rep > 65 || y.rep > 65 ? 3 : 2,
+      });
+      done.add(A.id);
+      done.add(B.id);
+      trades++;
+      total++;
+    }
+  }
+  return total;
+}
+
+export function inMidSeasonWindow(world: World): boolean {
+  const { m } = ymd(world.day);
+  return m === 5 || m === 6;
+}
+
+/** Daily: announce when transfer windows open and close. */
+export function transferWindowNotices(world: World): void {
+  const { m, d } = ymd(world.day);
+  const open = (m === 11 && d === 20) || (m === 5 && d === 10);
+  const close = (m === 1 && d === 13) || (m === 6 && d === 2);
+  if (!open && !close) return;
+  const mid = m === 5 || m === 6;
+  const name = mid ? 'Mid-season transfer window' : 'Pre-season transfer window';
+  const until = mid ? '1 June' : '12 January';
+  const title = open ? `${name} opens` : `${name} closed`;
+  const body = open
+    ? `Clubs can sign players under contract, loan and (where the league allows) trade until ${until}. Free agents can be signed at any time. Players stick to one game per season.`
+    : `Transfers, loans and trades are closed until the next window. Free agents can still be signed, and clubs replace players who are out long-term.`;
+  addNews(world, { kind: 'transfer', title, body, refs: [], importance: 2 });
+  if (world.meta.userOrgId) addInbox(world, { from: 'Transfers', subject: title, body, kind: 'transfer' });
 }

@@ -1,3 +1,4 @@
+import { decideBreakRequest } from '../../systems/breaks';
 import { RichText } from '../components/RichText';
 import { useEffect, useState } from 'react';
 import { respondToApproach } from '../../systems/career';
@@ -27,6 +28,7 @@ export function Inbox() {
     const offerId = m.payload?.offerId as string | undefined;
     const matchPlayerId = m.payload?.matchPlayerId as string | undefined;
     const approachId = m.payload?.approachId as string | undefined;
+    const breakPlayerId = m.payload?.breakPlayerId as string | undefined;
     const r = act((w) => {
       const res = offerId
         ? respondToOffer(w, offerId, actionId === 'accept')
@@ -34,7 +36,9 @@ export function Inbox() {
           ? decideOfferSheet(w, matchPlayerId, actionId === 'match')
           : approachId
             ? respondToApproach(w, approachId, actionId === 'accept')
-            : { ok: true, message: 'Done' };
+            : breakPlayerId
+              ? decideBreakRequest(w, breakPlayerId, actionId === 'grant')
+              : { ok: true, message: 'Done' };
       const mm = w.inbox.find((x) => x.id === m.id);
       if (mm) mm.resolved = actionId;
       return res;
@@ -75,10 +79,10 @@ export function Inbox() {
               </button>
             )}
             {m.actions && !m.resolved && (
-              <Gate world={world} perm="transfers">
+              <Gate world={world} perm={m.payload?.breakPlayerId ? 'tactics' : m.payload?.approachId ? 'editor' : 'transfers'}>
               <div className="row" style={{ marginTop: 10 }}>
                 {m.actions.map((a) => (
-                  <button key={a.id} className={`btn ${a.id === 'reject' ? 'ghost' : ''}`} onClick={() => doAction(a.id)}>
+                  <button key={a.id} className={`btn ${a.id === 'reject' || a.id === 'refuse' ? 'ghost' : ''}`} onClick={() => doAction(a.id)}>
                     {a.label}
                   </button>
                 ))}

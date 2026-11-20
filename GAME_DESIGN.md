@@ -116,6 +116,20 @@ Series keep every game.
   talent, evaluate needs by role, scan free agents (sometimes cross-title) and players at other clubs,
   score candidates by strategy (win-now, youth, moneyball, prestige…), respect budgets, bid on user players
   (inbox offers with accept/reject), renew key contracts, list unhappy players.
+* **One game per season**: once a player has competed in a title this season he cannot join a team in
+  another title until the next season (signings, bids, trades, loans, promotions, AI market); moves within
+  the same title remain possible in the windows, and a pre-contract with another title's team for next
+  season is allowed.
+* **Mid-season moves**: the pre-season (20 Nov–12 Jan) and mid-season (10 May–1 Jun) windows are announced
+  in the news and inbox. AI clubs in leagues that permit trades swap players 1-for-1 when both best lineups
+  improve (cash evens out larger value gaps); clubs replace players who are out long-term (injury, break)
+  with free agents at any time.
+* **Breaks**: players can ask for a few weeks off (burnout, mental health, motivation, personal or family
+  reasons) or step away for the rest of the season — far more likely when exhausted or unhappy. At your club
+  they ask first (grant or ask them to stay; refusing costs morale and an exhausted player breaks down
+  anyway; no answer in 7 days = they go). Players on a break stay under contract but do not play, train or
+  count for registration, and recover fatigue and morale; you can also rest a player for 1–4 weeks and bring
+  him back early. Notable breaks make the news.
 * **Transfer negotiations**: bid a fee (optionally with a sell-on clause) → the club accepts, counters or
   rejects, losing patience after repeated low bids; release clauses force acceptance → agree personal terms
   (salary, seasons, signing bonus, release clause) with the player, who counters with their price → the

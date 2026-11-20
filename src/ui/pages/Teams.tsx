@@ -104,7 +104,7 @@ function RosterTable({ team }: { team: Team }) {
         { key: 'input', label: 'Input', title: `Proficiency on ${t.input}`, align: 'right', value: (p) => p.input[t.input === 'touch' ? 0 : t.input === 'mkb' ? 1 : 2], render: (p) => p.input[t.input === 'touch' ? 0 : t.input === 'mkb' ? 1 : 2].toFixed(0) },
         { key: 'form', label: 'Form', align: 'right', value: (p) => p.form, render: (p) => <span className={p.form >= 0 ? 'pos' : 'neg'}>{p.form.toFixed(1)}</span> },
         { key: 'morale', label: 'Morale', align: 'right', value: (p) => p.morale, render: (p) => p.morale.toFixed(0) },
-        { key: 'fat', label: 'Fatigue', align: 'right', value: (p) => p.fatigue, render: (p) => <span className={p.fatigue > 60 ? 'neg' : ''}>{p.fatigue.toFixed(0)}{p.injury ? ' 🩹' : ''}</span> },
+        { key: 'fat', label: 'Fatigue', align: 'right', value: (p) => p.fatigue, render: (p) => <span className={p.fatigue > 60 ? 'neg' : ''}>{p.fatigue.toFixed(0)}{p.injury && p.injury.untilDay > world.day ? ' 🩹' : ''}{p.leave && p.leave.untilDay > world.day ? ' · break' : ''}</span> },
         { key: 'sal', label: 'Salary', align: 'right', value: (p) => p.contract?.salary ?? 0, render: (p) => formatMoney(p.contract?.salary ?? 0) },
         { key: 'end', label: 'Until', align: 'right', value: (p) => p.contract?.endSeason ?? 0, render: (p) => (<span>{p.contract?.endSeason ?? '—'}{p.contract?.loan ? ' (loan)' : ''}</span>) },
       ]}
@@ -466,7 +466,7 @@ function RegistrationCard({ team }: { team: Team }) {
             <div className="small">
               {reg.map((id) => {
                 const p = world.players[id];
-                const status = !p || p.teamId !== team.id ? ' (left the team)' : p.injury && p.injury.untilDay > world.day ? ' (injured)' : '';
+                const status = !p || p.teamId !== team.id ? ' (left the team)' : p.injury && p.injury.untilDay > world.day ? ' (injured)' : p.leave && p.leave.untilDay > world.day ? ' (on a break)' : '';
                 return (
                   <span key={id} className={`chip ${status ? 'ban' : 'pick'}`}>
                     {name(id)}

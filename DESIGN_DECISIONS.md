@@ -253,6 +253,27 @@ Proposals (editable constants in `src/systems/fans.ts` and `src/systems/rivalrie
 * Old (v5) saves: segments are created from the follower count and rivalries are seeded quietly from the
   save's own recorded finals (season history) and this season's results.
 
+## Season rules: one game per season, breaks, AI trades
+
+* One game per season: `seasonTitle(p)` = the title with most games this season; any move to a team of
+  another title is refused until the rollover (checkPolicy, trades, promotions, loans, AI free-agent
+  candidates). Verified by simulation: no player has games in two titles in one season.
+* Breaks (src/systems/breaks.ts): weekly during the competitive season (10 Jan – 7 days before the season
+  end) with probability `(0.0006 + 0.012·max(0, fatigue−55)/45 + 0.008·max(0, 40−morale)/40 + 0.003·[unhappy
+  > 70]) × (1.4 − 0.8·resilience/100)` ≈ 3% of contracted players per season (small world: 32 of 1,053).
+  Reason: fatigue > 65 burnout, morale < 35 mental/motivation, else personal/family/mental; 15% (30% for
+  personal/family) are hiatuses until the season ends; lengths burnout 3–6 weeks, personal/family 1–4, others
+  2–5. While away: fatigue −3/day, morale → 70 at 4%/day, unhappiness −0.5/day; no training; on return form 0
+  and morale ≥ 62. Refusing: morale −8, unhappiness +12 (+25 for a hiatus), form −2; burnout with fatigue
+  > 75 → a two-week break anyway. Club rest: morale +3 if fatigue > 50, else −ambition/25.
+* Clubs count players out for more than 14 days as missing: the AI market treats the team as short (free
+  agents any time) and their roles as uncovered; such players are never released as surplus.
+* AI trades: weekly in windows, trade-permitting leagues, main teams of AI clubs; per title at most two per
+  week; a team is considered with 50% chance; swap x↔y when both clubs' greedy best-lineup value (Σ
+  starters' effectiveness) rises by ≥ 0.6; values within 35%, or within 70% with cash = 80% of the gap from
+  the receiver of more value (needs balance ≥ 2× cash); traded contracts keep salary and length (no signing
+  bonus).
+
 ## Modes & delegation
 
 * `userHandles(area)` = the role has the permission and the area is not delegated. Areas → permissions:

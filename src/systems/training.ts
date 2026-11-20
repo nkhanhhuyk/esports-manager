@@ -7,6 +7,7 @@
  * - Form fluctuates quickly (per game), fatigue accumulates with games & training intensity.
  * - Repeating the same team focus has diminishing returns.
  */
+import { onLeave } from './availability';
 import { clamp } from '../core/math';
 import { ageFloat } from '../core/date';
 import { RNG } from '../core/rng';
@@ -168,9 +169,11 @@ export function weeklyTraining(world: World): void {
     const focus: TrainingFocus = team ? team.training.individual[p.id] ?? team.training.focus : 'balanced';
     const intensity = team ? team.training.intensity / 100 : 0.4;
     const ws: WeekSummary | undefined = team ? week.get(team.id) : undefined;
+    // Players away on a break do not train.
+    const away = onLeave(p, world.day);
     // Development from the sessions held this week (no sessions → no training growth).
-    const sessionDev = ws ? ws.devFactor : 0.6 + intensity * 0.6;
-    const sf = ws ? clamp(ws.devFactor, 0, 1) : 1;
+    const sessionDev = away ? 0 : ws ? ws.devFactor : 0.6 + intensity * 0.6;
+    const sf = away ? 0 : ws ? clamp(ws.devFactor, 0, 1) : 1;
     const mult = team ? teamFocusMult.get(team.id) ?? 1 : 1;
     const ethic = (p.attrs[55] + p.attrs[56] + p.attrs[57]) / 300; // learning, work ethic, coachability
     const { grow, decline } = ageCurve(p, age);
@@ -223,14 +226,14 @@ export function weeklyTraining(world: World): void {
       p.prof.roles[rk] = clamp((p.prof.roles[rk] ?? 0) + roleRate * (1 - (p.prof.roles[rk] ?? 0) / 102), 0, 100);
       // Character pools and maps grow in the pool / maps sessions held (and individual work on them).
       const indiv = ws ? ws.held.individual : 3;
-      const poolBlocks = Math.min(6, Math.round((ws ? ws.held.pool : focus === 'characters' ? 2 : 0) + (focus === 'characters' ? indiv / 2 : 0)));
+      const poolBlocks = away ? 0 : Math.min(6, Math.round((ws ? ws.held.pool : focus === 'characters' ? 2 : 0) + (focus === 'characters' ? indiv / 2 : 0)));
       if (poolBlocks > 0 && t.characters.length) {
         const role = t.roles.find((r) => r.id === roleId)!;
         const cm = (p.prof.chars[tId] ||= {});
         const pool = t.characters.filter((c) => role.classes.includes(c.cls)).slice(0, 10);
         for (let k = 0; k < poolBlocks; k++) for (const c of rng.sample(pool, 2)) cm[c.id] = clamp((cm[c.id] ?? 15) + 0.6 * learn * q, 0, 100);
       }
-      const mapBlocks = Math.min(6, Math.round((ws ? ws.held.maps : focus === 'maps' ? 2 : 0) + (focus === 'maps' ? indiv / 2 : 0)));
+      const mapBlocks = away ? 0 : Math.min(6, Math.round((ws ? ws.held.maps : focus === 'maps' ? 2 : 0) + (focus === 'maps' ? indiv / 2 : 0)));
       if (mapBlocks > 0 && t.maps.length > 1) {
         const mm = (p.prof.maps[tId] ||= {});
         for (let k = 0; k < mapBlocks; k++) for (const m of rng.sample(t.maps, 2)) mm[m.id] = clamp((mm[m.id] ?? 20) + 0.6 * learn * q, 0, 100);
@@ -240,7 +243,7 @@ export function weeklyTraining(world: World): void {
         for (const w of t.weaponClasses) wm[w] = clamp((wm[w] ?? 20) + 0.5 * learn * q * sf, 0, 100);
       }
       // Fatigue from the training load actually held (rest blocks and a recovery focus lower it).
-      p.fatigue = clamp(p.fatigue + (focus === 'recovery' ? -6 : ws ? ws.fatigue : intensity * 5 - 1), 0, 100);
+      if (!away) p.fatigue = clamp(p.fatigue + (focus === 'recovery' ? -6 : ws ? ws.fatigue : intensity * 5 - 1), 0, 100);
       if (focus === 'mental') p.morale = clamp(p.morale + 0.6, 0, 100);
       if (ws?.held.mental) p.morale = clamp(p.morale + 0.3 * ws.held.mental, 0, 100);
     }

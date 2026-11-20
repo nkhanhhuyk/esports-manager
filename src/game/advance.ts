@@ -5,6 +5,8 @@
  * world.processed.lastDay), so repeated or interrupted advance commands never duplicate
  * fixtures, awards, transfers or money.
  */
+import { breaksDaily, breaksWeekly } from '../systems/breaks';
+import { aiTradesWeek, transferWindowNotices } from '../systems/transfers';
 import { dayOfWeek, isFirstOfMonth, monthKey, ymd } from '../core/date';
 import { RNG } from '../core/rng';
 import type { Fixture, World } from '../model/types';
@@ -86,7 +88,9 @@ export function processDay(world: World): void {
     if (f && f.status === 'scheduled') playFixture(world, f);
   }
   dailyCondition(world);
+  breaksDaily(world);
   for (const team of Object.values(world.teams)) if (team.active) adaptToMeta(world, team.id);
+  transferWindowNotices(world);
   aiMarketDay(world);
   negotiationsDay(world);
   registrationReminders(world);
@@ -94,6 +98,8 @@ export function processDay(world: World): void {
     const wk = Math.floor(day / 7);
     if (world.processed.lastWeek !== wk) {
       world.processed.lastWeek = wk;
+      breaksWeekly(world);
+      aiTradesWeek(world);
       weeklyTraining(world);
       weeklyScouting(world);
       processLoans(world);

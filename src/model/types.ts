@@ -113,6 +113,13 @@ export interface Player {
   morale: number; // 0..100
   fatigue: number; // 0..100 (0 = fresh)
   injury: { label: string; untilDay: DayNum } | null;
+  /**
+   * Time away from competition: a break of a few weeks, or stepping away for the rest of the
+   * season (hiatus). The player stays under contract but cannot play, train or be fielded.
+   */
+  leave?: { kind: 'break' | 'hiatus'; reason: string; fromDay: DayNum; untilDay: DayNum; byClub?: boolean } | null;
+  /** A break the player has asked the user's club for (awaiting an answer in the inbox). */
+  leaveRequest?: { kind: 'break' | 'hiatus'; reason: string; days: number; day: DayNum } | null;
   pers: Personality;
   dev: DevProfile;
   contract: Contract | null;

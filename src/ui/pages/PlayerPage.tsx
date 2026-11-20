@@ -1,3 +1,6 @@
+import { recallPlayer, restPlayer } from '../../systems/breaks';
+import { can } from '../../systems/career';
+import { seasonTitle } from '../../systems/availability';
 import { RichText } from '../components/RichText';
 import { useMemo, useState } from 'react';
 import { useGame, useWorld } from '../store';
@@ -357,10 +360,41 @@ export function PlayerPage({ id, route }: { id: string; route: Route }) {
             {p.nat2 && ` / ${COUNTRY_BY_CODE[p.nat2]?.name}`} · speaks {p.langs.join(', ')}
             {p.retired && ` · RETIRED ${p.retired.season}`}
             {p.injury && ` · injured (${p.injury.label}) until ${formatDate(p.injury.untilDay)}`}
+            {p.leave && p.leave.untilDay > world.day && <span className="warn"> · {p.leave.kind === 'hiatus' ? 'stepped away for the rest of the season' : `on a break until ${formatDate(p.leave.untilDay)}`} ({p.leave.reason.toLowerCase()})</span>}
+            {(() => {
+              const st = seasonTitle(world, p);
+              return st && st !== p.titleId ? ` · played ${getTitle(st).short} this season` : st ? ` · committed to ${getTitle(st).short} this season` : '';
+            })()}
           </span>
         }
         right={
           <>
+            {isUserTeamId(world, p.teamId) && can(world, 'tactics') && !p.retired && (
+              p.leave && p.leave.untilDay > world.day ? (
+                p.leave.byClub && (
+                  <button className="btn ghost sm" onClick={() => { const r = act((w) => recallPlayer(w, p.id)); if (r) notify(r.message, r.ok ? 'ok' : 'err'); }}>
+                    Bring back
+                  </button>
+                )
+              ) : (
+                <select
+                  className="sm"
+                  aria-label="Rest player"
+                  value=""
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    if (!n) return;
+                    const r = act((w) => restPlayer(w, p.id, n));
+                    if (r) notify(r.message, r.ok ? 'ok' : 'err');
+                  }}
+                >
+                  <option value="">Rest…</option>
+                  <option value="1">Rest 1 week</option>
+                  <option value="2">Rest 2 weeks</option>
+                  <option value="4">Rest 4 weeks</option>
+                </select>
+              )
+            )}
             {!isUserTeamId(world, p.teamId) && (
               <button className="btn ghost sm" onClick={() => { act((w) => scoutPlayer(w, p.id)); notify(`${p.handle} added to scouting focus.`, 'ok'); }}>
                 Scout

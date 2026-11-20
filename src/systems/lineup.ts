@@ -1,6 +1,7 @@
 /**
  * Lineup selection and legality.
  */
+import { isAvailable, onLeave } from './availability';
 import { getTitle } from '../data/titles/catalogue';
 import { expandRegion } from '../data/countries';
 import { COUNTRY_BY_CODE } from '../data/countries';
@@ -18,7 +19,7 @@ export function isLocal(p: Player, region: string): boolean {
 export function availablePlayers(world: World, team: Team): Player[] {
   return team.roster
     .map((id) => world.players[id])
-    .filter((p): p is Player => !!p && !p.retired && !(p.injury && p.injury.untilDay > world.day));
+    .filter((p): p is Player => isAvailable(p, world.day));
 }
 
 /** Greedy maximum-effectiveness assignment of players to the title's lineup positions. */
@@ -29,7 +30,8 @@ export function autoLineup(world: World, team: Team, eligible?: Set<string>): Li
   const minAge = league?.policy.minAge ?? t.minAge;
   const ok = (p: Player) => !eligible || eligible.has(p.id);
   let players = availablePlayers(world, team).filter((p) => ageAt(p.birth, world.day) >= minAge && ok(p));
-  if (players.length < t.teamSize) players = team.roster.map((id) => world.players[id]).filter((p) => p && !p.retired && ok(p)) as Player[];
+  // Short-handed: injured players can play hurt; players away on a break never do.
+  if (players.length < t.teamSize) players = team.roster.map((id) => world.players[id]).filter((p) => p && !p.retired && !onLeave(p, world.day) && ok(p)) as Player[];
   const roles = t.lineup;
   const pairs: Array<{ p: Player; roleIdx: number; e: number }> = [];
   for (const p of players) {
@@ -92,6 +94,7 @@ export function validateLineup(world: World, team: Team, lineup: LineupSlot[]): 
     }
     if (!team.roster.includes(p.id)) errors.push(`${p.handle} is not on the roster.`);
     if (p.injury && p.injury.untilDay > world.day) errors.push(`${p.handle} is injured.`);
+    if (onLeave(p, world.day)) errors.push(`${p.handle} is on a break (${p.leave!.reason.toLowerCase()}).`);
     if (league && ageAt(p.birth, world.day) < league.policy.minAge) errors.push(`${p.handle} is below the league minimum age.`);
     if (!isLocal(p, team.region)) foreign++;
   }
@@ -106,7 +109,7 @@ export function ensureLineup(world: World, team: Team): LineupSlot[] {
     team.lineup.length === t.teamSize &&
     team.lineup.every((s) => {
       const p = world.players[s.playerId];
-      return p && team.roster.includes(s.playerId) && !(p.injury && p.injury.untilDay > world.day) && !p.retired;
+      return p && team.roster.includes(s.playerId) && isAvailable(p, world.day);
     });
   if (!valid) {
     team.lineup = autoLineup(world, team);
@@ -127,7 +130,7 @@ function lineupSignature(world: World, team: Team): string {
   for (const id of team.roster) {
     const p = world.players[id];
     if (!p) continue;
-    s += `${id}.${p.attrVersion}.${p.injury && p.injury.untilDay > world.day ? 1 : 0}.${Math.round(p.fatigue / 25)};`;
+    s += `${id}.${p.attrVersion}.${isAvailable(p, world.day) ? 0 : 1}.${Math.round(p.fatigue / 25)};`;
   }
   return s;
 }

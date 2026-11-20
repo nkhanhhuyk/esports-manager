@@ -13,6 +13,7 @@
  *    lineup of eligible registered players (no forfeits, and it is recorded as an emergency);
  *  - a player can be registered for only one team in an edition.
  */
+import { isAvailable } from './availability';
 import { getTitle } from '../data/titles/catalogue';
 import type { Competition, LineupSlot, Player, Team, World } from '../model/types';
 import { effectiveness } from '../sim/common/ratings';
@@ -36,7 +37,7 @@ export function registrationOf(comp: Competition | undefined, teamId: string): S
 }
 
 function available(world: World, p: Player | undefined, team: Team): p is Player {
-  return !!p && !p.retired && p.teamId === team.id && !(p.injury && p.injury.untilDay > world.day);
+  return isAvailable(p, world.day) && p.teamId === team.id;
 }
 
 /** Coach's registration: the best lineup first, then substitutes by role usefulness. */

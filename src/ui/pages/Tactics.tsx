@@ -85,7 +85,8 @@ export function TacticsPage({ route }: { route: Route }) {
                           .map((p) => (
                             <option key={p.id} value={p.id}>
                               {p.handle} — E {roleE(p, t.id, roleId).toFixed(1)}
-                              {p.injury ? ' (inj)' : ''}
+                              {p.injury && p.injury.untilDay > world.day ? ' (inj)' : ''}
+                              {p.leave && p.leave.untilDay > world.day ? ' (break)' : ''}
                             </option>
                           ))}
                       </select>
