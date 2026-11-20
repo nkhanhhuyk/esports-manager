@@ -1,3 +1,4 @@
+import { TrialButtons } from './Youth';
 import { recallPlayer, restPlayer } from '../../systems/breaks';
 import { can } from '../../systems/career';
 import { seasonTitle } from '../../systems/availability';
@@ -128,6 +129,7 @@ function OfferPanel({ p }: { p: Player }) {
         <button className="btn" onClick={() => run(() => offerFreeAgent(world, teamId, p.id, salary, years))}>
           Offer contract
         </button>
+        {team && <TrialButtons world={world} p={p} team={team} />}
       </div>
       )}
       {team && team.titleId !== p.titleId && (

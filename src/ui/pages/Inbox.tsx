@@ -1,3 +1,4 @@
+import { respondToTradeOffer } from '../../systems/trades';
 import { decideBreakRequest } from '../../systems/breaks';
 import { RichText } from '../components/RichText';
 import { useEffect, useState } from 'react';
@@ -29,6 +30,7 @@ export function Inbox() {
     const matchPlayerId = m.payload?.matchPlayerId as string | undefined;
     const approachId = m.payload?.approachId as string | undefined;
     const breakPlayerId = m.payload?.breakPlayerId as string | undefined;
+    const tradeOfferId = m.payload?.tradeOfferId as string | undefined;
     const r = act((w) => {
       const res = offerId
         ? respondToOffer(w, offerId, actionId === 'accept')
@@ -38,7 +40,9 @@ export function Inbox() {
             ? respondToApproach(w, approachId, actionId === 'accept')
             : breakPlayerId
               ? decideBreakRequest(w, breakPlayerId, actionId === 'grant')
-              : { ok: true, message: 'Done' };
+              : tradeOfferId
+                ? respondToTradeOffer(w, tradeOfferId, actionId === 'accept')
+                : { ok: true, message: 'Done' };
       const mm = w.inbox.find((x) => x.id === m.id);
       if (mm) mm.resolved = actionId;
       return res;

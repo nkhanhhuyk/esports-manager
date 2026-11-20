@@ -268,11 +268,49 @@ Proposals (editable constants in `src/systems/fans.ts` and `src/systems/rivalrie
   > 75 → a two-week break anyway. Club rest: morale +3 if fatigue > 50, else −ambition/25.
 * Clubs count players out for more than 14 days as missing: the AI market treats the team as short (free
   agents any time) and their roles as uncovered; such players are never released as surplus.
-* AI trades: weekly in windows, trade-permitting leagues, main teams of AI clubs; per title at most two per
-  week; a team is considered with 50% chance; swap x↔y when both clubs' greedy best-lineup value (Σ
-  starters' effectiveness) rises by ≥ 0.6; values within 35%, or within 70% with cash = 80% of the gap from
-  the receiver of more value (needs balance ≥ 2× cash); traded contracts keep salary and length (no signing
-  bonus).
+* Trades (src/systems/trades.ts), weekly in windows, trade-permitting leagues, main teams. Every deal is
+  judged by each club's greedy best-lineup value (Σ starters' effectiveness, roles re-picked) and market
+  value; candidates that cannot lift the other lineup enough are pruned first (upper bound per role).
+  * 1-for-1: both lineups +0.6; values within 35%, or within 70% with cash = 80% of the gap from the receiver
+    of more value (balance ≥ 2× cash) or, in the same league, a draft pick worth 0.6–1.6× the gap.
+  * 2-for-1: the consolidating club +1.5, the other club +0.3 and 110–180% of the value, roster room.
+  * Player for picks: a rebuilding club (youth/moneyball or bottom 40% by Elo) sends a player aged ≥ 24 to a
+    contender (win-now/prestige or top 40%) in the same league for ≤ 2 picks worth ≥ 80% of his value
+    (picks ×1.3 to the rebuilder).
+  * AI–AI: a club is considered with 25% chance, one deal per title per week, at most three traded players
+    per club per season (small world: ~25 deals a season — roughly 7 one-for-one, 11 two-for-one, 8 for
+    picks). AI → user: 35% chance per user team per window week, one pending offer per team, AI gains ≥ 1,
+    the user receives ≥ 97% of the value given (÷ bargaining difficulty), 7 days to answer; delegated
+    "offers for your players" → the GM accepts only deals that do not weaken the lineup. Traded contracts
+    keep salary and length (no signing bonus).
+* Youth intake (src/systems/youth.ts), 1 December: per organisation and main team, class size 2 +
+  floor(academy/4); 60% own country; CA ~ N(42 + scene·0.06 + academy·0.6 + youthCoach·0.04, 5), potential
+  boost ~ N(3 + academy·0.7 + youthCoach·0.05, 6); ages 15–17. AI: sign the best 1 (2 with academy ≥ 6) by
+  potential — without an academy team only potential ≥ 78 — the rest never enter the pool (small world: ~40
+  prospects join 900 players). User: 21 days to sign (3-season youth contract at 60% of expected salary,
+  ≥ league minimum), trial or release; unsigned → free agents. Trials: 1–2 weeks, $1,500/week × (0.4 + region
+  economy), reserved for the club (others' signings refused, AI skips him), scouting knowledge 70 → 100 at
+  the end with a staff verdict.
+* Season preview (13 Jan): power rankings by squad strength per league, top-5 favourites, players to watch
+  (CA), breakout candidates (≤ 20, CA ≥ 50, largest headroom), biggest off-season fees. Review (season end,
+  before pruning): champions, season awards, storylines (world champions/dynasties, underdog league winners
+  tipped ≥ 4th, collapses of the tipped top two into the bottom half, breakouts ≥ +4 CA aged ≤ 22, rivalries
+  born, deal of the season, retirements with legacy ≥ 60, prediction score) and preview vs final league
+  tables (both splits' placements summed). Twelve seasons are kept.
+* Head-to-head ledger: per sorted team pair `[meetings, wins A, wins B, games A, games B, finals, last
+  season]` for every non-national series (small world: ~300 pairs after a season).
+
+## Difficulty & sandbox (src/systems/difficulty.ts)
+
+| | Relaxed | Standard | Hard |
+| --- | --- | --- | --- |
+| Club income (user organisation's commercial revenue) | ×1.15 | ×1 | ×0.88 |
+| Board strictness (negative confidence changes) | ×0.6 | ×1 | ×1.35 |
+| Injury frequency (all clubs) | ×0.6 | ×1 | ×1.4 |
+| Break frequency (all clubs) | ×0.5 | ×1 | ×1.5 |
+| AI bargaining (asking prices, trade demands, player terms threshold +0.5·(k−1)) | ×0.9 | ×1 | ×1.12 |
+
+Chosen on the new-career form; Settings → Difficulty & sandbox offers the presets and sliders (custom).
 
 ## Modes & delegation
 

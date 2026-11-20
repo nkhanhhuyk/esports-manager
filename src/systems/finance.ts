@@ -2,6 +2,7 @@
  * Organisation finances: monthly revenue & expenditure, ledgers, facility upgrades,
  * sponsorship renewal and financial distress.
  */
+import { difficulty } from './difficulty';
 import { fanCommercialFactor, merchandiseRevenue } from './fans';
 import { clamp } from '../core/math';
 import { monthKey } from '../core/date';
@@ -108,6 +109,11 @@ export function monthlyBreakdown(world: World, org: Organisation, orgStaff?: Map
     for (const sid of team.staff) expenses.staff += (world.staff[sid]?.contract?.salary ?? 0) / 12;
     expenses.operations += Math.round((v * 0.06) / 12 + 1500 * (0.4 + regionEconomy(team.region)) * (team.tier === 'main' ? 1 : 0.5));
     void t;
+  }
+  // Difficulty: the user's commercial income.
+  if (org.user) {
+    const k = difficulty(world).income;
+    if (k !== 1) for (const key of Object.keys(revenue)) revenue[key] = Math.round(revenue[key] * k);
   }
   if (orgStaff) expenses.staff += orgStaff.get(org.id) ?? 0;
   else for (const s of Object.values(world.staff)) if (s.orgId === org.id && !s.teamId && s.contract && !s.retired) expenses.staff += s.contract.salary / 12;

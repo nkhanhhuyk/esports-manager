@@ -40,7 +40,9 @@ finances & facilities, news, awards, national teams, competition registration se
 organisation treasury (department wage budgets backed by cash, commitments, forecast, audit log), supporter
 segments & rivalries from recorded encounters, training sessions & scrims (rooms, coaching capacity,
 cancellations, partner matching, intel), delegation per area, spectator/follow mode.
-Next: staff philosophy, dual-title rosters with one shared calendar, bootcamps/travel, press narratives.
+Also: AI trades of three kinds and trade proposals to the user, youth intake & trials, season previews and
+reviews, stats hub, difficulty presets.
+Next: press conferences & player promises, staff philosophy, bootcamps/travel.
 
 ## M4 — Long careers and polish 🔶
 Done: deterministic seeded simulation, idempotent days, save-size compaction, 10-season soak test.

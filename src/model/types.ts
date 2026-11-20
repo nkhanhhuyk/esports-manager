@@ -118,6 +118,8 @@ export interface Player {
    * season (hiatus). The player stays under contract but cannot play, train or be fielded.
    */
   leave?: { kind: 'break' | 'hiatus'; reason: string; fromDay: DayNum; untilDay: DayNum; byClub?: boolean } | null;
+  /** Trial with a club (free agents and intake prospects): reserved for that club until the end. */
+  trial?: { teamId: ID; untilDay: DayNum } | null;
   /** A break the player has asked the user's club for (awaiting an answer in the inbox). */
   leaveRequest?: { kind: 'break' | 'hiatus'; reason: string; days: number; day: DayNum } | null;
   pers: Personality;
@@ -930,6 +932,8 @@ export interface WorldMeta {
   followed?: ID[];
   /** Spectator: stop the advance the day before a followed team plays (to watch it live). */
   stopForFollowed?: boolean;
+  /** Difficulty & sandbox options (absent = standard). */
+  difficulty?: { preset: 'relaxed' | 'standard' | 'hard' | 'custom'; income: number; board: number; injuries: number; breaks: number; bargaining: number };
   /** Areas the manager hands to AI staff even though the role could do them. */
   delegation?: Partial<Record<DelegationArea, boolean>>;
 }
@@ -978,6 +982,94 @@ export interface World {
   rulePresets?: Record<string, { fearless?: 'none' | 'team' | 'global' }>;
   /** Rivalries keyed by sorted team-id pair. */
   rivalries?: Record<string, Rivalry>;
+  /** Trade proposals AI clubs sent to the user's teams. */
+  tradeOffers?: TradeOffer[];
+  /** Youth intake: last season processed and the user's open intake classes. */
+  youth?: { lastSeason: number; classes: YouthClass[] };
+  /** Season previews (power rankings & predictions) and reviews, by season. */
+  previews?: Record<number, SeasonPreview>;
+  reviews?: Record<number, SeasonReview>;
+  /** All-time head-to-head ledger between teams (sorted pair key). */
+  h2h?: Record<string, H2HRecord>;
+}
+
+/** The user's youth intake class at one academy (AI clubs decide on the day). */
+export interface YouthClass {
+  season: number;
+  day: DayNum;
+  deadline: DayNum;
+  orgId: ID;
+  teamId: ID;
+  prospects: ID[];
+  /** Prospect id → signed | released | trial */
+  decisions: Record<ID, 'signed' | 'released'>;
+  closed: boolean;
+}
+
+export interface PreviewTeam {
+  teamId: ID;
+  rank: number;
+  strength: number;
+  elo: number;
+  /** Short note: biggest arrival/departure, form. */
+  note?: string;
+}
+
+export interface SeasonPreview {
+  season: number;
+  day: DayNum;
+  titles: Record<TitleId, {
+    leagues: Array<{ leagueId: ID; teams: PreviewTeam[] }>;
+    worldsFavourites: ID[];
+    playersToWatch: ID[];
+    breakoutCandidates: ID[];
+    biggestMoves: Array<{ playerId: ID; fromTeamId: ID | null; toTeamId: ID | null; fee: number }>;
+  }>;
+}
+
+export interface Storyline {
+  kind: 'champion' | 'underdog' | 'collapse' | 'dynasty' | 'breakout' | 'prediction' | 'record' | 'rivalry' | 'transfer' | 'retirement';
+  titleId?: TitleId;
+  text: string;
+  refs: Array<{ type: 'player' | 'team' | 'org' | 'comp'; id: ID }>;
+}
+
+export interface SeasonReview {
+  season: number;
+  day: DayNum;
+  champions: Array<{ titleId: TitleId; compId: ID; compName: string; tier: CompTier; teamId: ID; runnerUpId?: ID }>;
+  awards: Array<{ awardId: string; label: string; titleId?: TitleId; playerId?: ID; teamId?: ID; staffId?: ID }>;
+  storylines: Storyline[];
+  /** Preview vs reality per league: predicted rank → actual rank. */
+  predictions: Array<{ leagueId: ID; titleId: TitleId; rows: Array<{ teamId: ID; predicted: number; actual: number }> }>;
+}
+
+/**
+ * Head-to-head between two teams (key = sorted team ids), stored compactly:
+ * [meetings, series wins of the first team, of the second, games won by the first, by the second,
+ *  finals, last season met].
+ */
+export type H2HRecord = number[];
+
+/** A trade an AI club proposes to one of the user's teams. */
+export interface TradeOffer {
+  id: ID;
+  day: DayNum;
+  expiresDay: DayNum;
+  /** The AI club making the offer. */
+  fromTeamId: ID;
+  /** The user's team. */
+  toTeamId: ID;
+  /** Players and picks the AI club sends. */
+  give: ID[];
+  givePicks: ID[];
+  /** Players and picks it wants from the user. */
+  take: ID[];
+  takePicks: ID[];
+  /** Cash the AI club adds (negative: it asks the user to add cash). */
+  cash: number;
+  kind: string;
+  status: 'pending' | 'accepted' | 'rejected' | 'expired' | 'withdrawn';
 }
 
 export interface DraftPickAsset {

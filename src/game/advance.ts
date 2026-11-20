@@ -5,8 +5,11 @@
  * world.processed.lastDay), so repeated or interrupted advance commands never duplicate
  * fixtures, awards, transfers or money.
  */
+import { previewDaily } from '../systems/seasonReport';
+import { youthDaily } from '../systems/youth';
 import { breaksDaily, breaksWeekly } from '../systems/breaks';
-import { aiTradesWeek, transferWindowNotices } from '../systems/transfers';
+import { transferWindowNotices } from '../systems/transfers';
+import { aiOffersToUser, aiTradesWeek } from '../systems/trades';
 import { dayOfWeek, isFirstOfMonth, monthKey, ymd } from '../core/date';
 import { RNG } from '../core/rng';
 import type { Fixture, World } from '../model/types';
@@ -91,6 +94,8 @@ export function processDay(world: World): void {
   breaksDaily(world);
   for (const team of Object.values(world.teams)) if (team.active) adaptToMeta(world, team.id);
   transferWindowNotices(world);
+  youthDaily(world);
+  previewDaily(world);
   aiMarketDay(world);
   negotiationsDay(world);
   registrationReminders(world);
@@ -100,6 +105,7 @@ export function processDay(world: World): void {
       world.processed.lastWeek = wk;
       breaksWeekly(world);
       aiTradesWeek(world);
+      aiOffersToUser(world);
       weeklyTraining(world);
       weeklyScouting(world);
       processLoans(world);

@@ -8,7 +8,8 @@ import { getTitle } from '../src/data/titles/catalogue';
 import { isAvailable, seasonTitle, titleLockReason } from '../src/systems/availability';
 import { breakRisk, breaksDaily, breaksWeekly, decideBreakRequest, recallPlayer, restPlayer, startLeave } from '../src/systems/breaks';
 import { autoLineup } from '../src/systems/lineup';
-import { aiMarketDay, aiTradesWeek, offerFreeAgent, promotePlayer, releasePlayer, transferWindowNotices } from '../src/systems/transfers';
+import { aiTradesWeek } from '../src/systems/trades';
+import { aiMarketDay, offerFreeAgent, promotePlayer, releasePlayer, transferWindowNotices } from '../src/systems/transfers';
 import { weeklyTraining } from '../src/systems/training';
 
 function userMain(w: World): Team {
@@ -142,7 +143,7 @@ describe('breaks', () => {
 });
 
 describe('mid-season moves', () => {
-  it('AI clubs trade 1-for-1 within a title in the windows; windows are announced', () => {
+  it('AI clubs trade within a title in the windows; windows are announced', () => {
     const w = makeWorld(['lol', 'valorant', 'cs2'], 'ai-trades', 'small');
     const base = clone(w);
     // Rosters wear down during the season (injuries, breaks, form): trade in the mid-season window.
@@ -155,11 +156,10 @@ describe('mid-season moves', () => {
     }
     expect(trades).toBeGreaterThan(0);
     const recs = w.transfers.slice(start).filter((t) => t.type === 'trade');
-    expect(recs.length).toBe(trades * 2);
-    for (const r of recs) {
-      expect(w.teams[r.fromTeamId!].titleId).toBe(w.teams[r.toTeamId!].titleId);
-      expect(recs.some((o) => o !== r && o.day === r.day && o.fromTeamId === r.toTeamId && o.toTeamId === r.fromTeamId)).toBe(true);
-    }
+    // 1-for-1 (2 player moves), 2-for-1 (3) or player-for-picks (1).
+    expect(recs.length).toBeGreaterThanOrEqual(trades);
+    expect(recs.length).toBeLessThanOrEqual(trades * 3);
+    for (const r of recs) expect(w.teams[r.fromTeamId!].titleId).toBe(w.teams[r.toTeamId!].titleId);
     // Outside the windows nothing is traded.
     base.day = dayFromYMD(2027, 3, 3);
     expect(aiTradesWeek(base)).toBe(0);

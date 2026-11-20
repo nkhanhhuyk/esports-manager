@@ -15,6 +15,7 @@
  * free move that completes at the season rollover (restricted free agents sign offer sheets the
  * current club may match). All decisions are deterministic per negotiation (seeded).
  */
+import { difficulty } from './difficulty';
 import { clamp } from '../core/math';
 import { ageAt, formatDate } from '../core/date';
 import { RNG } from '../core/rng';
@@ -79,6 +80,13 @@ export function sellerAsk(world: World, p: Player, owner: Team): { ask: number; 
   const key = starters.includes(p) && rank < 2 && (org?.strategy === 'win-now' || org?.strategy === 'prestige');
   if (key) ask *= 1.4;
   return { ask: round1k(ask), buyout: p.contract?.buyout ?? null, key };
+}
+
+/** Asking price for a buyer: AI clubs bargain harder (or softer) with the user per difficulty. */
+function askFor(world: World, p: Player, owner: Team, buyer: Team | undefined): { ask: number; buyout: number | null; key: boolean } {
+  const r = sellerAsk(world, p, owner);
+  if (buyer && world.orgs[buyer.orgId]?.user) r.ask = round1k(r.ask * difficulty(world).bargaining);
+  return r;
 }
 
 /** The selling club's value of a sell-on clause: an expected share of a future sale. */
@@ -170,7 +178,7 @@ function clubRespond(world: World, n: Negotiation): NegotiationResponse {
   const owner = n.sellerTeamId ? world.teams[n.sellerTeamId] : null;
   if (!p || !owner || p.teamId !== owner.id) return collapse(world, n, 'The player is no longer at the club.', false);
   const rng = RNG.derive(world.meta.seed, 'neg', n.id, n.clubRounds);
-  const { ask, buyout, key } = sellerAsk(world, p, owner);
+  const { ask, buyout, key } = askFor(world, p, owner, world.teams[n.buyerTeamId]);
   note(world, n, `Bid ${fmt(n.fee)}${n.sellOnPct ? ` + ${Math.round(n.sellOnPct * 100)}% sell-on` : ''}`);
   if (buyout !== null && n.fee >= buyout) return clubAccept(world, n, 'buyout');
   const value = n.fee + sellOnCredit(world, p, n.fee, n.sellOnPct);
@@ -246,6 +254,8 @@ function threshold(world: World, n: Negotiation, p: Player, buyer: Team): number
     const stay = offerAppeal(world, p, cur, p.contract.salary) + (p.pers.loyalty / 100) * 0.15 - p.unhappy / 200 - (n.kind === 'transfer' ? 0.05 : 0);
     th = Math.max(th, stay + 0.03);
   } else if (!cur) th -= 0.12;
+  // Agents ask more (or less) of the user's club per difficulty.
+  if (world.orgs[buyer.orgId]?.user) th += (difficulty(world).bargaining - 1) * 0.5;
   return th + RNG.derive(world.meta.seed, 'negp', n.id).normal(0, 0.03);
 }
 

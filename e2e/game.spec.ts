@@ -170,3 +170,29 @@ test('spectator mode: follow every team, simulate, open linked names', async ({ 
   await expect(page).toHaveURL(/#\/(player|team|org|comp|title|staff)\//);
   expect(errors).toEqual([]);
 });
+
+test('new pages: stats hub, season, youth intake, difficulty settings', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  await page.evaluate(() => indexedDB.deleteDatabase('ultimate-esports-manager'));
+  await page.reload();
+  await page.locator('label:has-text("World size") select').selectOption('tiny');
+  await page.getByLabel('Difficulty').selectOption('hard');
+  await page.getByRole('button', { name: 'Generate world' }).click();
+  await page.getByRole('button', { name: 'Manage' }).first().click({ timeout: 60000 });
+  await expect(page.getByText('Upcoming matches')).toBeVisible();
+  for (const [hash, heading] of [
+    ['#/stats', 'Stats hub'],
+    ['#/stats?tab=records', 'Stats hub'],
+    ['#/stats?tab=h2h', 'Stats hub'],
+    ['#/season', 'Season'],
+    ['#/intake', 'Youth intake & trials'],
+  ] as const) {
+    await page.evaluate((h) => (location.hash = h), hash);
+    await expect(page.getByRole('heading', { name: new RegExp(`^${heading}`) })).toBeVisible();
+  }
+  await page.evaluate(() => (location.hash = '#/settings'));
+  await expect(page.getByText('current: hard')).toBeVisible();
+  expect(errors).toEqual([]);
+});

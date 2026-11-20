@@ -120,10 +120,22 @@ Series keep every game.
   another title until the next season (signings, bids, trades, loans, promotions, AI market); moves within
   the same title remain possible in the windows, and a pre-contract with another title's team for next
   season is allowed.
-* **Mid-season moves**: the pre-season (20 Nov–12 Jan) and mid-season (10 May–1 Jun) windows are announced
-  in the news and inbox. AI clubs in leagues that permit trades swap players 1-for-1 when both best lineups
-  improve (cash evens out larger value gaps); clubs replace players who are out long-term (injury, break)
-  with free agents at any time.
+* **Mid-season moves & trades**: the pre-season (20 Nov–12 Jan) and mid-season (10 May–1 Jun) windows are
+  announced in the news and inbox. In leagues that permit trades AI clubs make 1-for-1 swaps (cash or a
+  draft pick evens out value gaps), 2-for-1 consolidations, and veteran-for-picks deals between rebuilding
+  clubs and contenders — and send trade proposals to you (inbox: accept or reject within 7 days). Clubs
+  replace players who are out long-term (injury, break) with free agents at any time.
+* **Youth intake & trials**: every 1 December each academy (or main team) receives a class of 15–17-year-old
+  prospects, bigger and better with academy facilities and a youth-minded academy coach, mostly local. You
+  have 21 days on the Youth intake page to sign, trial or release them. Any free agent can be invited for a
+  1–2 week trial: reserved for you and fully scouted by the end, with a staff verdict.
+* **Season preview & review**: a preview on 13 January (power rankings per league, favourites, players to
+  watch, breakout candidates, biggest moves) and a review when the season ends (champions, awards,
+  storylines built from what happened, preview vs final tables).
+* **Stats hub**: leaderboards per title, season and statistic; all-time records (world titles, trophies,
+  MVPs, season ratings, career games, transfer fees, legacies); head-to-head between any two teams.
+* **Difficulty & sandbox**: Relaxed / Standard / Hard presets or custom sliders for club income, board
+  strictness, injury and break frequency and AI bargaining.
 * **Breaks**: players can ask for a few weeks off (burnout, mental health, motivation, personal or family
   reasons) or step away for the rest of the season — far more likely when exhausted or unhappy. At your club
   they ask first (grant or ask them to stay; refusing costs morale and an exhausted player breaks down

@@ -19,6 +19,7 @@
 | `tests/training.test.ts` | Coach timetables respect match days (light mornings), a rest day, the scrim target and staff capacity; a week of rest develops nobody (attributes and title proficiency unchanged) while a full week does; one practice room shared by several divisions cancels the others' blocks; match-day afternoons are matches and heavy morning sessions are cancelled with a reason; no coaching staff → coached sessions run unsupervised; scrims pair real partners of the same title and another organisation, both sides record mirrored results and gain intel; the outside-league policy never scrims a league rival |
 | `tests/modes.test.ts` | Spectator mode: no organisation is user-controlled, the former club keeps a full roster through a season, nothing waits for a user decision, followed teams' matches are full detail with match reports and training timetables; stopping the day before a followed match and taking charge again; delegated signings let the GM fill a short roster (not otherwise); delegated registration ignores the manager's plan; roles without a permission always delegate |
 | `tests/breaks.test.ts` | One game per season (a player who played LoL cannot be signed or promoted into CS2 until the rollover; a simulated season never has a player in two titles); break risk rises sharply with exhaustion/unhappiness; granted break removes the player from lineups (never fielded even short-handed), training and registration, then he returns with an inbox note; refusing costs morale, exhausted players break down anyway, unanswered requests start after 7 days (hiatus until the season end); club rest and early recall; AI clubs sign a replacement for a starter who steps away; AI 1-for-1 trades only inside windows, same title, mirrored records; mid-season window announced |
+| `tests/features.test.ts` | Difficulty presets change the user's income, scale board losses only, injuries off means no injuries, harder bargaining turns an accepted bid into a refusal; AI trade proposals reach the inbox and move players and picks on accept, nothing on reject; a simulated season has at least two kinds of AI trades, always within a title; youth intake on 1 December (ages 15–17, partly scouted, idempotent, < 10% population growth), signing, deadline release; trials reserve a free agent, cost money and reveal him fully with a staff verdict; season preview ranked by strength on 13 January, review with champions, storylines and preview-vs-reality tables; head-to-head ledger consistent from both sides |
 | `tests/longterm.test.ts` | 10 seasons (default) / 30 seasons (`LONG_SIM=1`): bounded population, finite finances, bounded save growth, multiple world champions per title, legends & retirees |
 
 End-to-end (`npm run e2e`, Playwright, Chromium): new career → organisation pick → players directory,
@@ -34,9 +35,10 @@ not survive a reload, or any warning/error was logged.
 
 ## Latest results
 
-* Vitest: **139 passed / 139** (20 Nov 2026: + training sessions & scrims, spectator mode, delegation, one
+* Vitest: **146 passed / 146** (+ difficulty, trades, youth intake & trials, season preview/review, head-to-head);
+  previously 139 passed / 139 (20 Nov 2026: + training sessions & scrims, spectator mode, delegation, one
   game per season, breaks, AI trades). Test worlds clear the rating cache (worlds reuse player ids).
-* Playwright: **4 passed / 4** (incl. spectator mode and linked names); `npm run check:portable` passes (worker loads from file://, no freezes,
+* Playwright: **5 passed / 5** (incl. spectator mode, linked names, and the stats/season/intake/difficulty pages); `npm run check:portable` passes (worker loads from file://, no freezes,
   autosave survives reload); Pixel 7 emulation: no horizontal overflow, slot save works by tap.
 * Android: `npm run android:debug-apk` → `android/app/build/outputs/apk/debug/app-debug.apk` built and
   verified with `aapt dump badging` (package `dev.uem.esportsmanager`, min 24 / target 36, INTERNET only),

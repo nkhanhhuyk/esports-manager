@@ -6,6 +6,7 @@
  * division, tracks confidence and can dismiss the user (not owners/commissioners), after which the
  * user chooses a new job from organisations that are interested.
  */
+import { boardDelta } from './difficulty';
 import { clamp } from '../core/math';
 import { RNG } from '../core/rng';
 import type { DelegationArea, BoardObjective, CareerRole, Competition, JobApproach, League, Team, World } from '../model/types';
@@ -163,7 +164,7 @@ export function boardReview(world: World, season: number): boolean {
   }
   const trophies = Object.values(world.teams).filter((t) => t.orgId === uid).reduce((a, t) => a + t.trophies.filter((x) => x.season === season).length, 0);
   delta += trophies * 8;
-  board.confidence = clamp(board.confidence * 0.7 + 18 + delta, 0, 100);
+  board.confidence = clamp(board.confidence * 0.7 + 18 + boardDelta(world, delta), 0, 100);
   board.ultimatum = null;
   const sacked = board.confidence < 20;
   // The manager's contract: renewed when the board is happy enough, otherwise allowed to run out.
@@ -273,6 +274,7 @@ export function boardCompetitionReaction(world: World, comp: Competition): void 
     }
   }
   if (!lines.length) return;
+  delta = Math.round(boardDelta(world, delta));
   board.confidence = clamp(board.confidence + delta, 0, 100);
   boardNote(world, `${comp.name}: ${delta > 0 ? '+' : ''}${delta}`, delta);
   const conf = Math.round(board.confidence);
@@ -301,7 +303,7 @@ export function boardMonthly(world: World): void {
   const org = world.orgs[uid];
   const fin = board.objectives.find((o) => o.season === world.season && o.kind === 'finance');
   if (org.balance < 0) {
-    board.confidence = clamp(board.confidence - 3, 0, 100);
+    board.confidence = clamp(board.confidence + boardDelta(world, -3), 0, 100);
     boardNote(world, 'Negative bank balance: -3', -3);
     if (board.financeWarned !== world.season) {
       board.financeWarned = world.season;

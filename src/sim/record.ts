@@ -3,6 +3,7 @@
  * competition aggregates, Elo, morale/form/fatigue, proficiency growth from play, chemistry,
  * relationships and news. Idempotent per fixture (guarded by fixture.status).
  */
+import { recordH2H } from '../systems/seasonReport';
 import { isFollowed } from '../systems/follow';
 import { clamp } from '../core/math';
 import { getTitle } from '../data/titles/catalogue';
@@ -162,6 +163,7 @@ function applySeries(world: World, f: Fixture, st: SeriesState, forceDetail: boo
   eloUpdate(world, f.teams[0], f.teams[1], st.winner === 0, margin);
   // Rivalry memory and supporter reactions come only from this recorded result.
   const rivalry = recordEncounter(world, f, st.winner, preElo);
+  recordH2H(world, f, st.winner, st.wins);
   fansOnSeries(world, f, st.winner, rivalry, academyDebuts(world, f, games));
   record.audience = seriesAudience(world, f, rivalry);
   seriesMorale(world, winner, true, importance);

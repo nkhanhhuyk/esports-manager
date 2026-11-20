@@ -86,6 +86,11 @@ by simulation tests.
   every move path, verified by simulation); players take breaks or step away for the season (requests,
   grant/refuse, club rest, recovery, news; ~3% a season); AI clubs replace long absentees and trade
   1-for-1 in the windows; window open/close notices (`tests/breaks.test.ts`).
+* **Trades, youth, seasons, stats, difficulty**: AI 1-for-1 (with cash/pick balancing), 2-for-1 and
+  player-for-picks trades, AI trade proposals to you; youth intake every December with sign/trial/release and
+  free-agent trials; season previews (power rankings, predictions) and reviews (storylines, preview vs
+  reality); stats hub (leaderboards, records, head-to-head ledger); difficulty presets and sandbox sliders
+  (`tests/features.test.ts`, e2e page checks).
 * **Tappable names everywhere**: team/player/org/competition/staff/title names link to their pages in
   tables, match screens, inbox, news, commentary, histories and notes.
 * **Patches/meta**: per-title version history, balance & major patches, styles, map pool rotation, objective
@@ -120,9 +125,9 @@ by simulation tests.
 
 * **Dual-title participation**: `Player.dualTitleId` exists and cross-title histories are tracked, but a player
   cannot yet appear on two active rosters simultaneously.
-* **Draft picks / transfers**: AI clubs trade players 1-for-1 (with cash) but not picks or multi-player
-  packages; AI clubs do not yet propose trades to you; no transfer instalments, add-ons or loan-to-buy
-  options; AI-to-AI deals are resolved instantly rather than negotiated.
+* **Draft picks / transfers**: AI trades cover 1-for-1, 2-for-1 and player-for-picks, and AI clubs propose
+  trades to you, but you cannot counter a proposal (accept/reject, or build your own in the trade builder);
+  no transfer instalments, add-ons or loan-to-buy options; AI-to-AI deals are resolved instantly.
 * **Career roles & job security**: choose Head Coach & GM, Head Coach, General Manager, Sporting Director,
   Owner or Commissioner. Each role has its own permissions (tactics/live matches, transfers, contracts, staff,
   finance, facilities, expansion); AI staff run whatever your role doesn't (e.g. the AI GM recruits for a Head

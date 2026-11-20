@@ -4,6 +4,7 @@
  * organisation evolution (rebrands, closures, new divisions, mergers), sponsors, pruning of
  * old detail data, and planning the next season. Idempotent per season.
  */
+import { publishReview } from '../systems/seasonReport';
 import { fansOnRetirement } from '../systems/fans';
 import { clamp } from '../core/math';
 import { ageAt } from '../core/date';
@@ -410,6 +411,7 @@ export function seasonRollover(world: World): void {
   popularityDrift(world, rng);
   orgEvolution(world, rng);
   for (const org of Object.values(world.orgs)) if (org.active && !org.federation) renewSponsors(world, org, rng);
+  publishReview(world, season);
   hallOfFame(world, season + 1);
   world.season = season + 1;
   runRookieDrafts(world, season, rng);

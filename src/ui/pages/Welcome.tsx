@@ -1,3 +1,4 @@
+import type { DifficultyPreset } from '../../systems/difficulty';
 import { navigate } from '../router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../store';
@@ -78,6 +79,7 @@ export function Welcome() {
   const [titles, setTitles] = useState<string[]>(TITLES.map((t) => t.id));
   const [manager, setManager] = useState('Manager');
   const [role, setRole] = useState<CareerRole>('coach-gm');
+  const [diff, setDiff] = useState<DifficultyPreset>('standard');
   const [session, setSession] = useState<{ saveId: string; dirty: boolean } | undefined>();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -152,6 +154,14 @@ export function Welcome() {
             </select>
           </label>
           <label className="field" style={{ marginTop: 8 }}>
+            <span>Difficulty</span>
+            <select value={diff} onChange={(e) => setDiff(e.target.value as DifficultyPreset)} aria-label="Difficulty">
+              <option value="relaxed">Relaxed — more income, patient board, fewer injuries & breaks, softer bargaining</option>
+              <option value="standard">Standard</option>
+              <option value="hard">Hard — less income, strict board, more injuries & breaks, tougher bargaining</option>
+            </select>
+          </label>
+          <label className="field" style={{ marginTop: 8 }}>
             <span>World size</span>
             <select value={size} onChange={(e) => setSize(e.target.value as typeof size)}>
               {SIZES.map((s) => (
@@ -191,7 +201,7 @@ export function Welcome() {
             <button
               className="btn"
               disabled={!titles.length}
-              onClick={() => newGame({ name, seed, worldSize: size, titles, managerName: manager, careerRole: role })}
+              onClick={() => newGame({ name, seed, worldSize: size, titles, managerName: manager, careerRole: role, difficulty: diff })}
             >
               Generate world
             </button>

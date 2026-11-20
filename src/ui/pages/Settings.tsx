@@ -1,3 +1,4 @@
+import { difficulty, DIFFICULTY_LABEL, PRESETS, type DifficultyPreset } from '../../systems/difficulty';
 import { useRef } from 'react';
 import { navigate } from '../router';
 import { saveFile } from '../fileExport';
@@ -13,6 +14,42 @@ import { OrgLink, TeamLink, TitleTag } from '../components/common';
 import type { DelegationArea, World } from '../../model/types';
 
 const AREAS = Object.keys(DELEGATION_INFO) as DelegationArea[];
+
+function DifficultyCard({ world }: { world: World }) {
+  const { act } = useGame();
+  const d = difficulty(world);
+  const keys = Object.keys(DIFFICULTY_LABEL) as Array<keyof typeof DIFFICULTY_LABEL>;
+  return (
+    <Card title="Difficulty & sandbox" right={<span className="muted small">current: {d.preset}</span>}>
+      <div className="row" style={{ marginBottom: 8 }}>
+        {(['relaxed', 'standard', 'hard'] as DifficultyPreset[]).map((p) => (
+          <button key={p} className={`btn sm ${d.preset === p ? '' : 'ghost'}`} onClick={() => act((w) => (w.meta.difficulty = { ...PRESETS[p] }))}>
+            {p[0].toUpperCase() + p.slice(1)}
+          </button>
+        ))}
+      </div>
+      {keys.map((k) => {
+        const info = DIFFICULTY_LABEL[k];
+        return (
+          <label key={k} className="field" style={{ marginTop: 6 }}>
+            <span>
+              {info.label}: ×{d[k].toFixed(2)} <span className="muted small">— {info.desc}</span>
+            </span>
+            <input
+              type="range"
+              aria-label={info.label}
+              min={info.min}
+              max={info.max}
+              step={info.step}
+              value={d[k]}
+              onChange={(e) => act((w) => (w.meta.difficulty = { ...difficulty(w), [k]: Number(e.target.value), preset: 'custom' }))}
+            />
+          </label>
+        );
+      })}
+    </Card>
+  );
+}
 
 function GameModeCard({ world }: { world: World }) {
   const { act } = useGame();
@@ -157,6 +194,7 @@ export function SettingsPage() {
     <div>
       <PageHeader title="Settings" sub={`Save "${world.meta.name}" · seed ${world.meta.seed} · schema v${SAVE_VERSION} · world size ${world.meta.worldSize}`} />
       <GameModeCard world={world} />
+      <DifficultyCard world={world} />
       <DelegationCard world={world} />
       <div className="grid2">
         <Card title="Display">

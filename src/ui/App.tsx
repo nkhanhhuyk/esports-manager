@@ -28,6 +28,8 @@ import { EditorPage } from './pages/Editor';
 import { NewsPage } from './pages/News';
 import { SavesPage } from './pages/Saves';
 import { FollowingPage, SpectatorHome } from './pages/Following';
+import { YouthPage } from './pages/Youth';
+import { SeasonPage, StatsPage } from './pages/Stats';
 
 const NAV: Array<{ sec?: string; page?: string; label?: string }> = [
   { page: 'home', label: 'Home' },
@@ -47,11 +49,14 @@ const NAV: Array<{ sec?: string; page?: string; label?: string }> = [
   { sec: 'Recruitment' },
   { page: 'market', label: 'Market' },
   { page: 'scouting', label: 'Scouting' },
+  { page: 'intake', label: 'Youth intake' },
   { sec: 'Business' },
   { page: 'finances', label: 'Finances' },
   { page: 'facilities', label: 'Facilities' },
   { sec: 'Universe' },
   { page: 'world', label: 'World' },
+  { page: 'season', label: 'Season preview & review' },
+  { page: 'stats', label: 'Stats hub' },
   { page: 'history', label: 'History' },
   { page: 'awards', label: 'Awards' },
   { sec: 'System' },
@@ -61,7 +66,7 @@ const NAV: Array<{ sec?: string; page?: string; label?: string }> = [
 ];
 
 /** Pages that manage your own organisation (hidden while spectating). */
-const MANAGER_ONLY = ['org', 'tactics', 'training', 'market', 'scouting', 'finances', 'facilities'];
+const MANAGER_ONLY = ['org', 'tactics', 'training', 'market', 'scouting', 'intake', 'finances', 'facilities'];
 
 function navFor(spectating: boolean): typeof NAV {
   if (!spectating) return NAV;
@@ -238,6 +243,12 @@ function Page({ route }: { route: Route }) {
       return <FollowingPage />;
     case 'take-charge':
       return <OrgPicker />;
+    case 'intake':
+      return <YouthPage />;
+    case 'stats':
+      return <StatsPage route={route} />;
+    case 'season':
+      return <SeasonPage route={route} />;
     case 'inbox':
       return <Inbox />;
     case 'news':

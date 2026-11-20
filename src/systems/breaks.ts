@@ -14,6 +14,7 @@
  *  takes it). Refusing costs morale and goodwill, and an exhausted player (fatigue > 75) breaks
  *  down anyway. Managers can also rest a player for 1–4 weeks and bring him back early.
  */
+import { difficulty } from './difficulty';
 import { clamp } from '../core/math';
 import { RNG } from '../core/rng';
 import { dayFromYMD, formatDate } from '../core/date';
@@ -103,6 +104,7 @@ function userDecides(world: World, team: Team): boolean {
 export function breaksWeekly(world: World): void {
   const rng = new RNG(`${world.meta.seed}|breaks|${world.day}`);
   const season = inCompetitiveSeason(world);
+  const rate = difficulty(world).breaks;
   for (const p of Object.values(world.players)) {
     if (p.retired || !p.teamId || !p.contract) continue;
     if (p.leaveRequest) {
@@ -115,7 +117,7 @@ export function breaksWeekly(world: World): void {
     if (!season || p.leave || (p.injury && p.injury.untilDay > world.day)) continue;
     const team = world.teams[p.teamId];
     if (!team || team.national) continue;
-    if (!rng.chance(breakRisk(p))) continue;
+    if (!rng.chance(breakRisk(p) * rate)) continue;
     const reason = p.fatigue > 65 ? REASONS.burnout : p.morale < 35 ? rng.pick([REASONS.mental, REASONS.motivation]) : rng.pick([REASONS.personal, REASONS.family, REASONS.mental]);
     const personal = reason === REASONS.personal || reason === REASONS.family;
     const kind: 'break' | 'hiatus' = rng.chance(personal ? 0.3 : 0.15) ? 'hiatus' : 'break';
