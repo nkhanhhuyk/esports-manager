@@ -5,6 +5,7 @@ import { boxScoresLoaded, cachedArchive, editionsOf, isArchived, loadArchive, se
 import { Card, CompLink, PageHeader, Pic, PlayerLink, Stat, TeamLink, TitleTag, Tabs, Money, OrgBadge, Provenance } from '../components/common';
 import { compPic } from '../pics';
 import { DataTable } from '../components/DataTable';
+import { StatControls, statColumns, statGroups } from '../components/StatGroups';
 import { getTitle } from '../../data/titles/catalogue';
 import { regionName } from '../../data/countries';
 import { formatDate, formatShort } from '../../core/date';
@@ -30,8 +31,13 @@ export function CompetitionsPage({ route }: { route: Route }) {
     for (const c of Object.values(world.comps)) add(c);
     for (const e of world.compIndex ?? []) add(e);
     for (const sr of map.values()) {
-      const live = sr.editions.find((e) => !e.archived && world.comps[e.id]?.status !== 'done') ?? sr.editions.find((e) => !e.archived);
-      sr.latest = live ? world.comps[live.id] : null;
+      // The edition being played now, else the next one to start, else the most recent finished one.
+      const live = sr.editions.filter((e) => !e.archived).map((e) => world.comps[e.id]).filter(Boolean);
+      sr.latest =
+        live.find((c) => c.status === 'active') ??
+        [...live].filter((c) => c.status === 'pending').sort((a, b) => a.startDay - b.startDay)[0] ??
+        [...live].sort((a, b) => b.startDay - a.startDay)[0] ??
+        null;
     }
     return [...map.values()].filter((sr) => (!title || sr.titleId === title) && (!tier || sr.tier === tier));
   }, [world, title, tier]);
@@ -310,23 +316,7 @@ export function CompetitionPage({ id, route }: { id: string; route: Route }) {
           {!fixtures.length && <div className="muted">No matches scheduled yet.</div>}
         </Card>
       )}
-      {tab === 'players' && (
-        <Card>
-          <DataTable
-            id={`comp-players-${t.id}`}
-            rows={leaders}
-            rowKey={(r) => r.p.id}
-            initialSort={{ key: 'r', desc: true }}
-            columns={[
-              { key: 'p', label: 'Player', value: (r) => r.p.handle, render: (r) => <PlayerLink p={r.p} /> },
-              { key: 't', label: 'Team', value: (r) => world.teams[r.s.teamId]?.name ?? '', render: (r) => <TeamLink t={world.teams[r.s.teamId]} short /> },
-              { key: 'gp', label: 'Games', align: 'right', value: (r) => r.s.gp },
-              { key: 'r', label: 'Avg rating', align: 'right', value: (r) => r.s.r / r.s.gp, render: (r) => (r.s.r / r.s.gp).toFixed(2) },
-              { key: 'm', label: 'Game MVPs', align: 'right', value: (r) => r.s.m },
-            ]}
-          />
-        </Card>
-      )}
+      {tab === 'players' && <CompPlayerStatsCard world={world} comp={comp} />}
       {tab === 'placements' && (
         <Card>
           <table className="table">
@@ -346,5 +336,50 @@ export function CompetitionPage({ id, route }: { id: string; route: Route }) {
         </Card>
       )}
     </div>
+  );
+}
+
+/** Player statistics in one competition: stat group and totals / per game by dropdown, team filter. */
+function CompPlayerStatsCard({ world, comp }: { world: World; comp: Competition }) {
+  const [group, setGroup] = useState('overview');
+  const [perGame, setPerGame] = useState(true);
+  const [team, setTeam] = useState('');
+  const g = statGroups(comp.titleId).find((x) => x.id === group) ?? statGroups(comp.titleId)[0];
+  const rows = Object.entries(comp.pstats)
+    .map(([pid, s]) => ({ p: world.players[pid], pid, s }))
+    .filter((r) => r.s.gp > 0 && (!team || r.s.teamId === team));
+  const teams = [...new Set(Object.values(comp.pstats).map((s) => s.teamId))].filter((id) => world.teams[id]).sort((a, b) => world.teams[a].name.localeCompare(world.teams[b].name));
+  const noDetail = rows.length > 0 && rows.every((r) => !r.s.v);
+  return (
+    <Card>
+      <div className="row" style={{ marginBottom: 6, flexWrap: 'wrap' }}>
+        <StatControls titleId={comp.titleId} group={group} setGroup={setGroup} perGame={perGame} setPerGame={setPerGame} />
+        <select value={team} onChange={(e) => setTeam(e.target.value)} aria-label="Team">
+          <option value="">All teams</option>
+          {teams.map((id) => (
+            <option key={id} value={id}>
+              {world.teams[id].name}
+            </option>
+          ))}
+        </select>
+      </div>
+      {noDetail && <div className="muted small">This edition was played before per-competition stat lines were recorded: games, wins, rating and MVPs only.</div>}
+      <DataTable
+        id={`comp-players-${comp.titleId}-${group}`}
+        rows={rows}
+        rowKey={(r) => r.pid}
+        initialSort={{ key: g.kda ? 'st-kda' : 'r', desc: true }}
+        filter={(r, q) => (r.p?.handle ?? '').toLowerCase().includes(q)}
+        columns={[
+          { key: 'p', label: 'Player', value: (r) => r.p?.handle ?? r.pid, render: (r) => (r.p ? <PlayerLink p={r.p} /> : <span className="muted">retired</span>) },
+          { key: 't', label: 'Team', value: (r) => world.teams[r.s.teamId]?.name ?? '', render: (r) => <TeamLink t={world.teams[r.s.teamId]} short /> },
+          { key: 'gp', label: 'GP', align: 'right', value: (r) => r.s.gp },
+          { key: 'wl', label: 'W-L', align: 'right', value: (r) => r.s.w ?? 0, render: (r) => (r.s.w === undefined ? '—' : `${r.s.w}-${r.s.gp - r.s.w}`) },
+          { key: 'r', label: 'Rating', align: 'right', value: (r) => r.s.r / r.s.gp, render: (r) => (r.s.r / r.s.gp).toFixed(2) },
+          { key: 'm', label: 'MVPs', align: 'right', value: (r) => r.s.m },
+          ...statColumns(comp.titleId, g, perGame, (r: { s: Competition['pstats'][string] }) => r.s),
+        ]}
+      />
+    </Card>
   );
 }

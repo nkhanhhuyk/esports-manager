@@ -607,7 +607,7 @@ export interface Competition {
   /** Competition rules that override the title's defaults (e.g. First Stand's hard Fearless draft). */
   rules?: { fearless?: 'none' | 'team' | 'global' };
   /** Per-player aggregate inside this competition (MVP voting). */
-  pstats: Record<ID, { gp: number; r: number; m: number; teamId: ID }>;
+  pstats: Record<ID, CompPlayerStats>;
   /**
    * Registered players per entrant, frozen when the competition locks (3 days before it starts).
    * Only registered players may play in this competition. Absent for editions created before
@@ -623,6 +623,20 @@ export interface SeriesFormat {
   kind: 'bo';
   n: number;
   label: string;
+}
+
+/**
+ * A player's numbers in one competition: games, wins, rating sum, game MVPs, team, and the title's
+ * stat totals as an array in the title's stat order (`getTitle(titleId).stats`). `v` is absent in
+ * competitions recorded by older builds.
+ */
+export interface CompPlayerStats {
+  gp: number;
+  r: number;
+  m: number;
+  teamId: ID;
+  w?: number;
+  v?: number[];
 }
 
 export interface Fixture {

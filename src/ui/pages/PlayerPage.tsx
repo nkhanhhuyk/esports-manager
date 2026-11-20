@@ -23,7 +23,9 @@ import { BuyPanel, SellPanel } from './TransferTalks';
 import { legacy } from '../../systems/awards';
 import { LineChart } from '../components/Charts';
 import { displayName } from '../../gen/names';
-import type { Player } from '../../model/types';
+import type { Competition, Player, World } from '../../model/types';
+import { DataTable } from '../components/DataTable';
+import { StatControls, statColumns, statGroups } from '../components/StatGroups';
 
 function OfferPanel({ p }: { p: Player }) {
   const world = useWorld();
@@ -501,6 +503,7 @@ export function PlayerPage({ id, route }: { id: string; route: Route }) {
       )}
       {tab === 'stats' && (
         <>
+          <PlayerCompStats world={world} p={p} />
           {titles.map((tid) => {
             const tt = getTitle(tid);
             const lines = p.stats.filter((s) => s.titleId === tid).sort((a, b) => a.season - b.season);
@@ -656,4 +659,51 @@ function personalityLabel(p: Player, knowledge: number): string {
   if (p.pers.pressure < 28) traits.push('nervous under pressure');
   if (p.pers.controversy > 65) traits.push('controversial');
   return traits.length ? traits.join(', ') : 'balanced';
+}
+
+/** A player's numbers in each competition of a season (current and past seasons), with dropdowns. */
+function PlayerCompStats({ world, p }: { world: World; p: Player }) {
+  const all = useMemo(() => {
+    const out: Competition[] = [];
+    for (const c of Object.values(world.comps)) if (c.pstats[p.id]) out.push(c);
+    for (const ps of Object.values(world.past ?? {})) for (const c of ps.comps) if (c.pstats[p.id]) out.push(c);
+    return out.sort((a, b) => b.season - a.season || a.startDay - b.startDay);
+  }, [world, p.id]);
+  const seasons = [...new Set(all.map((c) => c.season))];
+  const [season, setSeason] = useState<number | null>(null);
+  const [group, setGroup] = useState('overview');
+  const [perGame, setPerGame] = useState(true);
+  const sel = season ?? seasons[0];
+  const rows = all.filter((c) => c.season === sel);
+  if (!all.length) return null;
+  const titleId = rows[0]?.titleId ?? p.titleId;
+  const g = statGroups(titleId).find((x) => x.id === group) ?? statGroups(titleId)[0];
+  return (
+    <Card title="By competition">
+      <div className="row" style={{ marginBottom: 6, flexWrap: 'wrap' }}>
+        <select value={sel} onChange={(e) => setSeason(Number(e.target.value))} aria-label="Season">
+          {seasons.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <StatControls titleId={titleId} group={group} setGroup={setGroup} perGame={perGame} setPerGame={setPerGame} />
+      </div>
+      <DataTable
+        id={`player-comp-${titleId}-${group}`}
+        rows={rows}
+        rowKey={(c) => c.id}
+        columns={[
+          { key: 'c', label: 'Competition', value: (c) => c.startDay, render: (c) => <CompLink c={c} /> },
+          { key: 't', label: 'Team', value: (c) => world.teams[c.pstats[p.id].teamId]?.name ?? '', render: (c) => <TeamLink t={world.teams[c.pstats[p.id].teamId]} short /> },
+          { key: 'gp', label: 'GP', align: 'right', value: (c) => c.pstats[p.id].gp },
+          { key: 'wl', label: 'W-L', align: 'right', value: (c) => c.pstats[p.id].w ?? 0, render: (c) => (c.pstats[p.id].w === undefined ? '—' : `${c.pstats[p.id].w}-${c.pstats[p.id].gp - (c.pstats[p.id].w ?? 0)}`) },
+          { key: 'r', label: 'Rating', align: 'right', value: (c) => c.pstats[p.id].r / c.pstats[p.id].gp, render: (c) => (c.pstats[p.id].r / c.pstats[p.id].gp).toFixed(2) },
+          { key: 'm', label: 'MVPs', align: 'right', value: (c) => c.pstats[p.id].m },
+          ...statColumns(titleId, g, perGame, (c: Competition) => c.pstats[p.id]),
+        ]}
+      />
+    </Card>
+  );
 }

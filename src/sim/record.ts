@@ -40,10 +40,14 @@ function applyGame(world: World, f: Fixture, game: GameResult, teamIds: string[]
     if (mvp === p.id) sl.mvps++;
     for (const [k, v] of Object.entries(line.s)) sl.s[k] = (sl.s[k] ?? 0) + v;
     if (comp) {
-      const cs = (comp.pstats[p.id] ||= { gp: 0, r: 0, m: 0, teamId: tid });
+      const keys = getTitle(f.titleId).stats;
+      const cs = (comp.pstats[p.id] ||= { gp: 0, r: 0, m: 0, teamId: tid, w: 0, v: keys.map(() => 0) });
       cs.gp++;
-      cs.r += line.rating;
+      cs.r = Math.round((cs.r + line.rating) * 100) / 100;
       if (mvp === p.id) cs.m++;
+      if (won) cs.w = (cs.w ?? 0) + 1;
+      // Stat totals in the title's stat order (compact; KDA and per-game values come from these).
+      if (cs.v) for (let i = 0; i < keys.length; i++) cs.v[i] = Math.round((cs.v[i] + (line.s[keys[i].key] ?? 0)) * 10) / 10;
       cs.teamId = tid;
     }
     // Learning by playing: title, role, character and map familiarity.
