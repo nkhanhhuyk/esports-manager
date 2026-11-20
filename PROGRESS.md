@@ -21,7 +21,12 @@ by simulation tests.
 | Three splits + First Stand (hard Fearless) + MSI double elimination (user request) | ✅ | `src/competition/season.ts`, `tests/calendar.test.ts` (order of events, Fearless never repeats a champion in a series, MSI lower bracket) |
 | LoL / Dota 2 first selection (side or draft order); blue side on top in box scores | ✅ | `src/sim/series.ts` (`gameSides`), live choice on the match screen, `tests/sides.test.ts` |
 | Minor / medium / major patches; major patches change gameplay rules | ✅ | `src/systems/patches.ts`, `src/sim/common/rules.ts` (read by all four engines), `tests/patches.test.ts` |
-| HoK / Wild Rift real teams from Liquipedia | ❌ blocked | Liquipedia API rate-limited this environment after one request (Cloudflare challenge) — not bypassed |
+| HoK / Wild Rift real teams | ❌ blocked | Liquipedia rate-limited this environment (Cloudflare challenge, not bypassed); the Wild Rift Esports Wiki (Fandom) has no data after 2021; the official KPL site loads data from private Tencent APIs (not reverse-engineered) |
+| MOBA kills: no 40–50-kill blowouts or multi-feeder losers (user report) | ✅ | catch-up XP, safe play after deaths, falling back from stronger groups, turtling when behind, bounties, focus fire, tower aggro; `scripts/kill-report.ts`; kill-band regression test in `tests/spatial.test.ts` |
+| APK-first saving and simulation (user report: saves hanging, simulation reverting) | ✅ built · ⏳ device test | gzip-compressed saves, compacted match records, past seasons' results inside the save (box scores in a lazy store), simulation in place in short slices (no world copy to a worker); throttled-browser check: load 1.2 s, save 3.5–5.7 s |
+| Per-competition player stats with KDA and stat-group dropdowns | ✅ | competition Player stats tab, player page "By competition" |
+| Real birth dates / nationalities / names / LoL roles | ✅ LoL, CS2 · 🔶 Valorant · ❌ Dota 2, MLBB | `src/data/real/playerFacts.json` (Leaguepedia, bo3.gg, VALORANT Esports Wiki) |
+| Pictures (characters, weapons, logos, player photos) | ✅ linked | `src/data/real/images.json`; loaded from owners' servers when online, own badges offline |
 | Real competition names | ✅ leagues + internationals | real league names; real-world careers name the mid-season international and the world championship after the real circuits (formats/dates/prizes are game simulation) |
 | User fixes: MOBA kill counts, watch any match, one page per competition with a season dropdown, keep box scores/history, KDA in stats | ✅ | `tests/spatial.test.ts` kill bands, `tests/archive.test.ts`, Match/LiveMatch watch & replay buttons |
 | Android: do not re-convert, keep working (§11) | ✅ | Capacitor project untouched; APK rebuilt from the same scripts |

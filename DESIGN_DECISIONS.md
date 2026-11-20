@@ -436,3 +436,18 @@ Chosen on the new-career form; Settings → Difficulty & sandbox offers the pres
   gold income, structure health and death timers; shooters: bomb/spike, round, plant and defuse timers,
   economy, loss bonus, attacker/defender balance. Rules accumulate across seasons. World → Patches shows
   the rules in force.
+
+## Saving and simulation on Android (APK-first)
+
+* **Saves** are one gzip-compressed JSON value per slot (`src/persistence/codec.ts`, CompressionStream,
+  available in Android System WebView) instead of a deep object graph in IndexedDB; older saves load.
+* **Match records** are compacted when recorded: drafts keep bans, picks and first pick (each player's
+  character is in the box score), rounded stats, no side text for background games.
+* **Finished seasons**: competitions, stages, standings, brackets, placements, per-player competition stats
+  and fixtures with results stay inside the save (`world.past`) — old competitions open instantly. Only
+  old seasons' per-game box scores live in a separate compressed store, loaded with an old match report.
+* **Simulation** runs in place on the page in ~90 ms slices with the screen updating between slices
+  (`advanceInSlices`). The world is no longer copied to a worker and back on every advance (memory
+  doubling on large worlds was what made phones drop progress). Errors keep progress up to the last day.
+* **Background drafts**: fast-engine games use a quick draft from cached per-player preference lists
+  (same rules); games you play or watch use the full draft AI. About 2× faster simulation.
