@@ -7,16 +7,19 @@ by simulation tests.
 
 | Requirement (section) | Status | Evidence / gap |
 | --- | --- | --- |
-| Keep existing game; do not restart (§0) | ✅ | same codebase, saves v7, all earlier systems and tests kept |
+| Keep existing game; do not restart (§0) | ✅ | same codebase, saves v8 (older saves migrate), all earlier systems and tests kept |
 | Seven titles only (§2) | ✅ | unchanged registry gates |
 | Real characters for all MOBAs + Valorant agents; CS2 without heroes (§2A) | ✅ | `src/data/real/characters.json` (snapshot real-2026-11-20), DATA_SOURCES.md |
 | Real orgs, teams, pro players with provenance; ratings as estimates (§2A) | ✅ MLBB, LoL, Dota 2, Valorant, CS2 · ❌ HoK, Wild Rift | `src/data/real/rosters.json`, New Game → "Real teams & pro players"; Real/Fictional labels on player, team, org, staff, league pages; HoK/WR had no reachable verifiable roster source → fictional |
 | Liquipedia | not used | its CAPTCHA instructs automated agents not to solve it — respected |
-| Research real maps for all seven (§7A, §7B) | ✅ MOBAs · 🔶 shooters | five MOBA MapDefinitions with sources; Valorant callouts available from valorant-api.com, CS2 active-duty pool identified; shooter MapDefinitions not yet built |
+| Research real maps for all seven (§7A, §7B) | ✅ | five MOBA MapDefinitions; 13 Valorant maps (official callout coordinates from valorant-api.com, connections inferred) and 9 CS2 maps (schematic from callout guides) — DATA_SOURCES.md |
 | Authoritative spatial MOBA simulation, same result live/text/instant (§7, §7A) | ✅ | `src/sim/moba/spatial.ts`, `tests/spatial.test.ts` (recording/repeat equality); fidelity locked per fixture before play (background AI fixtures use the fast engine — documented) |
 | Live 2D MOBA viewer with controls, scoreboard, follow, overlays (§7A) | ✅ all five MOBAs | `MobaViewer`, live match + match report replays; phone layout checked in a browser |
 | MOBA order MLBB → WR → HoK → LoL → Dota | ✅ | all five done in this milestone; MLBB checked first in the browser with real MPL ID teams |
-| Live 2D shooters (§7B) | ❌ next | round engine still aggregate; no shooter viewer yet |
+| Live 2D shooters (§7B) | ✅ Valorant, CS2 | `src/sim/shooter/spatialRounds.ts` (positions, line of sight, plant/defuse, economy), `ShooterViewer`; `tests/shooter.test.ts` (legal scores, kills = deaths, players on walkable ground, recording never changes results) |
+| Past real teams, former pros, retired pros (user request) | ✅ | `src/data/real/history.json` (344 teams, 1,857 players); dormant teams outside leagues revive when a league place is sold; former pros as free agents; retired records with comebacks — `tests/realworld.test.ts` |
+| Real competition names | ✅ leagues + internationals | real league names; real-world careers name the mid-season international and the world championship after the real circuits (formats/dates/prizes are game simulation) |
+| User fixes: MOBA kill counts, watch any match, one page per competition with a season dropdown, keep box scores/history, KDA in stats | ✅ | `tests/spatial.test.ts` kill bands, `tests/archive.test.ts`, Match/LiveMatch watch & replay buttons |
 | Android: do not re-convert, keep working (§11) | ✅ | Capacitor project untouched; APK rebuilt from the same scripts |
 | Press conferences, promises (deferred by the user earlier) | ⏳ | later |
 

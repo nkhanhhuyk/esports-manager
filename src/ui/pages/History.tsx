@@ -1,11 +1,33 @@
 import { useMemo } from 'react';
-import { useWorld } from '../store';
+import { useGame, useWorld } from '../store';
+import { arrangeComeback, canComeBack } from '../../systems/comeback';
 import { Card, CompLink, Flag, OrgLink, PageHeader, PlayerLink, TeamLink, TitleTag, Tabs, StaffLink, compRef } from '../components/common';
 import { DataTable } from '../components/DataTable';
+import { Link } from '../router';
 import { navigate, withQuery, type Route } from '../router';
 import { legacy, HOF_THRESHOLD } from '../../systems/awards';
 import { getTitle } from '../../data/titles/catalogue';
-import type { Player } from '../../model/types';
+import type { Player, RetiredSummary } from '../../model/types';
+
+/** Ask a real retired pro to come back: they become a free agent anyone can sign. */
+export function ComebackButton({ r }: { r: RetiredSummary }) {
+  const world = useWorld();
+  const { act, notify } = useGame();
+  if (r.cameBackAs && world.players[r.cameBackAs]) return <PlayerLink p={world.players[r.cameBackAs]} />;
+  if (!world.meta.userOrgId || !canComeBack(world, r)) return null;
+  return (
+    <button
+      className="btn ghost sm"
+      data-testid="comeback"
+      onClick={() => {
+        const res = act((w) => arrangeComeback(w, r.id, 'user'));
+        if (res) notify(res.message, res.ok ? 'ok' : 'err');
+      }}
+    >
+      Ask to return
+    </button>
+  );
+}
 
 export function HistoryPage({ route }: { route: Route }) {
   const world = useWorld();
@@ -136,15 +158,17 @@ export function HistoryPage({ route }: { route: Route }) {
         <Card title="Archived retired players">
           <DataTable
             id="retired"
-            rows={world.retired}
+            rows={title ? world.retired.filter((r) => r.titles.includes(title)) : world.retired}
             rowKey={(r) => r.id}
             initialSort={{ key: 'legacy', desc: true }}
-            filter={(r, q) => r.handle.toLowerCase().includes(q)}
+            filter={(r, q) => r.handle.toLowerCase().includes(q) || (r.lastTeam ?? '').toLowerCase().includes(q)}
             columns={[
-              { key: 'handle', label: 'Player', value: (r) => r.handle, render: (r) => (<span><Flag cc={r.nat} />{world.players[r.id] ? <PlayerLink p={world.players[r.id]} /> : r.handle}</span>) },
+              { key: 'handle', label: 'Player', value: (r) => r.handle, render: (r) => (<span><Flag cc={r.nat} />{world.players[r.id] ? <PlayerLink p={world.players[r.id]} /> : <Link to={`/player/${r.id}`} className="elink">{r.handle}</Link>}{r.real && <span className="tag good" style={{ marginLeft: 4 }}>Real</span>}</span>) },
               { key: 'name', label: 'Name', value: (r) => r.name },
               { key: 'season', label: 'Retired', align: 'right', value: (r) => r.retiredSeason },
               { key: 'titles', label: 'Titles', value: (r) => r.titles.join(', ') },
+              { key: 'last', label: 'Last team', value: (r) => r.lastTeam ?? '' },
+              { key: 'back', label: 'Comeback', value: (r) => (r.cameBack ? 1 : 0), render: (r) => <ComebackButton r={r} /> },
               { key: 'trophies', label: 'Trophies', align: 'right', value: (r) => r.trophies },
               { key: 'legacy', label: 'Legacy', align: 'right', value: (r) => r.legacy, render: (r) => r.legacy.toFixed(1) },
             ]}

@@ -59,6 +59,42 @@ page. Real entities carry `real = { src, snap, est[] }`; anything without it is 
 "Fictional" in real-world careers). Regions without real data are filled with fictional teams in the
 Standard/Large world sizes only.
 
+## Snapshot `real-2026-11-20` — past teams, former pros and retired pros
+
+`node scripts/data/history.mjs <clone of ValveSoftware/counter-strike_regional_standings>` → `src/data/real/history.json`
+(collected 20 Nov 2026): 344 teams and 1,857 players (LoL 121/618, Valorant 40/303, CS2 116/530, Dota 2 56/219,
+MLBB 11/187).
+
+| Game | Seasons covered | Source |
+| --- | --- | --- |
+| League of Legends | 2024–2026 | **Official** — LoL Esports gateway schedules; one game per team per season through the live-stats feed (participants); archived teams with their last listed rosters |
+| Valorant | 2023–2026 | **Community** — vlr.gg VCT league events, one match per team per season |
+| CS2 | 2024–2026 | **Official** — Valve Regional Standings, monthly global standings (top 60 with rosters) |
+| Dota 2 | last three years | **Community API** — OpenDota top-rated teams and their members |
+| MLBB | earlier MPL ID / PH seasons | **Official** — id-mpl.com / ph-mpl.com team pages |
+
+How a real-world start uses it (`addRealHistory` in `src/gen/realWorld.ts`):
+
+* **Old teams** (not in the current snapshot) exist as **dormant** teams: no league, no players, not an
+  active division of their organisation (an organisation with only dormant teams is inactive). They show on
+  the organisation page ("Dormant and former divisions") and in the team directory ("Dormant real teams").
+  When a league place is sold (a division closes), a dormant real team from that league's region takes the
+  place first, re-signs its former players who are still free agents and fills the rest with fictional
+  players (`reviveDormant` in `src/game/rollover.ts`).
+* **Former pros** on no current roster who were seen recently are **free agents** (ability is a game estimate a
+  little below the league average). Their career shows "Last real team".
+* **Retired pros** — players not seen at the top level for a long time — are archived as retired records
+  (History → Retired) with their last team. "Retired" is an **estimate** (no top-league game in the covered
+  official schedules since the season named) and is labelled as such.
+* **Comebacks** (`src/systems/comeback.ts`): the user can ask a real retiree who stopped within the last six
+  seasons to return (History → Retired, or the retired player's page); a few also return by themselves at
+  each season rollover. They come back as free agents; ability on return is a game estimate.
+* **Competitions**: league names are the real leagues (above). In real-world careers the mid-season
+  international and the world championship use the real circuits' names (LoL Mid-Season Invitational /
+  World Championship, MLBB Mid Season Cup / M-Series, VALORANT Masters / Champions, Counter-Strike Majors,
+  Dota 2 The International, Honor of Kings World Cup / International Championship). Formats, dates,
+  entrants and prize pools are game simulation (shown on the competition page).
+
 ### Access notes
 
 * **Liquipedia** was tried first for rosters and hero lists; this environment's shared IP was rate-limited

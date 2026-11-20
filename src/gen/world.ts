@@ -23,7 +23,7 @@ import { initialPatch } from '../systems/patches';
 import { planSeason } from '../competition/season';
 import { SAVE_VERSION } from '../persistence/version';
 import { computeTeamStrength } from '../sim/common/team';
-import { buildRealTitle, realTitles, ROSTER_SNAPSHOT } from './realWorld';
+import { addRealHistory, buildRealTitle, realTitles, ROSTER_SNAPSHOT } from './realWorld';
 
 export type WorldSize = 'tiny' | 'small' | 'standard' | 'large';
 
@@ -240,7 +240,7 @@ export function staffTeam(ctx: GenCtx, team: Team, quality: number): void {
   }
 }
 
-function makeSponsors(ctx: GenCtx, org: Organisation): void {
+export function makeSponsors(ctx: GenCtx, org: Organisation): void {
   const { rng, world } = ctx;
   const n = 1 + Math.floor(org.rep / 35);
   for (let i = 0; i < n; i++) {
@@ -269,6 +269,7 @@ export function createWorld(opts: NewWorldOptions): World {
       characterSnapshot: CHARACTER_SNAPSHOT.id,
       dataMode: opts.dataMode ?? 'fictional',
       realMaps: true,
+      realHistory: true,
       ...(opts.dataMode === 'real' ? { rosterSnapshot: ROSTER_SNAPSHOT.id } : {}),
       detail: { fullDetailTitles: [], userMatches: true, internationals: true },
       worldSize: opts.worldSize,
@@ -428,6 +429,9 @@ export function createWorld(opts: NewWorldOptions): World {
     });
   }
 
+  // Real-world start: dormant real teams, real free agents and retired real players.
+  if (realMode) addRealHistory(ctx, realOrgs, (region) => createOrg(ctx, region, orgNames));
+
   // Free agents and prospects per title
   for (const id of titleIds) {
     const t = getTitle(id);
@@ -452,6 +456,11 @@ export function createWorld(opts: NewWorldOptions): World {
 
   // Organisation-level staff, sponsors and finances
   for (const org of Object.values(world.orgs)) {
+    // Real organisations with only dormant teams stay inactive until a league place brings them back.
+    if (org.real && !org.teams.length) {
+      org.active = false;
+      continue;
+    }
     const mainTitle = world.teams[org.teams[0]]?.titleId ?? null;
     for (const role of ['gm', 'scout'] as const) {
       const s = generateStaff(ctx, role, org.country, mainTitle, clamp(rng.normal(45 + org.rep * 0.3, 8), 25, 95));

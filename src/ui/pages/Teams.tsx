@@ -1,6 +1,6 @@
 import { WeekTimetable } from '../components/Sessions';
 import { RivalriesCard } from '../components/Fans';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useGame, useWorld } from '../store';
 import { eligibleNations } from '../../systems/nations';
 import { COUNTRY_BY_CODE } from '../../data/countries';
@@ -26,7 +26,9 @@ export function TeamsPage() {
   const world = useWorld();
   const mine = userTeams(world);
   const [title, setTitle] = useState('');
-  const all = Object.values(world.teams).filter((t) => t.active && (!title || t.titleId === title));
+  const [dormant, setDormant] = useState(false);
+  const hasDormant = useMemo(() => Object.values(world.teams).some((t) => !t.active && t.lastSeen), [world]);
+  const all = Object.values(world.teams).filter((t) => (dormant ? !t.active && t.lastSeen : t.active) && (!title || t.titleId === title));
   return (
     <div>
       <PageHeader title="Teams" sub="Your divisions and every active team in the universe" />
@@ -55,6 +57,11 @@ export function TeamsPage() {
               </option>
             ))}
           </select>
+          {hasDormant && (
+            <label className="small">
+              <input type="checkbox" checked={dormant} onChange={(e) => setDormant(e.target.checked)} /> Dormant real teams (no league place)
+            </label>
+          )}
         </div>
         <DataTable
           id="team-dir"
@@ -133,7 +140,7 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
             <TitleTag id={team.titleId} /> · <OrgLink org={org} /> · {regionName(team.region)} · {team.tier}
             {team.leagueId && ` · ${world.leagues[team.leagueId]?.name}`}
             {parent && (<> · academy of <TeamLink t={parent} /></>)}
-            {!team.active && ' · CLOSED'}
+            {!team.active && (team.lastSeen ? ` · DORMANT (last seen ${team.lastSeen})` : ' · CLOSED')}
             <Provenance world={world} real={team.real} kind="team" />
           </span>
         }

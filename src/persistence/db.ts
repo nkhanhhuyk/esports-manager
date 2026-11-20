@@ -9,6 +9,7 @@
  */
 import { ensureRealCharacters } from '../game/characterMigration';
 import { ensureRealMaps } from '../game/mapMigration';
+import { ensureRealHistory } from '../game/historyMigration';
 import { ensureAudience } from '../systems/fans';
 import { openDB, type IDBPDatabase } from 'idb';
 import type { World } from '../model/types';
@@ -213,6 +214,7 @@ function migrateAndConvert(raw: unknown): { world: World; converted: boolean } {
     ensureAudience(world);
     ensureRealCharacters(world);
     ensureRealMaps(world);
+    ensureRealHistory(world);
     return { world, converted };
   } catch (e) {
     if (e instanceof ScopeConversionError) throw new SaveError(e.message);

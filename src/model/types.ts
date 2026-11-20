@@ -339,6 +339,8 @@ export interface Team {
   trophies: TrophyRecord[];
   founded: number;
   active: boolean;
+  /** Real-world dormant teams: the last season the team was seen at the top level. */
+  lastSeen?: number;
   scrimRating: number; // short-term practice quality
   /** Cache key of the last automatic lineup (avoids recomputation every match). */
   lineupSig?: string;
@@ -600,6 +602,8 @@ export interface Competition {
   formatOverrides?: Partial<Record<FormatKey, SeriesFormat>>;
   rewarded?: boolean;
   split?: number;
+  /** Real-world careers: the event carries the real circuit's name (format, dates, entrants and prizes are game simulation). */
+  realName?: boolean;
   /** Per-player aggregate inside this competition (MVP voting). */
   pstats: Record<ID, { gp: number; r: number; m: number; teamId: ID }>;
   /**
@@ -956,6 +960,14 @@ export interface RetiredSummary {
   legacy: number;
   trophies: number;
   awards: number;
+  /** Real retired pro (snapshot): last team and role, provenance. */
+  lastTeam?: string;
+  roleId?: string;
+  real?: RealTag;
+  /** A comeback was arranged (the record became a player again). */
+  cameBack?: boolean;
+  /** The player record created by the comeback. */
+  cameBackAs?: ID;
 }
 
 export interface BoardObjective {
@@ -1034,6 +1046,8 @@ export interface WorldMeta {
   /** Real-character snapshot the world uses (absent = generated fictional characters, pre-v7). */
   characterSnapshot?: string;
   /** Shooter maps are the real maps (set for new worlds and after converting older saves). */
+  /** Real-world careers: past teams, former pros and retired pros from the history snapshot were added. */
+  realHistory?: boolean;
   realMaps?: boolean;
   /** 'real' = started from the real-world team/player snapshot; 'fictional' (default) = generated. */
   dataMode?: 'real' | 'fictional';

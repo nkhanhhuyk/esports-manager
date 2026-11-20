@@ -3,6 +3,10 @@ import { createWorld, setUserOrg } from '../src/gen/world';
 import { advance } from '../src/game/advance';
 import { clearRatingCache } from '../src/sim/common/ratings';
 import { realTitles, ROSTER_SNAPSHOT } from '../src/gen/realWorld';
+import { closeDivision } from '../src/game/rollover';
+import { arrangeComeback, canComeBack } from '../src/systems/comeback';
+import { RNG } from '../src/core/rng';
+import { ensureRealHistory } from '../src/game/historyMigration';
 import { validateLineup } from '../src/systems/lineup';
 import { START } from './helpers';
 
@@ -31,7 +35,7 @@ describe('real-world start (dated roster snapshot)', () => {
     expect(faker.roles[0]).toBe('mid');
     expect(faker.real?.est).toContain('age');
     // Every team can field a legal line-up; no real handle is duplicated within a title.
-    for (const team of Object.values(w.teams)) expect(validateLineup(w, team, team.lineup).ok, team.name).toBe(true);
+    for (const team of Object.values(w.teams)) if (team.active) expect(validateLineup(w, team, team.lineup).ok, team.name).toBe(true);
     for (const id of realTitles()) {
       const handles = Object.values(w.players).filter((p) => p.titleId === id && p.real).map((p) => p.handle.toLowerCase());
       expect(new Set(handles).size, id).toBe(handles.length);
@@ -51,4 +55,90 @@ describe('real-world start (dated roster snapshot)', () => {
     const h = w.history.find((x) => x.season === season)!;
     for (const id of ['mlbb', 'lol', 'valorant']) expect(h.champions.some((c) => c.titleId === id && c.tier === 'worlds'), id).toBe(true);
   }, 120_000);
+
+  it('keeps historical real teams dormant, former pros as free agents and retired pros on record', () => {
+    const w = realWorld(['lol', 'mlbb', 'cs2']);
+    const dormant = Object.values(w.teams).filter((t) => !t.active && t.real && t.lastSeen);
+    expect(dormant.length).toBeGreaterThan(30);
+    for (const t of dormant) {
+      // Not in any league, not an active division of its organisation, no players.
+      expect(t.leagueId, t.name).toBeNull();
+      expect(Object.values(w.leagues).some((l) => l.teamIds.includes(t.id)), t.name).toBe(false);
+      expect(w.orgs[t.orgId].teams.includes(t.id), t.name).toBe(false);
+      expect(t.roster.length).toBe(0);
+      expect(t.real!.est!.some((e) => e.startsWith('dormant')), t.name).toBe(true);
+    }
+    // Leagues contain only active teams with rosters.
+    for (const l of Object.values(w.leagues)) for (const id of l.teamIds) expect(w.teams[id].active, w.teams[id].name).toBe(true);
+    // Former real pros who are on no current roster are free agents with provenance; no live handle is duplicated.
+    const fa = Object.values(w.players).filter((p) => p.real && !p.teamId);
+    expect(fa.length).toBeGreaterThan(200);
+    for (const p of fa.slice(0, 50)) expect(p.real!.est!.length).toBeGreaterThan(0);
+    for (const id of ['lol', 'mlbb', 'cs2']) {
+      const handles = Object.values(w.players).filter((p) => p.titleId === id && p.real).map((p) => p.handle.toLowerCase());
+      expect(new Set(handles).size, id).toBe(handles.length);
+    }
+    // Retired real pros are archived records (not players) with their last team.
+    const ret = w.retired.filter((r) => r.real);
+    expect(ret.length).toBeGreaterThan(50);
+    expect(ret.every((r) => !w.players[r.id])).toBe(true);
+    expect(ret.some((r) => r.lastTeam)).toBe(true);
+  });
+
+  it('a dormant real team takes over a league place that is sold; retired pros can come back', () => {
+    const w = realWorld(['lol']);
+    const lpl = Object.values(w.leagues).find((l) => l.name === 'LPL')!;
+    const leaving = w.teams[lpl.teamIds[lpl.teamIds.length - 1]];
+    const before = new Set(lpl.teamIds);
+    const rng = new RNG('close');
+    closeDivision(w, leaving, { world: w, rng, handles: new Set(Object.values(w.players).map((p) => p.handle.toLowerCase())) }, rng);
+    expect(lpl.teamIds).not.toContain(leaving.id);
+    const nt = w.teams[lpl.teamIds.find((id) => !before.has(id))!];
+    expect(nt.real, 'a real team returns').toBeTruthy();
+    expect(nt.active).toBe(true);
+    expect(nt.leagueId).toBe(lpl.id);
+    expect(w.orgs[nt.orgId].active).toBe(true);
+    expect(w.orgs[nt.orgId].teams).toContain(nt.id);
+    expect(validateLineup(w, nt, nt.lineup).ok).toBe(true);
+    expect(nt.real!.est!.some((e) => e.startsWith('dormant'))).toBe(false);
+    // Comeback: a recent real retiree becomes a free agent once.
+    const r = w.retired.find((x) => x.real && canComeBack(w, x))!;
+    expect(r).toBeTruthy();
+    const res = arrangeComeback(w, r.id, 'user');
+    expect(res.ok).toBe(true);
+    const p = w.players[res.playerId!];
+    expect(p.handle).toBe(r.handle);
+    expect(p.teamId).toBeNull();
+    expect(p.real?.est).toContain('ability after the comeback (game)');
+    expect(arrangeComeback(w, r.id, 'user').ok).toBe(false);
+  });
+
+  it('uses the real circuits\' event names for internationals', () => {
+    const w = realWorld(['lol', 'valorant', 'dota2']);
+    const names = Object.values(w.comps).map((c) => c.name);
+    for (const n of ['Mid-Season Invitational', 'League of Legends World Championship', 'VALORANT Masters', 'VALORANT Champions', 'The International']) expect(names.some((x) => x.startsWith(n)), n).toBe(true);
+    expect(Object.values(w.comps).filter((c) => c.realName).every((c) => c.tier === 'international' || c.tier === 'worlds')).toBe(true);
+  });
+
+  it('adds the history snapshot once to real-world careers saved before it existed', () => {
+    const w = realWorld(['lol']);
+    const count = () => ({
+      dormant: Object.values(w.teams).filter((t) => !t.active && t.lastSeen).length,
+      fa: Object.values(w.players).filter((p) => p.real && !p.teamId).length,
+      retired: w.retired.filter((r) => r.real).length,
+    });
+    const full = count();
+    // Simulate an older save: no history entities.
+    for (const t of Object.values(w.teams)) if (!t.active && t.lastSeen) delete w.teams[t.id];
+    for (const p of Object.values(w.players)) if (p.real && !p.teamId) delete w.players[p.id];
+    w.retired = w.retired.filter((r) => !r.real);
+    delete w.meta.realHistory;
+    const orgs = Object.keys(w.orgs).length;
+    expect(ensureRealHistory(w)).toBe(true);
+    expect(count()).toEqual(full);
+    // Organisations are reused by name, not duplicated.
+    expect(Object.keys(w.orgs).length).toBe(orgs);
+    expect(ensureRealHistory(w)).toBe(false);
+    expect(count()).toEqual(full);
+  });
 });

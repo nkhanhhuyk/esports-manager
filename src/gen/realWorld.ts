@@ -457,3 +457,180 @@ function hireStaff(ctx: GenCtx, sid: string, team: Team, s: ReturnType<typeof ge
   team.staff.push(sid);
   s.career.push({ season: world.season, day: world.day, titleId: team.titleId, teamId: team.id, orgId: team.orgId, type: 'start' });
 }
+
+// ---------------------------------------------------------------------------------------------
+// History: dormant real teams, real free agents and retired real players
+// ---------------------------------------------------------------------------------------------
+import HISTORY from '../data/real/history.json';
+
+interface HistTeam {
+  title_id: string;
+  team_id: string;
+  name: string;
+  short: string;
+  region: string | null;
+  league: string | null;
+  last_season: number;
+  source_url: string;
+  roster: string[];
+}
+interface HistPlayer {
+  title_id: string;
+  handle: string;
+  first_name: string | null;
+  last_name: string | null;
+  real_name: string | null;
+  nationality: string | null;
+  role: string | null;
+  last_team: string | null;
+  last_season: number;
+  status: 'free-agent' | 'retired';
+  status_source: string;
+  source_url: string;
+}
+const HIST = HISTORY as unknown as { snapshot_id: string; teams: HistTeam[]; players: HistPlayer[] };
+
+const HIST_REGION: Record<string, string> = {
+  AMER: 'AMER-NA.LATN.LATS.BR',
+  EMEA: 'EMEA-EUW.EUE.CIS.MENA.AFR',
+  APN: 'APN-KR.JP.PCS.VN.TH.ID.PH.MYSG.SA.OCE',
+};
+const regionFor = (h: HistTeam): string => (h.region ? HIST_REGION[h.region] ?? h.region : h.title_id === 'cs2' || h.title_id === 'dota2' ? 'EMEA-EUW.EUE.CIS.MENA.AFR' : 'NA');
+const seasonOf = (x: number) => Math.floor(x) || 0;
+
+/**
+ * Add the snapshot's history to a real-world start: teams that played in earlier seasons but hold no
+ * league place now become dormant teams of their (shared) real organisations — they come back when a
+ * league slot changes hands; past players on no current roster become free agents (or retired records
+ * when they have not played at the top level for a long time — an estimate, always labelled).
+ */
+export function addRealHistory(ctx: GenCtx, orgs: Map<string, Organisation>, makeOrg: (region: string) => Organisation): { teams: number; freeAgents: number; retired: number } {
+  const { world, rng } = ctx;
+  const titles = new Set(world.meta.titlesEnabled);
+  const liveHandles = new Map<string, Set<string>>();
+  for (const p of Object.values(world.players)) {
+    if (!p.real) continue;
+    (liveHandles.get(p.titleId) ?? liveHandles.set(p.titleId, new Set()).get(p.titleId)!).add(p.handle.toLowerCase());
+  }
+  // Real pros who already retired in this career (older saves) are not added again.
+  for (const r of world.retired) if (r.real) for (const tid of r.titles) (liveHandles.get(tid) ?? liveHandles.set(tid, new Set()).get(tid)!).add(r.handle.toLowerCase());
+  const liveTeamNames = new Set(Object.values(world.teams).map((t) => `${t.titleId}|${t.name.toLowerCase()}`));
+  // Average ability per title (free agents start somewhat below the leagues' level).
+  const avg = new Map<string, number>();
+  for (const id of titles) {
+    const ps = Object.values(world.players).filter((p) => p.titleId === id && p.teamId);
+    avg.set(id, ps.length ? ps.reduce((a, p) => a + p.ca, 0) / ps.length : 62);
+  }
+  let nTeams = 0;
+  const dormantByName = new Map<string, Team>();
+  // Organisations by name key (several can share one: one per team of the same game), and the games each has a team in.
+  const orgTitles = new Map<string, Set<string>>();
+  for (const x of Object.values(world.teams)) (orgTitles.get(x.orgId) ?? orgTitles.set(x.orgId, new Set()).get(x.orgId)!).add(x.titleId);
+  const byKey = new Map<string, Organisation[]>();
+  const addKey = (k: string, o: Organisation) => {
+    const list = byKey.get(k) ?? byKey.set(k, []).get(k)!;
+    if (!list.includes(o)) list.push(o);
+  };
+  for (const [k, o] of orgs) addKey(k, o);
+  for (const o of Object.values(world.orgs)) if (o.real) addKey(orgKey(o.name), o);
+  for (const h of HIST.teams) {
+    if (!titles.has(h.title_id) || liveTeamNames.has(`${h.title_id}|${h.name.toLowerCase()}`)) continue;
+    const t = getTitle(h.title_id);
+    const region = regionFor(h);
+    const key = orgKey(h.name);
+    let org = byKey.get(key)?.find((o) => !orgTitles.get(o.id)?.has(h.title_id));
+    if (!org) {
+      const country = pickCountry(rng, region);
+      org = makeOrg(COUNTRY_BY_CODE[country]?.region ?? expandRegion(region)[0]);
+      org.name = cleanOrg(h.name);
+      org.short = shortOf(h.name, h.short);
+      org.country = country;
+      org.region = COUNTRY_BY_CODE[country]?.region ?? org.region;
+      org.names = [{ season: world.season, name: org.name, short: org.short }];
+      org.events = [{ season: world.season, day: world.day, type: 'founded', text: `${org.name}: a real organisation without a league place in this snapshot.` }];
+      org.real = tag(h.source_url, ['founded', 'country', 'finances, owner, sponsors and facilities (game)']);
+      org.rep = Math.round(clamp(rng.normal(32, 8), 10, 60));
+      org.fans = Math.round(Math.pow(org.rep, 2.2) * 30 * regionEconomy(org.region) + rng.int(1000, 10000));
+      if (!orgs.has(key)) orgs.set(key, org);
+      addKey(key, org);
+    }
+    (orgTitles.get(org.id) ?? orgTitles.set(org.id, new Set()).get(org.id)!).add(h.title_id);
+    const team: Team = {
+      id: nextId(world, 't'),
+      orgId: org.id,
+      titleId: h.title_id,
+      name: h.name,
+      short: (h.short || h.name).replace(/\s+/g, '').slice(0, 6).toUpperCase(),
+      tier: 'main',
+      region,
+      leagueId: null,
+      parentTeamId: null,
+      roster: [],
+      staff: [],
+      lineup: [],
+      prefs: { style: rng.pick(t.styles), aggression: Math.round(clamp(rng.normal(50, 15), 10, 90)), draftPriority: 'balanced', pool: {}, bans: [], mapPrefs: {}, delegateLineup: true, delegateDraft: true, delegateTraining: true },
+      training: { focus: 'balanced', intensity: 60, scrimsPerWeek: 3, individual: {}, opponentPrep: true },
+      chemistry: 50,
+      elo: 1450,
+      metaAdapt: 60,
+      salaryBudget: 0,
+      history: [],
+      trophies: [],
+      founded: world.season,
+      lastSeen: seasonOf(h.last_season) || world.season - 2,
+      // Dormant: not in a league and not part of the organisation's active divisions.
+      active: false,
+      scrimRating: 50,
+      real: tag(h.source_url, [`dormant — last seen ${h.league ?? 'at the top level'}${h.last_season ? ` (${seasonOf(h.last_season)})` : ''}`]),
+    };
+    world.teams[team.id] = team;
+    dormantByName.set(`${h.title_id}|${h.name.toLowerCase()}`, team);
+    nTeams++;
+  }
+  // Players.
+  let nFa = 0;
+  let nRet = 0;
+  for (const hp of HIST.players) {
+    if (!titles.has(hp.title_id)) continue;
+    const handles = liveHandles.get(hp.title_id) ?? new Set();
+    if (handles.has(hp.handle.toLowerCase())) continue;
+    handles.add(hp.handle.toLowerCase());
+    liveHandles.set(hp.title_id, handles);
+    const t = getTitle(hp.title_id);
+    const roleId = hp.role && t.roles.some((r) => r.id === hp.role) ? hp.role : null;
+    const team = hp.last_team ? dormantByName.get(`${hp.title_id}|${hp.last_team.toLowerCase()}`) : undefined;
+    const liveTeam = hp.last_team ? Object.values(world.teams).find((x) => x.titleId === hp.title_id && x.name.toLowerCase() === hp.last_team!.toLowerCase()) : undefined;
+    const nat = validCountry(hp.nationality) ?? (team ? pickCountry(rng, team.region) : 'US');
+    if (hp.status === 'retired') {
+      world.retired.push({
+        id: `rr-${hp.title_id}-${nRet}`,
+        handle: hp.handle,
+        name: [hp.first_name, hp.last_name].filter(Boolean).join(' ') || hp.real_name || '',
+        nat,
+        titles: [hp.title_id],
+        retiredSeason: seasonOf(hp.last_season) || world.season - 3,
+        legacy: 0,
+        trophies: 0,
+        awards: 0,
+        lastTeam: hp.last_team ?? undefined,
+        roleId: roleId ?? undefined,
+        real: tag(hp.source_url, [hp.status_source]),
+      });
+      nRet++;
+      continue;
+    }
+    const est: string[] = [hp.status_source, 'age'];
+    if (!roleId) est.push('role (game assignment)');
+    if (!validCountry(hp.nationality)) est.push('nationality');
+    const p = generatePlayer(ctx, { titleId: t.id, roleId: roleId ?? rng.pick(t.lineup), nat, age: Math.round(clamp(rng.normal(24, 2.5), 18, 31)), targetCA: clamp((avg.get(t.id) ?? 62) - 5 + rng.normal(0, 3), 35, 90) });
+    p.handle = hp.handle;
+    p.first = hp.first_name ?? '';
+    p.last = hp.last_name ?? '';
+    p.real = tag(hp.source_url, est);
+    if (hp.last_team) p.career.push({ season: seasonOf(hp.last_season) || world.season - 1, day: world.day, titleId: t.id, teamId: (team ?? liveTeam)?.id ?? null, orgId: (team ?? liveTeam)?.orgId ?? null, type: 'released', note: `Last real team: ${hp.last_team}` });
+    ctx.handles.add(hp.handle);
+    world.players[p.id] = p;
+    nFa++;
+  }
+  return { teams: nTeams, freeAgents: nFa, retired: nRet };
+}

@@ -1,4 +1,5 @@
 import { TrialButtons } from './Youth';
+import { ComebackButton } from './History';
 import { recallPlayer, restPlayer } from '../../systems/breaks';
 import { can } from '../../systems/career';
 import { seasonTitle } from '../../systems/availability';
@@ -338,7 +339,22 @@ export function PlayerPage({ id, route }: { id: string; route: Route }) {
   const tab = route.query.tab ?? 'overview';
   if (!p) {
     const r = world.retired.find((x) => x.id === id);
-    if (r) return <Card title={`${r.handle} (archived)`}>{r.name} · retired {r.retiredSeason} · legacy {r.legacy.toFixed(0)} · {r.trophies} trophies · titles: {r.titles.join(', ')}</Card>;
+    if (r)
+      return (
+        <Card title={`${r.handle} (retired)`}>
+          <div>
+            <Flag cc={r.nat} />
+            {r.name} · retired {r.retiredSeason}
+            {r.lastTeam && ` · last team ${r.lastTeam}`}
+            {r.roleId && ` · ${roleName(r.titles[0], r.roleId)}`} · legacy {r.legacy.toFixed(0)} · {r.trophies} trophies · titles: {r.titles.map((x) => getTitle(x).short).join(', ')}
+          </div>
+          <Provenance world={world} real={r.real} kind="retired player" />
+          {r.cameBack && <div className="small">Came out of retirement.</div>}
+          <div style={{ marginTop: 6 }}>
+            <ComebackButton r={r} />
+          </div>
+        </Card>
+      );
     return <div>Player not found.</div>;
   }
   const t = getTitle(p.titleId);

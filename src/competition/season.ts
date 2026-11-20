@@ -124,6 +124,20 @@ export function allocateSlots(strengths: number[], total: number, maxPer = 4): n
   return slots;
 }
 
+/**
+ * Real-world careers use the real circuits' event names for the mid-season international and the
+ * world championship (the formats, dates, entrants and prize pools stay game simulation). Titles
+ * without a clear real equivalent keep the game's generic names.
+ */
+export const REAL_EVENT_NAMES: Record<string, { msi?: [string, string]; worlds?: [string, string] }> = {
+  lol: { msi: ['Mid-Season Invitational', 'MSI'], worlds: ['League of Legends World Championship', 'Worlds'] },
+  mlbb: { msi: ['MLBB Mid Season Cup', 'MSC'], worlds: ['MLBB M-Series World Championship', 'M-Series'] },
+  valorant: { msi: ['VALORANT Masters', 'Masters'], worlds: ['VALORANT Champions', 'Champions'] },
+  cs2: { msi: ['Counter-Strike Major (first half)', 'Major I'], worlds: ['Counter-Strike Major (second half)', 'Major II'] },
+  dota2: { worlds: ['The International', 'TI'] },
+  hok: { msi: ['Honor of Kings World Cup', 'KWC'], worlds: ['Honor of Kings International Championship', 'KIC'] },
+};
+
 export function planSeason(world: World, season: number): void {
   const titleIds = world.meta.titlesEnabled.filter((id) => world.titles[id]?.active !== false);
   planNationsCup(world, season);
@@ -172,7 +186,9 @@ export function planSeason(world: World, season: number): void {
       msiEntrants.push({ kind: 'top', compId: splitComps[l.id][0].id, count });
     });
     const msiN = msiEntrants.reduce((a, e) => a + (e.kind === 'top' ? e.count : 0), 0);
-    mkComp(world, t, season, `${t.short} Mid-Season Invitational ${season}`, `${t.short} MSI`, 'international', null, null, msiEntrants, internationalStages(t, msiN, D(4, 25), false), t.prizeScale * 400_000, 70, MSI_POINTS);
+    const realEv = world.meta.dataMode === 'real' ? REAL_EVENT_NAMES[titleId] : undefined;
+    const msi = mkComp(world, t, season, realEv?.msi ? `${realEv.msi[0]} ${season}` : `${t.short} Mid-Season Invitational ${season}`, realEv?.msi ? realEv.msi[1] : `${t.short} MSI`, 'international', null, null, msiEntrants, internationalStages(t, msiN, D(4, 25), false), t.prizeScale * 400_000, 70, MSI_POINTS);
+    if (realEv?.msi) msi.realName = true;
 
     // World Championship
     const totalLeagueTeams = tier1.reduce((a, l) => a + l.size, 0);
@@ -181,7 +197,8 @@ export function planSeason(world: World, season: number): void {
     const slots = allocateSlots(tier1.map((l) => leagueStrength(world, l)), target, 4);
     const wEntrants: EntrantRule[] = tier1.map((l, i) => ({ kind: 'circuit', leagueId: l.id, count: Math.min(slots[i], l.size) }));
     const wN = wEntrants.reduce((a, e) => a + (e.kind === 'circuit' ? e.count : 0), 0);
-    mkComp(world, t, season, `${t.short} World Championship ${season}`, `${t.short} Worlds`, 'worlds', null, null, wEntrants, internationalStages(t, wN, D(9, 22), true), t.prizeScale * 1_000_000, 100, []);
+    const worlds = mkComp(world, t, season, realEv?.worlds ? `${realEv.worlds[0]} ${season}` : `${t.short} World Championship ${season}`, realEv?.worlds ? realEv.worlds[1] : `${t.short} Worlds`, 'worlds', null, null, wEntrants, internationalStages(t, wN, D(9, 22), true), t.prizeScale * 1_000_000, 100, []);
+    if (realEv?.worlds) worlds.realName = true;
   });
 }
 

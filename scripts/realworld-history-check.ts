@@ -1,0 +1,10 @@
+import { createWorld } from '../src/gen/world';
+const t0 = Date.now();
+const w = createWorld({ name: 'h', seed: 'h1', worldSize: 'small', dataMode: 'real' });
+console.log('built', Date.now() - t0, 'ms; players', Object.keys(w.players).length, 'real FA', Object.values(w.players).filter((p) => p.real && !p.teamId).length, 'dormant teams', Object.values(w.teams).filter((t) => !t.active && t.real).length, 'retired real', w.retired.filter((r) => r.real).length, 'orgs', Object.keys(w.orgs).length, 'inactive orgs', Object.values(w.orgs).filter((o) => !o.active).length);
+const peanut = Object.values(w.players).find((p) => p.handle === 'Peanut');
+console.log('Peanut', peanut?.teamId, peanut?.real?.est, peanut?.career.at(-1));
+const deft = w.retired.find((r) => r.handle === 'Deft');
+console.log('Deft', deft);
+const rng = Object.values(w.teams).find((t) => t.name === 'Royal Never Give Up');
+console.log('RNG', rng?.active, rng?.real?.est, w.orgs[rng!.orgId].name, w.orgs[rng!.orgId].teams.map((id) => w.teams[id].titleId));

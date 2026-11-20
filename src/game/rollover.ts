@@ -24,12 +24,13 @@ import { releasePatch } from '../systems/patches';
 import { autoLineup } from '../systems/lineup';
 import { generatePlayer, pickNationality, type GenCtx } from '../gen/player';
 import { staffFromPlayer } from '../gen/staff';
-import { createOrg, createTeam, populateTeam, staffTeam } from '../gen/world';
+import { createOrg, createTeam, makeSponsors, populateTeam, signInitial, staffTeam } from '../gen/world';
 import { expectedStaffSalary, makeContract } from '../systems/contracts';
 import { makeOrgName } from '../gen/names';
 import { computeTeamStrength } from '../sim/common/team';
 import { ensureDraftPicks, runRookieDrafts } from '../systems/draft';
 import { clearNationalSquads } from '../systems/nations';
+import { selfComebacks } from '../systems/comeback';
 import { boardReview, hasBoard, setBoardObjectives, userHandles } from '../systems/career';
 
 function leagueTable(world: World, league: League, season: number): Array<{ teamId: string; w: number; l: number; gd: number }> {
@@ -247,6 +248,11 @@ export function closeDivision(world: World, team: Team, ctx: GenCtx, rng: RNG): 
   org.events.push({ season: world.season, day: world.day, type: 'division-closed', text: `${org.name} closes its ${getTitle(team.titleId).short} division.` });
   addNews(world, { kind: 'org', title: `${org.name} exits ${getTitle(team.titleId).short}`, body: `Financial pressure forces the closure of the division. Its league slot is sold.`, titleId: team.titleId, refs: [{ type: 'org', id: org.id }], importance: 2 });
   const league = team.leagueId ? world.leagues[team.leagueId] : null;
+  // Real-world careers: a dormant real team from the league's region takes the slot first.
+  if (league && world.meta.dataMode === 'real' && reviveDormant(world, ctx, league, team)) {
+    team.leagueId = null;
+    return;
+  }
   if (league) {
     const regions = expandRegion(league.region);
     const region = rng.pick(regions);
@@ -265,6 +271,54 @@ export function closeDivision(world: World, team: Team, ctx: GenCtx, rng: RNG): 
     buyer.events.push({ season: world.season, day: world.day, type: 'division-opened', text: `${buyer.name} enters ${getTitle(team.titleId).short} by acquiring a ${league.name} slot.` });
   }
   team.leagueId = null;
+}
+
+/**
+ * Bring a dormant real team back into a league: its organisation re-activates, its former players who are
+ * free agents re-sign, and open places are filled by fictional players. Returns false when no dormant
+ * team fits the league's region.
+ */
+export function reviveDormant(world: World, ctx: GenCtx, league: League, leaving: Team): boolean {
+  const regions = expandRegion(league.region);
+  const cands = Object.values(world.teams).filter(
+    (t) => !t.active && t.real && t.titleId === leaving.titleId && t.id !== leaving.id && !t.leagueId && expandRegion(t.region).some((r) => regions.includes(r)) && !Object.values(world.teams).some((x) => x.active && x.orgId === t.orgId && x.titleId === t.titleId),
+  );
+  if (!cands.length) return false;
+  // Most recently active first.
+  const nt = cands.sort((a, b) => (b.lastSeen ?? 0) - (a.lastSeen ?? 0))[0];
+  delete nt.lastSeen;
+  if (nt.real) nt.real = { ...nt.real, est: [...(nt.real.est ?? []).filter((e) => !e.startsWith('dormant')), `returned to a league in ${world.season} (game)`] };
+  const org = world.orgs[nt.orgId];
+  org.active = true;
+  if (!org.teams.includes(nt.id)) org.teams.push(nt.id);
+  nt.active = true;
+  nt.leagueId = league.id;
+  nt.region = league.region;
+  league.teamIds = league.teamIds.map((x) => (x === leaving.id ? nt.id : x));
+  const t = getTitle(nt.titleId);
+  const others = league.teamIds.map((id) => world.teams[id]).filter((x) => x && x.id !== nt.id && x.active);
+  const avgCA = others.length ? others.reduce((a, x) => a + x.roster.reduce((s2, pid) => s2 + (world.players[pid]?.ca ?? 60), 0) / Math.max(1, x.roster.length), 0) / others.length : 62;
+  // Former players who are still free agents come back.
+  const former = Object.values(world.players).filter((p) => !p.teamId && !p.retired && p.titleId === nt.titleId && p.career.some((c) => c.teamId === nt.id));
+  for (const p of former.slice(0, t.teamSize + t.subs)) signInitial(world, ctx.rng, p, nt);
+  if (nt.roster.length < t.teamSize + t.subs) {
+    const before = nt.roster.length;
+    populateTeam(ctx, nt, avgCA - 3, league.region, t.family, 0.05);
+    // populateTeam fills a whole roster; keep only what is missing.
+    while (nt.roster.length > Math.max(t.teamSize + t.subs, before)) {
+      const pid = nt.roster.pop()!;
+      delete world.players[pid];
+    }
+  }
+  staffTeam(ctx, nt, 50);
+  nt.lineup = autoLineup(world, nt);
+  nt.elo = Math.round(1500 + (computeTeamStrength(world, nt) - 65) * 18);
+  if (!org.sponsors.length) makeSponsors(ctx, org);
+  nt.salaryBudget = salaryBudgetFor(world, nt);
+  if (org.balance <= 0) org.balance = Math.round(nt.salaryBudget * 0.6 + org.sponsors.reduce((a, s2) => a + s2.perMonth, 0) * 3 + org.owner.wealth * 4000);
+  org.events.push({ season: world.season, day: world.day, type: 'division-opened', text: `${nt.name} returns to ${league.name}, taking over a league place.` });
+  addNews(world, { kind: 'org', title: `${nt.name} return to ${league.name}`, body: `${nt.name} are back in ${getTitle(nt.titleId).short} after acquiring a ${league.name} place${former.length ? `, re-signing ${former.slice(0, 3).map((p) => p.handle).join(', ')}` : ''}.`, titleId: nt.titleId, refs: [{ type: 'team', id: nt.id }], importance: 3 });
+  return true;
 }
 
 function hireMissingStaff(world: World, rng: RNG): void {
@@ -355,7 +409,21 @@ function prune(world: World, endedSeason: number): void {
     if (!p.retired || p.retired.season > endedSeason - 4) continue;
     const l = legacy(p);
     if (l.total >= 35 || world.hof.some((h) => h.playerId === p.id)) continue;
-    world.retired.push({ id: p.id, handle: p.handle, name: `${p.first} ${p.last}`, nat: p.nat, titles: [...new Set(p.stats.map((s) => s.titleId))], retiredSeason: p.retired.season, legacy: l.total, trophies: p.awards.filter((a) => a.awardId.startsWith('champion')).length, awards: p.awards.length });
+    const titles = [...new Set(p.stats.map((s) => s.titleId))];
+    const lastTeamId = [...p.career].reverse().find((c) => c.teamId)?.teamId;
+    world.retired.push({
+      id: p.id,
+      handle: p.handle,
+      name: `${p.first} ${p.last}`.trim(),
+      nat: p.nat,
+      titles: titles.length ? titles : [p.titleId],
+      retiredSeason: p.retired.season,
+      legacy: l.total,
+      trophies: p.awards.filter((a) => a.awardId.startsWith('champion')).length,
+      awards: p.awards.length,
+      ...(lastTeamId && world.teams[lastTeamId] ? { lastTeam: world.teams[lastTeamId].name } : {}),
+      ...(p.real ? { real: p.real, roleId: p.roles[0] } : {}),
+    });
     delete world.players[p.id];
     delete world.scouting[p.id];
   }
@@ -402,6 +470,7 @@ export function seasonRollover(world: World): void {
   promotionRelegation(world, season, rng);
   yearlyDevelopment(world, rng);
   retirements(world, rng);
+  if (world.meta.dataMode === 'real') selfComebacks(world, new RNG(`${world.meta.seed}|comebacks|${season}`));
   expireContracts(world, season);
   staffAging(world, rng);
   popularityDrift(world, rng);

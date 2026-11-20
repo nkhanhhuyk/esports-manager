@@ -251,6 +251,7 @@ export function CompetitionPage({ id, route }: { id: string; route: Route }) {
             <b>{comp.season}{comp.split ? ` · Split ${comp.split}` : ''}</b> · <TitleTag id={comp.titleId} /> · {comp.tier} · {comp.region ? regionName(comp.region) : 'International'} · starts {formatDate(comp.startDay)} · {comp.status}
             {entry && ' · archived season'}
             {comp.leagueId && world.leagues[comp.leagueId]?.real && <Provenance world={world} real={world.leagues[comp.leagueId].real} kind="league" />}
+            {comp.realName && <div className="small muted" data-testid="provenance"><span className="tag good">Real</span> event name; format, dates, entrants and prize pool are game simulation.</div>}
           </span>
         }
       />

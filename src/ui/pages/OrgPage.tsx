@@ -37,7 +37,7 @@ export function OrgPage({ id }: { id?: string }) {
           <span>
             <Flag cc={org.country} />
             {COUNTRY_BY_CODE[org.country]?.name}{org.real?.est?.includes('country') ? ' (estimated)' : ''} · {regionName(org.region)} · {org.real ? 'in the game since' : 'founded'} {org.founded} · owner {org.owner.name} ({org.owner.type}{org.real ? ', game simulation' : ''}) · strategy: {org.strategy}
-            {!org.active && ' · DEFUNCT'}
+            {!org.active && (org.real && allTeams.some((t) => t.real && t.lastSeen) ? ' · DORMANT (no league place)' : ' · DEFUNCT')}
             <Provenance world={world} real={org.real} kind="organisation" />
           </span>
         }
@@ -69,6 +69,24 @@ export function OrgPage({ id }: { id?: string }) {
           ]}
         />
       </Card>
+      {allTeams.some((t) => !t.active) && (
+        <Card title="Dormant and former divisions">
+          <div className="small muted" style={{ marginBottom: 6 }}>Teams without a league place. Dormant real teams can return when a league place opens (a slot sale in their region).</div>
+          <DataTable
+            id="org-dormant"
+            rows={allTeams.filter((t) => !t.active)}
+            rowKey={(t) => t.id}
+            onRowClick={(t) => navigate(`/team/${t.id}`)}
+            columns={[
+              { key: 'team', label: 'Team', value: (t) => t.name, render: (t) => <TeamLink t={t} /> },
+              { key: 'title', label: 'Title', value: (t) => t.titleId, render: (t) => <TitleTag id={t.titleId} /> },
+              { key: 'region', label: 'Region', value: (t) => regionName(t.region) },
+              { key: 'seen', label: 'Last seen', align: 'right', value: (t) => t.lastSeen ?? t.history[t.history.length - 1]?.season ?? 0, render: (t) => t.lastSeen ?? t.history[t.history.length - 1]?.season ?? '—' },
+              { key: 'troph', label: 'Trophies', align: 'right', value: (t) => t.trophies.length },
+            ]}
+          />
+        </Card>
+      )}
       <FansCard world={world} org={org} />
       <div className="grid2">
         <Card title="Trophy cabinet (all divisions, all eras)">
