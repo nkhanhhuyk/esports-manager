@@ -152,3 +152,30 @@ describe('spatial MOBA simulation', () => {
     expect(g.engine).toBe('fast');
   });
 });
+
+describe('kill realism (no runaway blowouts)', () => {
+  for (const id of ['lol', 'mlbb', 'hok']) {
+    it(`${id}: no 40-kill teams, few multi-feeder losers, gaps within pro ranges`, async () => {
+      const { createWorld } = await import('../src/gen/world');
+      const w = createWorld({ name: 'kr', seed: `krt-${id}`, worldSize: 'small', titles: [id], startDay: 20000, dataMode: 'real' });
+      const teams = Object.values(w.teams).filter((t) => t.titleId === id && t.tier === 'main' && t.leagueId && t.active);
+      let feeders = 0;
+      const gaps: number[] = [];
+      let n = 0;
+      for (let i = 0; i < 24; i++) {
+        const a = teams[(i * 7) % teams.length];
+        const b = teams[(i * 11 + 3) % teams.length];
+        if (a === b) continue;
+        const f = { id: `krt-${i}`, compId: Object.keys(w.comps)[0], titleId: id, teams: [a.id, b.id], day: w.day, status: 'scheduled', format: { n: 1, label: 'Bo1' }, formatKey: 'standard', detail: false, spatial: true } as unknown as Fixture;
+        const g = playNextGame(w, f, createSeries(w, f));
+        const k = [0, 1].map((s) => g.players.filter((l) => l.teamIdx === s).reduce((x, l) => x + (l.s.k ?? 0), 0));
+        expect(Math.max(...k), `${a.name} vs ${b.name}`).toBeLessThanOrEqual(42);
+        gaps.push(k[g.winner] - k[1 - g.winner]);
+        if (g.players.filter((l) => l.teamIdx !== g.winner && (l.s.d ?? 0) >= 7).length >= 2) feeders++;
+        n++;
+      }
+      expect(feeders / n).toBeLessThanOrEqual(0.25);
+      expect([...gaps].sort((x, y) => x - y)[Math.floor(n * 0.9)]).toBeLessThanOrEqual(32);
+    }, 60_000);
+  }
+});

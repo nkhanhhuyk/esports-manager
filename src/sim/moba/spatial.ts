@@ -66,6 +66,12 @@ interface SpatialTuning {
   siegeMult: number;
   /** Multiplier on the power edge needed to start a fight (pro-scene caution). */
   caution: number;
+  /** Visible enemy power ratio (≥ 3 enemies) at which a hero falls back to its tower. */
+  flee: number;
+  /** How strongly fighting skill scales damage (1 = linear). */
+  skillExp: number;
+  /** Share of a tower's damage that hits a hero attacking under that tower. */
+  towerAggro: number;
   /** Gold display scale (income and item costs scale together, so fights are unaffected). */
   goldMult: number;
 }
@@ -100,13 +106,16 @@ const BASE: SpatialTuning = {
   structMult: 1,
   siegeMult: 0.6,
   caution: 1,
+  flee: 1.6,
+  skillExp: 0.9,
+  towerAggro: 0.8,
   goldMult: 2,
 };
 
 const TUNING: Record<string, SpatialTuning> = {
-  mlbb: { ...BASE, goldMult: 2.45, structMult: 1.25, siegeMult: 0.5, caution: 1.05, firstWave: 22, waveSpeed: 24, minionGold: 24, passiveGold: 2.2, xpK: 62, respawn: (lv, m) => Math.min(55, 6 + lv * 1.4 + m * 1.2), ultCd: 45, recallSec: 6 },
-  wildrift: { ...BASE, goldMult: 2.25, escapeCd: 150, structMult: 1.6, siegeMult: 0.45, caution: 1.15, firstWave: 30, waveSpeed: 26, minionGold: 22, passiveGold: 1.9, xpK: 70, respawn: (lv, m) => Math.min(58, 6 + lv * 2 + m * 0.7), ultCd: 50, recallSec: 5 },
-  hok: { ...BASE, goldMult: 2.6, structMult: 2.0, siegeMult: 0.42, caution: 1.3, firstWave: 30, waveSpeed: 23, minionGold: 25, passiveGold: 2.3, xpK: 66, respawn: (lv, m) => Math.min(55, 7 + lv * 1.5 + m * 1.0), ultCd: 45 },
+  mlbb: { ...BASE, skillExp: 0.8, goldMult: 2.45, structMult: 1.25, siegeMult: 0.5, caution: 0.85, firstWave: 22, waveSpeed: 24, minionGold: 24, passiveGold: 2.2, xpK: 62, respawn: (lv, m) => Math.min(55, 6 + lv * 1.4 + m * 1.2), ultCd: 45, recallSec: 6 },
+  wildrift: { ...BASE, skillExp: 0.75, goldMult: 2.25, escapeCd: 150, structMult: 1.6, siegeMult: 0.45, caution: 1.15, flee: 1.3, firstWave: 30, waveSpeed: 26, minionGold: 22, passiveGold: 1.9, xpK: 70, respawn: (lv, m) => Math.min(58, 6 + lv * 2 + m * 0.7), ultCd: 50, recallSec: 5 },
+  hok: { ...BASE, skillExp: 0.7, goldMult: 2.6, structMult: 2.0, siegeMult: 0.42, caution: 1.05, flee: 1.4, firstWave: 30, waveSpeed: 23, minionGold: 25, passiveGold: 2.3, xpK: 66, respawn: (lv, m) => Math.min(55, 7 + lv * 1.5 + m * 1.0), ultCd: 45 },
   lol: {
     ...BASE,
     firstWave: 65,
@@ -125,7 +134,7 @@ const TUNING: Record<string, SpatialTuning> = {
     escapeCd: 300,
     structMult: 2.1,
     siegeMult: 0.38,
-    caution: 1.7,
+    caution: 1.4,
     goldMult: 1.65,
     heroHp: 2000,
     heroHpLv: 230,
@@ -150,7 +159,7 @@ const TUNING: Record<string, SpatialTuning> = {
     escapeCd: 90,
     structMult: 1.15,
     siegeMult: 0.45,
-    caution: 1.2,
+    caution: 0.95,
     goldMult: 2.4,
     recallSec: 7,
     ultCd: 90,
@@ -209,6 +218,12 @@ interface Hero {
   chaseFrom: number;
   /** Last time an enemy committed (all-in) on this hero — pokes do not count. */
   engagedAt: number;
+  /** Plays safe (under own tower, no trades) until this time — after repeated deaths or respawning behind. */
+  safeUntil: number;
+  /** Recent death times (feeding check) and kill / death streaks (bounties). */
+  deathsAt: number[];
+  killStreak: number;
+  deathStreak: number;
   aegis: boolean;
   // derived
   dmgW: number;
@@ -338,6 +353,10 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
         escapeAt: 0,
         chaseFrom: -1,
         engagedAt: -999,
+        safeUntil: 0,
+        deathsAt: [],
+        killStreak: 0,
+        deathStreak: 0,
         aegis: false,
         dmgW: dmgWeight(g, pc),
         tankW: tankWeight(g, pc),
@@ -375,7 +394,7 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
   }
   /** Damage per second against heroes (attributes act once: mechanics through the skill factor). */
   function heroDps(h: Hero, now: number): number {
-    const sk = Math.pow((h.skill.skirm * 0.45 + h.skill.fight * 0.55) / 65, 1.3);
+    const sk = Math.pow((h.skill.skirm * 0.45 + h.skill.fight * 0.55) / 65, T.skillExp);
     const comp = g.comp[h.side];
     const phaseT = clamp(now / 60 / cfg.avgLength, 0, 1.4);
     const early = ((comp.profile.early ?? 5) - 5) * (1 - phaseT);
@@ -608,7 +627,12 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
     return L;
   };
   const giveXp = (h: Hero, x: number) => {
-    h.xp += x;
+    // Catch-up experience (as in the real games): heroes below the enemy team's average level gain
+    // more, heroes far ahead a little less — level gaps stay within a few levels.
+    let sum = 0;
+    for (const e of bySide[1 - h.side]) sum += e.level;
+    const gap = sum / 5 - h.level;
+    h.xp += x * clamp(1 + 0.22 * gap, 0.8, 1.9);
     const L = levelFor(h.xp);
     if (L !== h.level) {
       const frac = h.hp / h.maxHp;
@@ -624,6 +648,7 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
   const teamGold = (side: number) => bySide[side].reduce((a, h) => a + h.gold, 0);
   /** Gold lead per side, refreshed once per tick. */
   const leadNow = [0, 0];
+  let simNow = 0;
   const goldLead = (side: number) => {
     const a = teamGold(side);
     const b = teamGold(1 - side);
@@ -667,11 +692,24 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
     // Assists: enemies who damaged the victim in the last 10 seconds.
     const helpers = bySide[ks].filter((h) => h !== killer && now - victim.lastHit[h.i] <= 10);
     const lead = goldLead(ks);
-    const bounty = T.killGold * (1 + Math.max(0, -lead) * cfg.comeback * 3) * (1 - Math.max(0, lead) * cfg.comeback * 0.8);
+    // Shutdown gold for ending a kill streak; a player who keeps dying is worth less each time.
+    const streakMult = (1 + 0.18 * Math.min(5, victim.killStreak)) * (victim.deathStreak >= 2 ? Math.max(0.35, 1 - 0.2 * (victim.deathStreak - 1)) : 1);
+    const bounty = T.killGold * streakMult * (1 + Math.max(0, -lead) * cfg.comeback * 3) * (1 - Math.max(0, lead) * cfg.comeback * 0.8);
+    victim.killStreak = 0;
+    victim.deathStreak++;
+    victim.deathsAt.push(now);
+    if (victim.deathsAt.length > 4) victim.deathsAt.shift();
+    // Two deaths within four minutes: the player plays safe for a while after respawning.
+    const recent = victim.deathsAt.filter((t0) => now - t0 < 240).length;
+    if (recent >= 2) victim.safeUntil = Math.max(victim.safeUntil, victim.respawnAt + 75 + 30 * (recent - 2));
+    if (killer) {
+      killer.killStreak++;
+      killer.deathStreak = 0;
+    }
     if (killer) {
       book.add(killer.pc.p.id, 'k', 1);
       giveGold(killer, bounty * 0.7);
-      giveXp(killer, 120 + victim.level * 25);
+      giveXp(killer, (120 + victim.level * 25) * clamp(1 + 0.15 * (victim.level - killer.level), 0.5, 1.6));
       const m = multi.get(killer.i);
       const nm = m && now - m.at < 12 ? m.n + 1 : 1;
       multi.set(killer.i, { n: nm, at: now });
@@ -705,6 +743,17 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
     const mitig = 1 / (1 + 0.25 * (dst.tankW - 1) + 0.08 * (itemPower(dst) - 1));
     const dmg = amount * mitig;
     dst.hp -= dmg;
+    if (src && dst.hp > 0 && dst.hp < dst.maxHp * 0.18 && now >= dst.ultAt && now >= dst.stunUntil) {
+      // Last stand: a hero about to die spends the ultimate on the weakest enemy in reach.
+      const reach = dst.melee ? 30 : 60;
+      let weakest: Hero | null = null;
+      for (const e of bySide[src.side]) if (!e.dead && (e.x - dst.x) ** 2 + (e.y - dst.y) ** 2 < reach * reach && (!weakest || e.hp / e.maxHp < weakest.hp / weakest.maxHp)) weakest = e;
+      if (weakest) {
+        dst.ultAt = now + T.ultCd;
+        ev(now, 'cast', dst.i, weakest.i, weakest, dst.side);
+        damageHero(dst, weakest, dst.dps * (2.2 + dst.skill.clutch / 100), now, 'champion');
+      }
+    }
     if (has.has('taken')) book.add(dst.pc.p.id, 'taken', dmg);
     if (src) {
       dst.lastHit[src.i] = now;
@@ -1098,6 +1147,28 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
       plans[side] = { kind: 'objective', obj: objs.indexOf(best.o), at, until: now + 20, members: new Set(sorted.slice(0, need).map((h) => h.i)) };
       return;
     }
+    // 2b. Well behind after laning: group as five at the own tower facing the enemy's group instead
+    // of farming side lanes alone (no isolated pick-offs); towers make fights there even.
+    if (!lanePhase && leadNow[side] < -0.12 && alive.length >= 2) {
+      const seen = bySide[1 - side].filter((e) => !e.dead && lastSeen[side][e.i] > now - 10);
+      if (seen.length >= 3) {
+        const cx = seen.reduce((a, e) => a + e.x, 0) / seen.length;
+        const cy = seen.reduce((a, e) => a + e.y, 0) / seen.length;
+        let tower: Struct | null = null;
+        let bd = Infinity;
+        for (const x of structs) if (x.alive && x.d.team === side && x.d.dps > 0) {
+          const d = (x.d.pos.x - cx) ** 2 + (x.d.pos.y - cy) ** 2;
+          if (d < bd) {
+            bd = d;
+            tower = x;
+          }
+        }
+        if (tower) {
+          plans[side] = { kind: 'defend', at: tower.d.pos, until: now + 15, members: new Set(alive.map((h) => h.i)) };
+          return;
+        }
+      }
+    }
     // 3. After laning: group and siege the most promising lane (one split pusher by style).
     if (!lanePhase && alive.length >= 3) {
       const lead = goldLead(side);
@@ -1130,8 +1201,32 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
 
   // ------------------------------------------------------------- individual behaviour
   const fountainPt = (side: number) => map.fountains[side];
+  /** Inside the range of the hero's own front tower in a lane (safe farming spot). */
+  const safeSpot = (h: Hero, lane: LaneId): Pt => {
+    const L = map.laneLen[lane];
+    let best = -1;
+    for (const x of structs) if (x.alive && x.d.team === h.side && x.d.lane === lane && x.d.dps > 0) {
+      const sAbs = h.side === 0 ? x.laneS : L - x.laneS;
+      if (sAbs > best) best = sAbs;
+    }
+    if (best < 0) return { x: (map.fountains[h.side].x * 2 + map.cores[h.side].x) / 3, y: (map.fountains[h.side].y * 2 + map.cores[h.side].y) / 3 };
+    const s2 = Math.max(0, best - 18);
+    return laneAt(lane, h.side === 0 ? s2 : L - s2);
+  };
+  /**
+   * Danger: the hero plays safe (after repeated deaths / respawning behind), or, past the early
+   * laning phase, three or more enemies are unaccounted for and the team is not ahead.
+   */
+  const inDanger = (h: Hero): boolean => {
+    if (simNow < h.safeUntil) return true;
+    if (simNow / 60 < cfg.laneEnd * 0.5 || leadNow[h.side] > 0.06) return false;
+    let missing = 0;
+    for (const e of bySide[1 - h.side]) if (!e.dead && lastSeen[h.side][e.i] < simNow - 8) missing++;
+    return missing >= 3;
+  };
   const laneSpot = (h: Hero, laneOverride?: LaneId): Pt => {
     const lane = laneOverride ?? h.lane ?? 'mid';
+    if (!laneOverride && inDanger(h)) return safeSpot(h, lane);
     const L = map.laneLen[lane];
     // Behind the front-most own wave, otherwise near the own front tower.
     let s = 0;
@@ -1182,6 +1277,8 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
     const underAttack = now - h.engagedAt <= 2;
     const fighting = h.target === e.i;
     if (myHp < 0.22) return 0;
+    const safe = now < h.safeUntil;
+    if (safe && !(underAttack && ratio > 1.0) && !(theirHp < 0.15 && ratio > 1.4)) return 0;
     const laning = now / 60 < cfg.laneEnd && h.job === 'lane' && e.job === 'lane' && h.lane === e.lane;
     // Early 1-on-1 all-ins need a clear edge (summoner spells, tower, minions make them risky);
     // ganks (more allies than enemies close by) lower the bar.
@@ -1213,6 +1310,10 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
         h.node = map.fountainNode[h.side];
         h.nxt = -1;
         h.free = false;
+        // Respawning behind or into an outnumbered map: walk to the own tower and regroup first.
+        const alliesUp = bySide[h.side].filter((x) => !x.dead && x !== h).length;
+        const enemiesUp = bySide[1 - h.side].filter((x) => !x.dead).length;
+        if (now / 60 >= cfg.laneEnd * 0.4 && (leadNow[h.side] < -0.05 || enemiesUp > alliesUp + 1)) h.safeUntil = Math.max(h.safeUntil, now + 35);
         ev(now, 'respawn', h.i, undefined, h, h.side);
       } else if (T.buyback && now >= h.bbReadyAt) {
         // Buyback when the base is under threat late in the game.
@@ -1316,6 +1417,21 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
         ev(now, 'escape', h.i, undefined, h, h.side);
       }
     }
+    if (tgt && mode === 2) {
+      // Focus fire: switch to the most killable visible enemy within reach.
+      const reach = (h.melee ? 16 : 46) + 25;
+      let best = tgt;
+      let bestScore = tgt.hp / Math.max(1, h.dps);
+      for (const e of bySide[1 - h.side]) {
+        if (e === tgt || e.dead || !visible[h.side][e.i] || (e.x - h.x) ** 2 + (e.y - h.y) ** 2 > reach * reach) continue;
+        const score = e.hp / Math.max(1, h.dps);
+        if (score < bestScore * 0.8) {
+          best = e;
+          bestScore = score;
+        }
+      }
+      tgt = best;
+    }
     if (tgt) {
       h.target = tgt.i;
       h.act = Act.Fight;
@@ -1344,6 +1460,17 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
         if (mode === 2) tgt.engagedAt = now;
         if (now < execUntil[h.side] && tgt.hp / tgt.maxHp < 0.1 + execVal[h.side] * 0.2) dmg += tgt.hp;
         damageHero(h, tgt, dmg, now, 'champion');
+        // Tower aggro: attacking a hero under that hero's own tower draws the tower's fire.
+        if (mode === 2 && !h.dead) {
+          for (const tw of structs) {
+            if (!tw.alive || tw.d.team !== tgt.side || tw.d.dps <= 0) continue;
+            const r2 = (tw.d.range + 10) ** 2;
+            if ((tw.d.pos.x - h.x) ** 2 + (tw.d.pos.y - h.y) ** 2 < r2 && (tw.d.pos.x - tgt.x) ** 2 + (tw.d.pos.y - tgt.y) ** 2 < r2) {
+              damageHero(null, h, tw.d.dps * dt * T.towerAggro, now, tw.d.name);
+              break;
+            }
+          }
+        }
         if (h.healW > 0.3) {
           let lowAlly: Hero | null = null;
           for (const a of bySide[h.side]) if (!a.dead && a !== h && dist(a, h) < 90 && (!lowAlly || a.hp / a.maxHp < lowAlly.hp / lowAlly.maxHp)) lowAlly = a;
@@ -1389,6 +1516,27 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
           wards.push(w);
           if (rec) rec.wards.push({ side: w.side, x: Math.round(w.x), y: Math.round(w.y), from: now, to: Math.round(w.until) });
           if (has.has('vision')) book.add(h.pc.p.id, 'vision', 1);
+        }
+      }
+    }
+    // ---- threat avoidance: a visible, clearly stronger enemy group close by → fall back to the own
+    // tower (unless defending a structure or already committed to a fight).
+    if (h.act !== Act.Defend && now / 60 > 1.5) {
+      let theirs = 0;
+      let ours = 0;
+      let seen = 0;
+      for (const e of bySide[1 - h.side]) if (!e.dead && visible[h.side][e.i] && (e.x - h.x) ** 2 + (e.y - h.y) ** 2 < 230 * 230) {
+        theirs += e.pow;
+        seen++;
+      }
+      if (seen >= 2) {
+        for (const a of bySide[h.side]) if (!a.dead && (a.x - h.x) ** 2 + (a.y - h.y) ** 2 < 230 * 230) ours += a.pow;
+        if (theirs > ours * (seen >= 3 ? T.flee : T.flee * 1.35)) {
+          h.act = Act.Retreat;
+          const spot = safeSpot(h, h.lane ?? 'mid');
+          setGoal(h, dist(h, spot) < 30 ? fountainPt(h.side) : spot);
+          move(h, sp);
+          return;
         }
       }
     }
@@ -1564,6 +1712,7 @@ export function simulateMobaSpatial(g: GameContext, record = false): GameResult 
   for (const side of [0, 1] as const) decide(side, 0);
   for (let now = 0; winner < 0; now += dt) {
     endT = now;
+    simNow = now;
     if (now >= nextWave) {
       spawnWaves(now);
       nextWave += T.waveEvery;
