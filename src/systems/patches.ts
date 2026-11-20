@@ -20,8 +20,9 @@ import { clamp } from '../core/math';
 import { RNG } from '../core/rng';
 import { getTitle } from '../data/titles/catalogue';
 import type { ObjectiveDef, TitleDef } from '../data/titles/types';
-import type { ObjectiveKind, Patch, PatchKind, PatchObjective, PatchRules, World } from '../model/types';
+import type { ObjectiveKind, Patch, PatchChange, PatchKind, PatchObjective, PatchRules, World } from '../model/types';
 import { mobaRules, tacticalRules } from '../sim/common/rules';
+import { characterLines, classLines, weaponChanges } from './patchNotes';
 import { addNews } from './news';
 
 export function initialPatch(world: World, titleId: string): Patch {
@@ -249,6 +250,9 @@ export function releasePatch(world: World, titleId: string, kindIn: PatchKind | 
   const sameSeason = world.titles[titleId].patches.filter((p) => p.season === season).length;
   const version = `${yy}.${String(sameSeason + 1).padStart(2, '0')}`;
   const notes: string[] = [];
+  // Detailed notes use their own random stream, so writing them never changes the simulation.
+  const nrng = new RNG(`${world.meta.seed}|patchnotes|${titleId}|${world.day}|${kind}`);
+  const detail: PatchChange[] = [];
   const charMeta: Record<string, number> = {};
   for (const c of t.characters) {
     const old = prev.charMeta[c.id] ?? 0;
@@ -260,8 +264,21 @@ export function releasePatch(world: World, titleId: string, kindIn: PatchKind | 
     const sorted = [...t.characters].sort((a, b) => (prev.charMeta[b.id] ?? 0) - (prev.charMeta[a.id] ?? 0));
     const nerfs = sorted.slice(0, n);
     const buffs = rng.sample(sorted.slice(Math.floor(sorted.length / 2)), n);
-    for (const c of nerfs) charMeta[c.id] = Math.round(clamp(charMeta[c.id] - rng.float(K.mag[0], K.mag[1]), -10, 10) * 10) / 10;
-    for (const c of buffs) charMeta[c.id] = Math.round(clamp(charMeta[c.id] + rng.float(K.mag[0], K.mag[1]), -10, 10) * 10) / 10;
+    const deltas = new Map<string, number>();
+    for (const c of nerfs) {
+      const d = rng.float(K.mag[0], K.mag[1]);
+      deltas.set(c.id, -d);
+      charMeta[c.id] = Math.round(clamp(charMeta[c.id] - d, -10, 10) * 10) / 10;
+    }
+    for (const c of buffs) {
+      const d = rng.float(K.mag[0], K.mag[1]);
+      deltas.set(c.id, (deltas.get(c.id) ?? 0) + d);
+      charMeta[c.id] = Math.round(clamp(charMeta[c.id] + d, -10, 10) * 10) / 10;
+    }
+    for (const [cid, d] of deltas) {
+      const c = t.characters.find((x) => x.id === cid)!;
+      detail.push({ cat: 'character', id: cid, name: c.name, dir: d >= 0 ? 'buff' : 'nerf', lines: characterLines(t, c, d, nrng), meta: [prev.charMeta[cid] ?? 0, charMeta[cid]] });
+    }
     notes.push(`Nerfs: ${nerfs.map((c) => c.name).join(', ')}.`);
     notes.push(`Buffs: ${buffs.map((c) => c.name).join(', ')}.`);
     // Item (MOBA) / utility (agents) changes hit a whole class.
@@ -271,12 +288,17 @@ export function releasePatch(world: World, titleId: string, kindIn: PatchKind | 
       const d = rng.pick([-1, 1]) * rng.float(K.classMag[0], K.classMag[1]);
       for (const c of t.characters) if (c.cls === cls) charMeta[c.id] = Math.round(clamp(charMeta[c.id] + d, -10, 10) * 10) / 10;
       notes.push(`${t.moba ? `${cls} items` : `${cls} ${label} utility`} ${d > 0 ? 'buffed' : 'nerfed'}.`);
+      detail.push({ cat: 'class', name: t.moba ? `${cls} items` : `${cls} utility`, dir: d > 0 ? 'buff' : 'nerf', lines: classLines(t, cls, d > 0, nrng) });
     }
   }
   const styles: Record<string, number> = {};
   for (const s of t.styles) styles[s] = Math.round(clamp((prev.styles[s] ?? 1) * 0.9 + 0.1 + rng.normal(0, K.styleSd), 0.55, 1.6) * 100) / 100;
   const favoured = Object.entries(styles).sort((a, b) => b[1] - a[1])[0]?.[0];
-  if (favoured && kind !== 'minor') notes.push(`Meta shifts toward ${favoured} play.`);
+  if (favoured && kind !== 'minor') {
+    notes.push(`Meta shifts toward ${favoured} play.`);
+    const shifts = t.styles.map((st) => ({ st, d: styles[st] - (prev.styles[st] ?? 1) })).filter((x) => Math.abs(x.d) >= 0.03).sort((a, b) => b.d - a.d);
+    if (shifts.length) detail.push({ cat: 'system', name: 'Meta direction', dir: 'adjust', lines: shifts.map((x) => `${x.st} play ${x.d > 0 ? 'rewarded more' : 'rewarded less'} (×${(prev.styles[x.st] ?? 1).toFixed(2)} → ×${styles[x.st].toFixed(2)})`) });
+  }
   let mapPool = [...prev.mapPool];
   if (kind !== 'minor' && t.maps.length > t.mapPool && rng.chance(kind === 'major' ? 0.6 : 0.25)) {
     const out = rng.pick(mapPool);
@@ -285,6 +307,7 @@ export function releasePatch(world: World, titleId: string, kindIn: PatchKind | 
       const inn = rng.pick(candidates);
       mapPool = mapPool.map((m) => (m === out ? inn.id : m));
       notes.push(`Map pool: ${t.maps.find((m) => m.id === out)?.name} out, ${inn.name} in.`);
+      detail.push({ cat: 'map', name: 'Map pool', dir: 'adjust', lines: [`${t.maps.find((m) => m.id === out)?.name} leaves the competitive pool`, `${inn.name} enters the competitive pool`] });
     }
   }
   const objectiveMods = { ...prev.objectiveMods };
@@ -292,12 +315,18 @@ export function releasePatch(world: World, titleId: string, kindIn: PatchKind | 
     const obj = rng.pick(mobaRules(t, prev).objectives);
     objectiveMods[obj.id] = Math.round(clamp((objectiveMods[obj.id] ?? 1) * rng.float(0.85, 1.2), 0.6, 1.6) * 100) / 100;
     notes.push(`${obj.name} value adjusted (x${objectiveMods[obj.id]}).`);
-  }
-  if (kind === 'medium' && t.tactical && !t.characters.length) {
-    notes.push('Weapon prices and damage falloff adjusted.');
+    detail.push({ cat: 'system', name: obj.name, dir: objectiveMods[obj.id] >= (prev.objectiveMods[obj.id] ?? 1) ? 'buff' : 'nerf', lines: [`Reward ×${(prev.objectiveMods[obj.id] ?? 1).toFixed(2)} → ×${objectiveMods[obj.id].toFixed(2)}`] });
   }
   // Major: gameplay changes (cumulative rules).
   const rules: PatchRules = JSON.parse(JSON.stringify(prev.rules ?? {}));
+  if (t.tactical && !t.characters.length) {
+    // CS2: weapon balance; the average price change moves the full-buy cost the rounds use.
+    const w = weaponChanges(nrng, kind === 'minor' ? 1 : kind === 'medium' ? 3 : 5);
+    detail.push(...w.changes);
+    notes.push(`Weapons: ${w.changes.map((c) => `${c.name} ${c.dir === 'buff' ? '↑' : '↓'}`).join(', ')}.`);
+    const fb = rules.tactical?.fullBuy ?? t.tactical.fullBuy;
+    rules.tactical = { ...(rules.tactical ?? {}), fullBuy: Math.round(clamp(fb * (1 + w.priceDelta), t.tactical.fullBuy * 0.85, t.tactical.fullBuy * 1.15) / 50) * 50 };
+  }
   const changes: string[] = [];
   if (kind === 'major') {
     const used = new Set<string>();
@@ -307,6 +336,7 @@ export function releasePatch(world: World, titleId: string, kindIn: PatchKind | 
       if (c) changes.push(c);
     }
     notes.unshift(...changes.map((c) => `Gameplay: ${c}`));
+    if (changes.length) detail.unshift({ cat: 'system', name: 'Gameplay update', dir: 'new', lines: changes });
   }
   let era = prev.era;
   if (kind === 'major' && rng.chance(0.12)) {
@@ -328,12 +358,15 @@ export function releasePatch(world: World, titleId: string, kindIn: PatchKind | 
     notes,
     era,
     ...(Object.keys(rules).length ? { rules } : {}),
+    changes: detail,
   };
   world.titles[titleId].patches.push(patch);
   // Only recent patches keep per-character meta values (real rosters have 100–170 characters);
   // older patches keep their version, notes, styles, map pool and rules.
   const ps = world.titles[titleId].patches;
   for (let i = 0; i < ps.length - 6; i++) if (Object.keys(ps[i].charMeta).length) ps[i].charMeta = {};
+  // Detailed notes are kept for the 15 most recent patches (the short notes stay for all).
+  for (let i = 0; i < ps.length - 15; i++) if (ps[i].changes) delete ps[i].changes;
   if (world.titles[titleId].patches.length > 60) {
     const keep = world.titles[titleId].patches;
     world.titles[titleId].patches = keep.slice(keep.length - 60);

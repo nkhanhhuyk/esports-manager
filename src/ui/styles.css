@@ -1223,3 +1223,59 @@ textarea {
     padding: 11px 16px;
   }
 }
+
+/* Patch notes */
+details.pn {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
+}
+details.pn > summary {
+  cursor: pointer;
+  list-style: none;
+}
+details.pn > summary::-webkit-details-marker {
+  display: none;
+}
+details.pn > summary::before {
+  content: '▸ ';
+  color: var(--muted);
+}
+details.pn[open] > summary::before {
+  content: '▾ ';
+}
+.pn-section {
+  margin: 10px 0 4px 14px;
+}
+.pn-section h4 {
+  margin: 6px 0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+}
+.pn-item {
+  border-left: 3px solid var(--border);
+  padding: 4px 0 4px 10px;
+  margin-bottom: 6px;
+}
+.pn-item.buff {
+  border-left-color: var(--good);
+}
+.pn-item.nerf {
+  border-left-color: var(--bad);
+}
+.pn-item.new {
+  border-left-color: var(--warn);
+}
+.pn-item ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.pn-item li {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.tag.bad {
+  background: rgba(255, 92, 108, 0.18);
+  color: var(--bad);
+}

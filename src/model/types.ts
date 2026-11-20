@@ -840,6 +840,17 @@ export interface PatchRules {
   tactical?: { startMoney?: number; winReward?: number; lossMult?: number; killReward?: number; plantReward?: number; fullBuy?: number; defenderEdge?: number; roundTime?: number; bombTime?: number; plantTime?: number; defuseTime?: number };
 }
 
+/** One section entry of the detailed patch notes. */
+export interface PatchChange {
+  cat: 'character' | 'class' | 'weapon' | 'system' | 'map';
+  name: string;
+  id?: string;
+  dir: 'buff' | 'nerf' | 'adjust' | 'new' | 'removed';
+  lines: string[];
+  /** Meta strength before → after (characters). */
+  meta?: [number, number];
+}
+
 export interface Patch {
   id: string;
   version: string;
@@ -850,6 +861,8 @@ export interface Patch {
   /** Minor (small balance changes during the season), medium (meta-shifting, before First Stand, MSI and Worlds) or major (after Worlds: gameplay changes). */
   kind?: PatchKind;
   rules?: PatchRules;
+  /** Detailed notes by section (kept for the most recent patches). */
+  changes?: PatchChange[];
   charMeta: Record<string, number>; // -10..+10
   styles: Record<string, number>; // style -> weight multiplier
   mapPool: string[];

@@ -1,4 +1,5 @@
 import { mobaMults, mobaRules, tacticalRules } from '../../sim/common/rules';
+import type { Patch, PatchChange } from '../../model/types';
 import { useWorld } from '../store';
 import { Card, CharIcon, CompLink, Flag, OrgBadge, OrgLink, PageHeader, PlayerLink, Rating, Stat, TeamLink, TitleTag, Tabs } from '../components/common';
 import { DataTable } from '../components/DataTable';
@@ -287,15 +288,9 @@ export function TitlePage({ id, route }: { id: string; route: Route }) {
             <RulesInForce titleId={t.id} />
           </Card>
           <Card title="Patch history" right={<span className="muted small">minor: balance during the splits · medium: before First Stand, MSI and Worlds · major: after Worlds, gameplay changes</span>}>
-            {[...ts.patches].reverse().map((p) => {
-              const kind = p.kind ?? (p.major ? 'major' : 'minor');
-              return (
-                <div key={p.id} style={{ padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
-                  <b>{p.version}</b> <span className={`tag ${kind === 'major' ? 'warn' : ''}`}>{kind}</span> <span className="muted small">{formatDate(p.day)} · {p.era}</span>
-                  <div className="small">{p.notes.join(' · ')}</div>
-                </div>
-              );
-            })}
+            {[...ts.patches].reverse().map((p, i) => (
+              <PatchNotes key={p.id} titleId={t.id} patch={p} open={i === 0} />
+            ))}
           </Card>
         </>
       )}
@@ -400,4 +395,52 @@ function RulesInForce({ titleId }: { titleId: string }) {
     );
   }
   return null;
+}
+
+/** One patch: header, short summary and the full notes by section (collapsible). */
+function PatchNotes({ titleId, patch: p, open }: { titleId: string; patch: Patch; open: boolean }) {
+  const t = getTitle(titleId);
+  const kind = p.kind ?? (p.major ? 'major' : 'minor');
+  const ch = p.changes ?? [];
+  const section = (title: string, items: PatchChange[]) =>
+    items.length ? (
+      <div className="pn-section">
+        <h4>{title}</h4>
+        {items.map((c, i) => (
+          <div key={i} className={`pn-item ${c.dir}`}>
+            <div className="pn-name">
+              {c.cat === 'character' && <CharIcon id={c.id} size={22} name={c.name} />} <b>{c.name}</b>{' '}
+              <span className={`tag ${c.dir === 'buff' ? 'good' : c.dir === 'nerf' ? 'bad' : ''}`}>{c.dir}</span>
+              {c.meta && (
+                <span className="muted small">
+                  {' '}
+                  meta {c.meta[0].toFixed(1)} → {c.meta[1].toFixed(1)}
+                </span>
+              )}
+            </div>
+            <ul>
+              {c.lines.map((l, j) => (
+                <li key={j}>{l}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    ) : null;
+  return (
+    <details className="pn" open={open}>
+      <summary>
+        <b>Patch {p.version}</b> <span className={`tag ${kind === 'major' ? 'warn' : kind === 'medium' ? 'good' : ''}`}>{kind}</span> <span className="muted small">{formatDate(p.day)} · {p.era}</span>
+        <div className="small">{p.notes.slice(0, 3).join(' · ')}</div>
+      </summary>
+      {!ch.length && <div className="small">{p.notes.join(' · ')}</div>}
+      {section('Gameplay update', ch.filter((c) => c.cat === 'system' && c.dir === 'new'))}
+      {section(`${t.charLabel} buffs`, ch.filter((c) => c.cat === 'character' && c.dir === 'buff'))}
+      {section(`${t.charLabel} nerfs`, ch.filter((c) => c.cat === 'character' && c.dir === 'nerf'))}
+      {section(t.moba ? 'Items' : 'Utility', ch.filter((c) => c.cat === 'class'))}
+      {section('Weapons', ch.filter((c) => c.cat === 'weapon'))}
+      {section('Systems & objectives', ch.filter((c) => c.cat === 'system' && c.dir !== 'new'))}
+      {section('Map pool', ch.filter((c) => c.cat === 'map'))}
+    </details>
+  );
 }
