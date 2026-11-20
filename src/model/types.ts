@@ -218,15 +218,60 @@ export type TrainingFocus =
   | 'recovery'
   | 'teamwork';
 
+/** One practice block (morning or afternoon). */
+export type SessionType = 'rest' | 'individual' | 'tactics' | 'scrim' | 'review' | 'pool' | 'maps' | 'prep' | 'patch' | 'mental';
+
+/** How a planned block went this week. */
+export interface SessionSlot {
+  /** Planned session, or 'match' when the team plays that block. */
+  t: SessionType | 'match';
+  /** held | cancelled | unsupervised (over staff capacity, half value) | match */
+  s: 'held' | 'cancelled' | 'unsupervised' | 'match';
+  /** Reason for a cancellation. */
+  r?: string;
+  /** Scrim partner (team id) and result (1 = won the scrim block). */
+  p?: ID;
+  w?: 0 | 1;
+  /** Scrim learning quality (partner strength, region). */
+  q?: number;
+  /** Internal scrim against the organisation's own academy/parent team. */
+  internal?: boolean;
+}
+
+export interface TrainingWeek {
+  start: DayNum;
+  slots: SessionSlot[]; // 14: Mon AM, Mon PM … Sun PM
+  plannedBy: 'coach' | 'manager';
+  rooms: number;
+  staffCap: number;
+  coached: number;
+  devFactor: number;
+  fatigue: number;
+  taper: boolean;
+}
+
 export interface TrainingPlan {
+  /** Development objective; the coaches build the weekly sessions around it. */
   focus: TrainingFocus;
   intensity: number; // 0..100
+  /** Scrims the coaches aim to book per week. */
   scrimsPerWeek: number;
   individual: Record<ID, TrainingFocus>;
+  /** Coaches schedule opponent-preparation sessions before matches. */
   opponentPrep: boolean;
   /** Consecutive weeks on the same team focus (diminishing returns). */
   focusWeeks?: number;
   lastFocus?: TrainingFocus;
+  /** Manager's own weekly timetable (14 blocks), used when training is not delegated. */
+  template?: SessionType[];
+  /** Scrim partner policy: best available (avoids upcoming opponents) or only outside the league. */
+  scrimPolicy?: 'best' | 'outside-league';
+  /** This week's timetable as it actually happened (user and followed teams only). */
+  week?: TrainingWeek;
+  /** Opponent preparation level for this week's matches (0..1). */
+  prep?: number;
+  /** Scrim intel: teams this team has scrimmed recently → day the knowledge expires. */
+  intel?: Record<ID, DayNum>;
 }
 
 export interface TeamSeasonRecord {
@@ -872,7 +917,18 @@ export interface WorldMeta {
   activeSlot?: number | null;
   /** Optional national-team job held alongside the club role. */
   nationalJob?: { titleId: TitleId; country: CountryCode; squad: ID[] } | null;
+  /** 'manager' (default) runs one organisation; 'spectator' follows teams while AI staff decide everything. */
+  mode?: 'manager' | 'spectator';
+  /** Teams followed (spectator mode, or extra teams to follow as a manager). */
+  followed?: ID[];
+  /** Spectator: stop the advance the day before a followed team plays (to watch it live). */
+  stopForFollowed?: boolean;
+  /** Areas the manager hands to AI staff even though the role could do them. */
+  delegation?: Partial<Record<DelegationArea, boolean>>;
 }
+
+/** Areas of club management that can be delegated to AI staff. */
+export type DelegationArea = 'signings' | 'sales' | 'contracts' | 'staff' | 'finance' | 'registration';
 
 export interface World {
   meta: WorldMeta;

@@ -3,6 +3,7 @@
  * competition aggregates, Elo, morale/form/fatigue, proficiency growth from play, chemistry,
  * relationships and news. Idempotent per fixture (guarded by fixture.status).
  */
+import { isFollowed } from '../systems/follow';
 import { clamp } from '../core/math';
 import { getTitle } from '../data/titles/catalogue';
 import type { Fixture, GameResult, MatchRecord, Player, StatLine, World } from '../model/types';
@@ -175,8 +176,9 @@ function applySeries(world: World, f: Fixture, st: SeriesState, forceDetail: boo
       importance: importance >= 1 ? 4 : 2,
     });
   }
-  if (isUserTeam(world, winner) || isUserTeam(world, loser)) {
-    const ut = isUserTeam(world, winner) ? winner : loser;
+  const followedReport = world.meta.mode === 'spectator' && (world.meta.followed?.length ?? 0) <= 20 && (isFollowed(world, winner) || isFollowed(world, loser));
+  if (isUserTeam(world, winner) || isUserTeam(world, loser) || followedReport) {
+    const ut = isUserTeam(world, winner) || isFollowed(world, winner) ? winner : loser;
     const won = ut === winner;
     addInbox(world, {
       from: 'Match Report',

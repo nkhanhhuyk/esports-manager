@@ -38,9 +38,9 @@ Done: scouting with uncertainty, 86-attribute profiles, training incl. input/rol
 transfers (negotiations, pre-contracts, sell-ons), loans, trades & picks, RFA, staff, board & job security,
 finances & facilities, news, awards, national teams, competition registration separate from contracts,
 organisation treasury (department wage budgets backed by cash, commitments, forecast, audit log), supporter
-segments & rivalries from recorded encounters.
-Next: training-session capacity/cancellation, staff capacity/philosophy, dual-title rosters with one shared
-calendar, press narratives.
+segments & rivalries from recorded encounters, training sessions & scrims (rooms, coaching capacity,
+cancellations, partner matching, intel), delegation per area, spectator/follow mode.
+Next: staff philosophy, dual-title rosters with one shared calendar, bootcamps/travel, press narratives.
 
 ## M4 — Long careers and polish 🔶
 Done: deterministic seeded simulation, idempotent days, save-size compaction, 10-season soak test.

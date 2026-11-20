@@ -6,6 +6,7 @@ import { FOCUS_LABEL, trainingQuality } from '../../systems/training';
 import type { TrainingFocus } from '../../model/types';
 import { getTitle } from '../../data/titles/catalogue';
 import { inputIndex, INPUT_LABEL } from '../../model/attributes';
+import { WeekTimetable, TemplateEditor, ScrimIntel } from '../components/Sessions';
 
 const FOCI = Object.keys(FOCUS_LABEL) as TrainingFocus[];
 
@@ -35,9 +36,9 @@ export function TrainingPage({ route }: { route: Route }) {
       />
       <Gate world={world} perm="tactics">
       <div className="grid2">
-        <Card title="Team programme">
+        <Card title="Development objective & coaching staff">
           <label className="field">
-            <span>Team focus</span>
+            <span>Development objective (the coaches build the week around it)</span>
             <select value={tp.focus} onChange={(e) => act((w) => (w.teams[team.id].training.focus = e.target.value as TrainingFocus))}>
               {FOCI.map((f) => (
                 <option key={f} value={f}>
@@ -51,14 +52,18 @@ export function TrainingPage({ route }: { route: Route }) {
             <input type="range" min={0} max={100} value={tp.intensity} onChange={(e) => act((w) => (w.teams[team.id].training.intensity = Number(e.target.value)))} />
           </label>
           <label className="field" style={{ marginTop: 8 }}>
-            <span>Scrims per week: {tp.scrimsPerWeek}</span>
+            <span>Scrims the coaches book per week: {tp.scrimsPerWeek}</span>
             <input type="range" min={0} max={7} value={tp.scrimsPerWeek} onChange={(e) => act((w) => (w.teams[team.id].training.scrimsPerWeek = Number(e.target.value)))} />
           </label>
-          <label style={{ display: 'block', marginTop: 8 }}>
-            <input type="checkbox" checked={tp.opponentPrep} onChange={(e) => act((w) => (w.teams[team.id].training.opponentPrep = e.target.checked))} /> Analyst opponent preparation before matches
+          <label className="field" style={{ marginTop: 8 }}>
+            <span>Scrim partners</span>
+            <select value={tp.scrimPolicy ?? 'best'} onChange={(e) => act((w) => (w.teams[team.id].training.scrimPolicy = e.target.value as 'best' | 'outside-league'))}>
+              <option value="best">Best available (avoids opponents of the next 3 weeks)</option>
+              <option value="outside-league">Only teams outside our league (no strategy leaks, fewer partners)</option>
+            </select>
           </label>
-          <label style={{ display: 'block', marginTop: 4 }}>
-            <input type="checkbox" checked={team.prefs.delegateTraining} onChange={(e) => act((w) => (w.teams[team.id].prefs.delegateTraining = e.target.checked))} /> Delegate contract reminders & routine training to staff
+          <label style={{ display: 'block', marginTop: 8 }}>
+            <input type="checkbox" checked={tp.opponentPrep} onChange={(e) => act((w) => (w.teams[team.id].training.opponentPrep = e.target.checked))} /> Coaches schedule opponent-preparation sessions before matches
           </label>
         </Card>
         <Card title="Team condition">
@@ -68,7 +73,10 @@ export function TrainingPage({ route }: { route: Route }) {
           <div className="muted small" style={{ marginTop: 6 }}>Permanent attributes develop slowly; proficiencies (roles, {t.charLabel.toLowerCase()}s, maps, weapons, {INPUT_LABEL[t.input]}) respond faster. Form changes quickly with results.</div>
         </Card>
       </div>
-      <Card title="Individual plans">
+      <WeekTimetable world={world} team={team} />
+      <TemplateEditor world={world} team={team} />
+      <ScrimIntel world={world} team={team} />
+      <Card title="Individual plans (used in individual-work sessions)">
         <table className="table">
           <thead>
             <tr>

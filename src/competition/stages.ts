@@ -3,6 +3,7 @@
  * All formats are data-driven (Stage.type + Stage.config) so leagues can be edited without
  * touching simulation code.
  */
+import { isFollowed } from '../systems/follow';
 import { dayOfWeek } from '../core/date';
 import type { BracketNode, BracketSource, Competition, Fixture, FormatKey, SeriesFormat, Stage, StandingRow, World } from '../model/types';
 import { nextId } from '../model/ids';
@@ -39,8 +40,8 @@ function isDetail(world: World, comp: Competition, teams: string[]): boolean {
   if (comp.fullDetail) return true;
   if (world.meta.detail.fullDetailTitles.includes(comp.titleId)) return true;
   if (world.meta.detail.internationals && (comp.tier === 'international' || comp.tier === 'worlds')) return true;
-  if (world.meta.detail.userMatches && world.meta.userOrgId) {
-    for (const tid of teams) if (isUserTeam(world, tid)) return true;
+  if (world.meta.detail.userMatches) {
+    for (const tid of teams) if (isUserTeam(world, tid) || isFollowed(world, tid)) return true;
   }
   return false;
 }

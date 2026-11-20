@@ -1,3 +1,4 @@
+import { WeekTimetable } from '../components/Sessions';
 import { RivalriesCard } from '../components/Fans';
 import { useState } from 'react';
 import { useGame, useWorld } from '../store';
@@ -10,7 +11,7 @@ import { getTitle } from '../../data/titles/catalogue';
 import { computeTeamStrength } from '../../sim/common/team';
 import { fixtureLabel, isUserTeamId, roleE, roleName, rosterPlayers, scoreLabel, seasonAgg, teamFixtures, userTeams, kda } from '../helpers';
 import { formatShort } from '../../core/date';
-import { navigate, withQuery, type Route } from '../router';
+import { Link, navigate, withQuery, type Route } from '../router';
 import { teamPayroll, staffPayroll } from '../../systems/contracts';
 import { STAFF_ROLE_LABEL } from '../../gen/staff';
 import { potentialRange } from '../../systems/scouting';
@@ -153,6 +154,7 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
           { id: 'stats', label: 'Statistics' },
           { id: 'staff', label: 'Staff' },
           { id: 'history', label: 'History' },
+          ...(team.training.week ? [{ id: 'training', label: 'Training week' }] : []),
         ]}
         active={tab}
         onChange={(x) => navigate(withQuery(route, { tab: x }))}
@@ -233,6 +235,7 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
           </table>
         </Card>
       )}
+      {tab === 'training' && <WeekTimetable world={world} team={team} />}
       {tab === 'history' && (
         <>
           <RivalriesCard world={world} team={team} />
@@ -252,7 +255,12 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
                 {[...team.history].reverse().map((h) => (
                   <tr key={h.season}>
                     <td>{h.season}</td>
-                    <td>{h.leagueName}</td>
+                    <td>
+                      {(() => {
+                        const c = Object.values(world.comps).find((x) => x.leagueId === h.leagueId && x.season === h.season && x.tier === 'league');
+                        return c ? <Link to={`/comp/${c.id}`}>{h.leagueName}</Link> : h.leagueName;
+                      })()}
+                    </td>
                     <td>
                       {h.w}-{h.l}
                     </td>
@@ -260,8 +268,12 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
                     <td className="small">
                       {h.results
                         .filter((r) => r.place <= 4)
-                        .map((r) => `${r.compName.replace(/ \d{4}/, '')}: #${r.place}`)
-                        .join(', ')}
+                        .map((r, i) => (
+                          <span key={r.compId}>
+                            {i > 0 && ', '}
+                            {world.comps[r.compId] ? <Link to={`/comp/${r.compId}`}>{r.compName.replace(/ \d{4}/, '')}</Link> : r.compName.replace(/ \d{4}/, '')}: #{r.place}
+                          </span>
+                        ))}
                     </td>
                   </tr>
                 ))}
@@ -272,7 +284,7 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
           <Card title="Trophies">
             {team.trophies.map((tr, i) => (
               <div key={i}>
-                {tr.season} · {tr.compName}
+                {tr.season} · {world.comps[tr.compId] ? <CompLink c={world.comps[tr.compId]} /> : tr.compName}
               </div>
             ))}
             {!team.trophies.length && <div className="muted">No trophies yet.</div>}
@@ -378,7 +390,7 @@ function TeamPicks({ team }: { team: Team }) {
             {picks.map((d) => (
               <tr key={d.id}>
                 <td>{pickLabel(world, d)}</td>
-                <td className="muted">{d.originalTeamId === team.id ? 'own pick' : `acquired from ${world.teams[d.originalTeamId]?.name ?? '?'}`}</td>
+                <td className="muted">{d.originalTeamId === team.id ? 'own pick' : <>acquired from <TeamLink t={world.teams[d.originalTeamId]} /></>}</td>
                 <td className="num">≈{formatMoney(pickValue(world, d))}</td>
               </tr>
             ))}

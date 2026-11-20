@@ -1,3 +1,4 @@
+import { RichText } from '../components/RichText';
 import { useEffect, useState } from 'react';
 import { respondToApproach } from '../../systems/career';
 import { useGame, useWorld } from '../store';
@@ -48,7 +49,9 @@ export function Inbox() {
           <div style={{ maxHeight: 600, overflowY: 'auto' }}>
             {msgs.map((x) => (
               <div key={x.id} className={`inbox-item ${x.read ? '' : 'unread'}`} onClick={() => setSel(x.id)} style={{ background: x.id === m?.id ? 'var(--hl)' : undefined }}>
-                <div>{x.subject}</div>
+                <div>
+                  <RichText world={world} text={x.subject} />
+                </div>
                 <div className="muted small">
                   {x.from} · {formatDate(x.day)}
                   {x.actions && !x.resolved ? ' · action required' : ''}
@@ -59,11 +62,13 @@ export function Inbox() {
           </div>
         </Card>
         {m && (
-          <Card title={m.subject}>
+          <Card title={<RichText world={world} text={m.subject} />}>
             <div className="muted small" style={{ marginBottom: 8 }}>
               From {m.from} · {formatDate(m.day)}
             </div>
-            <p style={{ whiteSpace: 'pre-wrap' }}>{m.body}</p>
+            <p>
+              <RichText world={world} text={m.body} />
+            </p>
             {m.payload?.fixtureId && (
               <button className="btn ghost sm" onClick={() => navigate(`/match/${m.payload!.fixtureId}`)}>
                 View match

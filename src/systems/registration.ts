@@ -19,6 +19,7 @@ import { effectiveness } from '../sim/common/ratings';
 import { autoLineup } from './lineup';
 import { addInbox, isUserTeam } from './news';
 import { inTransferWindow, rosterMax } from './transfers';
+import { userHandles } from './career';
 
 export const AMENDMENTS = 2;
 export const REGISTRATION_LOCK_DAYS = 3;
@@ -58,7 +59,9 @@ export function coachRegistration(world: World, team: Team, max = maxRegistered(
 /** Players a team would register right now (plan if valid, else the coach's choice). */
 export function plannedRegistration(world: World, team: Team): string[] {
   const max = maxRegistered(world, team);
-  const plan = (team.prefs.registrationPlan ?? []).filter((id) => team.roster.includes(id));
+  // A delegated registration ignores the manager's standing plan: the coach decides.
+  const ownPlan = !world.orgs[team.orgId]?.user || userHandles(world, 'registration');
+  const plan = ownPlan ? (team.prefs.registrationPlan ?? []).filter((id) => team.roster.includes(id)) : [];
   if (plan.length >= getTitle(team.titleId).teamSize) return plan.slice(0, max);
   return coachRegistration(world, team, max);
 }
@@ -169,7 +172,8 @@ export function registeredLineup(world: World, comp: Competition | undefined, te
 export function onPlayerJoined(world: World, team: Team, playerId: string): void {
   const comps = activeRegistrations(world, team.id);
   if (!comps.length) return;
-  const user = isUserTeam(world, team.id);
+  // The user decides unless registration is delegated to the coach.
+  const user = isUserTeam(world, team.id) && userHandles(world, 'registration');
   const missing: string[] = [];
   for (const c of comps) {
     if (c.registrations![team.id].includes(playerId)) continue;
@@ -196,7 +200,7 @@ export function registrationReminders(world: World): void {
     const league = world.leagues[c.leagueId];
     for (const tid of league?.teamIds ?? []) {
       const team = world.teams[tid];
-      if (!team || team.orgId !== uid) continue;
+      if (!team || team.orgId !== uid || !userHandles(world, 'registration')) continue;
       const plan = plannedRegistration(world, team);
       addInbox(world, {
         from: c.name,

@@ -27,7 +27,7 @@ import { makeOrgName } from '../gen/names';
 import { computeTeamStrength } from '../sim/common/team';
 import { ensureDraftPicks, runRookieDrafts } from '../systems/draft';
 import { clearNationalSquads } from '../systems/nations';
-import { boardReview, can, hasBoard, setBoardObjectives } from '../systems/career';
+import { boardReview, hasBoard, setBoardObjectives, userHandles } from '../systems/career';
 
 function leagueTable(world: World, league: League, season: number): Array<{ teamId: string; w: number; l: number; gd: number }> {
   const agg = new Map<string, { teamId: string; w: number; l: number; gd: number }>();
@@ -269,8 +269,22 @@ function hireMissingStaff(world: World, rng: RNG): void {
   for (const team of Object.values(world.teams)) {
     if (!team.active) continue;
     const org = world.orgs[team.orgId];
-    if (!org || org.user || org.federation) continue;
+    if (!org || (org.user && userHandles(world, 'staff')) || org.federation) continue;
     const hasCoach = team.staff.some((id) => ['head-coach', 'academy-coach'].includes(world.staff[id]?.role));
+    // A delegated user organisation also gets an assistant coach where a team has none.
+    if (hasCoach && org.user && !team.staff.some((id) => world.staff[id]?.role === 'assistant-coach') && org.balance > 0) {
+      const a = pool.filter((s) => s.role === 'assistant-coach').sort((x, y) => (y.titleFam[team.titleId] ?? 0) + y.rep - ((x.titleFam[team.titleId] ?? 0) + x.rep))[0];
+      if (a) {
+        a.teamId = team.id;
+        a.orgId = team.orgId;
+        a.titleId = team.titleId;
+        a.contract = makeContract(world, team, expectedStaffSalary(world, a, team.titleId, team.region), rng.int(1, 3));
+        team.staff.push(a.id);
+        a.career.push({ season: world.season, day: world.day, titleId: team.titleId, teamId: team.id, orgId: team.orgId, type: 'signed' });
+        pool.splice(pool.indexOf(a), 1);
+        addInbox(world, { from: 'Director', subject: `Assistant coach hired for ${team.short}`, body: `${a.first} ${a.last} joins ${team.name} as assistant coach (staff hiring is delegated).`, kind: 'staff' });
+      }
+    }
     if (hasCoach) continue;
     const cands = pool.filter((s) => (s.role === 'head-coach' || s.role === 'assistant-coach') && !s.teamId).sort((a, b) => (b.titleFam[team.titleId] ?? 0) + b.rep - ((a.titleFam[team.titleId] ?? 0) + a.rep));
     const s = cands[0];
@@ -407,7 +421,7 @@ export function seasonRollover(world: World): void {
     team.chemistry = clamp(team.chemistry * 0.85 + 8, 0, 100);
     const org = world.orgs[team.orgId];
     // AI clubs, and user clubs whose manager has no finance authority, get the board's budget.
-    if (org && !team.national && (!org.user || !can(world, 'finance'))) team.salaryBudget = salaryBudgetFor(world, team);
+    if (org && !team.national && (!org.user || !userHandles(world, 'finance'))) team.salaryBudget = salaryBudgetFor(world, team);
     team.lineup = autoLineup(world, team);
   }
   for (const p of Object.values(world.players)) {

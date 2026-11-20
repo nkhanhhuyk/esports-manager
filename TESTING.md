@@ -16,6 +16,8 @@
 | `tests/registration.test.ts` | Registration lock (5–8 rostered players per entrant, unique across teams, inbox notice); standing plan honoured; changes refused outside windows, limited to 2 in windows, duplicates refused, emergency registrations allowed and flagged; unregistered user signing notice; AI auto-registers signings in a window; season simulation: every player who played a competition was registered for it |
 | `tests/treasury.test.ts` | Cash, authority and commitments kept apart (fundable formula); raising a budget limited to the unallocated reserve, never below payroll, budget changes move no cash; moving budget nets to zero; audit log; user signing over budget refused; forecast drops salaries after contracts end and sponsors after deals end; the board sets budgets at rollover when the role lacks finance authority |
 | `tests/fans.test.ts` | A single ordinary league defeat starts no rivalry; repeated finals build an announced rivalry (H2H, finals, moments) that fades without contact while a minor one is forgotten; a star transfer between rivals adds heat; rivalry raises match pressure but leaves every attribute unchanged; segments react to what they care about (final win → winning fans, academy debut → community, glamour signing → winning up / local down, favourite leaving → local down, moves between rivals sting both clubs); followers vs paying supporters and mood-driven merchandise; player fans arrive and leave with stars; a simulated season keeps rivalries consistent with recorded fixtures and fan totals equal to followers, with audiences recorded; a v5 save gains segments with the same followers and quietly seeded rivalries from its finals |
+| `tests/training.test.ts` | Coach timetables respect match days (light mornings), a rest day, the scrim target and staff capacity; a week of rest develops nobody (attributes and title proficiency unchanged) while a full week does; one practice room shared by several divisions cancels the others' blocks; match-day afternoons are matches and heavy morning sessions are cancelled with a reason; no coaching staff → coached sessions run unsupervised; scrims pair real partners of the same title and another organisation, both sides record mirrored results and gain intel; the outside-league policy never scrims a league rival |
+| `tests/modes.test.ts` | Spectator mode: no organisation is user-controlled, the former club keeps a full roster through a season, nothing waits for a user decision, followed teams' matches are full detail with match reports and training timetables; stopping the day before a followed match and taking charge again; delegated signings let the GM fill a short roster (not otherwise); delegated registration ignores the manager's plan; roles without a permission always delegate |
 | `tests/longterm.test.ts` | 10 seasons (default) / 30 seasons (`LONG_SIM=1`): bounded population, finite finances, bounded save growth, multiple world champions per title, legends & retirees |
 
 End-to-end (`npm run e2e`, Playwright, Chromium): new career → organisation pick → players directory,
@@ -23,7 +25,7 @@ profile tabs, world popularity map, global search → advance to match day → p
 match report with commentary → advance a week → Save opens Save / Load → save to slot 1 → Save again writes
 slot 1 → Export downloads `slot1_*.uem.json` → reload → load slot 1 restores the date;
 asserts no page errors. Transfer flow: new career → into the window → player search → bid → accept the
-club's counter → offer personal terms → signing completed and listed under Negotiations. Mobile viewport: no horizontal overflow.
+club's counter → offer personal terms → signing completed and listed under Negotiations. Mobile viewport: no horizontal overflow. Spectator flow: new world → "Follow every team" → Following page with followed teams, manager-only pages hidden → advance a month → spectator dashboard → a name inside a news item opens its page.
 
 Portable build (`npm run check:portable`): builds `release/index.html`, opens it from disk in Chromium,
 advances a month and fails if the worker did not load, the page froze for more than 1.5 s, the autosave did
@@ -31,9 +33,8 @@ not survive a reload, or any warning/error was logged.
 
 ## Latest results
 
-* Vitest: **120 passed / 120** (19 Nov 2026, seven-title edition + registration + treasury + supporters &
-  rivalries).
-* Playwright: **3 passed / 3**; `npm run check:portable` passes (worker loads from file://, no freezes,
+* Vitest: **131 passed / 131** (20 Nov 2026: + training sessions & scrims, spectator mode, delegation).
+* Playwright: **4 passed / 4** (incl. spectator mode and linked names); `npm run check:portable` passes (worker loads from file://, no freezes,
   autosave survives reload); Pixel 7 emulation: no horizontal overflow, slot save works by tap.
 * Android: `npm run android:debug-apk` → `android/app/build/outputs/apk/debug/app-debug.apk` built and
   verified with `aapt dump badging` (package `dev.uem.esportsmanager`, min 24 / target 36, INTERNET only),

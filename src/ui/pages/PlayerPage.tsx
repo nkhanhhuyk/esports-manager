@@ -1,3 +1,4 @@
+import { RichText } from '../components/RichText';
 import { useMemo, useState } from 'react';
 import { useGame, useWorld } from '../store';
 import { Card, Flag, Gate, Money, PageHeader, Rating, Stat, Tabs, TeamLink, TitleTag, age, CompLink } from '../components/common';
@@ -436,7 +437,7 @@ export function PlayerPage({ id, route }: { id: string; route: Route }) {
                   </td>
                   <td>{c.teamId ? <TeamLink t={world.teams[c.teamId]} /> : '—'}</td>
                   <td>{c.fee ? formatMoney(c.fee) : ''}</td>
-                  <td className="muted small">{c.note}</td>
+                  <td className="muted small">{c.note ? <RichText world={world} text={c.note} /> : null}</td>
                 </tr>
               ))}
             </tbody>

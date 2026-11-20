@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useWorld } from '../store';
-import { Card, Flag, OrgLink, PageHeader, PlayerLink, TeamLink, TitleTag, Tabs, StaffLink } from '../components/common';
+import { Card, CompLink, Flag, OrgLink, PageHeader, PlayerLink, TeamLink, TitleTag, Tabs, StaffLink } from '../components/common';
 import { DataTable } from '../components/DataTable';
 import { navigate, withQuery, type Route } from '../router';
 import { legacy, HOF_THRESHOLD } from '../../systems/awards';
@@ -63,13 +63,13 @@ export function HistoryPage({ route }: { route: Route }) {
                         <td>
                           <TitleTag id={c.titleId} />
                         </td>
-                        <td>{c.compName}</td>
+                        <td>{world.comps[c.compId] ? <CompLink c={world.comps[c.compId]} /> : c.compName}</td>
                         <td>
                           <b>
                             <TeamLink t={world.teams[c.teamId]} />
                           </b>
                         </td>
-                        <td className="muted small">runner-up {c.runnerUpId ? world.teams[c.runnerUpId]?.name : '—'}</td>
+                        <td className="muted small">runner-up {c.runnerUpId && world.teams[c.runnerUpId] ? <TeamLink t={world.teams[c.runnerUpId]} /> : '—'}</td>
                         <td className="small">{c.mvp ? <>MVP <PlayerLink p={world.players[c.mvp]} /></> : ''}</td>
                       </tr>
                     ))}
@@ -141,7 +141,7 @@ export function HistoryPage({ route }: { route: Route }) {
             initialSort={{ key: 'legacy', desc: true }}
             filter={(r, q) => r.handle.toLowerCase().includes(q)}
             columns={[
-              { key: 'handle', label: 'Player', value: (r) => r.handle, render: (r) => (<span><Flag cc={r.nat} />{r.handle}</span>) },
+              { key: 'handle', label: 'Player', value: (r) => r.handle, render: (r) => (<span><Flag cc={r.nat} />{world.players[r.id] ? <PlayerLink p={world.players[r.id]} /> : r.handle}</span>) },
               { key: 'name', label: 'Name', value: (r) => r.name },
               { key: 'season', label: 'Retired', align: 'right', value: (r) => r.retiredSeason },
               { key: 'titles', label: 'Titles', value: (r) => r.titles.join(', ') },

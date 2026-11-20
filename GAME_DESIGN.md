@@ -133,8 +133,23 @@ Series keep every game.
   unallocated authority, salary commitments, per-department payroll/budget/headroom, lets permitted roles set
   or move budgets (logged), and forecasts 12 months of committed cash with shortfall warnings. User
   signings, renewals and trades must fit the department's budget.
-* **Training**: team focus (14 options), intensity, scrims, individual focus, opponent prep; quality from
-  coaching staff and facilities; diminishing returns after 8 weeks on one focus; fatigue & health setbacks.
+* **Training sessions**: every week has 14 practice blocks (morning/afternoon). The coaches build the
+  timetable from the development objective (14 focuses), the calendar (light sessions before a match, the
+  match in the afternoon, review the morning after, a rest day, tapering before playoffs/finals/international
+  events), fatigue, the patch and their own capacity; a manager can plan their own weekly template instead.
+  Session types: individual work, tactics & set plays, scrims, scrim/VOD review, hero/agent pool, maps &
+  sides, opponent preparation, patch adaptation, mental skills, rest. Practice is scarce: an organisation's
+  practice rooms (from the training facility) are shared by all its divisions, coaches have weekly capacity
+  (beyond it sessions run unsupervised at half value), and match days limit what can run. **Cancelled
+  sessions grant nothing.** Quality still comes from coaching staff and facilities; diminishing returns after
+  8 weeks on one objective; fatigue & health setbacks follow the load actually trained.
+* **Scrims** are practice matches booked with real partner teams of the same title that want a scrim in the
+  same block: similar strength first, same region preferred, the next three weeks' opponents avoided (or only
+  teams outside the league). Partners can cancel at short notice; clubs with an academy fall back to internal
+  scrims. Scrims give practice sharpness (a small match-performance edge), meta knowledge and chemistry —
+  more against stronger partners and when reviewed — and leak strategy: both sides gain intel on each other
+  for 35 days (a small preparation edge if they meet officially). The Training page shows the week as it
+  happened (held, cancelled with reasons, unsupervised, scrim partners and results) and the intel.
 * **Progression**: weekly attribute growth toward potential by age curve and trajectory; mechanical decline
   after decline age; mind/knowledge grow longer; yearly potential revisions and resurgences; proficiencies
   grow by play and training (input proficiency included).
@@ -173,6 +188,16 @@ Series keep every game.
   confidence is at least 40, otherwise you leave. Excellent results attract **job offers** from bigger
   organisations while you are employed: accept to move immediately, or stay (the board appreciates loyalty).
 * National-team coach job can be held in parallel (Nations Cup).
+* **Delegation** (Settings): signings, offers for your players, contract renewals, staff hiring, wage
+  budgets and competition registration can be handed to your staff even when your role covers them, and
+  lineups, drafts and training per team to the head coach; "Delegate everything" makes a hands-off career.
+* **Spectator mode**: instead of (or after) managing, follow any number of teams — or every team — and
+  simulate through the seasons while every club's own staff make all decisions (lineups, drafts, training and
+  scrims, signings, contracts, staff). Followed teams get full match detail, match reports, training
+  timetables, a dashboard, optional stops before their matches and live viewing of any match. Settings →
+  Game mode switches between managing and spectating at any time.
+* **Links everywhere**: team, player, organisation, competition, staff and title names are tappable — in
+  tables, match screens, inbox messages, news, commentary, histories and notes.
 
 ## 10. History, awards & legacy
 

@@ -2,6 +2,7 @@
  * Team match context: combines individual effectiveness with conditions, chemistry, coaching,
  * preparation and meta adaptation into per-phase team strengths consumed by the engines.
  */
+import { intelEdge, sharpness } from '../../systems/sessions';
 import { clamp } from '../../core/math';
 import type { RNG } from '../../core/rng';
 import { getTitle } from '../../data/titles/catalogue';
@@ -99,12 +100,19 @@ export function buildTeamCtx(world: World, team: Team, lineup: LineupSlot[], idx
   const chem = 0.95 + 0.1 * (team.chemistry / 100);
   const meta = 0.97 + 0.04 * (team.metaAdapt / 100);
   let prep = 1;
-  if (opts.opponent && team.training.opponentPrep) {
-    const analyst = teamStaffOf(world, team, 'analyst')[0];
-    const a = analyst ? analyst.attrs.analysis : 30;
-    const fac = world.orgs[team.orgId]?.facilities.analytics ?? 3;
-    prep = 1 + 0.008 * (a / 100) + 0.004 * (fac / 10);
+  if (opts.opponent) {
+    // Preparation sessions held this week (older saves: the analyst-prep switch), scrim intel on
+    // this opponent, and practice sharpness from recent scrims.
+    const level = team.training.prep ?? (team.training.opponentPrep ? 1 : 0);
+    if (level > 0) {
+      const analyst = teamStaffOf(world, team, 'analyst')[0];
+      const a = analyst ? analyst.attrs.analysis : 30;
+      const fac = world.orgs[team.orgId]?.facilities.analytics ?? 3;
+      prep = 1 + (0.008 * (a / 100) + 0.004 * (fac / 10)) * level;
+    }
+    prep *= intelEdge(world, team, opts.opponent);
   }
+  if (!team.national) prep *= sharpness(team);
   // Team-level "day form": shared good/bad days create believable upsets without making
   // individual events random.
   const teamForm = rng && opts.noise !== false ? 1 + rng.normal(0, TEAM_FORM_SD) : 1;

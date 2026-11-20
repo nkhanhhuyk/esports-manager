@@ -49,7 +49,7 @@ export function MarketPage({ route }: { route: Route }) {
       value: (p: Player) => (p.preContract ? 'pre-contract' : p.listed ? 'listed' : p.contract && p.contract.endSeason === world.season ? 'expiring' : p.contract?.buyout ? 'clause' : ''),
       render: (p: Player) =>
         p.preContract ? (
-          <span className="muted small">joins {world.teams[p.preContract.teamId]?.short}</span>
+          <span className="muted small">joins <TeamLink t={world.teams[p.preContract.teamId]} short /></span>
         ) : p.listed ? (
           <span className="small">listed{p.askingPrice ? ` ${formatMoney(p.askingPrice)}` : ''}</span>
         ) : p.contract && p.contract.endSeason === world.season ? (

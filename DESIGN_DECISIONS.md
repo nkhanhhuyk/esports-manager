@@ -137,8 +137,28 @@ Core durability (`coreHits`): 2 for MLBB, Wild Rift, HoK and LoL; 3 for Dota 2.
 * Permanent attributes progress every second week with a double step (same yearly rate, half the work).
 
 * Weekly growth budget = `0.062 × growthRate × (gap/10)^0.85 × ageFactor × trainingQuality × (0.5 + ethic) ×
-  (0.6 + 0.6·intensity) × focusRepetition × overtraining × playingTime`, converted to ≈110 attribute points
-  distributed by focus × trainability × room to grow.
+  sessionDev × focusRepetition × overtraining × playingTime`, converted to ≈110 attribute points
+  distributed by focus × trainability × room to grow. `sessionDev = min(1.05, devPoints / 6) × (0.6 +
+  0.6·intensity)` where devPoints sums the blocks actually held (individual 1, tactics 0.7, scrim 0.6 ×
+  partner quality, pool 0.5, maps 0.5, review 0.3, patch 0.3, prep 0.2, mental 0.2; unsupervised ×0.5). A
+  typical in-season coach week scores ≈6; calibrated so a season's mean CA change is within 5% of the old
+  flat model (small world: +1.39 vs +1.33, under-22s +2.15 vs +2.08). Title/role/input proficiency training
+  is scaled by min(1, sessionDev) — a week without sessions trains nothing.
+* **Sessions** (src/systems/sessions.ts): 14 blocks per week. Practice rooms = ceil(training facility / 2)
+  per organisation per block (main teams first, then academies by Elo); coaches move a blocked session to
+  meeting-room work, a manager's blocked session is cancelled. Coaching capacity per week: head/academy coach
+  10, assistant 8, analyst 6, psychologist and performance coach 4, organisation-level staff shared between
+  divisions. Match days: afternoon = match, morning light only (rest/prep/review/mental). Training load →
+  fatigue `Σload × 0.45 × (0.5 + intensity) − 0.8 × rest blocks − 0.5` per week.
+* **Scrims**: per title and block, teams wanting a scrim are paired greedily (strongest first) by score
+  `−|ΔElo|/100 − 0.6 (other region) − 3 (opponent within 21 days) − 10 (same league under the outside-league
+  policy) − 0.8 (already scrimmed this week)`, minimum −4; 7% short-notice cancellations; internal scrim vs
+  an academy/parent team at quality 0.35–0.9, else cancelled. Partner quality `clamp(0.75 + ΔElo/500, 0.45,
+  1.25)` × 0.85 cross-region; result by Elo expectation. Weekly: sharpness `scrimRating = 0.75 × previous +
+  (Σquality × reviewBoost × 3.5 + 0.8 × tactics)` (review boost up to ×1.5 at one review per two scrims);
+  match effect `× (0.99 + 0.02 × scrimRating/100)`; meta adaptation `+ patch + 0.25 scrim + 0.15 tactics`;
+  chemistry `+0.012 tactics + 0.01 scrim + 0.015 mental`. Intel lasts 35 days and is worth ×1.005 against
+  that opponent; opponent-prep level = min(1, prep blocks / 2) scales the analyst preparation bonus.
 * Age curve: full growth until peak−3, 0.7 until peak, 0.25 until decline age; mechanical decline after the
   decline age at `(age − declineAge + 0.5) × 0.028 × declineRate` points per week per attribute.
 * Generated potential headroom: ≤17 N(13,7), ≤20 N(6,5), ≤23 N(2.5,3), older N(0.8,1.5).
@@ -232,6 +252,18 @@ Proposals (editable constants in `src/systems/fans.ts` and `src/systems/rivalrie
   up to +0.4 match pressure (`intensity/250`), which tests composure — no attribute ever changes.
 * Old (v5) saves: segments are created from the follower count and rivalries are seeded quietly from the
   save's own recorded finals (season history) and this season's results.
+
+## Modes & delegation
+
+* `userHandles(area)` = the role has the permission and the area is not delegated. Areas → permissions:
+  signings/sales → transfers, contracts → contracts, staff → staff, finance → finance, registration →
+  tactics. Everything the user does not handle runs through the same AI code as other clubs (AI GM market,
+  bid responses, renewals and RFA tenders, board budgets, coach registration). Delegated staff hiring also
+  adds an assistant coach where a user team has none (each rollover).
+* Spectator mode: `meta.mode = 'spectator'`, no user organisation, `meta.followed` team ids. Followed teams
+  get full-detail fixtures, inbox match reports (only while ≤ 20 are followed), training timetables, and
+  optional stops before their matches (`stopForFollowed`). Any match can be watched live the day before it
+  is played (both coaching staffs veto and draft); results equal instant simulation.
 
 ## Board
 

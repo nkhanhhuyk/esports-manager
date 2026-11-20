@@ -20,7 +20,7 @@ import { expectedSalary, makeContract, marketValue, offerAppeal, teamPayroll, va
 import { ledger } from './finance';
 import { addInbox, addNews, isUserTeam } from './news';
 import { autoLineup } from './lineup';
-import { can } from './career';
+import { can, userHandles } from './career';
 import { onPlayerJoined } from './registration';
 import { budgetCheck } from './treasury';
 
@@ -387,7 +387,7 @@ function executePreContract(world: World, p: Player, endedSeason: number): boole
     const curOrg = world.orgs[cur.orgId];
     let match = pc.matched;
     if (match === null) {
-      if (curOrg?.user && can(world, 'contracts')) match = cur.prefs.tenderRFA !== false;
+      if (curOrg?.user && userHandles(world, 'contracts')) match = cur.prefs.tenderRFA !== false;
       else {
         const valued = cur.lineup.some((s) => s.playerId === p.id) || p.pa - p.ca > 5;
         match = valued && pc.salary <= expectedSalary(world, p, cur.titleId, cur.region) * 1.35;
@@ -696,7 +696,7 @@ function aiTeamMarket(world: World, team: Team, idx: MarketIndex, rng: RNG, emer
   const faPool = idx.fa;
   const t = getTitle(team.titleId);
   const org = world.orgs[team.orgId];
-  if (!org || (org.user && can(world, 'transfers'))) return;
+  if (!org || (org.user && userHandles(world, 'signings'))) return;
   const league = team.leagueId ? world.leagues[team.leagueId] : null;
   const maxR = rosterMax(world, team);
   // 1) Release surplus (never just-signed players)
@@ -787,7 +787,7 @@ function aiTeamMarket(world: World, team: Team, idx: MarketIndex, rng: RNG, emer
   }
   const owner = world.teams[best.p.teamId!];
   const ownerOrg = world.orgs[owner.orgId];
-  if (ownerOrg.user && can(world, 'transfers')) {
+  if (ownerOrg.user && userHandles(world, 'sales')) {
     if (world.offers.some((o) => o.status === 'pending' && o.playerId === best!.p.id)) return;
     const offer: Offer = {
       id: nextId(world, 'of'),
@@ -830,7 +830,7 @@ export function aiMarketDay(world: World): void {
   for (const team of Object.values(world.teams)) {
     if (!team.active || team.national) continue;
     const org = world.orgs[team.orgId];
-    if (!org || (org.user && can(world, 'transfers')) || org.federation) continue;
+    if (!org || (org.user && userHandles(world, 'signings')) || org.federation) continue;
     const t = getTitle(team.titleId);
     const short = team.roster.length < t.teamSize;
     if (!short && !(window && rng.chance(1 / 6))) continue;
@@ -851,7 +851,7 @@ export function aiContracts(world: World): void {
     const team = world.teams[p.teamId];
     const org = world.orgs[team?.orgId];
     if (!team || !org) continue;
-    if (org.user && can(world, 'contracts')) {
+    if (org.user && userHandles(world, 'contracts')) {
       if (p.contract.endSeason === world.season && m === 9 && !team.prefs.delegateTraining) {
         addInbox(world, { from: 'Contracts', subject: `${p.handle}'s contract expires this season`, body: `Offer an extension from the player's Contract tab or ${p.handle} will leave as a free agent at the end of the season.`, kind: 'contract' });
       }
@@ -896,7 +896,7 @@ export function expireContracts(world: World, endedSeason: number): void {
     if (team && league?.policy.restrictedFA && ageAt(p.birth, world.day) <= 24) {
       const org = world.orgs[team.orgId];
       const valued = team.lineup.some((s) => s.playerId === p.id) || p.pa - p.ca > 5;
-      const tender = org?.user && can(world, 'contracts') ? team.prefs.tenderRFA !== false : valued;
+      const tender = org?.user && userHandles(world, 'contracts') ? team.prefs.tenderRFA !== false : valued;
       if (tender && org && org.balance > 0) {
         const salary = Math.round(Math.max(p.contract.salary * 1.1, league.policy.minSalary) / 500) * 500;
         p.contract = { ...makeContract(world, team, salary, 1, { buyout: p.contract.buyout }), endSeason: endedSeason + 1 };

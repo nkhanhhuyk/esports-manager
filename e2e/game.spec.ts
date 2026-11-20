@@ -144,3 +144,29 @@ test('mobile layout is usable', async ({ browser }) => {
   expect(overflow).toBeLessThanOrEqual(1);
   await ctx.close();
 });
+
+test('spectator mode: follow every team, simulate, open linked names', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  await page.evaluate(() => indexedDB.deleteDatabase('ultimate-esports-manager'));
+  await page.reload();
+  await page.locator('label:has-text("World size") select').selectOption('tiny');
+  await page.getByRole('button', { name: 'Generate world' }).click();
+  await page.getByRole('button', { name: 'Follow every team' }).click({ timeout: 60000 });
+  await expect(page.getByRole('heading', { name: 'Following' })).toBeVisible();
+  await expect(page.locator('input[aria-label^="Follow "]:checked').first()).toBeVisible();
+  // Manager-only pages are hidden while spectating.
+  await expect(page.locator('nav').getByText('Finances')).toHaveCount(0);
+  await page.getByRole('button', { name: 'More advance options' }).click();
+  await page.getByText('Advance 1 month', { exact: true }).click();
+  await page.evaluate(() => (location.hash = '#/'));
+  await expect(page.getByRole('heading', { name: 'Spectator' })).toBeVisible({ timeout: 30000 });
+  // Names inside news text are links.
+  await page.evaluate(() => (location.hash = '#/news'));
+  const link = page.locator('.card .elink').first();
+  await expect(link).toBeVisible();
+  await link.click();
+  await expect(page).toHaveURL(/#\/(player|team|org|comp|title|staff)\//);
+  expect(errors).toEqual([]);
+});

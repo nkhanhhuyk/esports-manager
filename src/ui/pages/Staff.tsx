@@ -1,3 +1,4 @@
+import { RichText } from '../components/RichText';
 import { useMemo, useState } from 'react';
 import { useGame, useWorld } from '../store';
 import { Card, Flag, Gate, Money, PageHeader, Rating, Stat, StaffLink, TeamLink, TitleTag, age, OrgLink, PlayerLink } from '../components/common';
@@ -142,7 +143,7 @@ export function StaffPage({ id }: { id: string }) {
             {[...s.career].reverse().map((c, i) => (
               <div key={i} className="small attr-row">
                 <span>{formatDate(c.day)} · {c.type}</span>
-                <span>{c.teamId ? <TeamLink t={world.teams[c.teamId]} /> : c.note ?? ''}</span>
+                <span>{c.teamId ? <TeamLink t={world.teams[c.teamId]} /> : c.note ? <RichText world={world} text={c.note} /> : ''}</span>
               </div>
             ))}
           </Card>

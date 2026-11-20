@@ -1,3 +1,4 @@
+import { RichText } from '../components/RichText';
 import { RivalryBadge } from '../components/Fans';
 import { useWorld, useGame } from '../store';
 import { Card, Money, OrgBadge, PageHeader, Stat, TeamLink, TitleTag, CompLink } from '../components/common';
@@ -57,7 +58,9 @@ export function Home() {
                   <td>
                     {fixtureLabel(world, f)} {f.teams.length === 2 && <RivalryBadge world={world} a={f.teams[0]} b={f.teams[1]} />}
                   </td>
-                  <td className="muted">{world.comps[f.compId]?.short}</td>
+                  <td className="muted">
+                    <CompLink c={world.comps[f.compId]} />
+                  </td>
                   <td>{f.format.label}</td>
                 </tr>
               ))}
@@ -128,10 +131,10 @@ export function Home() {
           {news.map((n) => (
             <div key={n.id} style={{ padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
               <div>
-                {n.titleId && <TitleTag id={n.titleId} link={false} />} <b>{n.title}</b>
+                {n.titleId && <TitleTag id={n.titleId} link={false} />} <b><RichText world={world} text={n.title} refs={n.refs} /></b>
               </div>
               <div className="muted small">
-                {formatShort(n.day)} · {n.body}
+                {formatShort(n.day)} · <RichText world={world} text={n.body} refs={n.refs} />
               </div>
             </div>
           ))}
@@ -143,7 +146,7 @@ export function Home() {
           .slice(0, 6)
           .map((m) => (
             <div key={m.id} className={`inbox-item ${m.read ? '' : 'unread'}`} onClick={() => navigate(`/inbox?m=${m.id}`)}>
-              {m.subject} <span className="muted small">— {m.from}, {formatShort(m.day)}</span>
+              <RichText world={world} text={m.subject} /> <span className="muted small">— {m.from}, {formatShort(m.day)}</span>
             </div>
           ))}
       </Card>
@@ -222,7 +225,7 @@ function BoardPanel() {
           {notes.map((n, i) => (
             <div key={i} className="attr-row">
               <span>
-                {formatShort(n.day)} {n.text.replace(/: [+-]?\d+$/, '')}
+                {formatShort(n.day)} <RichText world={world} text={n.text.replace(/: [+-]?\d+$/, '')} />
               </span>
               <span className={n.delta > 0 ? 'pos' : n.delta < 0 ? 'neg' : 'muted'}>{n.delta > 0 ? `+${n.delta}` : n.delta}</span>
             </div>

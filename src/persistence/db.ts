@@ -63,7 +63,7 @@ export function metaFor(world: World): SaveMeta {
   return {
     id: world.meta.saveId,
     name: world.meta.name,
-    orgName: world.meta.userOrgId ? world.orgs[world.meta.userOrgId]?.name ?? '—' : '—',
+    orgName: world.meta.userOrgId ? world.orgs[world.meta.userOrgId]?.name ?? '—' : world.meta.mode === 'spectator' ? `Spectator (${world.meta.followed?.length ?? 0} followed)` : '—',
     season: world.season,
     day: world.day,
     dateLabel: formatDate(world.day),

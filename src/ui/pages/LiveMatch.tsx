@@ -5,7 +5,7 @@
  */
 import { useMemo, useRef, useState } from 'react';
 import { useGame, useWorld } from '../store';
-import { Card, PageHeader, PlayerLink, TitleTag } from '../components/common';
+import { Card, CompLink, PageHeader, PlayerLink, TeamLink, TitleTag } from '../components/common';
 import { getTitle } from '../../data/titles/catalogue';
 import { navigate } from '../router';
 import { isUserTeamId, roleE } from '../helpers';
@@ -40,12 +40,13 @@ export function LiveMatchPage({ id }: { id: string }) {
       </div>
     );
   }
-  if (ui < 0) return <div>This is not your match.</div>;
-  if (!can(world, 'tactics')) return <div>{denyReason(world, 'tactics')} Use “Simulate match day” instead.</div>;
-  if (f.day !== world.day + 1) return <div>Live matches can be played on match day only ({f.day > world.day ? 'advance until the day before' : 'already past'}).</div>;
+  // Not your match: watch it — both coaching staffs handle the veto and the drafts.
+  const watching = ui < 0;
+  if (!watching && !can(world, 'tactics')) return <div>{denyReason(world, 'tactics')} Use “Simulate match day” instead.</div>;
+  if (f.day !== world.day + 1) return <div>Live matches can be {watching ? 'watched' : 'played'} on match day only ({f.day > world.day ? 'advance until the day before' : 'already past'}).</div>;
 
-  const userTeam = world.teams[f.teams[ui]];
-  const lineupCheck = validateLineup(world, userTeam, userTeam.lineup);
+  const userTeam = watching ? null : world.teams[f.teams[ui]];
+  const lineupCheck = userTeam ? validateLineup(world, userTeam, userTeam.lineup) : { ok: true, errors: [] as string[] };
 
   const startDraftFor = (state: SeriesState) => {
     if (!t.characters.length || t.draft.mode === 'none') {
@@ -73,7 +74,7 @@ export function LiveMatchPage({ id }: { id: string }) {
   };
 
   const start = () => {
-    if (t.mapVeto === 'tactical') act((w) => (w.overrides[f.id] = { ...(w.overrides[f.id] ?? {}), mapBans: bans, mapPicks: picks }));
+    if (t.mapVeto === 'tactical' && !watching) act((w) => (w.overrides[f.id] = { ...(w.overrides[f.id] ?? {}), mapBans: bans, mapPicks: picks }));
     const s = createSeries(world, f, true);
     setSt(s);
     startDraftFor(s);
@@ -131,12 +132,39 @@ export function LiveMatchPage({ id }: { id: string }) {
   return (
     <div>
       <PageHeader
-        title={`${world.teams[f.teams[0]].name} vs ${world.teams[f.teams[1]].name}`}
-        sub={<span><TitleTag id={t.id} /> · {world.comps[f.compId]?.name} · {f.format.label}{st ? ` · series ${st.wins[0]}-${st.wins[1]}` : ''}</span>}
+        title={
+          <>
+            <TeamLink t={world.teams[f.teams[0]]} /> vs <TeamLink t={world.teams[f.teams[1]]} />
+          </>
+        }
+        sub={<span><TitleTag id={t.id} /> · <CompLink c={world.comps[f.compId]} /> · {f.format.label}{st ? ` · series ${st.wins[0]}-${st.wins[1]}` : ''}</span>}
       />
       {!st && (
         <>
           <Card title="Pre-match">
+            {watching && (
+              <div className="grid2">
+                {[0, 1].map((i) => {
+                  const tm = world.teams[f.teams[i]];
+                  return (
+                    <div key={i}>
+                      <b>
+                        <TeamLink t={tm} />
+                      </b>
+                      {tm.lineup.map((s) => (
+                        <div key={s.playerId} className="attr-row">
+                          <span>{t.roles.find((r) => r.id === s.roleId)?.name}</span>
+                          <span>
+                            <PlayerLink p={world.players[s.playerId]} /> E {roleE(world.players[s.playerId], t.id, s.roleId).toFixed(1)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {userTeam && (
             <div className="grid2">
               <div>
                 <b>Your lineup ({userTeam.name})</b>
@@ -181,8 +209,9 @@ export function LiveMatchPage({ id }: { id: string }) {
                 </div>
               )}
             </div>
+            )}
             <button className="btn" style={{ marginTop: 10 }} onClick={start}>
-              Start series
+              {watching ? 'Start watching' : 'Start series'}
             </button>
           </Card>
         </>
@@ -212,7 +241,7 @@ export function LiveMatchPage({ id }: { id: string }) {
                 <div>
                   {Object.entries(ds.assign[i]).map(([pid, cid]) => (
                     <span key={pid} className="chip pick">
-                      {world.players[pid]?.handle}: {t.characters.find((c) => c.id === cid)?.name}
+                      <PlayerLink p={world.players[pid]} />: {t.characters.find((c) => c.id === cid)?.name}
                     </span>
                   ))}
                 </div>
@@ -276,7 +305,7 @@ export function LiveMatchPage({ id }: { id: string }) {
       {st?.done && (
         <Card>
           <div className="scoreline">
-            {world.teams[f.teams[st.winner]].name} win {Math.max(...st.wins)}-{Math.min(...st.wins)}
+            <TeamLink t={world.teams[f.teams[st.winner]]} /> win {Math.max(...st.wins)}-{Math.min(...st.wins)}
           </div>
           <div className="center">
             <button className="btn" onClick={finish}>

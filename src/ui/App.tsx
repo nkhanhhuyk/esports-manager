@@ -4,7 +4,7 @@ import { useRoute, navigate, Link, type Route } from './router';
 import { formatDate } from '../core/date';
 import { getTitle } from '../data/titles/catalogue';
 import { OrgBadge } from './components/common';
-import { Welcome, JobOffers } from './pages/Welcome';
+import { Welcome, JobOffers, OrgPicker } from './pages/Welcome';
 import { Home } from './pages/Home';
 import { Inbox } from './pages/Inbox';
 import { OrgPage } from './pages/OrgPage';
@@ -27,9 +27,11 @@ import { SettingsPage } from './pages/Settings';
 import { EditorPage } from './pages/Editor';
 import { NewsPage } from './pages/News';
 import { SavesPage } from './pages/Saves';
+import { FollowingPage, SpectatorHome } from './pages/Following';
 
 const NAV: Array<{ sec?: string; page?: string; label?: string }> = [
   { page: 'home', label: 'Home' },
+  { page: 'following', label: 'Following' },
   { page: 'inbox', label: 'Inbox' },
   { page: 'news', label: 'News' },
   { sec: 'Organisation' },
@@ -57,6 +59,26 @@ const NAV: Array<{ sec?: string; page?: string; label?: string }> = [
   { page: 'settings', label: 'Settings' },
   { page: 'editor', label: 'Database Editor' },
 ];
+
+/** Pages that manage your own organisation (hidden while spectating). */
+const MANAGER_ONLY = ['org', 'tactics', 'training', 'market', 'scouting', 'finances', 'facilities'];
+
+function navFor(spectating: boolean): typeof NAV {
+  if (!spectating) return NAV;
+  const items = NAV.filter((n) => !n.page || !MANAGER_ONLY.includes(n.page));
+  // Drop section headers left without items.
+  return items.filter((n, i) => !n.sec || (items[i + 1] && !items[i + 1].sec));
+}
+
+function SpectatorOnly() {
+  return (
+    <div className="card">
+      <div className="card-body">
+        You are spectating — clubs&apos; own staff make these decisions. Take charge of an organisation in <Link to="/settings">Settings → Game mode</Link> to manage this yourself.
+      </div>
+    </div>
+  );
+}
 
 function Search() {
   const world = useGame((s) => s.world)!;
@@ -207,9 +229,15 @@ function crumbsFor(route: Route, world: NonNullable<ReturnType<typeof useGame.ge
 }
 
 function Page({ route }: { route: Route }) {
+  const spectating = useGame((s) => s.world?.meta.mode === 'spectator');
+  if (spectating && MANAGER_ONLY.includes(route.page) && !(route.page === 'org' && route.id)) return <SpectatorOnly />;
   switch (route.page) {
     case 'home':
-      return <Home />;
+      return spectating ? <SpectatorHome /> : <Home />;
+    case 'following':
+      return <FollowingPage />;
+    case 'take-charge':
+      return <OrgPicker />;
     case 'inbox':
       return <Inbox />;
     case 'news':
@@ -352,7 +380,7 @@ export function App() {
       </>
     );
   }
-  if (!world || !world.meta.userOrgId) {
+  if (!world || (!world.meta.userOrgId && world.meta.mode !== 'spectator')) {
     return (
       <>
         <Welcome />
@@ -360,7 +388,8 @@ export function App() {
       </>
     );
   }
-  const userOrg = world.orgs[world.meta.userOrgId];
+  const spectating = world.meta.mode === 'spectator';
+  const userOrg = world.meta.userOrgId ? world.orgs[world.meta.userOrgId] : undefined;
   const unread = world.inbox.filter((m) => !m.read).length;
   const crumbs = crumbsFor(route, world);
   return (
@@ -391,12 +420,20 @@ export function App() {
       </div>
       <nav className={`sidebar ${navOpen ? 'open' : ''}`} aria-label="Main navigation">
         <div className="row" style={{ padding: '6px 16px 10px' }}>
-          <OrgBadge org={userOrg} size={22} />
-          <Link to={`/org/${userOrg.id}`} className="elink">
-            {userOrg.name}
-          </Link>
+          {userOrg ? (
+            <>
+              <OrgBadge org={userOrg} size={22} />
+              <Link to={`/org/${userOrg.id}`} className="elink">
+                {userOrg.name}
+              </Link>
+            </>
+          ) : (
+            <Link to="/following" className="elink">
+              Spectator · {spectating ? (world.meta.followed?.length ?? 0) : 0} followed
+            </Link>
+          )}
         </div>
-        {NAV.map((n, i) =>
+        {navFor(spectating).map((n, i) =>
           n.sec ? (
             <div key={i} className="sec">
               {n.sec}

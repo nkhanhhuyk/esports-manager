@@ -1,3 +1,5 @@
+import { RichText } from '../components/RichText';
+import { watchedFixturesOn } from '../../systems/follow';
 import { RivalryBadge } from '../components/Fans';
 import { useState } from 'react';
 import { useGame, useWorld } from '../store';
@@ -32,7 +34,7 @@ function DraftPanel({ g, f }: { g: GameResult; f: Fixture }) {
           <div>
             {Object.entries(g.draft!.assign[i]).map(([pid, cid]) => (
               <span key={pid} className="chip pick">
-                {world.players[pid]?.handle}: {name(cid)}
+                <PlayerLink p={world.players[pid]} />: {name(cid)}
               </span>
             ))}
           </div>
@@ -54,7 +56,7 @@ function Scoreboard({ g, f }: { g: GameResult; f: Fixture }) {
           <thead>
             <tr>
               <th>
-                {world.teams[f.teams[ti]]?.name} {g.winner === ti ? '🏆' : ''}
+                <TeamLink t={world.teams[f.teams[ti]]} /> {g.winner === ti ? '🏆' : ''}
               </th>
               <th>Role</th>
               {t.characters.length > 0 && <th>{t.charLabel}</th>}
@@ -98,7 +100,9 @@ export function GameView({ g, f }: { g: GameResult; f: Fixture }) {
     <>
       <Card title={`${t.family === 'SHOOTER' ? 'Map' : 'Game'} ${g.idx + 1}${map && t.maps.length > 1 ? ` — ${map.name}` : ''}${mode ? ` (${mode.name})` : ''}`} right={<span className="muted small">{fmtTime(g.duration)}</span>}>
         <div style={{ marginBottom: 8 }}>
-          <b>{g.summary}</b>
+          <b>
+            <RichText world={world} text={g.summary} />
+          </b>
         </div>
         {g.draft && <DraftPanel g={g} f={f} />}
         {g.sides && g.sides.length > 0 && <div className="muted small" style={{ marginBottom: 6 }}>{g.sides.join(' · ')}</div>}
@@ -109,7 +113,7 @@ export function GameView({ g, f }: { g: GameResult; f: Fixture }) {
           <div className="feed">
             {g.events.map((e, i) => (
               <div key={i} className={`${e.big ? 'big' : ''} ${e.team === 0 ? 't0' : e.team === 1 ? 't1' : ''}`}>
-                {e.text}
+                <RichText world={world} text={e.text} />
               </div>
             ))}
           </div>
@@ -154,7 +158,11 @@ export function MatchPage({ id }: { id: string; route: Route }) {
   return (
     <div>
       <PageHeader
-        title={two ? `${world.teams[f.teams[0]]?.name} vs ${world.teams[f.teams[1]]?.name}` : `${comp?.name} — lobby`}
+        title={
+          <>
+            <TeamLink t={world.teams[f.teams[0]]} /> vs <TeamLink t={world.teams[f.teams[1]]} />
+          </>
+        }
         sub={
           <span>
             <TitleTag id={f.titleId} /> · <CompLink c={comp} /> · {formatDate(f.day, true)} · {f.format.label} ({f.formatKey})
@@ -219,7 +227,9 @@ export function MatchPage({ id }: { id: string; route: Route }) {
                 const team = world.teams[f.teams[i]];
                 return (
                   <div key={i}>
-                    <b>{team?.name}</b>
+                    <b>
+                      <TeamLink t={team} />
+                    </b>
                     {team?.lineup.map((s) => (
                       <div key={s.playerId} className="attr-row">
                         <span>{t.roles.find((r) => r.id === s.roleId)?.name}</span>
@@ -242,29 +252,40 @@ export function MatchDayPage() {
   const world = useWorld();
   const advance = useGame((s) => s.advance);
   const act = useGame((s) => s.act);
-  const fixtures = userFixturesOn(world, world.day + 1);
+  const spectating = world.meta.mode === 'spectator';
+  const fixtures = spectating ? watchedFixturesOn(world, world.day + 1) : userFixturesOn(world, world.day + 1);
   return (
     <div>
-      <PageHeader title="Match day" sub={`${formatDate(world.day + 1, true)} — your teams play ${fixtures.length} match(es).`} />
+      <PageHeader title="Match day" sub={`${formatDate(world.day + 1, true)} — ${spectating ? 'followed teams' : 'your teams'} play ${fixtures.length} match(es).`} />
       {fixtures.map((f) => (
         <Card key={f.id} title={<span><TitleTag id={f.titleId} /> {world.comps[f.compId]?.name}</span>}>
           <div className="row">
-            <b>{`${world.teams[f.teams[0]]?.name} vs ${world.teams[f.teams[1]]?.name}`}</b>
+            <b>
+              <TeamLink t={world.teams[f.teams[0]]} /> vs <TeamLink t={world.teams[f.teams[1]]} />
+            </b>
             <span className="muted">{f.format.label}</span>
             <span className="grow" />
-            <button className="btn" disabled={!can(world, 'tactics')} title={can(world, 'tactics') ? undefined : denyReason(world, 'tactics')} onClick={() => navigate(`/live/${f.id}`)}>
-              Play live
-            </button>
-            <button className="btn ghost" onClick={() => navigate(`/tactics?team=${f.teams.find((x) => isUserTeamId(world, x))}`)}>
-              Tactics
-            </button>
+            {spectating ? (
+              <button className="btn" onClick={() => navigate(`/live/${f.id}`)}>
+                Watch live
+              </button>
+            ) : (
+              <>
+                <button className="btn" disabled={!can(world, 'tactics')} title={can(world, 'tactics') ? undefined : denyReason(world, 'tactics')} onClick={() => navigate(`/live/${f.id}`)}>
+                  Play live
+                </button>
+                <button className="btn ghost" onClick={() => navigate(`/tactics?team=${f.teams.find((x) => isUserTeamId(world, x))}`)}>
+                  Tactics
+                </button>
+              </>
+            )}
           </div>
         </Card>
       ))}
-      {!fixtures.length && <div className="muted">No matches for your teams tomorrow.</div>}
+      {!fixtures.length && <div className="muted">No matches for {spectating ? 'followed' : 'your'} teams tomorrow.</div>}
       <Card>
         <div className="row">
-          <span>Matches you do not play live are simulated by your coaching staff using your lineup, preferences and draft priorities.</span>
+          <span>{spectating ? 'Matches you do not watch are simulated with the same engine — results are identical.' : 'Matches you do not play live are simulated by your coaching staff using your lineup, preferences and draft priorities.'}</span>
           <button className="btn green" onClick={async () => { act((w) => (w.pendingUserMatch = fixtures[0]?.id ?? null)); await advance({ kind: 'days', n: 1 }); navigate('/'); }}>
             Simulate match day
           </button>

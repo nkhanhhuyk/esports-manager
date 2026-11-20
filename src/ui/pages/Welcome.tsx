@@ -1,3 +1,4 @@
+import { navigate } from '../router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../store';
 import { TITLES, getTitle } from '../../data/titles/catalogue';
@@ -10,6 +11,8 @@ import { SavesPanel } from './Saves';
 import type { CareerRole, Organisation } from '../../model/types';
 import { INPUT_LABEL } from '../../model/attributes';
 import { ROLE_LABEL, jobOffers, takeJob } from '../../systems/career';
+import { becomeSpectator } from '../../systems/follow';
+import { SpectateCard } from './Following';
 import { computeTeamStrength } from '../../sim/common/team';
 
 const SIZES = [
@@ -19,7 +22,7 @@ const SIZES = [
   { id: 'large', label: 'Large — deepest, slowest (up to 8 leagues + 2 tiers)' },
 ] as const;
 
-function OrgPicker() {
+export function OrgPicker() {
   const world = useGame((s) => s.world)!;
   const chooseOrg = useGame((s) => s.chooseOrg);
   const [title, setTitle] = useState('');
@@ -60,7 +63,7 @@ function OrgPicker() {
           { key: 'str', label: 'Avg strength', value: (r) => r.avgStr, align: 'right', render: (r) => r.avgStr.toFixed(1) },
           { key: 'bal', label: 'Balance', value: (r) => r.o.balance, align: 'right', render: (r) => formatMoney(r.o.balance) },
           { key: 'strat', label: 'Board strategy', value: (r) => r.o.strategy },
-          { key: 'go', label: '', render: (r) => <button className="btn sm" onClick={() => chooseOrg(r.o.id)}>Manage</button> },
+          { key: 'go', label: '', render: (r) => <button className="btn sm" onClick={() => void chooseOrg(r.o.id).then(() => navigate('/'))}>Manage</button> },
         ]}
       />
     </Card>
@@ -93,6 +96,7 @@ export function Welcome() {
           </p>
         </div>
         <OrgPicker />
+        <SpectateCard />
       </div>
     );
   }
@@ -229,6 +233,14 @@ export function JobOffers() {
           );
         })}
         {!offers.length && <div className="muted">No offers right now.</div>}
+      </Card>
+      <Card title="Or step away and watch">
+        <div className="row">
+          <span className="grow muted">Become a spectator: follow your old divisions (or any teams) while every club&apos;s staff make the decisions.</span>
+          <button className="btn ghost" onClick={() => act((w) => becomeSpectator(w), { save: true })}>
+            Spectate
+          </button>
+        </div>
       </Card>
     </div>
   );

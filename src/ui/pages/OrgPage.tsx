@@ -1,3 +1,4 @@
+import { RichText } from '../components/RichText';
 import { useState } from 'react';
 import { useGame, useWorld } from '../store';
 import { Card, CompLink, Flag, Gate, Money, OrgBadge, PageHeader, Stat, TeamLink, TitleTag } from '../components/common';
@@ -89,7 +90,7 @@ export function OrgPage({ id }: { id?: string }) {
         <Card title="Organisation history">
           {[...org.events].reverse().slice(0, 40).map((e, i) => (
             <div key={i} className="small" style={{ padding: '3px 0', borderBottom: '1px solid var(--border)' }}>
-              <span className="muted">{formatDate(e.day)}</span> · <span className="tag">{e.type}</span> {e.text}
+              <span className="muted">{formatDate(e.day)}</span> · <span className="tag">{e.type}</span> <RichText world={world} text={e.text} />
             </div>
           ))}
           {org.names.length > 1 && (

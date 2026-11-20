@@ -18,6 +18,7 @@ import { negotiationsDay } from '../systems/negotiation';
 import { boardMonthly } from '../systems/career';
 import { registrationReminders } from '../systems/registration';
 import { treasuryMonthly } from '../systems/treasury';
+import { isSpectator, watchedFixturesOn } from '../systems/follow';
 import { fansMonthly } from '../systems/fans';
 import { rivalriesMonthly } from '../systems/rivalries';
 import { compactMatches, roundProficiencies } from './compact';
@@ -131,10 +132,10 @@ export function advance(world: World, mode: AdvanceMode, opts: AdvanceOptions = 
       target = seasonEndDay(world.season + mode.n - 1);
       break;
     case 'next-event': {
-      // Next day with a user fixture, or the next competition start/finish, capped at 60 days.
+      // Next day with a user (or followed, when spectating) fixture, capped at 60 days.
       target = world.day + 60;
       for (let d = world.day + 1; d <= world.day + 60; d++) {
-        if (userFixturesOn(world, d).length) {
+        if (watchedFixturesOn(world, d).length) {
           target = d;
           break;
         }
@@ -147,8 +148,9 @@ export function advance(world: World, mode: AdvanceMode, opts: AdvanceOptions = 
   const limit = opts.maxDays ?? Infinity;
   const employed = !!world.meta.userOrgId && !world.meta.unemployed;
   while (world.day < target) {
-    if (stopForUser && world.meta.userOrgId) {
-      const uf = userFixturesOn(world, world.day + 1);
+    const spectatorStop = isSpectator(world) && !!world.meta.stopForFollowed;
+    if (stopForUser && (world.meta.userOrgId || spectatorStop)) {
+      const uf = world.meta.userOrgId ? userFixturesOn(world, world.day + 1) : watchedFixturesOn(world, world.day + 1);
       if (uf.length && (days > 0 || mode.kind === 'next-event' || world.pendingUserMatch !== uf[0].id)) {
         // Pause before the user's match day so they can prepare or play it live.
         if (world.pendingUserMatch !== uf[0].id) {

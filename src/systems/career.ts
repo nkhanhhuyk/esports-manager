@@ -8,7 +8,7 @@
  */
 import { clamp } from '../core/math';
 import { RNG } from '../core/rng';
-import type { BoardObjective, CareerRole, Competition, JobApproach, League, Team, World } from '../model/types';
+import type { DelegationArea, BoardObjective, CareerRole, Competition, JobApproach, League, Team, World } from '../model/types';
 import { nextId } from '../model/ids';
 import { getTitle } from '../data/titles/catalogue';
 import { computeTeamStrength } from '../sim/common/team';
@@ -50,6 +50,23 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
 
 export function can(world: World, perm: Permission): boolean {
   return PERMS[world.meta.careerRole ?? 'coach-gm']?.includes(perm) ?? true;
+}
+
+/** Which permission each delegable area belongs to. */
+export const AREA_PERM: Record<DelegationArea, Permission> = { signings: 'transfers', sales: 'transfers', contracts: 'contracts', staff: 'staff', finance: 'finance', registration: 'tactics' };
+
+export const DELEGATION_INFO: Record<DelegationArea, { label: string; staff: string; desc: string }> = {
+  signings: { label: 'Signings', staff: 'General manager', desc: 'Recruits free agents and bids for players to fill needs, releases surplus players.' },
+  sales: { label: 'Offers for your players', staff: 'General manager', desc: 'Accepts, rejects or counters bids from other clubs instead of sending them to your inbox.' },
+  contracts: { label: 'Contract renewals', staff: 'General manager', desc: 'Renews key players, lets others leave, tenders restricted free agents, handles transfer requests.' },
+  staff: { label: 'Staff hiring', staff: 'Director', desc: 'Replaces a missing head coach and adds an assistant coach where a team has none (each season).' },
+  finance: { label: 'Wage budgets', staff: 'Board', desc: 'The board sets each division’s wage budget every season.' },
+  registration: { label: 'Competition registration', staff: 'Head coach', desc: 'The coach registers players and uses registration changes for new signings.' },
+};
+
+/** The manager personally handles an area: the role allows it and it is not delegated to staff. */
+export function userHandles(world: World, area: DelegationArea): boolean {
+  return can(world, AREA_PERM[area]) && !world.meta.delegation?.[area];
 }
 
 /** Explanation shown when an action is outside the user's role. */

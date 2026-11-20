@@ -923,3 +923,35 @@ label {
   border-color: color-mix(in srgb, var(--bad) 40%, transparent);
   white-space: nowrap;
 }
+
+.warn {
+  color: var(--warn);
+}
+.timetable th,
+.timetable td {
+  text-align: center;
+  vertical-align: top;
+  padding: 4px 3px;
+  min-width: 62px;
+}
+.timetable select {
+  width: 100%;
+  min-width: 60px;
+}
+.tt-cell .tt-type {
+  font-weight: 600;
+}
+.tt-cell .tt-sub {
+  font-size: 10px;
+  white-space: nowrap;
+}
+.tt-cell.cancelled .tt-type {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.tt-cell.match {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.tt-cell.unsupervised {
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}

@@ -476,6 +476,7 @@ export function setUserOrg(world: World, orgId: string): void {
   if (!org) throw new Error('Unknown organisation');
   org.user = true;
   world.meta.userOrgId = orgId;
+  world.meta.mode = 'manager';
   for (const tid of org.teams) {
     const team = world.teams[tid];
     team.prefs.delegateLineup = true;

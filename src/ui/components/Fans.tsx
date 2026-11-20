@@ -1,6 +1,7 @@
 /**
  * Supporter segments (organisation page) and rivalries (team page, match screens).
  */
+import { RichText } from './RichText';
 import type { Organisation, Team, World } from '../../model/types';
 import { regionEconomy } from '../../data/countries';
 import { formatMoney } from '../../core/math';
@@ -89,7 +90,7 @@ export function FansCard({ world, org }: { world: World; org: Organisation }) {
               {l.d > 0 ? '+' : ''}
               {l.d}
             </b>{' '}
-            · {l.note}
+            · <RichText world={world} text={l.note} />
           </div>
         ))}
       </div>
@@ -162,7 +163,7 @@ export function RivalriesCard({ world, team }: { world: World; team: Team }) {
                     <td className="num">{r.finals}</td>
                     <td className="num">{r.playoffs}</td>
                     <td>{r.since ?? r.firstSeason}</td>
-                    <td className="muted">{last ? `${last.season}: ${last.text}` : '—'}</td>
+                    <td className="muted">{last ? <>{last.season}: <RichText world={world} text={last.text} /></> : '—'}</td>
                   </tr>
                 );
               })}

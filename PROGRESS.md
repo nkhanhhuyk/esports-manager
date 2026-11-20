@@ -70,8 +70,20 @@ by simulation tests.
   authority (revenue + 50% cash − fixed costs) allocated to departments; set/move budgets with an audit log;
   budgets enforced for user signings, renewals and trades; 12-month committed-cash forecast with shortfall
   warnings (`tests/treasury.test.ts`).
-* **Training & progression**: team/individual focus, intensity, scrims, opponent prep, diminishing returns,
+* **Training sessions & scrims**: weekly 14-block timetables planned by coaches (objective, calendar,
+  tapering, fatigue, patch, capacity) or by the manager; shared practice rooms, coaching capacity,
+  match-day rules, cancellations that grant nothing; scrims against real partner teams (matching, short-notice
+  cancellations, internal scrims, results, sharpness, meta and chemistry effects, strategy-leak intel);
+  Training page timetable/template/intel; team-page training week for followed teams
+  (`tests/training.test.ts`).
+* **Training & progression**: development objectives, individual focus, intensity, diminishing returns,
   fatigue & health setbacks, aging & decline, potential revisions, resurgences, input adaptation training.
+* **Spectator mode & delegation**: follow any number of teams (or all) while every club's staff decide
+  everything; follow dashboard, match day "Watch live" for any match, optional stops before followed
+  matches, switch between managing and spectating; per-area delegation (signings, sales, renewals, staff,
+  budgets, registration) and per-team lineups/drafts/training (`tests/modes.test.ts`, e2e spectator flow).
+* **Tappable names everywhere**: team/player/org/competition/staff/title names link to their pages in
+  tables, match screens, inbox, news, commentary, histories and notes.
 * **Patches/meta**: per-title version history, balance & major patches, styles, map pool rotation, objective
   values, eras; meta adaptation for teams.
 * **Awards/history**: tournament/finals/worlds MVPs, season awards incl. role & stat leaders, coach/team/org
@@ -124,9 +136,9 @@ by simulation tests.
 
 1. **Install and test the APK on a real Android device or emulator** (airplane mode, restart, rotation,
    Back, backgrounding) — not possible in the build environment (no `/dev/kvm`).
-2. Staff capacity and philosophy alignment.
+2. Staff philosophy alignment (coaching capacity per session is done).
 3. Dual-title rosters with one shared calendar and divided practice time.
-4. Training sessions as scarce capacity (staff, rooms, cancellations without phantom growth).
+4. Bootcamps and travel blocks in the training calendar.
 5. Richer news/press narratives (press conferences, player promises, media questions).
 6. Performance for Standard/Large worlds (seven titles: measure and tune on a phone).
 7. Release signing automation (procedure documented in ANDROID_BUILD.md).

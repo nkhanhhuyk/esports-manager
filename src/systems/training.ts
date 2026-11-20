@@ -16,6 +16,7 @@ import { getTitle, titleSimilarity } from '../data/titles/catalogue';
 import { computeCA } from '../sim/common/ratings';
 import { teamStaffOf, headCoach } from '../sim/common/team';
 import { addInbox } from './news';
+import { runTrainingWeek, type WeekSummary } from './sessions';
 
 export const FOCUS_LABEL: Record<TrainingFocus, string> = {
   balanced: 'Balanced',
@@ -130,6 +131,8 @@ const HYBRID_SPEC = [...MOBA_INDICES, ...SHOOTER_INDICES];
 export function weeklyTraining(world: World): void {
   const rng = new RNG(`${world.meta.seed}|train|${world.day}`);
   const progressWeek = Math.floor(world.day / 7) % 2 === 0;
+  // Plan, book and hold this week's sessions; only held sessions count below.
+  const week = runTrainingWeek(world);
   const teamQ = new Map<string, number>();
   const teamFocusMult = new Map<string, number>();
   for (const team of Object.values(world.teams)) {
@@ -142,13 +145,19 @@ export function weeklyTraining(world: World): void {
       tp.lastFocus = tp.focus;
     }
     // Diminishing returns on repetitive training: opponents and metas move on.
-    teamFocusMult.set(team.id, (tp.focusWeeks ?? 0) > 8 ? 0.75 : 1);
-    // Scrims & tactics training improve short-term practice quality.
-    const scrim = tp.focus === 'tactics' ? 6 : tp.scrimsPerWeek;
-    team.scrimRating = clamp(team.scrimRating * 0.85 + scrim * 2.5 * (teamFocusMult.get(team.id) ?? 1), 0, 100);
-    if (tp.focus === 'tactics' || tp.focus === 'knowledge') team.metaAdapt = clamp(team.metaAdapt + 1.2 * (teamFocusMult.get(team.id) ?? 1), 0, 100);
-    if (tp.focus === 'teamwork') team.chemistry = clamp(team.chemistry + 0.8, 0, 100);
-    team.chemistry = clamp(team.chemistry + 0.05 * (tp.scrimsPerWeek / 3) - (team.chemistry - 60) * 0.004, 0, 100);
+    const fm = (tp.focusWeeks ?? 0) > 8 ? 0.75 : 1;
+    teamFocusMult.set(team.id, fm);
+    const ws = week.get(team.id);
+    if (!ws) {
+      team.chemistry = clamp(team.chemistry - (team.chemistry - 60) * 0.004, 0, 100);
+      continue;
+    }
+    const h = ws.held;
+    // Practice sharpness comes from scrims actually played (reviewed scrims teach more) and tactics.
+    team.scrimRating = clamp(team.scrimRating * 0.75 + (ws.scrimQ * 3.5 + h.tactics * 0.8) * fm, 0, 100);
+    const mapsMeta = getTitle(team.titleId).maps.length > 1 ? 0 : 0.2;
+    team.metaAdapt = clamp(team.metaAdapt + (h.patch * 1 + h.scrim * 0.25 + h.tactics * 0.15 + h.maps * mapsMeta) * fm, 0, 100);
+    team.chemistry = clamp(team.chemistry + h.tactics * 0.012 + h.scrim * 0.01 + h.mental * 0.015 + (tp.focus === 'teamwork' ? 0.6 : 0) - (team.chemistry - 60) * 0.004, 0, 100);
   }
   for (const p of Object.values(world.players)) {
     if (p.retired) continue;
@@ -158,6 +167,10 @@ export function weeklyTraining(world: World): void {
     const q = team ? teamQ.get(team.id) ?? 0.8 : 0.55;
     const focus: TrainingFocus = team ? team.training.individual[p.id] ?? team.training.focus : 'balanced';
     const intensity = team ? team.training.intensity / 100 : 0.4;
+    const ws: WeekSummary | undefined = team ? week.get(team.id) : undefined;
+    // Development from the sessions held this week (no sessions → no training growth).
+    const sessionDev = ws ? ws.devFactor : 0.6 + intensity * 0.6;
+    const sf = ws ? clamp(ws.devFactor, 0, 1) : 1;
     const mult = team ? teamFocusMult.get(team.id) ?? 1 : 1;
     const ethic = (p.attrs[55] + p.attrs[56] + p.attrs[57]) / 300; // learning, work ethic, coachability
     const { grow, decline } = ageCurve(p, age);
@@ -166,7 +179,7 @@ export function weeklyTraining(world: World): void {
     const playing = team && team.lineup.some((s) => s.playerId === p.id) ? 1.1 : team ? 0.85 : 0.7;
     // Permanent attributes progress every second week (double step) — same yearly rate,
     // half the computation and cache invalidation in very large worlds.
-    const budget = (progressWeek ? 2 : 0) * 0.062 * p.dev.growthRate * Math.pow(gap / 10, 0.85) * grow * q * (0.5 + ethic) * (0.6 + intensity * 0.6) * mult * overtrained * playing;
+    const budget = (progressWeek ? 2 : 0) * 0.062 * p.dev.growthRate * Math.pow(gap / 10, 0.85) * grow * q * (0.5 + ethic) * sessionDev * mult * overtrained * playing;
     const famKey = t.family;
     const famSet = t.family === 'MOBA' ? MOBA_INDICES : SHOOTER_INDICES;
     let changed = false;
@@ -198,33 +211,38 @@ export function weeklyTraining(world: World): void {
     const tId = t.id;
     if (team) {
       const sim = titleSimilarity(p.titleId, tId);
-      const titleRate = 0.12 * learn * (0.6 + (1 - sim) * 0.8) * q;
+      const titleRate = 0.12 * learn * (0.6 + (1 - sim) * 0.8) * q * sf;
       p.prof.titles[tId] = clamp((p.prof.titles[tId] ?? 0) + titleRate * (1 - (p.prof.titles[tId] ?? 0) / 102), 0, 100);
       const ii = inputIndex(t.input);
-      const inputRate = (focus === 'input' ? 0.9 : 0.12) * learn * q;
+      const inputRate = (focus === 'input' ? 0.9 : 0.12) * learn * q * sf;
       p.input[ii] = Math.round(clamp(p.input[ii] + inputRate * (1 - p.input[ii] / 102), 0, 100) * 10) / 10;
       const slot = team.lineup.find((s) => s.playerId === p.id);
       const roleId = slot?.roleId ?? p.roles[0];
       const rk = `${tId}:${roleId}`;
-      const roleRate = (focus === 'roles' ? 0.6 : 0.12) * learn * q;
+      const roleRate = (focus === 'roles' ? 0.6 : 0.12) * learn * q * sf;
       p.prof.roles[rk] = clamp((p.prof.roles[rk] ?? 0) + roleRate * (1 - (p.prof.roles[rk] ?? 0) / 102), 0, 100);
-      if (focus === 'characters' && t.characters.length) {
+      // Character pools and maps grow in the pool / maps sessions held (and individual work on them).
+      const indiv = ws ? ws.held.individual : 3;
+      const poolBlocks = Math.min(6, Math.round((ws ? ws.held.pool : focus === 'characters' ? 2 : 0) + (focus === 'characters' ? indiv / 2 : 0)));
+      if (poolBlocks > 0 && t.characters.length) {
         const role = t.roles.find((r) => r.id === roleId)!;
         const cm = (p.prof.chars[tId] ||= {});
         const pool = t.characters.filter((c) => role.classes.includes(c.cls)).slice(0, 10);
-        for (const c of rng.sample(pool, 3)) cm[c.id] = clamp((cm[c.id] ?? 15) + 1.2 * learn * q, 0, 100);
+        for (let k = 0; k < poolBlocks; k++) for (const c of rng.sample(pool, 2)) cm[c.id] = clamp((cm[c.id] ?? 15) + 0.6 * learn * q, 0, 100);
       }
-      if (focus === 'maps' && t.maps.length > 1) {
+      const mapBlocks = Math.min(6, Math.round((ws ? ws.held.maps : focus === 'maps' ? 2 : 0) + (focus === 'maps' ? indiv / 2 : 0)));
+      if (mapBlocks > 0 && t.maps.length > 1) {
         const mm = (p.prof.maps[tId] ||= {});
-        for (const m of rng.sample(t.maps, 3)) mm[m.id] = clamp((mm[m.id] ?? 20) + 1.2 * learn * q, 0, 100);
+        for (let k = 0; k < mapBlocks; k++) for (const m of rng.sample(t.maps, 2)) mm[m.id] = clamp((mm[m.id] ?? 20) + 0.6 * learn * q, 0, 100);
       }
       if ((focus === 'weapons' || focus === 'shooter') && t.weaponClasses.length) {
         const wm = (p.prof.weapons[tId] ||= {});
-        for (const w of t.weaponClasses) wm[w] = clamp((wm[w] ?? 20) + 0.5 * learn * q, 0, 100);
+        for (const w of t.weaponClasses) wm[w] = clamp((wm[w] ?? 20) + 0.5 * learn * q * sf, 0, 100);
       }
-      // Fatigue from training load (recovery focus lowers it)
-      p.fatigue = clamp(p.fatigue + (focus === 'recovery' ? -6 : intensity * 5 - 1), 0, 100);
+      // Fatigue from the training load actually held (rest blocks and a recovery focus lower it).
+      p.fatigue = clamp(p.fatigue + (focus === 'recovery' ? -6 : ws ? ws.fatigue : intensity * 5 - 1), 0, 100);
       if (focus === 'mental') p.morale = clamp(p.morale + 0.6, 0, 100);
+      if (ws?.held.mental) p.morale = clamp(p.morale + 0.3 * ws.held.mental, 0, 100);
     }
     // Morale drift & playing-time satisfaction
     const starter = team?.lineup.some((s) => s.playerId === p.id);

@@ -241,9 +241,9 @@ function TreasuryPanel() {
               {[...(org.budgetLog ?? [])].reverse().slice(0, 15).map((b, i) => (
                 <tr key={i}>
                   <td>{formatDate(b.day)}</td>
-                  <td>{b.teamId ? world.teams[b.teamId]?.name ?? '—' : 'Group reserve'}</td>
+                  <td>{b.teamId ? <TeamLink t={world.teams[b.teamId]} /> : 'Group reserve'}</td>
                   <td>→</td>
-                  <td>{b.toTeamId ? world.teams[b.toTeamId]?.name ?? '—' : 'Group reserve'}</td>
+                  <td>{b.toTeamId ? <TeamLink t={world.teams[b.toTeamId]} /> : 'Group reserve'}</td>
                   <td className="num">{formatMoney(b.amount)}</td>
                   <td className="muted">{b.note}</td>
                 </tr>

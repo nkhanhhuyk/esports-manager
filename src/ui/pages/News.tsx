@@ -1,3 +1,4 @@
+import { RichText } from '../components/RichText';
 import { useState } from 'react';
 import { useWorld } from '../store';
 import { Card, PageHeader, TitleTag } from '../components/common';
@@ -36,10 +37,14 @@ export function NewsPage() {
             <div className="row">
               {n.titleId && <TitleTag id={n.titleId} />}
               <span className="tag">{n.kind}</span>
-              <b>{n.title}</b>
+              <b>
+                <RichText world={world} text={n.title} refs={n.refs} />
+              </b>
               <span className="muted small">{formatDate(n.day)}</span>
             </div>
-            <div className="muted">{n.body}</div>
+            <div className="muted">
+              <RichText world={world} text={n.body} refs={n.refs} />
+            </div>
             <div className="row small">
               {n.refs.map((r) => (
                 <Link key={r.type + r.id} to={`/${r.type === 'comp' ? 'comp' : r.type}/${r.id}`}>
