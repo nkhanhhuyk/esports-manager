@@ -82,6 +82,8 @@ object Catalogue {
     @Synchronized
     fun init(src: DataSource) {
         if (loaded) return
+        dev.uem.em.sim.MobaMap.init(src)
+        dev.uem.em.sim.Abilities.init(src)
         val chars = Json.parseToJsonElement(src.read("characters.json")).jsonObject["titles"]!!.jsonObject
         val valMaps = Json.parseToJsonElement(src.read("valorantMaps.json")).jsonObject["maps"]!!.jsonArray.map { it.jsonObject["name"]!!.jsonPrimitive.content }
         ALL = build(valMaps)

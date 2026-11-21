@@ -100,7 +100,7 @@ class MapCam {
 
 /** A square map with pinch-zoom and drag-pan; `draw` paints the map in 0..W map space. */
 @Composable
-private fun MapFrame(cam: MapCam, draw: DrawScope.(W: Float) -> Unit, overlay: @Composable androidx.compose.foundation.layout.BoxScope.(side: Dp) -> Unit) {
+internal fun MapFrame(cam: MapCam, draw: DrawScope.(W: Float) -> Unit, overlay: @Composable androidx.compose.foundation.layout.BoxScope.(side: Dp) -> Unit) {
     BoxWithConstraints(
         Modifier.fillMaxWidth().aspectRatio(1f).padding(8.dp).clip(RoundedCornerShape(10.dp))
             .pointerInput(cam) {
@@ -132,7 +132,7 @@ private fun MapFrame(cam: MapCam, draw: DrawScope.(W: Float) -> Unit, overlay: @
  * health bar above, a level badge and the player's name below. `pos` is in view units (0..1).
  */
 @Composable
-private fun Token(
+internal fun Token(
     side: Dp, pos: Offset, url: String?, label: String, name: String, ring: Color,
     hp: Float?, level: Int?, dead: Boolean, followed: Boolean, showName: Boolean, size: Dp = 34.dp, deadText: String? = null,
 ) {
@@ -167,7 +167,7 @@ private fun Token(
 }
 
 @Composable
-private fun Toggle(label: String, on: Boolean, set: (Boolean) -> Unit) {
+internal fun Toggle(label: String, on: Boolean, set: (Boolean) -> Unit) {
     Text((if (on) "☑ " else "☐ ") + label, color = if (on) Ui.text else Ui.muted, fontSize = 12.sp, modifier = Modifier.clickable { set(!on) }.padding(horizontal = 6.dp, vertical = 4.dp))
 }
 
@@ -177,8 +177,8 @@ private fun ring(i: Int, n: Int, r: Float): Offset {
     return Offset(kotlin.math.cos(a) * r, kotlin.math.sin(a) * r)
 }
 
-private fun k1(v: Double) = if (v >= 1000) "%.1fk".format(v / 1000) else "%.0f".format(v)
-private fun clock(s: Int) = "%d:%02d".format(s / 60, s % 60)
+internal fun k1(v: Double) = if (v >= 1000) "%.1fk".format(v / 1000) else "%.0f".format(v)
+internal fun clock(s: Int) = "%d:%02d".format(s / 60, s % 60)
 
 // --------------------------------------------------------------------------------- MOBA 2D view
 
@@ -200,6 +200,8 @@ fun MobaViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -> Un
     val t = Catalogue.get(f.titleId)
     val map = Maps.moba(t.id) ?: return
     val rp = g.replay ?: run { Card { Muted("No 2D replay was recorded for this game.") }; return }
+    // Positional replays (v2) play in the full viewer; older replays keep this event view.
+    if (rp.step > 0) { MobaReplayViewer(w, f, g, after); return }
     val ev = remember(g) { ReplayCodec.events(rp, t) }
     val teams = arrayOf(w.teams[f.a], w.teams[f.b])
     val blue = g.blue
@@ -233,6 +235,7 @@ fun MobaViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -> Un
     val aNow = HashMap<Int, Int>()
     for (e in ev) {
         if (e.t > T) break
+        if (e.team < 0 && e.kind == "kill") continue
         val side = if (e.team >= 0) mapSide(e.team) else -1
         when (e.kind) {
             "tower" -> { val def = 1 - side; val lane = laneId(t, e.x, def); down[def][lane] = maxOf(down[def][lane] ?: 0, e.a) }

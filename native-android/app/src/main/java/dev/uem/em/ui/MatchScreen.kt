@@ -187,6 +187,7 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
             Muted(selectionText(t, listOf(w.teams[f.a].short, w.teams[f.b].short), g.sel[0], g.sel[1], g.sel[2] == 1, g.blue, firstPick), 12)
         }
     }
+    if (t.isMoba) MobaAnalysisCard(vm, w, f, t, g, gi)
     if (t.characters.isNotEmpty() && (g.bans.isNotEmpty() || g.lines.any { it.charId.isNotEmpty() })) Card("Draft") {
         val fm = if (dev.uem.em.comp.Fearless.applies(t)) dev.uem.em.comp.Fearless.modeOf(w.comps[f.compId]) else "none"
         val earlier = BoxStore.get(w, f.id)?.games?.take(gi) ?: emptyList()

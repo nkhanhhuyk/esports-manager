@@ -8,3 +8,4 @@ coverage
 ios
 release/
 .snapshot-cache/
+scripts/abilities-raw/

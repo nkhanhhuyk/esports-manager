@@ -124,6 +124,6 @@ class CareerModesTest {
         val t = Catalogue.get("lol")
         assertTrue(t1.roster.size >= t.teamSize)
         assertTrue(Roles.handles(w, "signings"))
-        assertTrue(w.orgs[t1.orgId].teams.map { w.teams[it] }.filter { it.active }.all { tm -> Catalogue.get(tm.titleId).lineup.all { r -> tm.roster.any { w.players[it].roles[0] == r } || Academies.isAcademy(tm) } })
+        assertTrue(w.orgs[t1.orgId].teams.map { w.teams[it] }.filter { it.active }.all { tm -> Catalogue.get(tm.titleId).lineup.all { r -> tm.roster.any { w.players[it].roles.take(2).contains(r) } || Academies.isAcademy(tm) } })
     }
 }

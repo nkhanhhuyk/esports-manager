@@ -381,6 +381,13 @@ class Replay(
     @ProtoPacked val pids: IntArray = IntArray(0),
     @ProtoPacked val snapT: IntArray = IntArray(0),
     @ProtoPacked val snap: IntArray = IntArray(0),
+    /** Snapshot values per player (4 in v1). */
+    val per: Int = 4,
+    /** Position sample interval in seconds (0 = no positions, v1). */
+    val step: Int = 0,
+    /** Ints per position sample. */
+    val posN: Int = 0,
+    @ProtoPacked val pos: IntArray = IntArray(0),
 )
 
 @Serializable
