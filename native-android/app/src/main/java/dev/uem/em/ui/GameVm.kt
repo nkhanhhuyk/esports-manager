@@ -88,6 +88,7 @@ class GameVm(app: Application) : AndroidViewModel(app) {
             GameData.init(src)
             Catalogue.init(src)
             Pics.init(src)
+            Maps.init(src)
         }
     }
 

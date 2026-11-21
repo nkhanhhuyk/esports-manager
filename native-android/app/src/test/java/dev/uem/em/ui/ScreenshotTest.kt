@@ -38,6 +38,7 @@ class ScreenshotTest {
         TestData.init()
         Pics.init(TestData.source)
         Pics.online = false
+        Maps.init(TestData.source)
         BoxStore.clear()
         val w = WorldGen.create(TestData.source, "shots", "Shots", Dates.day(2026, 11, 21))
         val t1 = w.teams.first { it.name == "T1" }

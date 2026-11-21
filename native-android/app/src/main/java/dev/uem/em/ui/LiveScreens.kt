@@ -149,22 +149,12 @@ private fun DraftView(live: LiveMatch) {
 
 // --------------------------------------------------------------------------------- MOBA 2D view
 
-private class MobaGeo(val t: TitleDef) {
-    val perLane = t.moba!!.structures.perLane
-    fun lanePath(code: Int, f: Float): Offset = when (code) {
-        0 -> if (f < 0.5f) Offset(0.1f, 0.9f - f / 0.5f * 0.8f) else Offset(0.1f + (f - 0.5f) / 0.5f * 0.8f, 0.1f)
-        2 -> if (f < 0.5f) Offset(0.1f + f / 0.5f * 0.8f, 0.9f) else Offset(0.9f, 0.9f - (f - 0.5f) / 0.5f * 0.8f)
-        else -> Offset(0.1f + 0.8f * f, 0.9f - 0.8f * f)
-    }
-
-    /** Engine lane index → drawn lane (Dota 2 safe lanes are on opposite sides). */
-    fun laneCode(engineLane: Int, side: Int): Int = if (t.id == "dota2" && engineLane != 1) (if ((engineLane == 0) == (side == 0)) 2 else 0) else engineLane.coerceIn(0, 2)
-    fun objPoint(i: Int): Offset {
-        val o = t.moba!!.objectives.getOrNull(i) ?: return Offset(0.5f, 0.5f)
-        return if (o.major || o.kind == "push" || o.kind == "aegis") Offset(0.33f, 0.3f) else Offset(0.67f, 0.7f)
-    }
-    fun base(side: Int) = if (side == 0) Offset(0.1f, 0.9f) else Offset(0.9f, 0.1f)
-    fun jungle(side: Int, k: Int) = if (side == 0) (if (k % 2 == 0) Offset(0.3f, 0.62f) else Offset(0.4f, 0.76f)) else (if (k % 2 == 0) Offset(0.7f, 0.38f) else Offset(0.6f, 0.24f))
+/** Lane ids on the drawn map for an engine lane index (Dota 2 safe lanes are on opposite sides). */
+private fun laneId(t: TitleDef, engineLane: Int, side: Int): String = when {
+    engineLane == 1 -> "mid"
+    t.id == "dota2" -> if ((engineLane == 0) == (side == 0)) "bot" else "top"
+    engineLane == 0 -> "top"
+    else -> "bot"
 }
 
 @Composable
@@ -172,7 +162,7 @@ private fun MobaViewer(w: World, live: LiveMatch) {
     val g = live.game ?: return
     val s = live.series
     val t = s.t
-    val geo = remember(t.id) { MobaGeo(t) }
+    val map = Maps.moba(t.id) ?: return
     val ev = live.events
     val blue = g.blue
     fun mapSide(seriesTeam: Int) = if (seriesTeam == blue) 0 else 1
@@ -184,28 +174,47 @@ private fun MobaViewer(w: World, live: LiveMatch) {
         while (playing && time < dur) { delay(50); time = (time + speed * 0.05f).coerceAtMost(dur) }
     }
     val T = time.toInt()
-    // Map-side line-up: index 0 blue.
     val lines = g.lines
     val laneEnd = t.moba!!.laneEnd * 60
-    val down = Array(2) { IntArray(3) }
-    var kills = IntArray(2)
-    var objs = IntArray(2)
+    // Structures lost per side and lane (by tier), objectives and kills so far.
+    val down = Array(2) { HashMap<String, Int>() }
+    val kills = IntArray(2)
+    val objs = IntArray(2)
+    var baseDown = IntArray(2)
     for (e in ev) {
         if (e.t > T) break
         val side = if (e.team >= 0) mapSide(e.team) else -1
         when (e.kind) {
-            "tower" -> { val def = 1 - side; val code = geo.laneCode(e.x, def); down[def][code] = maxOf(down[def][code], e.a) }
+            "tower" -> { val def = 1 - side; val lane = laneId(t, e.x, def); down[def][lane] = maxOf(down[def][lane] ?: 0, e.a) }
+            "base" -> baseDown[1 - side] = maxOf(baseDown[1 - side], e.a)
             "kill" -> kills[side]++
             "obj" -> objs[side]++
         }
     }
-    fun front(code: Int) = (0.5f + 0.09f * (down[1][code] - down[0][code])).coerceIn(0.22f, 0.78f)
+    val towers = map.structures.filter { it.kind != "core" && it.lane != null }
+    fun alive(st: Maps.Structure) = st.tier > (down[st.team][st.lane] ?: 0)
+    // Lane front: between the two teams' outermost standing towers.
+    fun front(lane: String): Float {
+        val line = map.lanes[lane] ?: return 0.5f
+        val mine = towers.filter { it.lane == lane && it.team == 0 && alive(it) }.maxOfOrNull { line.fractionOf(it.pos) } ?: 0.1f
+        val theirs = towers.filter { it.lane == lane && it.team == 1 && alive(it) }.minOfOrNull { line.fractionOf(it.pos) } ?: 0.9f
+        return (mine + theirs) / 2
+    }
+    fun lanePoint(lane: String, f: Float) = map.lanes[lane]?.at(f) ?: Offset(0.5f, 0.5f)
     fun respawn(kt: Int) = 8 + kt / 60f * 1.6f
-    fun deadUntil(pid: Int): Int? = ev.lastOrNull { it.kind == "kill" && it.b == pid && it.t <= T }?.let { k -> (k.t + respawn(k.t)).toInt().takeIf { it > T } }
+    fun dead(pid: Int) = ev.lastOrNull { it.kind == "kill" && it.b == pid && it.t <= T }?.let { k -> k.t + respawn(k.t) > T } ?: false
+    fun objPoint(i: Int): Offset {
+        val id = t.moba.objectives.getOrNull(i)?.id ?: return Offset(0.5f, 0.5f)
+        return map.pits.firstOrNull { id in it.objectives }?.pos ?: map.pits.firstOrNull()?.pos ?: Offset(0.5f, 0.5f)
+    }
+    fun jungle(side: Int, k: Int): Offset {
+        val camps = map.camps.filter { it.team == side }.ifEmpty { map.camps }
+        return if (camps.isEmpty()) Offset(0.5f, 0.5f) else camps[k % camps.size].pos
+    }
     fun locPoint(loc: Int, side: Int): Offset = when {
-        loc >= 10 -> geo.objPoint(loc - 10)
-        loc == 3 -> geo.jungle(side, 0)
-        else -> geo.lanePath(geo.laneCode(loc, side), front(geo.laneCode(loc, side)))
+        loc >= 10 -> objPoint(loc - 10)
+        loc == 3 -> jungle(side, 1)
+        else -> laneId(t, loc, side).let { lanePoint(it, front(it)) }
     }
     fun target(pid: Int, side: Int, roleIdx: Int, roleId: String, at: Int): Offset {
         val near = ev.firstOrNull { abs(it.t - at) < 18 && ((it.kind == "kill" && (it.a == pid || it.b == pid)) || it.kind == "fight") }
@@ -213,14 +222,13 @@ private fun MobaViewer(w: World, live: LiveMatch) {
         val lane = t.moba.lanes.indexOfFirst { roleId in it.second }
         val jungler = roleId in t.moba.junglers && lane < 0
         if (at < laneEnd) {
-            if (jungler || lane < 0) return geo.jungle(side, at / 45)
-            val code = geo.laneCode(lane, side)
-            val f = front(code) + (if (side == 0) -0.035f else 0.035f) + (roleIdx % 2) * 0.01f
-            return geo.lanePath(code, f)
+            if (jungler || lane < 0) return jungle(side, at / 40)
+            val id = laneId(t, lane, side)
+            return lanePoint(id, front(id) + (if (side == 0) -0.035f else 0.035f) + (roleIdx % 2) * 0.012f)
         }
-        // Mid / late game: the solo laner pushes a side lane, the rest group around mid.
-        if (roleIdx == 0) return geo.lanePath(if (side == 0) 0 else 2, front(if (side == 0) 0 else 2) + (if (side == 0) -0.03f else 0.03f))
-        return geo.lanePath(1, front(1) + (if (side == 0) -0.05f else 0.05f)) + Offset(((roleIdx % 3) - 1) * 0.02f, ((roleIdx % 2)) * 0.02f)
+        // Later: the solo laner holds a side lane, the others group around mid.
+        if (roleIdx == 0) { val id = if (side == 0) "top" else "bot"; return lanePoint(id, front(id) + (if (side == 0) -0.03f else 0.03f)) }
+        return lanePoint("mid", front("mid") + (if (side == 0) -0.05f else 0.05f)) + Offset(((roleIdx % 3) - 1) * 0.02f, (roleIdx % 2) * 0.02f)
     }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -228,50 +236,43 @@ private fun MobaViewer(w: World, live: LiveMatch) {
             Text("  %d:%02d  ".format(T / 60, T % 60), color = Ui.text, fontSize = 16.sp, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             Text("${kills[1]} ${s.teams[1 - blue].short}", color = Ui.red, fontWeight = FontWeight.Black, fontSize = 18.sp)
         }
-        Muted("  Towers ${down[1].sum()} - ${down[0].sum()} · objectives ${objs[0]} - ${objs[1]}", 12)
+        Muted("  ${map.name} · towers ${down[1].values.sum()} - ${down[0].values.sum()} · objectives ${objs[0]} - ${objs[1]}", 12)
         BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(1f).padding(8.dp)) {
             val size = maxWidth
             Canvas(Modifier.fillMaxSize()) {
                 val W = this.size.width
                 fun p(o: Offset) = Offset(o.x * W, o.y * W)
-                drawRect(Color(0xFF16301F))
-                drawLine(Color(0xFF2E6B8F), p(Offset(0.02f, 0.02f)), p(Offset(0.98f, 0.98f)), strokeWidth = W * 0.03f)
-                for (code in 0..2) {
-                    var prev = p(geo.lanePath(code, 0f))
-                    for (k in 1..20) { val nx = p(geo.lanePath(code, k / 20f)); drawLine(Color(0xFF8A7A55), prev, nx, strokeWidth = W * 0.018f); prev = nx }
+                drawRect(Color(0xFF1C3524))
+                for (r in map.walls) drawRect(Color(0xFF10201A), Offset(r[0] * W, r[1] * W), Size(r[2] * W, r[3] * W))
+                if (map.river.size > 1) for (i in 1 until map.river.size) drawLine(Color(0xFF2E6B8F), p(map.river[i - 1]), p(map.river[i]), strokeWidth = W * 0.035f)
+                for ((_, line) in map.lanes) for (i in 1 until line.pts.size) drawLine(Color(0xFF8A7A55), p(line.pts[i - 1]), p(line.pts[i]), strokeWidth = W * 0.016f)
+                for (pit in map.pits) drawCircle(Color(0xFF6E5A9B), W * 0.03f, p(pit.pos), style = Stroke(3f))
+                for (c in map.camps) drawCircle(Color(0x553DDC97), W * 0.01f, p(c.pos))
+                for (st in map.structures) {
+                    val c = if (st.team == 0) Ui.blue else Ui.red
+                    val pt = p(st.pos)
+                    if (st.kind == "core") { drawRect(c, pt - Offset(W * 0.035f, W * 0.035f), Size(W * 0.07f, W * 0.07f)); continue }
+                    val up = if (st.lane != null) alive(st) else st.tier > baseDown[st.team]
+                    if (up) drawRect(c, pt - Offset(W * 0.013f, W * 0.013f), Size(W * 0.026f, W * 0.026f)) else drawRect(c.copy(alpha = 0.3f), pt - Offset(W * 0.011f, W * 0.011f), Size(W * 0.022f, W * 0.022f), style = Stroke(2f))
                 }
-                for (side in 0..1) {
-                    val c = if (side == 0) Ui.blue else Ui.red
-                    drawRect(c, p(geo.base(side)) - Offset(W * 0.05f, W * 0.05f), Size(W * 0.1f, W * 0.1f))
-                    for (code in 0..2) for (k in 0 until geo.perLane) {
-                        val f = if (side == 0) 0.4f - k * 0.08f else 0.6f + k * 0.08f
-                        val alive = down[side][code] <= k
-                        val pt = p(geo.lanePath(code, f))
-                        if (alive) drawRect(c, pt - Offset(W * 0.015f, W * 0.015f), Size(W * 0.03f, W * 0.03f)) else drawRect(c.copy(alpha = 0.25f), pt - Offset(W * 0.012f, W * 0.012f), Size(W * 0.024f, W * 0.024f), style = Stroke(2f))
-                    }
-                }
-                for (i in t.moba.objectives.indices) drawCircle(Color(0xFF6E5A9B), W * 0.035f, p(geo.objPoint(i)), style = Stroke(3f))
-                // Fight flashes.
                 for (e in ev) if (e.kind == "fight" && e.t in (T - 12)..T) drawCircle(Color(0x55FF5A6E), W * 0.07f, p(locPoint(e.x, 0)))
             }
-            // Players (character icons).
             for (l in lines) {
                 val side = mapSide(l.team)
                 val roleIdx = t.lineup.indexOf(l.roleId)
-                val dead = deadUntil(l.playerId) != null
-                val pos = if (dead) geo.base(side) else {
+                val isDead = dead(l.playerId)
+                val pos = if (isDead) map.fountains.getOrElse(side) { Offset(0.5f, 0.5f) } else {
                     val a = target(l.playerId, side, roleIdx, l.roleId, T)
                     val b = target(l.playerId, side, roleIdx, l.roleId, T - 6)
                     val c = target(l.playerId, side, roleIdx, l.roleId, T - 12)
                     Offset((a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3)
                 }
                 val icon = 26.dp
-                Box(Modifier.offset(x = size * pos.x - icon / 2, y = size * pos.y - icon / 2).size(icon).alpha(if (dead) 0.35f else 1f).border(2.dp, if (side == 0) Ui.blue else Ui.red, CircleShape)) {
+                Box(Modifier.offset(x = size * pos.x - icon / 2, y = size * pos.y - icon / 2).size(icon).alpha(if (isDead) 0.35f else 1f).border(2.dp, if (side == 0) Ui.blue else Ui.red, CircleShape)) {
                     Pic(Pics.char(l.charId), t.charIndex[l.charId]?.name ?: s.w.players[l.playerId].handle, icon, round = true)
                 }
             }
         }
-        // Controls.
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { playing = !playing }) { Text(if (playing) "Pause" else "Play", color = Ui.accent) }
             for (sp in listOf(15, 30, 60, 120)) TextButton(onClick = { speed = sp }) { Text("${sp}x", color = if (speed == sp) Ui.accent else Ui.muted, fontSize = 12.sp) }
@@ -285,7 +286,7 @@ private fun MobaViewer(w: World, live: LiveMatch) {
                 val txt = when (e.kind) {
                     "kill" -> "${s.w.players[e.a].handle} killed ${s.w.players[e.b].handle}"
                     "obj" -> "${s.teams[e.team].short} take ${e.text}"
-                    "tower" -> "${s.teams[e.team].short} destroy a tower"
+                    "tower" -> "${s.teams[e.team].short} destroy a ${laneId(t, e.x, 1 - side)} tower"
                     else -> "${s.teams[e.team].short} break into the base"
                 }
                 Text("%d:%02d  %s".format(e.t / 60, e.t % 60, txt), color = if (side == 0) Ui.blue else Ui.red, fontSize = 12.sp)
@@ -312,10 +313,11 @@ private fun TacticalViewer(w: World, live: LiveMatch) {
     val g = live.game ?: return
     val s = live.series
     val t = s.t
+    val map = Maps.shooter(g.mapId)
     val ev = live.events
     val rounds = remember(g) { ev.groupBy { it.t }.toSortedMap() }
     val nRounds = rounds.size.coerceAtLeast(1)
-    var pos by remember(g) { mutableFloatStateOf(nRounds * LiveDefaults.startFraction) } // rounds elapsed (fractional)
+    var pos by remember(g) { mutableFloatStateOf(nRounds * LiveDefaults.startFraction) }
     var playing by remember(g) { mutableStateOf(LiveDefaults.autoplay) }
     var speed by remember { mutableFloatStateOf(1f) }
     LaunchedEffect(playing, speed, g) { while (playing && pos < nRounds) { delay(50); pos = (pos + speed * 0.05f / 3.5f).coerceAtMost(nRounds.toFloat()) } }
@@ -324,7 +326,6 @@ private fun TacticalViewer(w: World, live: LiveMatch) {
     val rev = rounds.values.toList()[r]
     val start = rev.firstOrNull { it.kind == "round" }
     val attack = start?.team ?: 0
-    val site = start?.x ?: 0
     val seq = rev.filter { it.kind == "kill" || it.kind == "plant" || it.kind == "defuse" }
     val shown = seq.filterIndexed { i, _ -> phase >= 0.2f + 0.65f * (i + 1) / (seq.size + 1) }
     val deadIds = shown.filter { it.kind == "kill" }.map { it.b }.toSet()
@@ -332,41 +333,51 @@ private fun TacticalViewer(w: World, live: LiveMatch) {
     val end = rev.firstOrNull { it.kind == "roundEnd" }
     val scoreBefore = rounds.values.toList().getOrNull(r - 1)?.firstOrNull { it.kind == "roundEnd" }?.let { intArrayOf(it.a, it.b) } ?: intArrayOf(0, 0)
     val score = if (phase >= 0.97f && end != null) intArrayOf(end.a, end.b) else scoreBefore
-    val sites = listOf(Offset(0.24f, 0.25f), Offset(0.76f, 0.25f))
-    val atkSpawn = Offset(0.5f, 0.9f)
+    val sites = map?.sites ?: emptyList()
+    val site = if (sites.isEmpty()) null else sites[(start?.x ?: 0) % sites.size]
+    // Attackers walk the shortest route from their spawn to the site; defenders hold sites and rotate after a plant.
+    val atkRoute = remember(g, r) { if (map != null && site != null) Maps.Line(map.route(map.atk, site.node)) else null }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("${s.teams[0].short} ${score[0]}", color = Ui.blue, fontWeight = FontWeight.Black, fontSize = 18.sp)
-            Text("Round ${r + 1} · ${t.maps.firstOrNull { it.id == g.mapId }?.name ?: ""}", color = Ui.text, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text("Round ${r + 1} · ${map?.name ?: t.maps.firstOrNull { it.id == g.mapId }?.name ?: ""}", color = Ui.text, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             Text("${score[1]} ${s.teams[1].short}", color = Ui.red, fontWeight = FontWeight.Black, fontSize = 18.sp)
         }
-        Muted("  ${s.teams[attack].short} attack ${if (site == 0) "A" else "B"} · buys: ${start?.text?.replace("|", " vs ") ?: ""}", 12)
+        Muted("  ${s.teams[attack].short} attack ${site?.id ?: ""} · buys: ${start?.text?.replace("|", " vs ") ?: ""}", 12)
         BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(1f).padding(8.dp)) {
             val size = maxWidth
             Canvas(Modifier.fillMaxSize()) {
                 val W = this.size.width
                 fun p(o: Offset) = Offset(o.x * W, o.y * W)
                 drawRect(Color(0xFF1E2230))
-                drawRect(Color(0xFF2B3042), p(Offset(0.1f, 0.12f)), Size(W * 0.8f, W * 0.78f))
-                for ((i, st) in sites.withIndex()) {
-                    drawCircle(if (planted && i == site) Color(0x88FF5A6E) else Color(0xFF3B4460), W * 0.11f, p(st))
+                if (map != null) {
+                    for (e in map.edges) drawLine(Color(0xFF3A4258), p(map.nodes[e.first].pos), p(map.nodes[e.second].pos), strokeWidth = W * 0.05f)
+                    for (rw in map.walls) drawRect(Color(0xFF151822), Offset(rw[0] * W, rw[1] * W), Size(rw[2] * W, rw[3] * W))
+                    for (e in map.edges) drawLine(Color(0xFF4A5470), p(map.nodes[e.first].pos), p(map.nodes[e.second].pos), strokeWidth = W * 0.012f)
+                    for (st in map.sites) drawCircle(if (planted && st === site) Color(0x88FF5A6E) else Color(0x553B82F6), st.r * W, p(st.pos))
+                    drawCircle(Color(0x66FF5A6E), W * 0.025f, p(map.nodes[map.atk].pos))
+                    drawCircle(Color(0x664F8CFF), W * 0.025f, p(map.nodes[map.def].pos))
                 }
-                drawRect(Color(0xFF3B4460), p(Offset(0.42f, 0.3f)), Size(W * 0.16f, W * 0.5f))
-                drawRect(Color(0xFF263049), p(Offset(0.35f, 0.84f)), Size(W * 0.3f, W * 0.1f))
-                drawRect(Color(0xFF263049), p(Offset(0.35f, 0.04f)), Size(W * 0.3f, W * 0.08f))
             }
-            for (side in 0..1) {
-                val roster = g.lines.filter { it.team == side }
-                roster.forEachIndexed { i, l ->
-                    val attacking = side == attack
-                    val target = sites[site] + Offset((i - 2) * 0.04f, (i % 2) * 0.04f)
-                    val p0 = if (attacking) atkSpawn + Offset((i - 2) * 0.05f, 0f) else sites[i % 2] + Offset(((i / 2) - 1) * 0.05f, 0.08f)
-                    val k = if (attacking) (phase / 0.8f).coerceIn(0f, 1f) else if (planted) ((phase - 0.6f) / 0.4f).coerceIn(0f, 1f) else 0f
-                    val pos2 = p0 + (target - p0) * k
-                    val dead = l.playerId in deadIds
-                    val icon = 22.dp
-                    Box(Modifier.offset(x = size * pos2.x - icon / 2, y = size * pos2.y - icon / 2).size(icon).alpha(if (dead) 0.25f else 1f).border(2.dp, if (side == 0) Ui.blue else Ui.red, CircleShape)) {
-                        Pic(if (l.charId.isNotEmpty()) Pics.char(l.charId) else Pics.player(s.w.players[l.playerId]), s.w.players[l.playerId].handle, icon, round = true)
+            if (map != null) {
+                for (st in map.sites) Text(st.id, color = Color.White, fontWeight = FontWeight.Black, fontSize = 14.sp, modifier = Modifier.offset(x = size * st.pos.x - 5.dp, y = size * st.pos.y - 10.dp))
+                for (side in 0..1) {
+                    val roster = g.lines.filter { it.team == side }
+                    roster.forEachIndexed { i, l ->
+                        val attacking = side == attack
+                        val p2: Offset = if (attacking) {
+                            val k = (phase / 0.8f).coerceIn(0f, 1f)
+                            (atkRoute?.at(k) ?: Offset(0.5f, 0.5f)) + Offset((i - 2) * 0.018f, (i % 2) * 0.018f)
+                        } else {
+                            val home = map.sites[i % map.sites.size].pos + Offset(((i / map.sites.size) - 1) * 0.03f, 0.03f)
+                            val k = if (planted && site != null) ((phase - 0.6f) / 0.4f).coerceIn(0f, 1f) else 0f
+                            home + ((site?.pos ?: home) - home) * k
+                        }
+                        val isDead = l.playerId in deadIds
+                        val icon = 22.dp
+                        Box(Modifier.offset(x = size * p2.x - icon / 2, y = size * p2.y - icon / 2).size(icon).alpha(if (isDead) 0.25f else 1f).border(2.dp, if (side == 0) Ui.blue else Ui.red, CircleShape)) {
+                            Pic(if (l.charId.isNotEmpty()) Pics.char(l.charId) else Pics.player(s.w.players[l.playerId]), s.w.players[l.playerId].handle, icon, round = true)
+                        }
                     }
                 }
             }
@@ -381,7 +392,7 @@ private fun TacticalViewer(w: World, live: LiveMatch) {
         Column(Modifier.padding(horizontal = 12.dp)) {
             for (e in shown.takeLast(4).reversed()) Text(when (e.kind) {
                 "kill" -> "${s.w.players[e.a].handle} → ${s.w.players[e.b].handle}"
-                "plant" -> "${t.tactical!!.objectiveName} planted"
+                "plant" -> "${t.tactical!!.objectiveName} planted on ${site?.id ?: ""}"
                 else -> "${t.tactical!!.objectiveName} defused"
             }, color = if (e.team == 0) Ui.blue else Ui.red, fontSize = 12.sp)
         }
