@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -121,6 +122,37 @@ fun HomeScreen(vm: GameVm, w: World) {
                 }
             }
         }
+        item(key = "tiles") {
+            val fin = dev.uem.em.mgmt.Economy.monthly(w, org)
+            val net = fin.income - fin.costs
+            val unread = w.inbox.count { !it.read }
+            val pending = w.offers.count { it.status == "pending" && w.isUserTeam(w.players[it.playerId].teamId) }
+            val b = w.board
+            Tiles(listOfNotNull(
+                Tile("Balance", formatMoney(org.balance), "${if (net >= 0) "+" else ""}${formatMoney(net)} / month", if (org.balance >= 0) Ui.text else Ui.loss),
+                Tile("Reputation", "${org.rep.toInt()}", "%,.0f fans".format(org.fans), Rate.color(org.rep)),
+                Tile("Divisions", "${teams.size}", teams.joinToString { Catalogue.get(it.titleId).short }),
+                Tile("Trophies", "${teams.sumOf { it.trophies.size }}", "prestige ${org.prestige.toInt()}", Ui.gold),
+                Tile("Unread inbox", "$unread", if (pending > 0) "$pending offer(s) for your players" else null),
+                if (b != null) Tile("Board confidence", "${b.confidence.toInt()}/100", if (b.contractEnd > 0) "your contract: end of ${b.contractEnd}" else null, Rate.color(b.confidence)) else null,
+            ))
+        }
+        item(key = "upcoming") {
+            val next = w.fixtures.filter { !it.done && it.day >= w.day && (w.isUserTeam(it.a) || w.isUserTeam(it.b)) }.sortedBy { it.day }.take(6)
+            if (next.isNotEmpty()) Card("Upcoming matches", right = { TextButton(onClick = { vm.go(Screen.Schedule) }) { Text("Schedule ›", color = Ui.accent) } }) {
+                for (f in next) {
+                    val mine = if (w.isUserTeam(f.a)) f.a else f.b
+                    val opp = if (mine == f.a) f.b else f.a
+                    Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Match(f.id)) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.padding(end = 8.dp)) { Text(Dates.short(f.day), color = Ui.text, fontSize = 12.sp); Muted(w.comps[f.compId].short, 9) }
+                        TitleTag(w.teams[mine].titleId)
+                        Text("vs ", color = Ui.muted, fontSize = 12.sp)
+                        Column(Modifier.weight(1f)) { if (opp >= 0) TeamChip(w, opp, vm, 18.dp) else Muted("TBD") }
+                        Muted("Bo${f.bestOf}", 11)
+                    }
+                }
+            }
+        }
         dev.uem.em.game.Advance.userFixtureDue(w)?.let { f ->
             item(key = "matchday") {
                 val opp = if (w.isUserTeam(f.a)) f.b else f.a
@@ -176,12 +208,38 @@ fun HomeScreen(vm: GameVm, w: World) {
                 }
             }
         }
+        w.board?.let { b ->
+            item(key = "board") {
+                Card("Board ${b.season}", right = { TextButton(onClick = { vm.go(Screen.Board) }) { Text("Board ›", color = Ui.accent) } }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Confidence", color = Ui.muted, fontSize = 12.sp, modifier = Modifier.width(80.dp))
+                        Bar(b.confidence, color = Rate.color(b.confidence), modifier = Modifier.weight(1f))
+                        Text(" ${b.confidence.toInt()}", color = Ui.text, fontSize = 12.sp)
+                    }
+                    Gap(4)
+                    for (o in b.objectives) Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(when (o.status) { "met" -> "✔"; "failed" -> "✖"; else -> "•" }, color = when (o.status) { "met" -> Ui.win; "failed" -> Ui.loss; else -> Ui.muted }, modifier = Modifier.width(18.dp))
+                        Text(o.text, color = Ui.text, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+        item(key = "inbox") {
+            val msgs = w.inbox.filter { !it.read }.takeLast(4).reversed().ifEmpty { w.inbox.takeLast(3).reversed() }
+            if (msgs.isNotEmpty()) Card("Inbox", right = { TextButton(onClick = { vm.go(Screen.Inbox) }) { Text("Open ›", color = Ui.accent) } }) {
+                for (m in msgs) Column(Modifier.fillMaxWidth().clickable { vm.go(Screen.Inbox) }.padding(vertical = 4.dp)) {
+                    Row { if (!m.read) Text("● ", color = Ui.accent, fontSize = 12.sp); Text(m.subject, color = Ui.text, fontSize = 13.sp, fontWeight = if (m.read) FontWeight.Normal else FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+                    Muted("${m.from} · ${Dates.short(m.day)}", 10)
+                }
+            }
+        }
         item { FollowedCard(vm, w) }
         item {
             Card("News") {
                 for (n in w.news.takeLast(8).reversed()) {
-                    Text(n.title, color = Ui.text, fontSize = 14.sp)
-                    Muted(Dates.format(n.day))
+                    Text(n.title, color = Ui.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    if (n.body.isNotBlank() && n.body != n.title) Text(n.body, color = Ui.muted, fontSize = 12.sp, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Muted(Dates.format(n.day), 10)
                     Gap(6)
                 }
                 if (w.news.isEmpty()) Muted("Nothing yet.")
@@ -197,12 +255,13 @@ fun MoreScreen(vm: GameVm, w: World) {
         Triple("Inbox", if (unread > 0) "$unread unread" else "Messages, offers, reports", Screen.Inbox),
         Triple("Finances", "Balance, income and expenses, sponsors, facilities", Screen.Finances),
         Triple("Board", "Objectives and confidence", Screen.Board),
-        Triple("History & awards", "Champions and season awards", Screen.History),
+        Triple("History & awards", "Champions, GOAT rankings, Hall of Fame, dynasties", Screen.History),
         Triple("Patch notes", "Every balance patch of every game", Screen.Patches),
         Triple("Schedule", "Your and followed teams' matches", Screen.Schedule),
-        Triple("Stats hub", "Season leaders and power ranking", Screen.Stats),
-        Triple("Teams", "All leagues and teams", Screen.Teams),
-        Triple("Players", "Search every player", Screen.Players),
+        Triple("Stats hub", "Leaderboards, records, head-to-head, season preview & review", Screen.Stats),
+        Triple("Teams", "All leagues and teams, team directory", Screen.Teams),
+        Triple("Players", "Search, filter and compare every player", Screen.Players),
+        Triple("World", "Games, national scenes, global rankings, organisations", Screen.World),
         Triple("Settings", "Difficulty, autosave, pictures, your name", Screen.Settings),
     )
     LazyColumn(Modifier.fillMaxSize()) {

@@ -56,7 +56,21 @@ Phones are slower per core but have 6–8 cores, which the native app uses.
 * **Supporters and registration**: fans by segment (core, casual, local, international) that
   drive merchandise; rosters registered when a competition starts, two amendments per competition.
 * **Live 2D view on the real maps**: lanes, river, terrain, towers, pits and camps of each MOBA,
-  and the real Valorant / CS2 layouts (callouts, sites, spawns).
+  and the real Valorant / CS2 layouts (callouts, sites, spawns). Every player is a circle in the
+  team colour with the champion / hero / agent portrait, name, health bar and level; dead players
+  wait greyed at the fountain with a respawn timer; pinch to zoom, drag to pan, tap a player on the
+  live scoreboard (level, K/D/A, gold, CS, what they are doing) to follow them.
+* **Detailed screens** (as in the web version): player page in nine tabs (overview, all 86
+  attributes, proficiencies with cross-title projection, career, statistics, contract, development
+  chart, transfer history, honours and legacy); team page (sortable roster, schedule, statistics,
+  staff, history, organisation, registration); match report (preview, draft, full box score, team
+  comparison, series totals); competitions (series directory, standings with form, brackets,
+  matches by day, player stats, prizes); stats hub (leaderboards, records, head-to-head, season
+  preview and review); squad (lineup, tactics with character pools and ban priorities, training,
+  staff, contracts); market (free agents, transfer list, shortlist, search, offers, history);
+  finances (breakdowns, balance chart, 12-month forecast, ledger); history (champions, GOAT
+  rankings, Hall of Fame, dynasties, retired); world (games, national scenes, rankings,
+  organisations); player comparison; schedule calendar; inbox filters; board objectives.
 
 Not ported: department budgets (facilities cover their effect) and the web version's full
 movement-by-movement spatial engines (the native view replays the fast engines' events on the

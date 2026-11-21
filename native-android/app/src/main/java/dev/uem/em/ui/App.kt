@@ -74,6 +74,8 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                         is Screen.Team -> TeamScreen(vm, w, s.id)
                         is Screen.Player -> PlayerScreen(vm, w, s.id)
                         is Screen.Match -> MatchScreen(vm, w, s.id)
+                        is Screen.Compare -> CompareScreen(vm, w, s.a, s.b)
+                        Screen.World -> WorldScreen(vm, w)
                         else -> HomeScreen(vm, w)
                     }
                 }

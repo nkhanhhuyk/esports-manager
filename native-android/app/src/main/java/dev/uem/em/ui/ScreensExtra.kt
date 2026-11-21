@@ -1,6 +1,8 @@
 package dev.uem.em.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,20 +42,82 @@ import kotlin.math.roundToInt
 
 @Composable
 fun ScheduleScreen(vm: GameVm, w: World) {
-    val mine = w.teams.filter { it.active && (w.isUserTeam(it.id) || it.id in w.followed) }.map { it.id }.toSet()
-    val upcoming = w.fixtures.filter { !it.done && (it.a in mine || it.b in mine) }.sortedBy { it.day }.take(40)
-    val recent = w.fixtures.filter { it.done && (it.a in mine || it.b in mine) }.sortedByDescending { it.day }.take(30)
+    var scope by remember { mutableIntStateOf(0) }
+    var title by remember { mutableStateOf(w.teams.firstOrNull { w.isUserTeam(it.id) }?.titleId ?: "lol") }
+    val ids: Set<Int> = when (scope) {
+        0 -> w.teams.filter { w.isUserTeam(it.id) }.map { it.id }.toSet()
+        1 -> w.followed.toSet()
+        else -> w.teams.filter { it.titleId == title }.map { it.id }.toSet()
+    }
+    val upcoming = w.fixtures.filter { !it.done && (it.a in ids || it.b in ids) }.sortedBy { it.day }.take(80)
+    val recent = w.fixtures.filter { it.done && (it.a in ids || it.b in ids) }.sortedByDescending { it.day }.take(40)
+    var monthOffset by remember { mutableIntStateOf(0) }
     LazyColumn(Modifier.fillMaxSize()) {
-        item { Card("Upcoming") { if (upcoming.isEmpty()) Muted("Nothing scheduled yet: competitions add their matches as they start.") } }
-        items(upcoming, key = { "u${it.id}" }) { FixtureRow(vm, w, it) }
-        item { Card("Recent results") { if (recent.isEmpty()) Muted("No results yet.") } }
+        item {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                Text("Schedule", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Muted("${upcoming.size} upcoming · ${recent.size} recent", 12)
+            }
+        }
+        item { Tabs(listOf("My teams", "Followed", "All teams of a game"), scope) { scope = it } }
+        if (scope == 2) item { Tabs(Catalogue.IDS.map { Catalogue.get(it).short }, Catalogue.IDS.indexOf(title)) { title = Catalogue.IDS[it] } }
+        item {
+            // Month calendar with match days marked.
+            val today = Dates.day(Dates.year(w.day), Dates.month(w.day), 1)
+            var y = Dates.year(today)
+            var m = Dates.month(today) + monthOffset
+            while (m > 12) { m -= 12; y++ }
+            while (m < 1) { m += 12; y-- }
+            val first = Dates.day(y, m, 1)
+            val days = (1..31).takeWhile { d -> d == 1 || Dates.month(first + d - 1) == m }.size
+            val matchDays = w.fixtures.filter { (it.a in ids || it.b in ids) && it.day in first until first + days }.groupBy { it.day }
+            Card("${listOf("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")[m - 1]} $y", right = {
+                Row { Pill("‹") { monthOffset-- }; Pill("Today") { monthOffset = 0 }; Pill("›") { monthOffset++ } }
+            }) {
+                Row { for (d in listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")) Text(d, color = Ui.muted, fontSize = 10.sp, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                val lead = (Dates.dow(first) + 6) % 7
+                val cells = lead + days
+                for (row in 0 until (cells + 6) / 7) Row {
+                    for (col in 0..6) {
+                        val idx = row * 7 + col - lead
+                        val day = first + idx
+                        Column(Modifier.weight(1f).padding(1.dp).background(if (idx in 0 until days && day == w.day) Ui.accent.copy(alpha = 0.35f) else Ui.card2.copy(alpha = if (idx in 0 until days) 1f else 0f), RoundedCornerShape(4.dp)).padding(vertical = 3.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            if (idx in 0 until days) {
+                                Text("${idx + 1}", color = Ui.text, fontSize = 11.sp)
+                                val fx = matchDays[day]
+                                Text(if (fx == null) " " else fx.joinToString("") { f -> if (!f.done) "•" else if (f.winner in ids) "W" else "L" }.take(3), color = if (fx?.all { it.done } == true) Ui.gold else Ui.accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            } else Text(" ", fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+        if (upcoming.isEmpty()) item { Card { Muted("Nothing scheduled yet: competitions add their matches as they start.") } }
+        for ((day, list) in upcoming.groupBy { it.day }) {
+            item(key = "ud$day") { Text(when (day - w.day) { 0 -> "Today"; 1 -> "Tomorrow"; else -> Dates.format(day, true) }, color = Ui.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 8.dp)) }
+            items(list, key = { "u${it.id}" }) { FixtureRow(vm, w, it) }
+        }
+        item { Text("Recent results", color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.padding(start = 16.dp, top = 14.dp, bottom = 4.dp)) }
+        if (recent.isEmpty()) item { Card { Muted("No results yet.") } }
         items(recent, key = { "r${it.id}" }) { FixtureRow(vm, w, it) }
+        item { Gap(16) }
     }
 }
 
 @Composable
 fun SettingsScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
+        item {
+            Card("Career") {
+                KV("Save", w.name)
+                KV("Seed", w.seed)
+                KV("Season", "${w.season} · ${Dates.format(w.day)}")
+                KV("World", "${w.players.size} players · ${w.teams.count { it.active }} active teams · ${w.leagues.size} leagues")
+                KV("Competitions", "${w.comps.size} (${w.comps.count { it.done }} finished)")
+                KV("Transfers", "${w.transfers.size}")
+                KV("Games", w.titles.joinToString { Catalogue.get(it).short })
+            }
+        }
         item {
             Card("Difficulty") {
                 Tabs(listOf("Easy", "Normal", "Hard"), listOf("easy", "normal", "hard").indexOf(w.difficulty).coerceAtLeast(0)) { w.difficulty = listOf("easy", "normal", "hard")[it]; vm.edit() }

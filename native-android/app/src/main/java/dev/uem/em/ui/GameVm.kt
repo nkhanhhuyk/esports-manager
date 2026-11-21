@@ -50,6 +50,8 @@ sealed class Screen {
     data class Team(val id: Int) : Screen()
     data class Player(val id: Int) : Screen()
     data class Match(val id: Int) : Screen()
+    data class Compare(val a: Int, val b: Int) : Screen()
+    data object World : Screen()
 }
 
 class Busy(val label: String, val done: Int, val total: Int)
