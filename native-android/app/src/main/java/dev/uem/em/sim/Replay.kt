@@ -21,6 +21,8 @@ class Recorder {
     var step = 0
     var posN = 0
     val pos = ArrayList<Int>()
+    /** Shooters: the game second of each position sample (rounds are separate). */
+    val posT = ArrayList<Int>()
 
     fun add(e: Ev) { events.add(e) }
 
@@ -53,7 +55,7 @@ object ReplayCodec {
             val o = i * 9
             ev[o] = e.t; ev[o + 1] = KIND_CODE[e.kind] ?: -1; ev[o + 2] = e.team; ev[o + 3] = e.a; ev[o + 4] = e.b; ev[o + 5] = e.x; ev[o + 6] = e.m; ev[o + 7] = e.n
         }
-        return Replay(if (rec.step > 0) VERSION else 1, ev, rec.pids, rec.snapT.toIntArray(), rec.snap.toIntArray(), rec.per, rec.step, rec.posN, rec.pos.toIntArray())
+        return Replay(if (rec.step > 0) VERSION else 1, ev, rec.pids, rec.snapT.toIntArray(), rec.snap.toIntArray(), rec.per, rec.step, rec.posN, rec.pos.toIntArray(), rec.posT.toIntArray())
     }
 
     /** Events with names restored (objective names, buy types). */

@@ -535,6 +535,8 @@ fun TacticalViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -
     val t = Catalogue.get(f.titleId)
     val map = Maps.shooter(g.mapId)
     val rp = g.replay ?: run { Card { Muted("No 2D replay was recorded for this map.") }; return }
+    // Positional rounds (recorded per second) play in the full viewer.
+    if (rp.step > 0) { ShooterReplayViewer(w, f, g, after); return }
     val ev = remember(g) { ReplayCodec.events(rp, t) }
     val teams = arrayOf(w.teams[f.a], w.teams[f.b])
     val teamCol = arrayOf(Ui.blue, Ui.red)

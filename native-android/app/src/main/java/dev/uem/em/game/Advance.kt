@@ -226,6 +226,7 @@ object Advance {
         dev.uem.em.mgmt.Academies.aiFound(w)
         fillRosters(w)
         Season.plan(w, w.season)
+        dev.uem.em.comp.CustomComps.rollover(w)
         if (!w.sacked) dev.uem.em.mgmt.Career.setupBoard(w)
         dev.uem.em.mgmt.Extras.seasonPreview(w)
         w.news.add(News(w.day, "Season ${w.season} begins", "The ${w.season} calendar is out: three splits, First Stand, MSI and Worlds."))

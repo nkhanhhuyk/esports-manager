@@ -71,6 +71,8 @@ class World(
     var fictional: Boolean = false,
     /** Areas handed to your staff (lineups, training, signings, sales, renewals, staff, scouting, facilities). */
     val delegation: MutableMap<String, Boolean> = HashMap(),
+    /** User-created competitions (drafts and published, with their editions). */
+    val customComps: MutableList<CustomComp> = ArrayList(),
 ) {
     /** Multi-year simulation in progress: staff run every area (not saved). */
     @kotlinx.serialization.Transient
@@ -238,7 +240,7 @@ class League(
     var realSrc: String = "",
 )
 
-enum class CompTier { LEAGUE, CHALLENGER, INTERNATIONAL, WORLDS }
+enum class CompTier { LEAGUE, CHALLENGER, INTERNATIONAL, WORLDS, CUSTOM }
 enum class StageType { RR, DRR, GROUPS, SWISS, SINGLE_ELIM, DOUBLE_ELIM }
 
 @Serializable
@@ -272,6 +274,10 @@ class Competition(
     val registrations: MutableMap<Int, Registration> = HashMap(),
     /** Draft rule across a series: none, soft, hard or insane Fearless (blank: from `fearless`). */
     var fearlessMode: String = "",
+    /** Best-of of the final (0 = the title's default). */
+    var finalBo: Int = 0,
+    /** User-created competition this edition belongs to (-1 = official calendar). */
+    var customId: Int = -1,
 ) {
     val done get() = status == 2
 }
@@ -388,6 +394,8 @@ class Replay(
     /** Ints per position sample. */
     val posN: Int = 0,
     @ProtoPacked val pos: IntArray = IntArray(0),
+    /** Game second of each position sample (shooters; empty when samples are every `step` seconds). */
+    @ProtoPacked val posT: IntArray = IntArray(0),
 )
 
 @Serializable
@@ -490,3 +498,32 @@ class CustomChar(val titleId: String, val id: String, val name: String, val cls:
 /** A fictional weapon released by a patch. */
 @Serializable
 class CustomWeapon(val titleId: String, val id: String, val name: String, val category: String, val cost: Int, val damage: Int, val fireRate: Int, val magazine: Int, val season: Int)
+
+/** A user-created competition: a draft until published; published editions are normal competitions. */
+@Serializable
+class CustomComp(
+    val id: Int,
+    var name: String,
+    var short: String,
+    var titleId: String,
+    var format: String = "groups-se",
+    val teams: MutableList<Int> = ArrayList(),
+    /** Extra entrant sources: "league:<id>" or "top:<compId>:<count>". */
+    val sources: MutableList<String> = ArrayList(),
+    var groups: Int = 2,
+    var advance: Int = 2,
+    var boGroup: Int = 1,
+    var boPlayoff: Int = 3,
+    var boFinal: Int = 5,
+    var startMonth: Int = 9,
+    var startDom: Int = 10,
+    var daysBetween: Int = 1,
+    var prize: Double = 250000.0,
+    var entryFee: Double = 0.0,
+    var lan: Boolean = true,
+    var recurring: Boolean = true,
+    var fearless: String = "none",
+    var published: Boolean = false,
+    var cancelled: Boolean = false,
+    val editions: MutableList<Int> = ArrayList(),
+)

@@ -115,7 +115,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
             g = GameRecord(winnerSeries, out.duration, s.mapId, s.blue, intArrayOf(s.chooser, s.choice, if (s.byLoser) 1 else 0, s.firstPick), draft.bans, draft.picks[0] + draft.picks[1], score, lines)
         } else {
             val firstAttack = if (s.rng.chance(0.5)) 0 else 1
-            val out = TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, s.rng, patch, rec)
+            val out = TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, s.rng, patch, rec, s.mapId)
             winnerSeries = out.winner
             g = GameRecord(winnerSeries, out.duration, s.mapId, firstAttack, IntArray(0), emptyList(), draft.picks[0] + draft.picks[1], out.score, out.book.lines)
         }

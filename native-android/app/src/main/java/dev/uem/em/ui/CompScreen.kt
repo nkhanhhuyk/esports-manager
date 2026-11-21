@@ -58,7 +58,7 @@ private val TITLE_TABS get() = listOf("All") + Catalogue.IDS.map { Catalogue.get
 internal fun seriesKey(c: Competition) = if (c.leagueId >= 0) "L${c.leagueId}-${c.split}-${c.tier}" else c.titleId + ":" + c.name.replace(Regex("\\b(19|20)\\d{2}\\b"), "").trim()
 
 private fun seriesName(c: Competition) = c.name.replace(Regex("\\s*\\b(19|20)\\d{2}\\b"), "").trim()
-private fun tierLabel(t: CompTier) = when (t) { CompTier.WORLDS -> "World championship"; CompTier.INTERNATIONAL -> "International"; CompTier.LEAGUE -> "League"; CompTier.CHALLENGER -> "Challenger" }
+private fun tierLabel(t: CompTier) = when (t) { CompTier.WORLDS -> "World championship"; CompTier.INTERNATIONAL -> "International"; CompTier.LEAGUE -> "League"; CompTier.CHALLENGER -> "Challenger"; CompTier.CUSTOM -> "Custom (user-created)" }
 private fun stageType(t: StageType) = when (t) { StageType.RR -> "round robin"; StageType.DRR -> "double round robin"; StageType.GROUPS -> "groups"; StageType.SWISS -> "Swiss"; StageType.SINGLE_ELIM -> "single elimination"; StageType.DOUBLE_ELIM -> "double elimination" }
 private fun statusLabel(s: Int) = when (s) { 0 -> "upcoming"; 1 -> "in progress"; else -> "finished" }
 
@@ -72,6 +72,7 @@ fun CompsScreen(vm: GameVm, w: World) {
         Tabs(TITLE_TABS, titleIdx(title)) { title = if (it == 0) null else Catalogue.IDS[it - 1] }
         Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Tabs(listOf("Season", "All competitions"), mode) { mode = it }
+            androidx.compose.material3.TextButton(onClick = { vm.go(Screen.CompEditor) }) { Text("+ Create", color = Ui.accent, fontSize = 12.sp) }
         }
         if (mode == 0) {
             Row(Modifier.padding(horizontal = 12.dp)) { Select("Season", seasons.map { "$it" }, seasons.indexOf(season).coerceAtLeast(0)) { season = seasons[it] } }

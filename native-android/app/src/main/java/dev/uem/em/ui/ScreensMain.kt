@@ -289,6 +289,7 @@ fun MoreScreen(vm: GameVm, w: World) {
         Triple("Board", "Objectives and confidence", Screen.Board),
         Triple("History & awards", "Champions, GOAT rankings, Hall of Fame, dynasties", Screen.History),
         Triple("Tier lists", "S–D tiers per game: champions / heroes / agents by role and map, guns and loadouts", Screen.Tiers),
+        Triple("Create a competition", "Your own events for any of the seven games: formats, teams, dates, prizes, every season", Screen.CompEditor),
         Triple("Patch notes", "Every balance patch of every game, new releases and draft rules", Screen.Patches),
         Triple("Schedule", "Your and followed teams' matches", Screen.Schedule),
         Triple("Stats hub", "Leaderboards, records, head-to-head, season preview & review", Screen.Stats),

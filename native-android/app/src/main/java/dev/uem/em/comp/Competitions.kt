@@ -73,7 +73,7 @@ object Season {
         return slots
     }
 
-    private fun mk(w: World, t: TitleDef, season: Int, name: String, short: String, tier: CompTier, league: League?, entrants: List<String>, stages: List<Stage>, prize: Double, prestige: Int, points: List<Int>, split: Int = 0): Competition {
+    internal fun mk(w: World, t: TitleDef, season: Int, name: String, short: String, tier: CompTier, league: League?, entrants: List<String>, stages: List<Stage>, prize: Double, prestige: Int, points: List<Int>, split: Int = 0): Competition {
         val c = Competition(w.comps.size, name, short, t.id, season, tier, league?.id ?: -1, split, league?.region ?: "", entrants, stages.toMutableList(),
             startDay = stages[0].startDay, circuitPoints = points, prizePool = (prize / 1000).toInt() * 1000.0, prestige = prestige)
         w.comps.add(c)
@@ -314,7 +314,7 @@ object Stages {
         stage.fixtureIds = ArrayList()
         stage.bracket = ArrayList()
         stage.swissRound = 0
-        val fin = Catalogue.get(c.titleId).formats.third.n
+        val fin = if (c.finalBo > 0) c.finalBo else Catalogue.get(c.titleId).formats.third.n
         when (stage.type) {
             StageType.RR, StageType.DRR -> {
                 var rounds = roundRobin(stage.teamIds)
@@ -409,6 +409,7 @@ object Progress {
             val p = rule.split(':')
             when (p[0]) {
                 "league" -> w.leagues[p[1].toInt()].teamIds.forEach(::add)
+                "ids" -> p[1].split(',').mapNotNull { it.toIntOrNull() }.filter { it in w.teams.indices }.forEach(::add)
                 "nations" -> dev.uem.em.mgmt.Extras.nationalTeams(w, p[1], p[2].toInt()).forEach(::add)
                 "top" -> {
                     val src = w.comps[p[1].toInt()]

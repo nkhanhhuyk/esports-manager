@@ -80,6 +80,7 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                         Screen.World -> WorldScreen(vm, w)
                         Screen.Watch -> WatchScreen(vm, w)
                         Screen.Tiers -> TierScreen(vm, w)
+                        Screen.CompEditor -> CompEditorScreen(vm, w)
                         is Screen.Replay -> ReplayScreen(vm, w, s.fixtureId, s.game)
                         else -> HomeScreen(vm, w)
                     }

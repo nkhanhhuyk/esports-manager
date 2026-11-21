@@ -245,3 +245,67 @@ private fun HeatmapCard(w: World, t: TitleDef, g: GameRecord, f: Fixture) {
         Muted("From the recorded positions (every ${rp.step} s) and events of this game.", 10)
     }
 }
+
+/** Shooter analysis from the recorded rounds (positional replays). */
+@Composable
+fun ShooterAnalysisCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecord, gi: Int) {
+    val rp = g.replay
+    if (rp == null || rp.step <= 0) { Card("Analysis") { Muted(if (rp == null) "No replay was kept for this map, so there is no round analysis." else "This map was recorded before positions were stored: round analysis is unavailable.", 11) }; return }
+    val ev = remember(g) { ReplayCodec.events(rp, t) }
+    val names = arrayOf(w.teams[f.a].short, w.teams[f.b].short)
+    val rounds = ev.filter { it.kind == "round" }
+    val ends = ev.filter { it.kind == "roundEnd" }
+    fun watch(at: Int) { ReplayJump.seconds = max(0, at); vm.go(Screen.Replay(f.id, gi)) }
+    val sideOf = HashMap<Int, Int>().also { m -> g.lines.forEach { m[it.playerId] = it.team } }
+    data class R(val i: Int, val start: Int, val atk: Int, val buys: String, val winner: Int, val how: String, val first: dev.uem.em.sim.Ev?, val site: Int)
+    val rows = rounds.mapIndexed { i, r ->
+        val end = ends.getOrNull(i)
+        val inR = ev.filter { it.t >= r.t && it.t <= (end?.t ?: Int.MAX_VALUE) }
+        val planted = inR.any { it.kind == "plant" }; val defused = inR.any { it.kind == "defuse" }
+        val win = end?.team ?: -1
+        val how = when { defused -> "defuse"; planted && win == r.team -> "detonation / elimination"; win == r.team -> "elimination"; planted -> "retake"; inR.count { it.kind == "kill" && it.team == r.team } >= 5 -> "elimination"; else -> "held / time" }
+        R(i, r.t, r.team, r.text, win, how, inR.firstOrNull { it.kind == "kill" }, inR.firstOrNull { it.kind == "plant" }?.x ?: -1)
+    }
+    Card("Rounds", right = { Muted("tap a round to watch it") }) {
+        for (r in rows) Row(Modifier.fillMaxWidth().clickable { watch(r.start) }.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("${r.i + 1}", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(22.dp))
+            Box(Modifier.width(8.dp).height(8.dp).padding(0.dp)) { Canvas(Modifier.fillMaxWidth().height(8.dp)) { drawCircle(if (r.winner == 0) Ui.blue else Ui.red, size.minDimension / 2) } }
+            HGap(6)
+            Text("${names[r.atk.coerceIn(0, 1)]} attack · ${r.buys.replace("|", " vs ")} · ${names.getOrElse(r.winner) { "?" }} by ${r.how}" + (r.first?.let { " · opening ${w.players[it.a].handle}" } ?: ""), color = Ui.text, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            Text("▶", color = Ui.accent, fontSize = 11.sp)
+        }
+    }
+    // Opening duels, trades, side and site results.
+    val fk = HashMap<Int, Int>(); val fd = HashMap<Int, Int>()
+    for (r in rows) r.first?.let { fk.merge(it.a, 1, Int::plus); fd.merge(it.b, 1, Int::plus) }
+    var trades = IntArray(2)
+    val kills = ev.filter { it.kind == "kill" }
+    for ((k, e) in kills.withIndex()) {
+        val prev = kills.subList(maxOf(0, k - 3), k).lastOrNull { it.b != e.b && it.a == e.b && e.t - it.t <= 5 }
+        if (prev != null) trades[(sideOf[e.a] ?: 0).coerceIn(0, 1)]++
+    }
+    val atkWins = IntArray(2); val atkRounds = IntArray(2); val defWins = IntArray(2); val defRounds = IntArray(2)
+    for (r in rows) { val a = r.atk.coerceIn(0, 1); atkRounds[a]++; defRounds[1 - a]++; if (r.winner == a) atkWins[a]++ else if (r.winner == 1 - a) defWins[1 - a]++ }
+    Card("Duels, trades and sides") {
+        for (team in 0..1) Muted("${names[team]}: attack ${atkWins[team]}/${atkRounds[team]} · defence ${defWins[team]}/${defRounds[team]} · opening kills ${g.lines.filter { it.team == team }.sumOf { fk[it.playerId] ?: 0 }} · traded kills ${trades[team]}", 12)
+        Gap(4)
+        for (l in g.lines.sortedBy { it.team }) Muted("${w.players[l.playerId].handle} (${names[l.team]}): opening ${fk[l.playerId] ?: 0}–${fd[l.playerId] ?: 0}", 11)
+        val sites = Maps.shooter(g.mapId)?.sites ?: emptyList()
+        if (sites.isNotEmpty()) { Gap(4); for ((i, s) in sites.withIndex()) { val pl = rows.filter { it.site == i }; if (pl.isNotEmpty()) Muted("Site ${s.id}: ${pl.size} plants, ${pl.count { it.winner == it.atk }} converted", 11) } }
+    }
+    Card("Why the map went this way") {
+        val win = g.winner
+        Text("Observed", color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        Muted("• Pistol rounds: " + rows.filter { it.buys.startsWith("pistol") }.joinToString { "${names.getOrElse(it.winner) { "?" }} (round ${it.i + 1})" }, 12)
+        Muted("• Opening kills ${names[0]} ${g.lines.filter { it.team == 0 }.sumOf { fk[it.playerId] ?: 0 }} – ${g.lines.filter { it.team == 1 }.sumOf { fk[it.playerId] ?: 0 }} ${names[1]}", 12)
+        Muted("• Eco / force rounds won: " + (0..1).joinToString { s -> "${names[s]} ${rows.count { r -> r.winner == s && (r.buys.split("|").getOrNull(if (r.atk == s) 0 else 1) in setOf("eco", "force")) }}" }, 12)
+        Gap(4)
+        Text("Analyst's reading (opinion)", color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        val op = ArrayList<String>()
+        val fkw = g.lines.filter { it.team == win }.sumOf { fk[it.playerId] ?: 0 }; val fkl = g.lines.filter { it.team == 1 - win }.sumOf { fk[it.playerId] ?: 0 }
+        if (fkw > fkl + 2) op.add("${names[win]} won the opening duels (${fkw}–${fkl}) and played most rounds with a player advantage.")
+        if (trades[win] > trades[1 - win] + 2) op.add("${names[win]} traded better (${trades[win]} vs ${trades[1 - win]}): their entries were followed up.")
+        if (atkWins[win] * defRounds[win] > defWins[win] * atkRounds[win]) op.add("${names[win]}'s attack carried the map.") else op.add("${names[win]}'s defence carried the map.")
+        for (s in op) Muted("• $s", 12)
+    }
+}

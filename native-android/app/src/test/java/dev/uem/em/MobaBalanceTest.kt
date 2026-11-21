@@ -85,6 +85,21 @@ class MobaBalanceTest {
             // The game ends because a core fell.
             val core = rec.events.lastOrNull { it.kind == "core" }
             assertTrue("$titleId game $i ended without a core", core != null && core.team == out.winner)
+            // Ability rules from the record: no recast before the shortest cooldown allows; nobody casts while dead.
+            val kits = (a.players + b.players).associate { it.p.id to dev.uem.em.sim.Abilities.kit(it.charId, it.char) }
+            val lastCast = HashMap<String, Int>()
+            val deadUntil = HashMap<Int, IntRange>()
+            for (e in rec.events) {
+                if (e.kind == "kill") deadUntil[e.b] = e.t until e.n
+                if (e.kind == "buyback") deadUntil.remove(e.a) // bought back: alive again
+                if (e.kind != "cast" || e.x !in 0..3) continue
+                val ab = kits[e.a]?.actives?.getOrNull(e.x) ?: continue
+                val minCd = (ab.cd.minOrNull() ?: 0f) * 0.7f * (if (ab.ult) 1f else 1f)
+                val key = "${e.a}|${e.x}"
+                lastCast[key]?.let { prev -> assertTrue("$titleId game $i: ${ab.name} recast after ${e.t - prev}s (cooldown ≥ ${"%.1f".format(minCd)}s)", e.t - prev >= minCd - 2.01f) }
+                lastCast[key] = e.t
+                deadUntil[e.a]?.let { r -> assertTrue("$titleId game $i: a dead hero cast ${ab.name}", e.t !in (r.first + 1) until r.last) }
+            }
             // Kills in the record add up to the score.
             for (side in 0..1) assertEquals(out.score[side], rec.events.count { it.kind == "kill" && it.team == side })
         }

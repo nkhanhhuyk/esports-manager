@@ -18,6 +18,7 @@ object Legacy {
         CompTier.INTERNATIONAL -> 5.0 + prestige / 20.0
         CompTier.LEAGUE -> 2.0 + prestige / 40.0
         CompTier.CHALLENGER -> 0.8
+        CompTier.CUSTOM -> 0.5 + prestige / 80.0 // user-created events count little toward legacy
     }
 
     private fun awardPts(name: String) = when {
