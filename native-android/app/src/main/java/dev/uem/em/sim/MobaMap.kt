@@ -221,6 +221,10 @@ class MobaMap(val id: String, val name: String) {
             for (s in m.structs) open(s.x, s.y, 1)
             for (c in m.camps) open(c.x, c.y, 1)
             for (p in m.pits) open(p.x, p.y, 2)
+            // The maps are point-symmetric (structures, camps and pits mirror exactly), but the wall
+            // rectangles are a coarse drawing that does not: make walking fair for both sides by
+            // opening a cell when its mirror cell is open.
+            for (c in 0 until N * N) { val mc = (N - 1 - c / N) * N + (N - 1 - c % N); if (m.walk[mc]) m.walk[c] = true }
             // Everything important must be reachable from both fountains: carve straight corridors to any isolated point.
             val keys = m.structs.map { it.x to it.y } + m.camps.map { it.x to it.y } + m.pits.map { it.x to it.y }
             for (f in m.fountains) {

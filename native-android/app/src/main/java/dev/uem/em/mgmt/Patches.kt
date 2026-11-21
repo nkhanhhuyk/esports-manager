@@ -125,6 +125,11 @@ object PatchState {
     fun metaOf(w: World, t: TitleDef): Map<String, Double> {
         val m = HashMap(base(w, t))
         for (p in w.patches) if (p.titleId == t.id) for ((k, v) in p.charDelta) m[k] = ((m[k] ?: 0.0) * 0.97 + v).coerceIn(-10.0, 10.0)
+        // How far apart characters are differs by patch: some patches are balanced (no must-bans),
+        // others leave one or several characters clearly overpowered.
+        val n = w.patches.count { it.titleId == t.id }
+        val spread = 0.55 + 0.9 * Rng.derive(w.seed, "spread", t.id, n).next()
+        for (k in m.keys.toList()) m[k] = (m[k]!! * spread).coerceIn(-10.0, 10.0)
         return m
     }
 

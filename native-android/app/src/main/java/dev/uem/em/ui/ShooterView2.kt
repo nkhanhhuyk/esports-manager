@@ -155,6 +155,15 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
                 if (ki >= 0 && vi >= 0) drawLine(teamCol[(sideOfPid[e.a] ?: 0).coerceIn(0, 1)].copy(alpha = 0.8f), p(Offset(units[ki][0], units[ki][1])), p(Offset(units[vi][0], units[vi][1])), strokeWidth = 3f)
             }
         }) { side ->
+            // Round result banner (first seconds after the round ends).
+            ends.lastOrNull { it.t <= Ti && Ti - it.t <= 4 }?.let { e ->
+                val ri2 = ends.indexOf(e)
+                val how = ev.filter { it.t > (rounds.getOrNull(ri2)?.t ?: 0) && it.t <= e.t }.let { r -> when { r.any { it.kind == "defuse" } -> "defuse"; r.any { it.kind == "plant" } && e.team == rounds.getOrNull(ri2)?.team -> "detonation"; else -> "elimination / time" } }
+                Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.TopCenter) {
+                    Text("${teams[e.team.coerceIn(0, 1)].short} win round ${ri2 + 1} · $how · ${e.a}–${e.b}", color = Ui.gold, fontWeight = FontWeight.Black, fontSize = 15.sp,
+                        modifier = Modifier.background(Color(0xCC000000), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp))
+                }
+            }
             for (i in 0 until n) {
                 val pid = rp.pids[i]
                 val l = g.lines.firstOrNull { it.playerId == pid } ?: continue

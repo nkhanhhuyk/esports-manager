@@ -68,7 +68,7 @@ object Draft {
         return CompEval(total, counter, profile)
     }
 
-    private fun comfort(t: TitleDef, p: Player): (CharDef) -> Double {
+    internal fun comfort(t: TitleDef, p: Player): (CharDef) -> Double {
         val byClass = HashMap<String, Double>()
         for ((cid, v) in p.profChar) t.charIndex[cid]?.let { c -> if (v > (byClass[c.cls] ?: 0.0)) byClass[c.cls] = v }
         return { c -> p.profChar[c.id] ?: (byClass[c.cls] ?: 0.0) * 0.45 }
@@ -126,6 +126,63 @@ class DraftSession(val t: TitleDef, val patch: Patch, val lineups: Array<List<Pl
 
     val done get() = none || (sequential && current() == null) || (!sequential && picks[0].size >= lineups[0].size && picks[1].size >= lineups[1].size)
 
+    // ------------------------------------------------------------------ ban planning
+    /** How a team bans in this draft: 0 meta threats, 1 target the opponents' comfort picks, 2 balanced, 3 handshake (leave power picks to trade). */
+    val banStyle = IntArray(2) { rng.int(0, 3) }
+    val BAN_STYLE_NAMES = listOf("meta threats", "target comfort picks", "balanced", "handshake")
+    /** Patch strength as standard scores: only characters clearly above the field count as overpowered (0 to several per patch). */
+    private val metaZ: Map<String, Double> by lazy {
+        val vals = t.characters.map { patch.charMeta[it.id] ?: 0.0 }
+        val mean = vals.average(); val sd = kotlin.math.sqrt(vals.sumOf { (it - mean) * (it - mean) } / maxOf(1, vals.size)).coerceAtLeast(0.5)
+        t.characters.associate { it.id to ((patch.charMeta[it.id] ?: 0.0) - mean) / sd }
+    }
+    private val comfortOf = Array(2) { s -> lineups[s].map { Draft.comfort(t, it) } }
+
+    private fun nextPickIsMine(team: Int): Boolean {
+        var k = step + 1
+        while (true) {
+            val st = t.draft.steps.getOrNull(k) ?: return false
+            if (!st.ban) return (if (st.team == 0) firstPick else 1 - firstPick) == team
+            k++
+        }
+    }
+
+    /**
+     * Ban choice: overpowered characters (only those well above the patch), the opponents' comfort
+     * picks (weighted by the player's level), what the opponents already showed in earlier games
+     * through `locked`, minus "handshake" picks this team wants to take itself next.
+     */
+    private fun chooseBan(team: Int): CharDef? {
+        val enemy = 1 - team
+        val style = banStyle[team]
+        val wMeta = when (style) { 0 -> 1.6; 1 -> 0.5; else -> 1.0 }
+        val wTarget = when (style) { 1 -> 1.7; 0 -> 0.5; else -> 1.0 }
+        val cand = LinkedHashSet<CharDef>()
+        for (i in open[enemy].ifEmpty { lineups[enemy].indices.toList() }) cand.addAll(prefs[enemy][i].take(6))
+        cand.addAll(t.characters.sortedByDescending { metaZ[it.id] ?: 0.0 }.take(10))
+        val mineNext = nextPickIsMine(team)
+        var best: CharDef? = null; var bv = -9.0
+        for (c in cand) {
+            if (!legal(team, true, c.id)) continue
+            // Overpowered by the patch's absolute strength (meta above +4.5 of ±10): a balanced patch has
+            // none, a broken one several — the count changes with every patch.
+            val op = (((patch.charMeta[c.id] ?: 0.0) - 4.5) / 2.5).coerceAtLeast(0.0)
+            var target = 0.0
+            for (i in open[enemy].ifEmpty { lineups[enemy].indices.toList() }) {
+                if (c !in prefs[enemy][i].take(6)) continue
+                val pl = lineups[enemy][i]
+                target = maxOf(target, comfortOf[enemy][i](c) / 100 * (0.6 + pl.ca / 200))
+            }
+            var mine = 0.0
+            for (i in open[team]) if (c in prefs[team][i].take(4)) mine = maxOf(mine, comfortOf[team][i](c) / 100)
+            var v = wMeta * op + wTarget * target * 1.4 + rng.normal(0.0, 0.3)
+            // Handshake: a power pick we can take with our next pick stays open.
+            if (mineNext && (style == 3 || style == 2) && mine > 0.45 && op > 0.3) v -= 1.2 + mine
+            if (v > bv) { bv = v; best = c }
+        }
+        return best ?: t.characters.firstOrNull { legal(team, true, it.id) }
+    }
+
     fun legal(team: Int, ban: Boolean, id: String) = id !in banned && (if (ban) id !in picked else id !in picked && id !in locked[team])
 
     fun ban(id: String): Boolean {
@@ -156,15 +213,7 @@ class DraftSession(val t: TitleDef, val patch: Patch, val lineups: Array<List<Pl
         val cur = current() ?: return
         val team = cur.first
         if (cur.second) {
-            val enemy = 1 - team
-            var first: CharDef? = null
-            var second: CharDef? = null
-            for (i in open[enemy].ifEmpty { lineups[enemy].indices.toList() }) for (c in prefs[enemy][i].filter { it.id !in locked[enemy] }.take(4)) {
-                if (!legal(team, true, c.id) || c === first || c === second) continue
-                val v = patch.charMeta[c.id] ?: 0.0
-                if (first == null || v > (patch.charMeta[first.id] ?: 0.0)) { second = first; first = c } else if (second == null || v > (patch.charMeta[second.id] ?: 0.0)) second = c
-            }
-            val c = (if (rng.int(0, 1) == 1 && second != null) second else first) ?: t.characters.filter { legal(team, true, it.id) }.maxByOrNull { patch.charMeta[it.id] ?: 0.0 }
+            val c = chooseBan(team)
             if (c != null) { banned.add(c.id); bans.add(c.id) }
             step++
             return

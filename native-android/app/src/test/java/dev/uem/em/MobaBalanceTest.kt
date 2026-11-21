@@ -28,6 +28,9 @@ class MobaBalanceTest {
         lateinit var w: World
         fun world(): World {
             if (!::w.isInitialized) { TestData.init(); BoxStore.clear(); w = WorldGen.create(TestData.source, "balance", "B", Dates.day(2026, 11, 21)) }
+            // Other test classes play their own worlds, whose patches add characters to the shared
+            // catalogue (the app re-applies the catalogue whenever a world is loaded; do the same).
+            Catalogue.applyCustom(w)
             return w
         }
     }
@@ -51,7 +54,7 @@ class MobaBalanceTest {
         return TeamContexts.build(w, team, lineup, side, chars, null, 0.0, rng)
     }
 
-    private class Stat(var games: Int = 0, var dur: Double = 0.0, var kills: Double = 0.0, var gold: Double = 0.0, var towers: Double = 0.0, var objs: Double = 0.0, var favWins: Int = 0, var casts: Double = 0.0, var maxKills: Int = 0, var minDur: Int = 99999, var maxDur: Int = 0, var ms: Long = 0, var side0: Int = 0)
+    private class Stat(var games: Int = 0, var dur: Double = 0.0, var kills: Double = 0.0, var gold: Double = 0.0, var towers: Double = 0.0, var objs: Double = 0.0, var favWins: Int = 0, var casts: Double = 0.0, var maxKills: Int = 0, var minDur: Int = 99999, var maxDur: Int = 0, var ms: Long = 0, var side0: Int = 0, var leadGames: Int = 0, var leaderWins: Int = 0)
 
     private fun run(titleId: String, n: Int, underdog: Int = -1): Stat {
         val w = world()
@@ -82,6 +85,15 @@ class MobaBalanceTest {
             }
             if (out.winner == fav) s.favWins++
             if (out.winner == 0) s.side0++
+            // Comebacks: does the team ahead in gold when laning ends win?
+            val le = (Catalogue.get(titleId).moba!!.laneEnd * 60).toInt()
+            val si = rec.snapT.indexOfLast { it <= le }
+            if (si >= 0) {
+                val n = rec.pids.size
+                var lead = 0
+                for (k in 0 until n) lead += rec.snap[(si * n + k) * rec.per] * (if (k < n / 2) 1 else -1)
+                if (kotlin.math.abs(lead) > 500) { s.leadGames++; if ((lead > 0) == (out.winner == 0)) s.leaderWins++ }
+            }
             // The game ends because a core fell.
             val core = rec.events.lastOrNull { it.kind == "core" }
             assertTrue("$titleId game $i ended without a core", core != null && core.team == out.winner)
@@ -113,8 +125,8 @@ class MobaBalanceTest {
         val fails = ArrayList<String>()
         for (id in (System.getenv("UEM_BALANCE_TITLES") ?: "mlbb,wildrift,hok,lol,dota2").split(",")) {
             val s = run(id, n)
-            val line = "%-8s games %d  length %.1f min (%d-%d)  kills %.1f (max %d)  team gold %.1fk  structures %.1f  objectives %.1f  casts %.0f  favourite wins %d%%  blue wins %d%%  %.1f ms/game".format(
-                id, s.games, s.dur / s.games, s.minDur / 60, s.maxDur / 60, s.kills / s.games, s.maxKills, s.gold / s.games / 1000, s.towers / s.games, s.objs / s.games, s.casts / s.games, s.favWins * 100 / s.games, s.side0 * 100 / s.games, s.ms.toDouble() / s.games)
+            val line = "%-8s games %d  length %.1f min (%d-%d)  kills %.1f (max %d)  team gold %.1fk  structures %.1f  objectives %.1f  casts %.0f  favourite wins %d%%  blue wins %d%%  laning gold leader wins %d%%  %.1f ms/game".format(
+                id, s.games, s.dur / s.games, s.minDur / 60, s.maxDur / 60, s.kills / s.games, s.maxKills, s.gold / s.games / 1000, s.towers / s.games, s.objs / s.games, s.casts / s.games, s.favWins * 100 / s.games, s.side0 * 100 / s.games, if (s.leadGames > 0) s.leaderWins * 100 / s.leadGames else 0, s.ms.toDouble() / s.games)
             println(line); report.appendLine(line)
             val cfg = Catalogue.get(id).moba!!
             if (s.dur / s.games !in cfg.avgLength * 0.75..cfg.avgLength * 1.3) fails.add("$id length")

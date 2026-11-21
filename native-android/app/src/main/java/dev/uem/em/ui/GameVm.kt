@@ -254,7 +254,15 @@ class GameVm(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    enum class Span(val years: Int = 0) { DAY, NEXT_MATCH, WEEK, MONTH, SEASON_END, YEARS_2(2), YEARS_5(5), YEARS_10(10) }
+    enum class Span(val years: Int = 0) { DAY, NEXT_MATCH, WEEK, MONTH, SEASON_END, YEARS_2(2), YEARS_5(5), YEARS_10(10), WORLDS }
+
+    /** Days until the day before this season's (next) World Championship: your game's first, else the earliest. */
+    fun daysToWorlds(w: World): Int? {
+        val mine = w.orgs.getOrNull(w.userOrg)?.teams?.map { w.teams[it].titleId }?.toSet() ?: w.followed.mapNotNull { w.teams.getOrNull(it)?.titleId }.toSet()
+        val next = w.comps.filter { it.season == w.season && it.tier == dev.uem.em.model.CompTier.WORLDS && it.status == 0 && it.startDay > w.day + 1 }
+        val pick = next.filter { it.titleId in mine }.minByOrNull { it.startDay } ?: next.minByOrNull { it.startDay } ?: return null
+        return pick.startDay - w.day - 1
+    }
 
     /**
      * Simulate several seasons. Your staff run every area meanwhile (lineups, signings, renewals…) and
@@ -302,6 +310,7 @@ class GameVm(app: Application) : AndroidViewModel(app) {
             Span.MONTH -> 30
             Span.NEXT_MATCH -> 60
             Span.SEASON_END -> maxOf(1, Season.endDay(w.season) - w.day)
+            Span.WORLDS -> daysToWorlds(w) ?: run { toast = "This season's World Championships are under way or finished"; return }
             else -> 1
         }
         cancel.set(false)

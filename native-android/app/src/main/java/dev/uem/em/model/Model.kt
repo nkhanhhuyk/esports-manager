@@ -146,6 +146,8 @@ class Player(
 ) {
     val retired get() = retiredSeason != 0
     val mainRole get() = roles[0]
+    /** Rating cache of this player object (not saved). Kept per object so two worlds in one process never share entries. */
+    @kotlinx.serialization.Transient @JvmField var ratingCache: java.util.concurrent.ConcurrentHashMap<Long, Any>? = null
     fun name() = if (first.isBlank() && last.isBlank()) handle else "$first \"$handle\" $last".trim()
 }
 

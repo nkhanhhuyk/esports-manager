@@ -52,8 +52,8 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
             else if (vm.screen == Screen.PickOrg || (w.userOrg < 0 && !w.spectator)) PickOrgScreen(vm, w)
             else if (w.sacked) Column(Modifier.fillMaxSize().statusBarsPadding()) { JobOffersScreen(vm, w) }
             else if (vm.live != null) Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) { LiveScreen(vm, w, vm.live!!) }
-            else Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-                TopBar(vm, w)
+            else SideMenu(vm, w) { openMenu -> Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+                TopBar(vm, w, openMenu)
                 Box(Modifier.weight(1f)) {
                     @Suppress("UNUSED_EXPRESSION") vm.version
                     when (val s = vm.screen) {
@@ -86,7 +86,7 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                     }
                 }
                 BottomBar(vm)
-            }
+            } }
             val sheet = Sheets.open
             if (sheet != null && w != null && busy == null) InfoSheet(w, sheet.first, sheet.second) { Sheets.open = null }
             vm.toast?.let { msg ->
@@ -113,10 +113,11 @@ private fun BusyScreen(vm: GameVm, b: Busy) {
 }
 
 @Composable
-private fun TopBar(vm: GameVm, w: dev.uem.em.model.World) {
+private fun TopBar(vm: GameVm, w: dev.uem.em.model.World, openMenu: () -> Unit = {}) {
     var menu by remember { mutableStateOf(false) }
     var years by remember { mutableStateOf<GameVm.Span?>(null) }
     Row(Modifier.fillMaxWidth().background(Ui.card).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = openMenu) { Text("☰", color = Ui.text, fontSize = 20.sp) }
         if (vm.stack.size > 1) TextButton(onClick = { vm.back() }) { Text("←", color = Ui.text, fontSize = 18.sp) }
         Column(Modifier.weight(1f)) {
             Text(Dates.format(w.day, true), color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
@@ -126,7 +127,7 @@ private fun TopBar(vm: GameVm, w: dev.uem.em.model.World) {
         Box {
             TextButton(onClick = { menu = true }) { Text("▾", color = Ui.text, fontSize = 18.sp) }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                for ((label, span) in listOf("1 day" to GameVm.Span.DAY, "1 week" to GameVm.Span.WEEK, "1 month" to GameVm.Span.MONTH, "To end of season" to GameVm.Span.SEASON_END)) {
+                for ((label, span) in listOf("1 day" to GameVm.Span.DAY, "1 week" to GameVm.Span.WEEK, "1 month" to GameVm.Span.MONTH, "To World Championships" to GameVm.Span.WORLDS, "To end of season" to GameVm.Span.SEASON_END)) {
                     DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; vm.advance(span) })
                 }
                 for (span in listOf(GameVm.Span.YEARS_2, GameVm.Span.YEARS_5, GameVm.Span.YEARS_10)) {

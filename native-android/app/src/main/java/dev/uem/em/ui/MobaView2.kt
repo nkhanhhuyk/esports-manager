@@ -96,7 +96,8 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
     LaunchedEffect(playing, speed, g) {
         var last = 0L
         while (playing && time < dur) {
-            withFrameNanos { now -> if (last != 0L) time = (time + (now - last) / 1e9f * speed).coerceAtMost(dur); last = now }
+            // The last 20 seconds (the final push on the core) always play slowly enough to see.
+            withFrameNanos { now -> if (last != 0L) time = (time + (now - last) / 1e9f * (if (time > dur - 20f) minOf(speed, 2) else speed)).coerceAtMost(dur); last = now }
         }
         if (time >= dur) playing = false
     }
@@ -154,8 +155,11 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
     val teamGold = DoubleArray(2).also { a -> for ((i, pid) in rp.pids.withIndex()) a[sideOfIdx[i]] += snap(pid, 0).toDouble() }
     // Camera: follow a player, else the action (recent casts / fights) when auto is on.
     val followIdx = rp.pids.indexOf(cam.follow)
+    val coreEv = remember(g) { ev.lastOrNull { it.kind == "core" } }
+    val lostCore = coreEv?.let { map.structs.getOrNull(it.n) }
     cam.pinned = when {
         followIdx >= 0 -> Offset(units[followIdx][0] / 1000f, units[followIdx][1] / 1000f)
+        auto && lostCore != null && T > dur - 20f -> Offset(lostCore.x / 1000f, lostCore.y / 1000f)
         auto && cam.zoom > 1.05f -> {
             val recent = ev.filter { it.kind == "cast" && it.t in (Ti - 4)..Ti }
             if (recent.isEmpty()) null else Offset(recent.map { MobaEngine.unpackX(it.n) }.average().toFloat() / 1000f, recent.map { MobaEngine.unpackY(it.n) }.average().toFloat() / 1000f)
@@ -256,6 +260,11 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
                 }
                 if (cc) drawCircle(Color(0xFFFFD166).copy(alpha = 0.7f * (1f - age)), W * 0.014f, to, style = Stroke(3f))
             }
+            // The core falling.
+            if (lostCore != null && coreEv != null && Ti >= coreEv.t) {
+                val c = p(lostCore.x, lostCore.y)
+                for (k in 0..2) drawCircle(Color(0xFFFFD166).copy(alpha = 0.5f - k * 0.15f), W * (0.04f + k * 0.03f), c, style = Stroke(6f))
+            }
             // Kill markers.
             for (e in ev) {
                 if (e.t > Ti) break
@@ -268,6 +277,10 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
                 }
             }
         }) { side ->
+            if (coreEv != null && Ti >= coreEv.t) Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.TopCenter) {
+                Text("${teams[coreEv.team.coerceIn(0, 1)].short} destroy the ${t.moba.structures.coreName} — victory", color = Ui.gold, fontWeight = FontWeight.Black, fontSize = 16.sp,
+                    modifier = Modifier.background(Color(0xCC000000), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp))
+            }
             for (i in 0 until n) {
                 val l = lineOfPid[i] ?: continue
                 val ms = sideOfIdx[i]

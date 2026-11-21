@@ -67,7 +67,8 @@ class Patch(val charMeta: Map<String, Double>, val styles: Map<String, Double>, 
         /** The title's current balance state: base meta plus every patch so far (see mgmt.Patches). */
         fun of(w: World, t: TitleDef): Patch {
             val n = w.patches.count { it.titleId == t.id }
-            return cache.getOrPut("${w.seed}|${t.id}|$n") {
+            if (cache.size > 256) cache.clear()
+            return cache.getOrPut("${System.identityHashCode(w)}|${w.seed}|${t.id}|$n") {
                 val styles = HashMap<String, Double>()
                 for (s in t.styles) styles[s] = 1.0
                 val obj = HashMap<String, Double>()

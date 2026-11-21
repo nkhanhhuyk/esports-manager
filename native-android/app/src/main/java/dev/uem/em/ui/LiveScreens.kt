@@ -72,10 +72,13 @@ fun LiveScreen(vm: GameVm, w: World, live: LiveMatch) {
             live.aiTick()
         }
     }
+    // The game being watched does not count in the series score until its replay has played out.
+    var revealed by remember(live.game) { mutableStateOf(false) }
+    val shown = s.wins.copyOf().also { wn -> val g = live.game; if (live.stage == "watch" && !revealed && g != null && wn[g.winner] > 0) wn[g.winner]-- }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().background(Ui.card).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("${s.teams[0].short} ${s.wins[0]} - ${s.wins[1]} ${s.teams[1].short}", color = Ui.text, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                Text("${s.teams[0].short} ${shown[0]} - ${shown[1]} ${s.teams[1].short}", color = Ui.text, fontWeight = FontWeight.Black, fontSize = 18.sp)
                 Muted("${s.comp.name} · Bo${s.f.bestOf}${if (s.fearlessMode != "none") " · " + dev.uem.em.comp.Fearless.LABEL[s.fearlessMode] else ""}${if (live.spectator) " · watching" else ""}${if (live.resumed) " · resumed" else ""}")
             }
             if (live.stage != "result") TextButton(onClick = { live.simRest(); vm.edit() }) { Text(if (live.spectator) "Skip to result" else "Sim rest", color = Ui.muted) }
@@ -90,7 +93,7 @@ fun LiveScreen(vm: GameVm, w: World, live: LiveMatch) {
             "draft" -> DraftView(live)
             "watch" -> {
                 val g = live.game
-                val done: @Composable () -> Unit = { WatchDone(live) }
+                val done: @Composable () -> Unit = { LaunchedEffect(g) { revealed = true }; WatchDone(live) }
                 if (g != null) { if (s.t.isMoba) MobaViewer(w, s.f, g, done) else TacticalViewer(w, s.f, g, done) }
             }
             else -> ResultView(vm, w, live)

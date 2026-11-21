@@ -34,14 +34,15 @@ object Ratings {
     /** Core and specialist ratings of a player in a role (cached per attribute version). */
     class Base(val c: Double, val s: Double, val phaseC: DoubleArray, val phaseS: DoubleArray)
 
-    private val cache = java.util.concurrent.ConcurrentHashMap<Long, Base>()
-
     fun base(p: Player, t: TitleDef, role: RoleDef): Base {
         val ip = inputProf(p, t)
-        // Exact key: player, attribute version, title × role slot, input proficiency.
+        // Cached on the player object (not by player id: another world in the same process, such as a
+        // different save or a new game, has other players with the same ids).
+        // Key: attribute version, title × role slot, input proficiency.
+        val cache = p.ratingCache ?: java.util.concurrent.ConcurrentHashMap<Long, Any>().also { p.ratingCache = it }
         val slot = dev.uem.em.titles.Catalogue.IDS.indexOf(t.id) * 8 + t.roles.indexOf(role)
-        val key = (p.id.toLong() shl 32) or ((p.attrVersion.toLong() and 0xffff) shl 16) or ((slot.toLong() and 0xff) shl 8) or (ip.toLong() and 0xff)
-        cache[key]?.let { return it }
+        val key = ((p.attrVersion.toLong() and 0xffffffffL) shl 16) or ((slot.toLong() and 0xff) shl 8) or (ip.toLong() and 0xff)
+        (cache[key] as? Base)?.let { return it }
         val rw = t.roleWeights[role.id]!!
         val c = weighted(p.attrs, rw.overallCore, rw.overallCoreW, ip)
         val s = if (rw.overallSpec.isNotEmpty()) weighted(p.attrs, rw.overallSpec, rw.overallSpecW, ip) else c
@@ -55,12 +56,10 @@ object Ratings {
             ps[i] = if (sp != null) weighted(p.attrs, sp.first, sp.second, ip) else pc[i]
         }
         val b = Base(c, s, pc, ps)
-        if (cache.size > 80_000) cache.clear()
+        if (cache.size > 48) cache.clear() // old attribute versions
         cache[key] = b
         return b
     }
-
-    fun clear() = cache.clear()
 
     /** Character proficiency: the pick's own value, else transfer from same-class experience; with no pick the best three comfort picks. */
     fun charProf(p: Player, t: TitleDef, role: RoleDef, charId: String? = null): Double {

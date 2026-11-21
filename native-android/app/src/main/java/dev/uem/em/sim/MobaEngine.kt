@@ -33,14 +33,16 @@ object MobaEngine {
         val ms: Float, val firstWave: Int, val waveSize: Int, val recall: Int, val cap: Int, val capMin: Double, val vision: Float,
         val towerHp: Float, val coreHp: Float, val towerDps: Float, val campRespawn: Int, val ultLevels: IntArray, val smite: Boolean,
         val courier: Boolean, val ultCdScale: Float, val killMul: Double, val paceMul: Double, val skill: Float = 1f,
+        /** Extra power advantage a team wants before committing to a fight (LoL teams fight less often). */
+        val caution: Float = 0f,
     )
 
     val RULES = mapOf(
-        "mlbb" to Rules(27f, 25, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 70, intArrayOf(4, 8, 12), true, false, 1f, 1.0, 1.15),
-        "wildrift" to Rules(26f, 30, 5, 5, 15, 17.0, 80f, 2900f, 4400f, 270f, 90, intArrayOf(5, 9, 13), true, false, 1f, 1.0, 1.0),
-        "hok" to Rules(27f, 30, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 75, intArrayOf(4, 8, 12), true, false, 1f, 1.1, 1.1),
-        "lol" to Rules(22f, 65, 6, 8, 18, 34.0, 80f, 4200f, 5400f, 300f, 120, intArrayOf(6, 11, 16), true, false, 1f, 0.7, 1.15),
-        "dota2" to Rules(20f, 0, 4, 0, 30, 50.0, 100f, 4400f, 6000f, 290f, 60, intArrayOf(6, 12, 18), false, true, 1f, 1.4, 0.85, 1.5f),
+        "mlbb" to Rules(27f, 25, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 70, intArrayOf(4, 8, 12), true, false, 1f, 1.0, 1.35, 1f, 0.05f),
+        "wildrift" to Rules(26f, 30, 5, 5, 15, 17.0, 80f, 2900f, 4400f, 270f, 90, intArrayOf(5, 9, 13), true, false, 1f, 1.0, 1.35, 1f, 0.05f),
+        "hok" to Rules(27f, 30, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 75, intArrayOf(4, 8, 12), true, false, 1f, 1.1, 1.55, 1f, 0.12f),
+        "lol" to Rules(22f, 65, 6, 8, 18, 34.0, 80f, 4200f, 5400f, 300f, 120, intArrayOf(6, 11, 16), true, false, 1f, 0.7, 1.7, 1f, 0.35f),
+        "dota2" to Rules(20f, 0, 4, 0, 30, 50.0, 100f, 4400f, 6000f, 290f, 60, intArrayOf(6, 12, 18), false, true, 1f, 1.4, 1.15, 2.3f),
     )
 
     fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, rng: Rng, patch: Patch? = null, rec: Recorder? = null): GameOutcome =
@@ -147,6 +149,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         fun hpPct() = hp / maxHp
         var atkV = 0f; var asV = 0f; var apV = 0f; var resV = 0f; var powV = 0f
         /** Recompute combat stats (once per tick). */
+        /** Item count with diminishing returns (a gold lead helps, but less and less). */
+        val itemsEff get() = Math.pow(items.toDouble(), 0.8).toFloat()
         fun refresh() {
             resV = ((if (tank) 0.32f else if (assassin || mage || marksman) 0.14f else 0.22f) + 0.025f * items + 0.006f * level).coerceAtMost(0.62f)
             atkV = atkCalc(); asV = asCalc(); apV = apCalc()
@@ -158,9 +162,9 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         fun attackSpeed() = asV
         fun apPower() = apV
         fun atkCalc(): Float = ((if (marksman) 62f else if (assassin) 60f else if (tank) 42f else if (mage || supportCls) 38f else 56f) * (1f + 0.065f * (level - 1)) +
-            items * (if (marksman) 34f else if (assassin) 26f else if (tank) 8f else if (mage || supportCls) 5f else 22f)) * meta * buffDmg(side)
+            itemsEff * (if (marksman) 34f else if (assassin) 26f else if (tank) 8f else if (mage || supportCls) 5f else 22f)) * meta * buffDmg(side) * teamForm[side]
         fun asCalc(): Float = ((if (marksman) 0.85f else 0.72f) + items * (if (marksman) 0.07f else 0.025f)) * (1f + (if (asUntil > nowF) asPct else 0f))
-        fun apCalc(): Float = (1f + 0.07f * (level - 1)) * (1f + items * (if (mage) 0.34f else if (assassin) 0.24f else if (supportCls) 0.14f else if (tank) 0.08f else if (marksman) 0.1f else 0.15f)) * meta * buffDmg(side)
+        fun apCalc(): Float = (1f + 0.07f * (level - 1)) * (1f + itemsEff * (if (mage) 0.34f else if (assassin) 0.24f else if (supportCls) 0.14f else if (tank) 0.08f else if (marksman) 0.1f else 0.15f)) * meta * buffDmg(side) * teamForm[side]
         fun baseHp(): Float = ((if (tank) 1050f else if (assassin) 720f else if (mage) 660f else if (marksman) 650f else if (supportCls) 700f else 880f) * (1f + 0.09f * (level - 1)) +
             items * (if (tank) 520f else if (assassin) 150f else if (mage) 130f else if (marksman) 120f else if (supportCls) 230f else 330f)) * meta
         fun speed(): Float {
@@ -195,6 +199,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     val kills = IntArray(2)
     val teamGold = FloatArray(2)
     val sideBuff = floatArrayOf(1f, 1f)
+    /** How sharp each team plays this minute (communication, focus): variance that lets games turn. */
+    val teamForm = floatArrayOf(1f, 1f)
     fun buffDmg(side: Int) = sideBuff[side]
     fun computeBuff(side: Int): Float {
         var b = 1f + soul[side] + (if (buffUntil[side] > now) buffVal[side] else 0f) + (if (executeUntil[side] > now) 0.2f else 0f)
@@ -326,9 +332,11 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     /** Siege escalation in very long games (stalemates end): minions hit structures harder. */
     fun overtime(): Float = (1f + ((now / 60f - cfg.avgLength.toFloat() * 1.4f) / 5f).coerceAtLeast(0f)).coerceAtMost(4f)
     fun addGold(h: Hero, g: Float) { val v = g * h.econ; h.gold += v; h.earned += v }
+    /** Average level per side (refreshed each step) for catch-up experience. */
+    val avgLevel = DoubleArray(2) { 1.0 }
     fun addXp(h: Hero, minutes: Double) {
         if (!h.alive(now)) return
-        h.xp += minutes
+        h.xp += minutes * (1.0 + 0.15 * (avgLevel[1 - h.side] - h.level).coerceIn(0.0, 4.0))
         val nl = (1 + (R.cap - 1) * Math.pow(min(1.0, h.xp / R.capMin), 0.72)).toInt().coerceIn(1, R.cap)
         if (nl > h.level) {
             val frac = h.hpPct()
@@ -417,22 +425,22 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             val credit = assisters.maxByOrNull { v.dmgBy[it.gi] }
             if (credit != null) { assisters.remove(credit); mask = mask and (1 shl credit.idx).inv(); dieCredit(v, credit, assisters, mask, ks); return }
         }
-        val bounty = (gpmPerSec() * 60f * 0.55f) * (1f + (v.kills - v.deaths).coerceIn(0, 6) * 0.12f) * (if (teamGold[ks] < teamGold[v.side]) 1.15f else 1f)
+        val bounty = (gpmPerSec() * 60f * 0.42f) * (1f + (v.kills - v.deaths).coerceIn(0, 6) * 0.12f) * (if (teamGold[ks] < teamGold[v.side]) 1.2f else 1f)
         if (killer != null) {
             stat(killer, K, 1.0)
             killer.kills++
             addGold(killer, bounty)
-            addXp(killer, 0.55)
+            addXp(killer, 0.35)
         }
-        for (h in assisters) { stat(h, A, 1.0); addGold(h, bounty * 0.45f / max(1, assisters.size)); addXp(h, 0.3) }
+        for (h in assisters) { stat(h, A, 1.0); addGold(h, bounty * 0.35f / max(1, assisters.size)); addXp(h, 0.18) }
         ev(Ev(now, "kill", ks, killer?.pc?.p?.id ?: -1, v.pc.p.id, locCode(v.x, v.y), m = mask, n = v.deadUntil))
         fightKill(ks, v.x, v.y)
     }
 
     private fun dieCredit(v: Hero, killer: Hero, assisters: List<Hero>, mask: Int, ks: Int) {
-        val bounty = (gpmPerSec() * 60f * 0.55f) * (1f + (v.kills - v.deaths).coerceIn(0, 6) * 0.12f)
-        stat(killer, K, 1.0); killer.kills++; addGold(killer, bounty); addXp(killer, 0.55)
-        for (h in assisters) { stat(h, A, 1.0); addGold(h, bounty * 0.45f / max(1, assisters.size)); addXp(h, 0.3) }
+        val bounty = (gpmPerSec() * 60f * 0.42f) * (1f + (v.kills - v.deaths).coerceIn(0, 6) * 0.12f)
+        stat(killer, K, 1.0); killer.kills++; addGold(killer, bounty); addXp(killer, 0.35)
+        for (h in assisters) { stat(h, A, 1.0); addGold(h, bounty * 0.35f / max(1, assisters.size)); addXp(h, 0.18) }
         ev(Ev(now, "kill", ks, killer.pc.p.id, v.pc.p.id, locCode(v.x, v.y), m = mask, n = v.deadUntil))
         fightKill(ks, v.x, v.y)
     }
@@ -614,6 +622,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             tick++
             nowF = now.toFloat()
             sideBuff[0] = computeBuff(0); sideBuff[1] = computeBuff(1)
+            if (now % 60 < DT) for (sd in 0..1) teamForm[sd] = (1.0 + rng.normal(0.0, 0.09) * (1.2 - (teams[sd].phase[Phase.CLUTCH.ordinal] - 60) / 100)).toFloat().coerceIn(0.8f, 1.2f)
+            for (sd in 0..1) { avgLevel[sd] = bySide[sd].sumOf { it.level }.toDouble() / max(1, bySide[sd].size); var gsum = 0f; for (h in bySide[sd]) gsum += h.earned; teamGold[sd] = gsum }
             for (h in heroes) h.refresh()
             tickWaves()
             tickObjectivesSpawn()
@@ -663,19 +673,35 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
                 packets[li][side].add(Packet(if (side == 0) 0.04f else 0.96f, size.toFloat(), sup))
             }
         }
+        val step = minionSpeed * DTF
         for (li in 0..2) {
             val lane = map.laneIds[li]
+            // Both sides' waves move at the same time: approaching fronts meet where their free
+            // movement this step brings them (midway when both walk), not where the side that
+            // happened to move first left its wave.
+            val towerLimit0 = (frontStruct(1, li)?.f ?: 0.97f) - 0.025f
+            val towerLimit1 = (frontStruct(0, li)?.f ?: 0.03f) + 0.025f
+            val fa = findFront(li, 0); val fb = findFront(li, 1)
+            var meet = Float.NaN
+            if (fa != null && fb != null && fb.f > fa.f) {
+                val ma = (towerLimit0 - fa.f).coerceIn(0f, step)
+                val mb = (fb.f - towerLimit1).coerceIn(0f, step)
+                val gap = fb.f - fa.f
+                meet = if (ma + mb <= 0f) (fa.f + fb.f) / 2f else fa.f + gap * ma / (ma + mb)
+            }
             for (side in 0..1) {
                 val dir = if (side == 0) 1f else -1f
-                val enemyFront = findFront(li, 1 - side)
-                val tower = frontStruct(1 - side, li)
-                val stopAtTower = tower?.f ?: if (side == 0) 0.97f else 0.03f
+                val enemyFront = if (side == 0) fb else fa
                 val list = packets[li][side]
                 for (p in list) {
-                    var limit = stopAtTower - dir * 0.025f
-                    if (enemyFront != null && (enemyFront.f - p.f) * dir > 0) limit = if (side == 0) min(limit, enemyFront.f - 0.01f) else max(limit, enemyFront.f + 0.01f)
-                    val nf = p.f + dir * minionSpeed * DTF
-                    p.f = if (side == 0) min(nf, limit) else max(nf, limit)
+                    var limit = if (side == 0) towerLimit0 else towerLimit1
+                    if (enemyFront != null && (enemyFront.f - p.f) * dir > 0) {
+                        val stop = if (meet.isNaN()) enemyFront.f - dir * 0.01f else meet - dir * 0.01f
+                        limit = if (side == 0) min(limit, stop) else max(limit, stop)
+                    }
+                    val nf = p.f + dir * step
+                    // Never walk backwards because of a limit.
+                    p.f = if (side == 0) max(p.f, min(nf, limit)) else min(p.f, max(nf, limit))
                 }
                 // Waves that catch up with the one ahead join it.
                 var i = 0
@@ -904,7 +930,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             val old = plan[side]
             if (threatened >= 0 && m > 2.5 && ratio > 0.45) { plan[side] = 3; planLane[side] = threatened }
             else if (bestObj >= 0 && bestVal > 0.85 - macro * 0.06 && alive >= 3 && (m >= cfg.laneEnd * 0.4)) { plan[side] = 2; planObj[side] = bestObj }
-            else if (m >= cfg.laneEnd && alive >= 3 && (ratio > 0.88 - macro * 0.04 || alive > enemyAlive || pushUntil[side] > now)) {
+            else if (m >= cfg.laneEnd && alive >= 3 && (ratio > 1.0 - macro * 0.03 || alive > enemyAlive + 1 || pushUntil[side] > now || m > cfg.avgLength * 1.1)) {
                 // Group and push: keep the lane until its front structure falls (or a minute passes).
                 val cur = planLane[side]
                 val curDone = old != 1 || now - planSince[side] > 60 || frontStruct(1 - side, cur) == null && baseStructs[1 - side].all { it.dead }
@@ -1143,8 +1169,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         val engage = when {
             h.task == 5 && h.camp == best.gi -> ratio > 0.75f
             laningNow && !committed -> (killable && ratio > 1.0f) || (ratio > 1.9f && best.hpPct() < 0.45f)
-            h.task == 2 || h.task == 3 -> ratio > 0.92f - aggression * 0.12f || (committed && ratio > 0.75f) || killable && ratio > 0.8f
-            else -> ratio > 1.3f - aggression * 0.2f || (killable && ratio > 0.95f) || (committed && ratio > 0.85f)
+            h.task == 2 || h.task == 3 -> ratio > 0.92f + R.caution - aggression * 0.12f || (committed && ratio > 0.75f) || killable && ratio > 0.8f + R.caution
+            else -> ratio > 1.3f + R.caution - aggression * 0.2f || (killable && ratio > 0.95f + R.caution) || (committed && ratio > 0.85f)
         }
         val flee = (ratio < 0.72f - h.clutch * 0.04f && !killable) || (h.hpPct() < 0.25f && !killable) || (laningNow && h.hpPct() < 0.4f && ratio < 1.1f) ||
             (committed && now - h.engagedAt > 7 && dist(h, best) > h.range + 25f)

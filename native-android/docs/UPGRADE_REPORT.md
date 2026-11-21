@@ -17,9 +17,58 @@ work: `docs/UPGRADE_AUDIT.md`.
 | Analysis | `ui/Analysis.kt`, `ui/MatchScreen.kt` | MOBA: gold-lead chart (tap to watch), key moments, laning by lane at the end of laning, teamfights, players' damage / healing / crowd control / casts / wards, heatmaps (positions, deaths, wards, abilities) per team or player, "observed" facts vs "analyst's reading". Shooters: every round (buys, winner, how, opening kill), opening duels per player, trades, attack/defence results, site conversions, observed vs opinion. Every row opens the replay at that moment. Games recorded before positions were stored say so instead of inventing data. |
 | Custom competitions | `comp/CustomComps.kt`, `ui/CompEditor.kt`, `model.CustomComp`, `CompTier.CUSTOM` | Create a competition for any of the seven games: league, double league, groups + single or double elimination, single elimination (byes), double elimination, Swiss + single elimination (8 or 16 teams); invited teams, whole leagues or the top N of a finished competition; best-of per stage with title checks (MOBAs 1/3/5/7, shooters 1/3/5); dates; prize pool and entry fees; Fearless rule for MOBAs; LAN/online; one-off or every season. Live validation (team count, format fit, legal match lengths, schedule fits the season, duplicates) with a preview (stages, byes, matches, days, prize pool). Publishing creates an edition played and paid like any competition; recurring events get a new edition each season; cancelling stops future editions; finished editions are never rewritten. Reached from Events (+ Create) and More. |
 
+## Follow-up after the first play-through
+
+| Report | Change |
+|---|---|
+| The series score showed the result before the game had played out | The live header leaves the current game out of the score until its replay reaches the end (`ui/LiveScreens.kt`). "Sim rest" / "Skip to result" still jump straight to the result. |
+| The game "just ends"; the last tower and the heroes around it were not shown | The positional viewer slows to at most 2× for the last 20 s, the auto camera moves to the falling core with the heroes around it, the core explodes, and a banner says who destroyed it (`ui/MobaView2.kt`). Shooters show a round-result banner (defuse / detonation / elimination / time, score) after each round (`ui/ShooterView2.kt`). The screenshots in the report were the old event view, which is only used for games recorded before the upgrade (a series that started in an older version keeps those). |
+| Simulate to the World Championships | New option in the ▾ menu next to Continue and in the sidebar: stops the day before your title's (or the earliest) world championship of the season starts (`GameVm.Span.WORLDS`). |
+| A sidebar with more options | ☰ in the top bar opens a drawer: simulate (next match, day, week, month, Worlds, season end), my club, matches (match centre, events, schedule, create a competition), world (teams, players, stats, tier lists, patches, history, world), save, settings (`ui/SideMenu.kt`). |
+| Teams always banned the same five characters | Each team drafts with a ban philosophy for the series (meta bans / comfort bans / flexible / handshake). A character is "overpowered" only above an absolute meta strength, so a patch can have none, one or two, or seven. Teams target the opponent's comfort picks (weighted by the player's comfort and the coach), leave an overpowered pick open when they pick next and can take it (handshake), and there is noise so drafts vary (`sim/Draft.kt`). Each patch has its own spread of power (`mgmt/Patches.kt`), so some patches are flat and others have outliers. `DraftVarietyTest`: in 60 drafts per title the most-banned character is banned in 28–93 % of drafts depending on the patch (it was 100 % everywhere), 80–140 different characters are banned, and the fifth most banned is under 70 %. |
+| Kills per game, snowballing | Less gold and XP per kill (kill bounty is 0.42 × a minute of income, assists share 35 %), catch-up XP for heroes below the average level, a bounty bonus for the team behind on gold, diminishing returns on items (items^0.8), a team "form" that changes each minute, and a per-title caution before fights. The team ahead pushes only when it is clearly ahead, outnumbers, or the game runs long. |
+
+Two engine bugs found while measuring these changes, both fixed:
+
+* **Red side won ~65–70 % in LoL, MLBB and Wild Rift.** Blue's minion waves moved first each step and
+  red's then walked up to them, so waves met nearer red's tower every time; red ended laning ~300–950
+  gold ahead and took the first tower 68–78 % of the time. Waves now move together and meet where
+  both sides' movement takes them (`MobaSim.tickWaves`). The walking grid is also made symmetric (the
+  wall drawing was not; structures, camps and objectives already were). New `MobaSideTest` (100
+  games per title, near-equal rosters swapping sides) fails if either side wins outside 35–65 %:
+  now blue 42–50 % in the four Riot / Moonton / Tencent games and Radiant 58 % in Dota 2 (the real
+  game also favours Radiant slightly).
+* **Ratings leaked between worlds in one app session.** Player ratings were cached by player id and
+  attribute version, not by world, so loading a different save or starting a new game without
+  restarting the app could give players the previous world's ratings. The cache is now held on each
+  player object (not saved). New `WorldIsolationTest`: the same seed gives the same world after
+  another world has been played for a season. Fictional characters released by patches in two worlds
+  can share an id, so their ability kits are now cached by id and class.
+
+Balance after these changes (seeded; `MobaBalanceTest` 40 games strongest vs weakest and 20 vs the
+3rd strongest; `ShooterBalanceTest` 40 maps):
+
+```
+mlbb      17.2 min  kills 27.9  structures  9.8  objectives 3.7  strongest wins 87%  vs peer 45%  laning gold leader wins 93%
+wildrift  19.8 min  kills 29.3  structures 12.5  objectives 6.5  strongest wins 72%  vs peer 50%  laning gold leader wins 71%
+hok       18.5 min  kills 27.3  structures 10.0  objectives 6.4  strongest wins 95%  vs peer 75%  laning gold leader wins 91%
+lol       32.3 min  kills 34.1  structures 17.7  objectives 8.2  strongest wins 72%  vs peer 55%  laning gold leader wins 70%
+dota2     38.3 min  kills 41.9  structures 11.9  objectives 9.3  strongest wins 67%  vs peer 45%  laning gold leader wins 67%
+valorant  kills/round 7.0  attack wins 43%  plants 38% of rounds  strongest wins 90%
+cs2       kills/round 6.4  attack wins 51%  plants 44% of rounds  strongest wins 85%
+```
+
+Draft variety (60 drafts per title, one patch each): most-banned character MLBB 74 %, Wild Rift 49 %,
+HoK 93 %, LoL 28 %, Dota 2 81 %; 80–140 different characters banned. The LoL patch in this world is
+flat (no must-ban), the HoK and Dota 2 patches have one or two outliers.
+
+"Laning gold leader wins" is how often the team ahead on gold at the end of laning wins: in pro games it
+is about 70–75 %. Honor of Kings is higher in this test because the strongest and weakest HoK rosters are
+far apart.
+
 ## Tests and results (JVM, `./gradlew testDebugUnitTest`)
 
-All suites pass (21 classes). New or extended:
+All suites pass (23 classes, including `DraftVarietyTest`, `MobaSideTest`, `WorldIsolationTest`). New or extended:
 
 * `MobaBalanceTest` — 5 titles × 40 seeded games (strongest vs weakest) + 20 vs a near peer. Checks:
   length within 75–130 % of the title's average, kills in range, the strongest roster wins most
@@ -92,9 +141,10 @@ rather than invented heatmaps.
 * Not run on a phone or emulator here (no hardware acceleration in this environment): frame rate,
   battery and ANR behaviour on devices are unmeasured. The viewer's toggles (abilities, minions,
   paths, names) serve as a reduced-effects mode.
-* Kills in LoL (~40 per game) are above the pro average (~25–30); Dota 2 games are a few minutes
-  longer than average. Occasional outlier games (a hero dying very often) remain and are logged by
-  the tuning tests (`MobaTraceTest`, `MobaDiagTest`, `MobaCharBalanceTest`, env-gated).
+* Kills in LoL (~34 per game) are still a little above the pro average (~25–30); Dota 2 games are a
+  few minutes longer than average. Occasional outlier games (a hero dying very often) remain and are
+  logged by the tuning tests (`MobaTraceTest`, `MobaDiagTest`, `MobaCharBalanceTest`, env-gated).
+* Valorant attackers win 43 % of rounds in the seeded sample (pro play is close to 48–50 %).
 * Character win rates spread roughly 35–65 % (10th–90th percentile) in random drafts; the draft AI
   does not yet know which kits are strong in the engine.
 * Release build: the APK is a debug build. To make a signed release: create a keystore outside the

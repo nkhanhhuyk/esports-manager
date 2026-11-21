@@ -106,7 +106,8 @@ object Abilities {
     /** The kit a character plays with (sourced, else its class template). */
     fun kit(charId: String?, char: CharDef?): Kit {
         val id = charId ?: "none"
-        return kits.getOrPut(id) {
+        // Keyed with the class too: fictional characters released in different worlds can share an id.
+        return kits.getOrPut(if (char == null) id else "$id|${char.cls}|${char.name}") {
             val o = root?.get(id)?.jsonObject
             val k = o?.let { runCatching { parse(id, it) }.getOrNull() }
             normalise(if (k != null && k.actives.size >= 2) k else template(id, char), char)
