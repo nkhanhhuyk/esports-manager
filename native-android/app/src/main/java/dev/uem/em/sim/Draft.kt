@@ -74,8 +74,17 @@ object Draft {
         return { c -> p.profChar[c.id] ?: (byClass[c.cls] ?: 0.0) * 0.45 }
     }
 
-    /** A player's preferred characters for the patch (top 14). */
+    /** Preference lists cached per patch (as in the web version); a new patch starts a new cache. */
+    private val prefCache = java.util.concurrent.ConcurrentHashMap<Patch, java.util.concurrent.ConcurrentHashMap<String, List<CharDef>>>()
+
     private fun preferred(t: TitleDef, patch: Patch, p: Player, roleIdx: Int, style: String): List<CharDef> {
+        if (prefCache.size > 64) prefCache.clear()
+        val m = prefCache.getOrPut(patch) { java.util.concurrent.ConcurrentHashMap() }
+        return m.getOrPut("${p.id}|$roleIdx|$style") { computePreferred(t, patch, p, roleIdx, style) }
+    }
+
+    /** A player's preferred characters for the patch (top 14). */
+    private fun computePreferred(t: TitleDef, patch: Patch, p: Player, roleIdx: Int, style: String): List<CharDef> {
         val role = t.lineupRoles[roleIdx]
         val cf = comfort(t, p)
         val fitAny = t.characters.any { it.lanes.isNotEmpty() || it.classes.isNotEmpty() }

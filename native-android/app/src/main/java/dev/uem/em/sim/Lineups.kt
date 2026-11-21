@@ -48,6 +48,7 @@ object Lineups {
             sig = sig * 31 + (if (available(w, p)) 0 else 1)
             sig = sig * 31 + (p.fatigue / 25).toInt()
         }
+        if (team.manualLineup && valid) return team.lineup
         if (!valid || sig != team.lineupSig) {
             team.lineup = auto(w, team)
             team.lineupSig = sig

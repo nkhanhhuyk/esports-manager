@@ -1,5 +1,6 @@
 package dev.uem.em.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -175,26 +176,32 @@ fun HomeScreen(vm: GameVm, w: World) {
 
 @Composable
 fun MoreScreen(vm: GameVm, w: World) {
+    val unread = w.inbox.count { !it.read }
+    val menu = listOf(
+        Triple("Inbox", if (unread > 0) "$unread unread" else "Messages, offers, reports", Screen.Inbox),
+        Triple("Finances", "Balance, income and expenses, sponsors, facilities", Screen.Finances),
+        Triple("Board", "Objectives and confidence", Screen.Board),
+        Triple("History & awards", "Champions and season awards", Screen.History),
+        Triple("Patch notes", "Every balance patch of every game", Screen.Patches),
+        Triple("Teams", "All leagues and teams", Screen.Teams),
+        Triple("Players", "Search every player", Screen.Players),
+    )
     LazyColumn(Modifier.fillMaxSize()) {
-        item {
-            Card("Save") {
-                Muted("Saves are written in the background (a few hundred milliseconds) and the game also saves itself every simulated week.")
-                Gap()
-                Button(onClick = { vm.save() }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Save now") }
+        items(menu) { (title, sub, screen) ->
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).background(Ui.card, RoundedCornerShape(10.dp)).clickable { vm.go(screen) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { Text(title, color = Ui.text, fontWeight = FontWeight.SemiBold); Muted(sub) }
+                Text("›", color = Ui.muted, fontSize = 20.sp)
             }
         }
         item {
-            Card("Career") {
-                Muted("${w.name} · ${w.players.size} players · ${w.teams.count { it.active }} active teams · ${w.comps.size} competitions")
+            Card("Save") {
+                Muted("Saves are written in the background and the game saves itself every simulated week and when you leave the app.")
                 Gap()
+                Button(onClick = { vm.save() }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Save now") }
                 TextButton(onClick = { vm.save(silent = true); vm.tab(Screen.Start) }) { Text("Back to title screen", color = Ui.accent) }
             }
         }
-        item {
-            Card("About this edition") {
-                Muted("Native Android app (Kotlin): matches simulate on all CPU cores and saves are compact binary files. This first native stage covers the world, competitions, results, standings, brackets, player and competition stats, match reports and saving. Transfers, finances, training, staff and the live 2D viewer come in the next stages; the previous app keeps them until then.")
-            }
-        }
+        item { Card("Career") { Muted("${w.name} · ${w.players.size} players · ${w.teams.count { it.active }} active teams · ${w.comps.size} competitions · ${w.transfers.size} transfers") } }
     }
 }
 

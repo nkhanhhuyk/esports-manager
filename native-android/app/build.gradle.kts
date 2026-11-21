@@ -35,7 +35,7 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
-        unitTests.all { it.systemProperty("robolectric.pixelCopyRenderMode", "hardware"); it.maxHeapSize = "3g" }
+        unitTests.all { it.systemProperty("robolectric.pixelCopyRenderMode", "hardware"); it.maxHeapSize = "3g"; if (System.getenv("UEM_JFR") != null) it.jvmArgs("-XX:StartFlightRecording=filename=" + System.getenv("UEM_JFR") + ",settings=profile") }
     }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }

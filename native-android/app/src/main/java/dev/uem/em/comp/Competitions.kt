@@ -479,5 +479,7 @@ object Progress {
         // Competition MVP: best average rating with at least half the games of the most active player.
         val maxGp = c.pstats.values.maxOfOrNull { it.gp } ?: 0
         c.pstats.entries.filter { it.value.gp * 2 >= maxGp && it.value.gp > 0 }.maxByOrNull { it.value.r / it.value.gp }?.let { c.mvp = it.key }
+        dev.uem.em.mgmt.Economy.onCompetitionFinished(w, c)
+        dev.uem.em.mgmt.Career.onCompetitionFinished(w, c)
     }
 }

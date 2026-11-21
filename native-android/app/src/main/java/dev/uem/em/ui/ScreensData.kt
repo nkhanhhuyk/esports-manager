@@ -314,6 +314,7 @@ fun PlayerScreen(vm: GameVm, w: World, id: Int) {
                 }
             }
         }
+        item { PlayerActions(vm, w, p) }
         item {
             Card("Ability") {
                 Row { Text("CA %.1f".format(p.ca), color = Ui.text, fontWeight = FontWeight.Bold); HGap(16); Muted("potential up to %.0f".format(p.pa), 13); HGap(16); Muted("form %+.1f".format(p.form), 13) }

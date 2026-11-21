@@ -118,6 +118,7 @@ object WorldGen {
             team.lineup = Lineups.auto(world, team)
             team.elo = (1500 + (Lineups.strength(world, team) - 65) * 18).roundToInt().toDouble()
         }
+        dev.uem.em.mgmt.Economy.ensureSetup(world)
         Season.plan(world, season)
         world.rebuildSchedule()
         return world

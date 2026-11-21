@@ -48,6 +48,7 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
             if (busy != null) BusyScreen(vm, busy)
             else if (w == null || vm.screen == Screen.Start) StartScreen(vm)
             else if (vm.screen == Screen.PickOrg || w.userOrg < 0) PickOrgScreen(vm, w)
+            else if (w.sacked) Column(Modifier.fillMaxSize().statusBarsPadding()) { JobOffersScreen(vm, w) }
             else Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 TopBar(vm, w)
                 Box(Modifier.weight(1f)) {
@@ -58,6 +59,13 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                         Screen.Teams -> TeamsScreen(vm, w)
                         Screen.Players -> PlayersScreen(vm, w)
                         Screen.More -> MoreScreen(vm, w)
+                        Screen.Squad -> SquadScreen(vm, w)
+                        Screen.Market -> MarketScreen(vm, w)
+                        Screen.Inbox -> InboxScreen(vm, w)
+                        Screen.Finances -> FinancesScreen(vm, w)
+                        Screen.Board -> BoardScreen(vm, w)
+                        Screen.History -> HistoryScreen(vm, w)
+                        Screen.Patches -> PatchesScreen(vm, w)
                         is Screen.Comp -> CompScreen(vm, w, s.id)
                         is Screen.Team -> TeamScreen(vm, w, s.id)
                         is Screen.Player -> PlayerScreen(vm, w, s.id)
@@ -114,7 +122,8 @@ private fun TopBar(vm: GameVm, w: dev.uem.em.model.World) {
 
 @Composable
 private fun BottomBar(vm: GameVm) {
-    val items = listOf("Home" to Screen.Home, "Events" to Screen.Comps, "Teams" to Screen.Teams, "Players" to Screen.Players, "More" to Screen.More)
+    val unread = vm.world?.inbox?.count { !it.read } ?: 0
+    val items = listOf("Home" to Screen.Home, "Events" to Screen.Comps, "Squad" to Screen.Squad, "Market" to Screen.Market, (if (unread > 0) "More ($unread)" else "More") to Screen.More)
     Row(Modifier.fillMaxWidth().background(Ui.card).padding(vertical = 4.dp)) {
         val root = vm.stack.first()
         for ((label, s) in items) {

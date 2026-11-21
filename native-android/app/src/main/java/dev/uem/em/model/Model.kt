@@ -24,6 +24,16 @@ class World(
     var userOrg: Int = -1,
     var boxPage: Int = 0,
     var version: Int = 1,
+    val staff: MutableList<Staff> = ArrayList(),
+    val inbox: MutableList<Message> = ArrayList(),
+    val offers: MutableList<Offer> = ArrayList(),
+    val transfers: MutableList<Transfer> = ArrayList(),
+    var board: Board? = null,
+    val awards: MutableList<Award> = ArrayList(),
+    val patches: MutableList<PatchRec> = ArrayList(),
+    var lastMonth: Int = 0,
+    var sacked: Boolean = false,
+    var managerName: String = "Manager",
 ) {
     /** Fixture ids by day (rebuilt after loading; not saved). */
     @kotlinx.serialization.Transient
@@ -81,6 +91,9 @@ class Player(
     var retiredSeason: Int = 0,
     var attrVersion: Int = 0,
     var joinedDay: Int = 0,
+    var listed: Boolean = false,
+    var unhappy: Double = 0.0,
+    var awards: MutableList<String> = ArrayList(),
 ) {
     val retired get() = retiredSeason != 0
     val mainRole get() = roles[0]
@@ -121,6 +134,10 @@ class Team(
     var lineupSig: Int = 0,
     val history: MutableList<TeamSeason> = ArrayList(),
     val trophies: MutableList<Trophy> = ArrayList(),
+    val staffIds: MutableList<Int> = ArrayList(),
+    var focus: String = "balanced",
+    var intensity: Int = 60,
+    var manualLineup: Boolean = false,
 )
 
 @Serializable
@@ -143,6 +160,10 @@ class Org(
     val teams: MutableList<Int> = ArrayList(),
     var real: Boolean = false,
     var colors: List<String> = listOf("#3a86ff", "#ffd166"),
+    var sponsors: MutableList<Sponsor> = ArrayList(),
+    val ledger: MutableList<LedgerLine> = ArrayList(),
+    val months: MutableList<MonthFin> = ArrayList(),
+    var facilities: IntArray = intArrayOf(3, 3, 3),
 )
 
 @Serializable
@@ -287,3 +308,80 @@ class GameRecord(
 
 @Serializable
 class Line(val playerId: Int, val team: Int, val roleId: String, val charId: String = "", var rating: Double = 1.0, @ProtoPacked val s: DoubleArray)
+
+
+// ------------------------------------------------------------------------------- management (stage 2)
+
+/** Staff member: head coach, assistant coach, analyst, scout, psychologist or performance coach. */
+@Serializable
+class Staff(
+    val id: Int,
+    var first: String,
+    var last: String,
+    var nat: String,
+    var birth: Int,
+    val role: String,
+    var quality: Double,
+    var titleId: String,
+    var teamId: Int = -1,
+    var orgId: Int = -1,
+    var salary: Double = 0.0,
+    var contractEnd: Int = 0,
+    var retired: Boolean = false,
+) {
+    fun name() = "$first $last"
+}
+
+@Serializable
+class Sponsor(val name: String, val perMonth: Double, val untilSeason: Int)
+
+@Serializable
+class LedgerLine(val day: Int, val kind: String, val amount: Double, val note: String = "")
+
+@Serializable
+class MonthFin(val month: Int, val income: Double, val expenses: Double, val balance: Double, val detail: Map<String, Double> = emptyMap())
+
+@Serializable
+class Message(val day: Int, val from: String, val subject: String, val body: String, var read: Boolean = false, val offerId: Int = -1)
+
+/** A transfer or contract offer. kind: bid (club fee for a contracted player), contract (personal terms). */
+@Serializable
+class Offer(
+    val id: Int,
+    val day: Int,
+    val playerId: Int,
+    val fromTeam: Int,
+    val toTeam: Int,
+    val kind: String,
+    var fee: Double,
+    var salary: Double,
+    var years: Int,
+    var status: String = "pending", // pending, accepted, rejected, withdrawn, done
+    val expiresDay: Int = 0,
+)
+
+@Serializable
+class Transfer(val day: Int, val season: Int, val playerId: Int, val fromTeam: Int, val toTeam: Int, val fee: Double, val kind: String)
+
+/** The user's board: season objectives and confidence (0-100). */
+@Serializable
+class Board(var season: Int, var confidence: Double, val objectives: MutableList<BoardObjective>, val notes: MutableList<String> = ArrayList(), var contractEnd: Int = 0)
+
+@Serializable
+class BoardObjective(val text: String, val kind: String, val teamId: Int, val target: Int, var status: String = "pending")
+
+@Serializable
+class Award(val season: Int, val titleId: String, val name: String, val playerId: Int = -1, val teamId: Int = -1, val compId: Int = -1)
+
+/** A balance patch: minor (random), medium (before First Stand / MSI / Worlds) or major (after Worlds). */
+@Serializable
+class PatchRec(
+    val titleId: String,
+    val version: String,
+    val day: Int,
+    val kind: String,
+    val notes: List<String>,
+    val charDelta: Map<String, Double> = emptyMap(),
+    val styleDelta: Map<String, Double> = emptyMap(),
+    val objMods: Map<String, Double> = emptyMap(),
+)

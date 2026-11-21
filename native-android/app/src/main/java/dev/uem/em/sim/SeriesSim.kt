@@ -70,7 +70,7 @@ object SeriesSim {
                 // Map-side order: the blue team is simulated as side 0.
                 val order = if (blue == 0) intArrayOf(0, 1) else intArrayOf(1, 0)
                 val sideCtx = order.mapIndexed { si, s -> TeamCtx(ctx[s].team, si, ctx[s].players, ctx[s].phase, ctx[s].overall, ctx[s].aggression) }
-                outcome = MobaEngine.simulate(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), rng)
+                outcome = MobaEngine.simulate(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), rng, patch)
                 winnerSeries = order[outcome.winner]
                 // Box-score lines back to series team order.
                 val lines = outcome.book.lines.map { l -> dev.uem.em.model.Line(l.playerId, order[l.team], l.roleId, l.charId, l.rating, l.s) }
@@ -78,7 +78,7 @@ object SeriesSim {
                 games.add(GameRecord(winnerSeries, outcome.duration, mapId, blue, intArrayOf(chooser, choice, if (byLoser) 1 else 0), draft.bans, draft.picks[0] + draft.picks[1], score, lines))
             } else {
                 val firstAttack = if (rng.chance(0.5)) 0 else 1
-                outcome = TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, rng)
+                outcome = TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, rng, patch)
                 winnerSeries = outcome.winner
                 games.add(GameRecord(winnerSeries, outcome.duration, mapId, firstAttack, IntArray(0), emptyList(), draft.picks[0] + draft.picks[1], outcome.score, outcome.book.lines))
             }

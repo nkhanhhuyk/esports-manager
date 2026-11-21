@@ -36,6 +36,13 @@ sealed class Screen {
     data object Teams : Screen()
     data object Players : Screen()
     data object More : Screen()
+    data object Squad : Screen()
+    data object Market : Screen()
+    data object Inbox : Screen()
+    data object Finances : Screen()
+    data object Board : Screen()
+    data object History : Screen()
+    data object Patches : Screen()
     data class Comp(val id: Int) : Screen()
     data class Team(val id: Int) : Screen()
     data class Player(val id: Int) : Screen()
@@ -82,6 +89,9 @@ class GameVm(app: Application) : AndroidViewModel(app) {
     fun back(): Boolean = if (stack.size > 1) { stack.removeAt(stack.size - 1); true } else false
     fun tab(s: Screen) { stack.clear(); stack.add(s) }
     fun touch() { version++ }
+
+    /** A change made from a screen (tactics, signings…): marks the game unsaved. */
+    fun edit() { unsaved = true; version++ }
     fun saves() = store.list()
 
     fun newGame(name: String) {
@@ -104,6 +114,7 @@ class GameVm(app: Application) : AndroidViewModel(app) {
     fun chooseOrg(orgId: Int) {
         val w = world ?: return
         w.userOrg = orgId
+        dev.uem.em.mgmt.Career.setupBoard(w)
         touch()
         tab(Screen.Home)
         save(silent = true)
@@ -114,7 +125,13 @@ class GameVm(app: Application) : AndroidViewModel(app) {
         busy = Busy("Loading…", 0, 0)
         viewModelScope.launch {
             try {
-                val w = withContext(Dispatchers.IO) { store.load(slotName) }
+                val w = withContext(Dispatchers.IO) {
+                    store.load(slotName).also { lw ->
+                        // Saves from the first native version: add staff, sponsors, salaries and a board.
+                        dev.uem.em.mgmt.Economy.ensureSetup(lw)
+                        if (lw.userOrg >= 0 && lw.board == null) dev.uem.em.mgmt.Career.setupBoard(lw)
+                    }
+                }
                 slot = slotName
                 world = w
                 lastAutosaveDay = w.day

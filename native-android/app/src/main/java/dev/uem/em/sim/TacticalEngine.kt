@@ -17,8 +17,10 @@ object TacticalEngine {
     private const val COORDINATION = 44
     private const val CROSSHAIR = 74
 
-    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, firstAttack: Int, rng: Rng): GameOutcome {
+    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, firstAttack: Int, rng: Rng, patch: Patch? = null): GameOutcome {
         val cfg = t.tactical!!
+        val defEdge = cfg.defenderEdge + (patch?.obj?.get("defender") ?: 0.0)
+        val fullBuy = cfg.fullBuy * (patch?.obj?.get("fullbuy") ?: 1.0)
         val book = StatBook(teams, t)
         val K = book.idx("k"); val D = book.idx("d"); val A = book.idx("a"); val DMG = book.idx("dmg"); val FK = book.idx("fk"); val FD = book.idx("fd")
         val CLUTCH = book.idx("clutch"); val PLANT = book.idx("plant"); val DEFUSE = book.idx("defuse"); val KAST = book.idx("kast"); val HS = book.idx("hs"); val MK = book.idx("mk"); val UTIL = book.idx("util")
@@ -42,13 +44,13 @@ object TacticalEngine {
         fun buyFor(ti: Int, pistol: Boolean): Pair<Double, String> {
             if (pistol) return 0.72 to "pistol"
             val avg = money[ti].average()
-            if (avg + carried[ti].average() * 0.6 >= cfg.fullBuy) return 1.0 to "full"
+            if (avg + carried[ti].average() * 0.6 >= fullBuy) return 1.0 to "full"
             val smart = econ[ti] / 100
-            val force = if (avg >= cfg.fullBuy * 0.55) 0.35 + (teams[ti].aggression / 100) * 0.3 - smart * 0.2 else 0.08 * (1 - smart)
+            val force = if (avg >= fullBuy * 0.55) 0.35 + (teams[ti].aggression / 100) * 0.3 - smart * 0.2 else 0.08 * (1 - smart)
             return if (rng.chance(clamp(force, 0.02, 0.8))) 0.84 to "force" else 0.58 to "eco"
         }
         fun spend(ti: Int, buy: String) {
-            val cost = when (buy) { "full" -> cfg.fullBuy.toDouble(); "force" -> cfg.fullBuy * 0.6; "pistol" -> minOf(cfg.startMoney, 800).toDouble(); else -> 300.0 }
+            val cost = when (buy) { "full" -> fullBuy.toDouble(); "force" -> fullBuy * 0.6; "pistol" -> minOf(cfg.startMoney, 800).toDouble(); else -> 300.0 }
             for (i in 0 until n) money[ti][i] = maxOf(0.0, money[ti][i] - maxOf(0.0, cost - carried[ti][i]))
         }
         fun duel(pc: PlayerCtx, initiating: Boolean) = pc.phase[AIM] * 0.68 + (if (initiating) pc.phase[ENTRY] else pc.phase[CL]) * 0.2 + pc.phase[MOV] * 0.12
@@ -71,7 +73,7 @@ object TacticalEngine {
             var duels = 0
             var clutchSide = -1
             var clutchPlayer: PlayerCtx? = null
-            val baseEdge = -cfg.defenderEdge + (qA - qD) * 1.7 + (teamUtil[attack] - teamUtil[def]) / 60 + (teamInfo[attack] - teamInfo[def]) / 80 + (igl[attack] - igl[def]) / 80 + (comp[attack].total - comp[def].total) * 0.4
+            val baseEdge = -defEdge + (qA - qD) * 1.7 + (teamUtil[attack] - teamUtil[def]) / 60 + (teamInfo[attack] - teamInfo[def]) / 80 + (igl[attack] - igl[def]) / 80 + (comp[attack].total - comp[def].total) * 0.4
             val swing = rng.normal(0.0, 0.32)
             fun kill(ks: Int, killer: PlayerCtx, victim: PlayerCtx) {
                 val vs = 1 - ks
@@ -139,7 +141,7 @@ object TacticalEngine {
             streak[rw] = 0
             streak[lr]++
             for (s in 0..1) teams[s].players.forEachIndexed { i, pc ->
-                carried[s][i] = if (pc in alive[s]) (if (s == attack) qA else qD) * cfg.fullBuy * 0.8 else 0.0
+                carried[s][i] = if (pc in alive[s]) (if (s == attack) qA else qD) * fullBuy * 0.8 else 0.0
                 money[s][i] = minOf(cfg.maxMoney.toDouble(), money[s][i])
             }
             round++

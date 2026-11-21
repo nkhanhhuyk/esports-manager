@@ -49,15 +49,27 @@ object Advance {
 
     fun userPlaysOn(w: World, day: Int): Boolean = w.userOrg >= 0 && (w.schedule[day] ?: emptyList<Int>()).any { fid -> w.fixtures[fid].let { w.isUserTeam(it.a) || w.isUserTeam(it.b) } }
 
+    /** Time spent per part of the day (nanoseconds), for profiling. */
+    val timing = LongArray(6)
+
+    private inline fun timed(i: Int, f: () -> Unit) { val t = System.nanoTime(); f(); timing[i] += System.nanoTime() - t }
+
     fun day(w: World) {
         w.day++
         val d = w.day
-        Progress.startDue(w, d)
-        playFixtures(w, d)
-        daily(w)
-        if (Dates.dom(d) == 1) monthly(w)
-        if (Dates.dow(d) == 1) BoxStore.pageOut(w)
-        if (d == Season.endDay(w.season)) rollover(w)
+        timed(0) { Progress.startDue(w, d); dev.uem.em.mgmt.Patches.daily(w) }
+        timed(1) { playFixtures(w, d) }
+        timed(2) { daily(w) }
+        timed(3) {
+            if (Dates.dom(d) == 1) {
+                dev.uem.em.mgmt.Development.monthly(w)
+                dev.uem.em.mgmt.Economy.monthTick(w)
+                if (Dates.month(d) == 9) dev.uem.em.mgmt.Market.contractReminders(w)
+            }
+            if (Dates.dow(d) == 1) { BoxStore.pageOut(w); dev.uem.em.mgmt.Development.weekly(w) }
+        }
+        timed(4) { dev.uem.em.mgmt.Market.daily(w) }
+        timed(5) { if (d == Season.endDay(w.season)) rollover(w) }
     }
 
     private fun playFixtures(w: World, d: Int) {
@@ -136,26 +148,6 @@ object Advance {
         }
     }
 
-    /** Monthly development: growth toward potential before the peak age, decline after it. */
-    private fun monthly(w: World) {
-        val rng = dev.uem.em.core.Rng.derive(w.seed, "dev", w.day)
-        for (p in w.players) {
-            if (p.retired) continue
-            val t = Catalogue.get(p.titleId)
-            val age = Dates.ageFloat(p.birth, w.day)
-            var delta = 0.0
-            if (age < p.dev.peakAge) delta = maxOf(0.0, p.pa - p.ca) * 0.05 * p.dev.growthRate * (0.6 + p.attrs[Attrs.LEARNING] / 125) * (if (p.teamId >= 0) 1.0 else 0.6)
-            else if (age > p.dev.declineAge) delta = -0.22 * p.dev.declineRate * (1 + (age - p.dev.declineAge) * 0.25)
-            delta += rng.normal(0.0, 0.15)
-            if (kotlin.math.abs(delta) < 0.05) continue
-            val step = delta / 0.66
-            for (i in 0 until Attrs.COUNT) if (Attrs.ALL[i].group != AttrGroup.Development) p.attrs[i] = clamp(p.attrs[i] + step, 1.0, 99.0)
-            p.attrVersion++
-            p.ca = Ratings.computeCA(p, t)
-            if (p.ca > p.pa) p.pa = p.ca
-        }
-    }
-
     /** End of season: history, contracts, roster upkeep, next season's calendar. */
     private fun rollover(w: World) {
         for (team in w.teams) {
@@ -166,23 +158,15 @@ object Advance {
             team.history.add(TeamSeason(w.season, team.leagueId, pos, lines.sumOf { it.w }, lines.sumOf { it.l }, team.elo))
         }
         val rng = dev.uem.em.core.Rng.derive(w.seed, "rollover", w.season)
+        dev.uem.em.mgmt.Career.awards(w)
+        dev.uem.em.mgmt.Career.seasonEnd(w)
         w.season++
-        for (p in w.players) {
-            if (p.retired || p.teamId < 0 || p.contractEnd >= w.season) continue
-            val age = Dates.ageAt(p.birth, w.day)
-            if (rng.chance(if (p.ca >= 60) 0.75 else 0.5) && age < 31) {
-                p.contractEnd = w.season + rng.int(0, 2)
-            } else {
-                val team = w.teams[p.teamId]
-                team.roster.remove(p.id)
-                team.lineup.replaceAll { if (it == p.id) -1 else it }
-                p.career.add(CareerEntry(w.season, w.day, p.teamId, "released"))
-                p.teamId = -1
-            }
-        }
+        dev.uem.em.mgmt.Market.seasonEnd(w, rng)
         for (p in w.players) if (!p.retired && p.teamId < 0 && Dates.ageAt(p.birth, w.day) >= 33 && rng.chance(0.4)) p.retiredSeason = w.season
+        dev.uem.em.mgmt.Career.youthIntake(w)
         fillRosters(w)
         Season.plan(w, w.season)
+        if (!w.sacked) dev.uem.em.mgmt.Career.setupBoard(w)
         w.news.add(News(w.day, "Season ${w.season} begins", "The ${w.season} calendar is out: three splits, First Stand, MSI and Worlds."))
         w.rebuildSchedule()
     }
@@ -191,7 +175,7 @@ object Advance {
     fun fillRosters(w: World) {
         val free = w.players.filter { !it.retired && it.teamId < 0 }.groupBy { it.titleId }.mapValues { (_, v) -> v.sortedByDescending { it.ca }.toMutableList() }
         for (team in w.teams) {
-            if (!team.active) continue
+            if (!team.active || w.isUserTeam(team.id)) continue
             val t = Catalogue.get(team.titleId)
             val pool = free[team.titleId] ?: continue
             while (team.roster.size < t.teamSize + 1 && pool.isNotEmpty()) {

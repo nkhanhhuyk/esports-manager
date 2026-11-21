@@ -44,7 +44,7 @@ object MobaEngine {
         fun goldSum() = gold.sum()
     }
 
-    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, rng: Rng): GameOutcome {
+    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, rng: Rng, patch: Patch? = null): GameOutcome {
         val cfg = t.moba!!
         val tune = TUNE[t.id] ?: Tune(1.0, 1.0)
         val book = StatBook(teams, t)
@@ -154,7 +154,9 @@ object MobaEngine {
             return win
         }
 
-        fun takeObjective(o: Objective, side: Int, minute: Double) {
+        fun takeObjective(o0: Objective, side: Int, minute: Double) {
+            val mod = patch?.objValue(o0.id) ?: 1.0
+            val o = if (mod == 1.0) o0 else Objective(o0.id, o0.name, o0.spawn, o0.respawn, o0.until, o0.kind, if (o0.kind == "aegis") o0.value else o0.value * mod, o0.maxStacks, o0.soul * mod, o0.major)
             val s = sides[side]
             s.objectives++
             val jg = s.tc.players.firstOrNull { it.roleId in cfg.junglers } ?: s.tc.players[0]
@@ -249,7 +251,7 @@ object MobaEngine {
                 if (minute < nextSpawn[o.id]!!) continue
                 if (!rng.chance(0.55)) continue
                 contest(o, minute)
-                nextSpawn[o.id] = minute + o.respawn
+                nextSpawn[o.id] = minute + o.respawn * (patch?.objRespawn(o.id) ?: 1.0)
             }
             if (winner >= 0) break
             if (minute > cfg.laneEnd) {

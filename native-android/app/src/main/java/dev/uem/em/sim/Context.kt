@@ -57,12 +57,26 @@ class CompEval(val total: Double, val counter: Double, val profile: Map<String, 
  * The balance patch of a title in a season: character meta strength (−10..10) and style weights,
  * derived from the world seed (stage 1 of the native app: one patch per title per season).
  */
-class Patch(val charMeta: Map<String, Double>, val styles: Map<String, Double>) {
+class Patch(val charMeta: Map<String, Double>, val styles: Map<String, Double>, val obj: Map<String, Double> = emptyMap()) {
+    fun objValue(id: String) = obj[id] ?: 1.0
+    fun objRespawn(id: String) = obj["$id@respawn"] ?: 1.0
+
     companion object {
         private val cache = ConcurrentHashMap<String, Patch>()
-        fun of(w: World, t: TitleDef): Patch = cache.getOrPut("${w.seed}|${t.id}|${w.season}") {
-            val rng = Rng.derive(w.seed, "patch", t.id, w.season)
-            Patch(t.characters.associate { it.id to clamp(rng.normal(0.0, 2.6), -10.0, 10.0) }, t.styles.associateWith { clamp(rng.normal(1.0, 0.12), 0.7, 1.3) })
+
+        /** The title's current balance state: base meta plus every patch so far (see mgmt.Patches). */
+        fun of(w: World, t: TitleDef): Patch {
+            val n = w.patches.count { it.titleId == t.id }
+            return cache.getOrPut("${w.seed}|${t.id}|$n") {
+                val styles = HashMap<String, Double>()
+                for (s in t.styles) styles[s] = 1.0
+                val obj = HashMap<String, Double>()
+                for (p in w.patches) if (p.titleId == t.id) {
+                    for ((k, v) in p.styleDelta) styles[k] = clamp((styles[k] ?: 1.0) + v, 0.7, 1.3)
+                    for ((k, v) in p.objMods) obj[k] = if (k == "defender") (obj[k] ?: 0.0) + v else clamp((obj[k] ?: 1.0) * v, 0.5, 2.0)
+                }
+                Patch(dev.uem.em.mgmt.PatchState.metaOf(w, t), styles, obj)
+            }
         }
     }
 }
@@ -87,7 +101,7 @@ object TeamContexts {
     fun build(w: World, team: Team, lineup: List<Int>, idx: Int, chars: Map<Int, String>?, mapId: String?, pressure: Double, rng: Rng?): TeamCtx {
         val t = dev.uem.em.titles.Catalogue.get(team.titleId)
         val players = lineup.mapIndexedNotNull { i, pid -> if (pid >= 0) player(w, t, pid, t.lineupRoles[i], chars?.get(pid), mapId, pressure, rng) else null }
-        val coach = 0.985 + 0.03 * (team.coach / 100)
+        val coach = 0.985 + 0.03 * (dev.uem.em.mgmt.Economy.coachQuality(w, team) / 100) * dev.uem.em.mgmt.Economy.prepFactor(w, team)
         val chem = 0.95 + 0.1 * (team.chemistry / 100)
         val meta = 0.97 + 0.04 * (team.metaAdapt / 100)
         val form = if (rng != null) 1 + rng.normal(0.0, TEAM_FORM_SD) else 1.0

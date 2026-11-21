@@ -34,6 +34,7 @@ class ScreenshotTest {
         val w = WorldGen.create(TestData.source, "shots", "Shots", Dates.day(2026, 11, 21))
         val t1 = w.teams.first { it.name == "T1" }
         w.userOrg = t1.orgId
+        dev.uem.em.mgmt.Career.setupBoard(w)
         Advance.run(w, 75)
         val vm = GameVm(ApplicationProvider.getApplicationContext())
         vm.setWorldForTest(w)
@@ -41,7 +42,7 @@ class ScreenshotTest {
         val comp = w.comps.first { it.leagueId == t1.leagueId && it.season == w.season }
         val match = w.fixtures.last { it.done && (it.a == t1.id || it.b == t1.id) }
         val faker = w.players.first { it.handle == "Faker" }
-        val shots = listOf("home" to Screen.Home, "comp" to Screen.Comp(comp.id), "team" to Screen.Team(t1.id), "player" to Screen.Player(faker.id), "match" to Screen.Match(match.id), "comps" to Screen.Comps)
+        val shots = listOf("home" to Screen.Home, "comp" to Screen.Comp(comp.id), "team" to Screen.Team(t1.id), "player" to Screen.Player(faker.id), "match" to Screen.Match(match.id), "comps" to Screen.Comps, "squad" to Screen.Squad, "market" to Screen.Market, "finances" to Screen.Finances, "inbox" to Screen.Inbox, "board" to Screen.Board, "patches" to Screen.Patches, "more" to Screen.More)
         vm.tab(Screen.Home)
         rule.setContent { AppRoot(vm) {} }
         for ((name, s) in shots) {
