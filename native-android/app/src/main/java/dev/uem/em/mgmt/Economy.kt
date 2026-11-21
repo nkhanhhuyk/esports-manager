@@ -103,9 +103,11 @@ object Economy {
             ops += v * 0.06 / 12 + 1500 * (0.4 + GameData.economy(team.region))
         }
         val sponsor = org.sponsors.filter { it.untilSeason >= w.season }.sumOf { it.perMonth }
-        val merch = Supporters.merchandise(org, econ)
+        val merch = Supporters.merchandise(org, econ) * Commerce.merchFactor(org)
+        val streaming = Commerce.streaming(w, org)
         val facilities = org.facilities.sumOf { Math.pow(it.toDouble(), 1.5) * 350 } * (0.4 + econ)
-        return Breakdown(mapOf("Sponsorship" to sponsor, "Media" to media, "Merchandise" to merch), mapOf("Player salaries" to salaries, "Staff salaries" to staff, "Facilities" to facilities, "Operations" to ops))
+        return Breakdown(mapOf("Sponsorship" to sponsor, "Media" to media, "Merchandise" to merch, "Streaming" to streaming),
+            mapOf("Player salaries" to salaries, "Staff salaries" to staff, "Facilities" to facilities, "Operations" to ops, "Merchandise operations" to Commerce.merchCost(org)))
     }
 
     /** First day of each month: every organisation's finances. */
@@ -133,6 +135,8 @@ object Economy {
 
     private fun renewSponsors(w: World, org: Org, rng: Rng) {
         org.sponsors.removeAll { it.untilSeason < w.season }
+        // Your organisation negotiates its own deals (unless commercial work is delegated).
+        if (org.id == w.userOrg && !Roles.delegated(w, "sponsors")) { Commerce.offers(w, org, rng); return }
         val target = if (org.rep >= 70) 4 else if (org.rep >= 45) 3 else 2
         val value = org.teams.sumOf { divisionValue(w, w.teams[it]) } * 0.065 * (0.5 + org.rep / 100)
         while (org.sponsors.size < target) {
@@ -160,7 +164,7 @@ object Economy {
             val repGain = when (c.tier) { CompTier.WORLDS -> 6.0; CompTier.INTERNATIONAL -> 3.5; CompTier.LEAGUE -> 1.5; else -> 0.5 } * (if (i == 0) 1.0 else if (i < 4) 0.4 else 0.1)
             org.rep = clamp(org.rep + repGain, 1.0, 99.0)
             org.fans *= 1 + repGain / 60
-            if (i == 0) org.prestige += c.prestige / 10.0
+            if (i == 0) { org.prestige += c.prestige / 10.0; Commerce.trophyBonus(w, org, c.name) }
         }
     }
 

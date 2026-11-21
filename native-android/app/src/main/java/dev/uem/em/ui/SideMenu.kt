@@ -66,6 +66,7 @@ fun SideMenu(vm: GameVm, w: World, content: @Composable (open: () -> Unit) -> Un
                 item("Players") { go(Screen.Players) }
                 item("Stats hub") { go(Screen.Stats) }
                 item("Tier lists") { go(Screen.Tiers) }
+                item("Solo queue ladders", "ranks on every server; unsigned talent") { go(Screen.SoloQ) }
                 item("Patch notes") { go(Screen.Patches) }
                 item("History & awards") { go(Screen.History) }
                 item("World, nations & rankings") { go(Screen.World) }

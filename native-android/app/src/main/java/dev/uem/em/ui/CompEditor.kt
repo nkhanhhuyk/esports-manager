@@ -86,6 +86,8 @@ fun CompEditorScreen(vm: GameVm, w: World) {
                 Tabs(bos.map { "Bo$it" }, bos.indexOf(c.boPlayoff).coerceAtLeast(0)) { c.boPlayoff = bos[it]; changed() }
                 Tabs(bos.map { "Final Bo$it" }, bos.indexOf(c.boFinal).coerceAtLeast(0)) { c.boFinal = bos[it]; changed() }
                 if (Catalogue.get(c.titleId).isMoba) { Muted("Draft rule", 11); val f = listOf("none", "soft", "hard", "insane"); Tabs(listOf("Normal", "Soft Fearless", "Fearless", "Insane Fearless"), f.indexOf(c.fearless).coerceAtLeast(0)) { c.fearless = f[it]; changed() } }
+                if (Catalogue.get(c.titleId).isMoba) { Muted("Coach comms in fights (3 × 45 s per game)", 11); Tabs(listOf("Game's rule", "Allowed", "Not allowed"), when (c.coachComms) { 1 -> 1; 0 -> 2; else -> 0 }) { c.coachComms = when (it) { 1 -> 1; 2 -> 0; else -> -1 }; changed() } }
+                else { Muted("Tactical timeouts per team per map", 11); val opts = listOf(-1, 0, 1, 2, 3, 4); Tabs(listOf("Default") + opts.drop(1).map { "$it" }, opts.indexOf(c.timeouts).coerceAtLeast(0)) { c.timeouts = opts[it]; changed() } }
             }
         }
         item {

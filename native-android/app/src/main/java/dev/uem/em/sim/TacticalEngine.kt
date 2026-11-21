@@ -12,7 +12,15 @@ import kotlin.math.abs
  * duels by aim / entry / clutch, trades, plants and defuses, halves and overtime. Team 0 / 1 are the
  * series teams; `firstAttack` is the team attacking (T side) in the first half.
  */
+/**
+ * Tactical timeouts for a map: how many each team may call, which teams' coaches call them on their
+ * own (after losing streaks, at map point), and timeouts the user called before given rounds.
+ */
+class TimeoutPlan(val allowed: Int, val auto: BooleanArray = booleanArrayOf(true, true), val manual: List<Pair<Int, Int>> = emptyList(), val coachQ: DoubleArray = doubleArrayOf(50.0, 50.0))
+
 object TacticalEngine {
+    /** Timeouts per team per map by default (CS2 3, Valorant 2). */
+    fun defaultTimeouts(titleId: String) = if (titleId == "cs2") 3 else 2
     private const val DUEL_SCALE = 26.0
     private const val COORDINATION = 44
     private const val CROSSHAIR = 74
@@ -58,7 +66,17 @@ object TacticalEngine {
         return out
     }
 
-    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, firstAttack: Int, rng: Rng, patch: Patch? = null, rec: Recorder? = null, mapId: String? = null): GameOutcome {
+    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, firstAttack: Int, rng0: Rng, patch: Patch? = null, rec: Recorder? = null, mapId: String? = null, plan: TimeoutPlan? = null): GameOutcome {
+        // Each round draws from its own stream (map seed + round), so a timeout called before a round
+        // replays every earlier round exactly as it was.
+        val seedKey = "${rng0.next()}"
+        var rng = rng0
+        val tp = plan ?: TimeoutPlan(defaultTimeouts(t.id))
+        val usedTo = IntArray(2)
+        val boostUntil = IntArray(2) { -1 }
+        val winStreak = IntArray(2)
+        // Momentum and timeouts scale the players' ratings for a round (originals kept here).
+        val basePhase = Array(2) { s -> teams[s].players.map { it.phase.copyOf() } }
         val smap = (mapId ?: t.maps.firstOrNull()?.id)?.let { dev.uem.em.ui.Maps.shooter(it) }
         if (rec != null && smap != null) { rec.step = 1; rec.posN = teams[0].players.size + teams[1].players.size + 1 }
         var clock = 0
@@ -104,7 +122,25 @@ object TacticalEngine {
         fun duel(pc: PlayerCtx, initiating: Boolean) = pc.phase[AIM] * 0.68 + (if (initiating) pc.phase[ENTRY] else pc.phase[CL]) * 0.2 + pc.phase[MOV] * 0.12
 
         while (true) {
+            rng = Rng.derive(seedKey, round)
             val def = 1 - attack
+            // Tactical timeouts: before this round, by the user's call or the coach's judgement.
+            for (s0 in 0..1) {
+                if (usedTo[s0] >= tp.allowed || round == 0) continue
+                val manual = tp.manual.any { it.first == s0 && it.second == round }
+                val mapPoint = !ot && score[1 - s0] == cfg.roundsToWin - 1 && score[s0] < cfg.roundsToWin - 1
+                val auto = tp.auto[s0] && ((streak[s0] >= 3 && rng.chance(0.5 + tp.coachQ[s0] / 300)) || (mapPoint && rng.chance(0.3)))
+                if (manual || auto) {
+                    usedTo[s0]++
+                    boostUntil[s0] = round + 1
+                    winStreak[1 - s0] = 0 // breaks the opponents' momentum
+                    events?.add(Ev(if (smap != null) clock else round, "timeout", s0, a = tp.allowed - usedTo[s0], n = round))
+                }
+            }
+            for (s0 in 0..1) {
+                val f = 1.0 + (if (winStreak[s0] >= 3) 0.015 else 0.0) + (if (boostUntil[s0] >= round) 0.012 + 0.02 * tp.coachQ[s0] / 100 else 0.0)
+                teams[s0].players.forEachIndexed { i, pc -> val b = basePhase[s0][i]; for (k in b.indices) pc.phase[k] = b[k] * f }
+            }
             val pistol = (round == 0 || round == cfg.half) && !ot
             val bA = buyFor(attack, pistol)
             val bD = buyFor(def, pistol)
@@ -252,6 +288,7 @@ object TacticalEngine {
             }
             streak[rw] = 0
             streak[lr]++
+            winStreak[rw]++; winStreak[lr] = 0
             for (s in 0..1) teams[s].players.forEachIndexed { i, pc ->
                 carried[s][i] = if (pc in alive[s]) (if (s == attack) qA else qD) * fullBuy * 0.8 else 0.0
                 money[s][i] = minOf(cfg.maxMoney.toDouble(), money[s][i])
@@ -269,7 +306,7 @@ object TacticalEngine {
                 }
                 if (round == cfg.half) {
                     attack = 1 - attack
-                    for (s in 0..1) { money[s].fill(cfg.startMoney.toDouble()); carried[s].fill(0.0); streak[s] = 0 }
+                    for (s in 0..1) { money[s].fill(cfg.startMoney.toDouble()); carried[s].fill(0.0); streak[s] = 0; winStreak[s] = 0 }
                 }
             } else {
                 otRound++
@@ -285,6 +322,7 @@ object TacticalEngine {
                 }
             }
         }
+        for (s0 in 0..1) teams[s0].players.forEachIndexed { i, pc -> basePhase[s0][i].copyInto(pc.phase) }
         val winner = if (score[0] > score[1]) 0 else if (score[1] > score[0]) 1 else if (rng.chance(0.5)) 0 else 1
         val rounds = score[0] + score[1]
         book.finalise()

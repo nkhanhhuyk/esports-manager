@@ -93,6 +93,16 @@ object Patches {
             }
         }
         if (kind == "major") notes.addAll(dev.uem.em.comp.Fearless.evolve(w, t, rng))
+        // Competitive ruleset: coach comms in fights (MOBAs), introduced or withdrawn with a major patch.
+        if (kind == "major" && t.isMoba) {
+            if (t.id !in w.coachCommsTitles && rng.chance(0.4)) {
+                w.coachCommsTitles.add(t.id)
+                notes.add(0, "Competitive rules: coaches may now join team voice during fights — three times per game, 45 seconds each. Each competition decides whether to allow it.")
+            } else if (t.id in w.coachCommsTitles && rng.chance(0.15)) {
+                w.coachCommsTitles.remove(t.id)
+                notes.add(0, "Competitive rules: coach comms during fights are withdrawn (competitions can still allow them).")
+            }
+        }
         w.patches.add(PatchRec(t.id, "${t.short} $version", w.day, kind, notes, delta, style, obj))
         val label = when (kind) { "major" -> "Major patch"; "medium" -> "Patch"; else -> "Minor patch" }
         w.news.add(News(w.day, "$label ${t.short} $version", notes.take(3).joinToString("; ") + if (notes.size > 3) "; …" else ""))

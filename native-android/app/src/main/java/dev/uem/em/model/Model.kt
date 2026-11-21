@@ -75,6 +75,13 @@ class World(
     val customComps: MutableList<CustomComp> = ArrayList(),
     /** Folder name of this save's box-score pages (blank: the world name). Each save file has its own. */
     var pagesKey: String = "",
+    /** Sponsorship offers waiting for your answer. */
+    val sponsorOffers: MutableList<SponsorOffer> = ArrayList(),
+    var nextOfferId: Int = 1,
+    /** League import limits changed by the commissioner (league id → imports allowed in a lineup, -1 none). */
+    val importRules: MutableMap<Int, Int> = HashMap(),
+    /** Games whose rules allow coach comms in fights (introduced by a patch). */
+    val coachCommsTitles: MutableList<String> = ArrayList(),
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -147,6 +154,20 @@ class Player(
     /** Pre-contract: joins this team when the season ends. */
     var preContractTeam: Int = -1,
     var preContractSalary: Double = 0.0,
+    /** Solo queue: ladder rating (0 = not placed yet), this season's games / wins, season peak, last week's change. */
+    var soloMmr: Double = 0.0,
+    var soloGames: Int = 0,
+    var soloWins: Int = 0,
+    var soloPeak: Double = 0.0,
+    var soloDelta: Double = 0.0,
+    /** How much the player likes to grind solo queue (-1..1); set when first placed. */
+    var soloGrind: Double = 0.0,
+    /** Found on the ladder: an amateur who has never played professionally. */
+    var amateur: Boolean = false,
+    /** Past seasons on the ladder: "season|final rating|games|wins|peak". */
+    var soloHistory: MutableList<String> = ArrayList(),
+    /** An import waiting for a work visa cannot play until this day. */
+    var visaUntil: Int = 0,
 ) {
     val retired get() = retiredSeason != 0
     val mainRole get() = roles[0]
@@ -201,6 +222,8 @@ class Team(
     var dataNote: String = "",
     /** Main team this academy develops players for (-1 = not an academy). */
     var parentId: Int = -1,
+    /** Solo queue practice the team asks of its players: 0 light, 1 normal, 2 heavy. */
+    var soloFocus: Int = 1,
 )
 
 @Serializable
@@ -229,6 +252,10 @@ class Org(
     var facilities: IntArray = intArrayOf(3, 3, 3),
     /** Supporters by segment: core, casual, local, international. */
     @ProtoPacked var fanSeg: DoubleArray = DoubleArray(0),
+    /** Players' streaming: 0 none, 1 normal, 2 heavy (more money and fans, less practice). */
+    var streamPolicy: Int = 1,
+    /** Merchandise range: 0 basic, 1 standard, 2 premium, 3 global (costs to run, sells more). */
+    var merchLevel: Int = 1,
 )
 
 @Serializable
@@ -284,6 +311,10 @@ class Competition(
     var finalBo: Int = 0,
     /** User-created competition this edition belongs to (-1 = official calendar). */
     var customId: Int = -1,
+    /** Coach comms in fights: -1 the game's rule, 0 not allowed, 1 allowed. */
+    var coachComms: Int = -1,
+    /** Tactical timeouts per team per map in shooters (-1: the game's default). */
+    var timeouts: Int = -1,
 ) {
     val done get() = status == 2
 }
@@ -433,7 +464,11 @@ class Staff(
 }
 
 @Serializable
-class Sponsor(val name: String, val perMonth: Double, val untilSeason: Int)
+class Sponsor(val name: String, val perMonth: Double, val untilSeason: Int, val bonus: Double = 0.0, val industry: String = "")
+
+/** A sponsorship offer to your organisation: accept, reject or negotiate (ask for more). */
+@Serializable
+class SponsorOffer(val id: Int, val orgId: Int, val name: String, var perMonth: Double, var seasons: Int, var bonus: Double, val expires: Int, var round: Int = 0, val industry: String = "", var note: String = "")
 
 @Serializable
 class LedgerLine(val day: Int, val kind: String, val amount: Double, val note: String = "")
@@ -534,4 +569,8 @@ class CustomComp(
     var published: Boolean = false,
     var cancelled: Boolean = false,
     val editions: MutableList<Int> = ArrayList(),
+    /** Coach comms in MOBA fights: -1 the game's rule, 0 not allowed, 1 allowed. */
+    var coachComms: Int = -1,
+    /** Tactical timeouts per team per map in shooters (-1: the game's default). */
+    var timeouts: Int = -1,
 )

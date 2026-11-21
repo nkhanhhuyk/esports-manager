@@ -93,6 +93,9 @@ fun LiveScreen(vm: GameVm, w: World, live: LiveMatch) {
             "draft" -> DraftView(live)
             "watch" -> {
                 val g = live.game
+                // Your shooter maps: tactical timeouts from the viewer.
+                LiveHooks.onTimeout = if (live.me >= 0 && !s.t.isMoba) { r, sec -> live.callTimeout(r, sec) } else null
+                LiveHooks.timeoutsLeft = live.timeoutsLeft()
                 val done: @Composable () -> Unit = { LaunchedEffect(g) { revealed = true }; WatchDone(live) }
                 if (g != null) { if (s.t.isMoba) MobaViewer(w, s.f, g, done) else TacticalViewer(w, s.f, g, done) }
             }
@@ -207,4 +210,11 @@ private fun ResultView(vm: GameVm, w: World, live: LiveMatch) {
             }
         }
     }
+}
+
+
+/** Hooks from the live screen into the replay viewer (tactical timeouts in your shooter maps). */
+object LiveHooks {
+    @Volatile var onTimeout: ((beforeRound: Int, atSeconds: Int) -> Unit)? = null
+    @Volatile var timeoutsLeft: Int = 0
 }

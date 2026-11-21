@@ -90,6 +90,7 @@ object Advance {
                 if (Dates.month(d) == 9) dev.uem.em.mgmt.Market.contractReminders(w)
             dev.uem.em.mgmt.Deals.monthly(w)
             dev.uem.em.mgmt.Supporters.monthly(w)
+            dev.uem.em.mgmt.SoloQueue.monthlyAmateurs(w)
             }
             if (Dates.dow(d) == 1) {
                 BoxStore.pageOut(w)
@@ -97,6 +98,8 @@ object Advance {
                 dev.uem.em.mgmt.Extras.weeklyBreaks(w)
                 dev.uem.em.mgmt.Extras.weeklyScouting(w)
                 dev.uem.em.mgmt.Deals.weeklyScrims(w)
+                dev.uem.em.mgmt.SoloQueue.weekly(w)
+                dev.uem.em.mgmt.Commerce.weekly(w)
             }
         }
         timed(4) { dev.uem.em.mgmt.Market.daily(w); dev.uem.em.mgmt.Roles.daily(w) }
@@ -218,6 +221,7 @@ object Advance {
         for (p in w.players) if (!p.retired) p.caHistory.add(p.ca.toFloat())
         BoxStore.pruneReplays(w, w.day - 700)
         w.season++
+        dev.uem.em.mgmt.SoloQueue.rollover(w)
         dev.uem.em.mgmt.Deals.returnLoans(w)
         dev.uem.em.mgmt.Deals.executePreContracts(w)
         dev.uem.em.mgmt.Market.seasonEnd(w, rng)
@@ -250,6 +254,7 @@ object Advance {
                 val pick = (if (need != null) pool.firstOrNull { it.roles[0] == need } ?: pool.firstOrNull { it.roles.getOrNull(1) == need } else null) ?: pool[0]
                 pool.remove(pick)
                 pick.teamId = team.id
+                dev.uem.em.mgmt.Imports.onJoin(w, pick, team)
                 pick.contractEnd = w.season + 1
                 pick.salary = (t.baseSalary * Math.pow(maxOf(20.0, pick.ca) / 70, 4.0) / 100).roundToInt() * 100.0
                 team.roster.add(pick.id)

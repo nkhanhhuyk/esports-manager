@@ -84,7 +84,7 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
             Tiles(listOf(
                 Tile("Strength", "%.1f".format(Lineups.strength(w, team)), color = Rate.color(Lineups.strength(w, team))),
                 Tile("Elo", "${team.elo.toInt()}", "rank ${w.teams.filter { it.titleId == team.titleId && it.active }.sortedByDescending { it.elo }.indexOf(team) + 1} in ${t.short}"),
-                Tile("Chemistry", "%.0f".format(team.chemistry), color = Rate.color(team.chemistry)),
+                Tile("Chemistry", "%.0f".format(dev.uem.em.mgmt.Chemistry.lineup(w, team, team.lineup)), "cohesion %.0f".format(team.chemistry), color = Rate.color(dev.uem.em.mgmt.Chemistry.lineup(w, team, team.lineup))),
                 Tile("Meta adaptation", "%.0f".format(team.metaAdapt), color = Rate.color(team.metaAdapt)),
                 Tile("Payroll", formatMoney(playerPay), "${team.roster.size} players"),
                 Tile("Staff cost", formatMoney(staffPay), "${staff.size} staff"),
@@ -96,7 +96,7 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
         item { Tabs(TEAM_TABS, tab) { tab = it } }
         item {
             when (tab) {
-                0 -> TeamRoster(vm, w, team, t)
+                0 -> { TeamRoster(vm, w, team, t); TeamChemistryCard(vm, w, team) }
                 1 -> TeamSchedule(vm, w, team)
                 2 -> TeamStats(vm, w, team, t)
                 3 -> TeamStaff(vm, w, team)
@@ -371,6 +371,38 @@ private fun TeamRegistration(vm: GameVm, w: World, team: Team, t: TitleDef) {
                 FlowRow { for (pid in reg.players) Pill(w.players[pid].handle + if (pid !in team.roster) " (left)" else "") { vm.go(Screen.Player(pid)) } }
                 val missing = team.roster.filter { it !in reg.players }
                 if (missing.isNotEmpty()) Muted("Not registered: ${missing.joinToString { w.players[it].handle }}", 11)
+            }
+        }
+    }
+}
+
+
+/** Lineup chemistry (pairs and drilled cohesion) and the league's import rule. */
+@Composable
+private fun TeamChemistryCard(vm: GameVm, w: World, team: Team) {
+    val pairs = remember(team.id, vm.version) { dev.uem.em.mgmt.Chemistry.pairs(w, team) }
+    Card("Chemistry", right = { Muted("lineup %.0f".format(dev.uem.em.mgmt.Chemistry.lineup(w, team, team.lineup)), 11) }) {
+        Muted("Time together, a shared language, personalities and settled duos build chemistry; scrims and a settled roster build cohesion (%.0f). Better chemistry means better teamfights, rotations and trades.".format(team.chemistry), 11)
+        @Composable fun line(pr: dev.uem.em.mgmt.Chemistry.Pair) = Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            PlayerLink(w, pr.a, size = 12.sp); Text(" & ", color = Ui.muted, fontSize = 12.sp); PlayerLink(w, pr.b, size = 12.sp)
+            Text("  ${pr.value.toInt()}", color = Rate.color(pr.value), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("  " + pr.reasons.joinToString(", "), color = Ui.muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        }
+        if (pairs.isNotEmpty()) {
+            Gap(4); Text("Strongest pairs", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            for (pr in pairs.take(3)) line(pr)
+            Text("Weakest pairs", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            for (pr in pairs.takeLast(3).reversed()) line(pr)
+        }
+        if (team.leagueId >= 0) {
+            Gap(6)
+            val imports = team.roster.filter { dev.uem.em.mgmt.Imports.isImport(w, w.players[it], team) }
+            KV("Imports", "${imports.size} on the roster · league rule: ${dev.uem.em.mgmt.Imports.ruleText(w, team)}")
+            val waiting = team.roster.filter { w.players[it].visaUntil > w.day }
+            if (waiting.isNotEmpty()) Muted("Waiting for a work visa: " + waiting.joinToString { "${w.players[it].handle} (until ${Dates.short(w.players[it].visaUntil)})" }, 11)
+            if (w.role == "commissioner") Row(verticalAlignment = Alignment.CenterVertically) {
+                Muted("Commissioner: imports allowed in this league ", 11)
+                for (v in listOf(-1, 1, 2, 3, 5)) Pill(if (v < 0) "no limit" else "$v") { w.importRules[team.leagueId] = v; vm.edit() }
             }
         }
     }

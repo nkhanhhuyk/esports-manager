@@ -132,6 +132,7 @@ object Market {
         if (p.teamId != team.id) {
             if (p.teamId >= 0) leave(w, p, "transferred")
             p.teamId = team.id
+            dev.uem.em.mgmt.Imports.onJoin(w, p, team)
             team.roster.add(p.id)
             p.joinedDay = w.day
             p.career.add(CareerEntry(w.season, w.day, team.id, type))
@@ -153,6 +154,7 @@ object Market {
         }
         Economy.ledger(w, w.orgs[buyer.orgId], "transfer-out", -fee, "Bought ${p.handle}${seller?.let { " from ${it.name}" } ?: ""}")
         p.teamId = buyer.id
+        dev.uem.em.mgmt.Imports.onJoin(w, p, buyer)
         buyer.roster.add(p.id)
         p.joinedDay = w.day
         p.salary = salary

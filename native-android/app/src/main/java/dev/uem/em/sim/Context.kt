@@ -103,7 +103,7 @@ object TeamContexts {
         val t = dev.uem.em.titles.Catalogue.get(team.titleId)
         val players = lineup.mapIndexedNotNull { i, pid -> if (pid >= 0) player(w, t, pid, t.lineupRoles[i], chars?.get(pid), mapId, pressure, rng) else null }
         val coach = (0.985 + 0.03 * (dev.uem.em.mgmt.Economy.coachQuality(w, team) / 100)) * dev.uem.em.mgmt.Economy.prepFactor(w, team) * (1 + (team.scrims.coerceIn(0, 6) - 2) * 0.002)
-        val chem = 0.95 + 0.1 * (team.chemistry / 100)
+        val chem = 0.93 + 0.14 * (dev.uem.em.mgmt.Chemistry.lineup(w, team, lineup) / 100)
         val meta = 0.97 + 0.04 * (team.metaAdapt / 100)
         val form = if (rng != null) 1 + rng.normal(0.0, TEAM_FORM_SD) else 1.0
         val n = Phase.entries.size

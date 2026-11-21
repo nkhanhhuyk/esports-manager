@@ -8,7 +8,7 @@ import dev.uem.em.titles.Catalogue
 
 /** Lineup selection: greedy maximum-effectiveness assignment of available players to positions. */
 object Lineups {
-    fun available(w: World, p: Player) = !p.retired && p.injuryUntil <= w.day
+    fun available(w: World, p: Player) = !p.retired && p.injuryUntil <= w.day && p.visaUntil <= w.day
 
     fun auto(w: World, team: Team): MutableList<Int> {
         val t = Catalogue.get(team.titleId)
@@ -28,11 +28,19 @@ object Lineups {
         pairs.sortByDescending { it.e }
         val slots = IntArray(roles.size) { -1 }
         val used = HashSet<Int>()
+        // League import limit: once the lineup holds the allowed number of imports, other imports are skipped.
+        val cap = dev.uem.em.mgmt.Imports.cap(w, team)
+        var imports = 0
         for (pr in pairs) {
             if (slots[pr.ri] >= 0 || pr.p.id in used) continue
+            val imp = cap >= 0 && dev.uem.em.mgmt.Imports.isImport(w, pr.p, team)
+            if (imp && imports >= cap) continue
             slots[pr.ri] = pr.p.id
             used.add(pr.p.id)
+            if (imp) imports++
         }
+        // A slot nobody local can fill still gets the best remaining player (an empty seat is worse).
+        for (i in slots.indices) if (slots[i] < 0) pairs.firstOrNull { it.ri == i && it.p.id !in used }?.let { slots[i] = it.p.id; used.add(it.p.id) }
         return slots.toMutableList()
     }
 

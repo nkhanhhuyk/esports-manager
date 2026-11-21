@@ -41,12 +41,15 @@ object MobaEngine {
         "mlbb" to Rules(27f, 25, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 70, intArrayOf(4, 8, 12), true, false, 1f, 1.0, 1.35, 1f, 0.05f),
         "wildrift" to Rules(26f, 30, 5, 5, 15, 17.0, 80f, 2900f, 4400f, 270f, 90, intArrayOf(5, 9, 13), true, false, 1f, 1.0, 1.35, 1f, 0.05f),
         "hok" to Rules(27f, 30, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 75, intArrayOf(4, 8, 12), true, false, 1f, 1.1, 1.55, 1f, 0.12f),
-        "lol" to Rules(22f, 65, 6, 8, 18, 34.0, 80f, 4200f, 5400f, 300f, 120, intArrayOf(6, 11, 16), true, false, 1f, 0.7, 1.7, 1f, 0.35f),
+        "lol" to Rules(22f, 65, 6, 8, 18, 34.0, 80f, 4200f, 5400f, 300f, 120, intArrayOf(6, 11, 16), true, false, 1f, 0.7, 1.7, 1f, 0.55f),
         "dota2" to Rules(20f, 0, 4, 0, 30, 50.0, 100f, 4400f, 6000f, 290f, 60, intArrayOf(6, 12, 18), false, true, 1f, 1.4, 1.15, 2.3f),
     )
 
-    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, rng: Rng, patch: Patch? = null, rec: Recorder? = null): GameOutcome =
-        MobaSim(t, teams, comp, rng, patch, rec).run()
+    /** Match rules for the engine: coach comms allowed, and each side's head coach (0..100). */
+    class Opts(val coachComms: Boolean = false, val coachQ: DoubleArray = doubleArrayOf(50.0, 50.0))
+
+    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, rng: Rng, patch: Patch? = null, rec: Recorder? = null, opts: Opts = Opts()): GameOutcome =
+        MobaSim(t, teams, comp, rng, patch, rec, opts).run()
 
     /** Map lane id for a title lane index (Dota 2 safe lanes are on opposite sides). */
     fun laneId(t: TitleDef, engineLane: Int, side: Int): String = when {
@@ -74,7 +77,11 @@ object MobaEngine {
     @Volatile var debug: ((String) -> Unit)? = null
 }
 
-private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array<CompEval>, val rng: Rng, val patch: Patch?, val rec: Recorder?) {
+private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array<CompEval>, val rng: Rng, val patch: Patch?, val rec: Recorder?, val opts: MobaEngine.Opts = MobaEngine.Opts()) {
+    /** Coach comms: three 45-second calls per game when the rules allow them. */
+    val commsLeft = IntArray(2) { if (opts.coachComms) 3 else 0 }
+    val commsUntil = IntArray(2)
+    val commsMul = FloatArray(2) { 1.03f + 0.05f * (opts.coachQ.getOrElse(it) { 50.0 } / 100).toFloat() }
     val cfg = t.moba!!
     val R = MobaEngine.RULES[t.id] ?: MobaEngine.RULES["lol"]!!
     val map = MobaMap.of(t.id)
@@ -372,7 +379,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     fun damage(src: Hero?, srcSide: Int, target: Hero, amount0: Float, type: Int) {
         if (!target.alive(now) || target.immuneUntil > nowF && type != 2) return
         var amount = amount0
-        if (src != null) amount *= src.vs[target.gi]
+        if (src != null) { amount *= src.vs[target.gi]; if (commsUntil[src.side] > now) amount *= commsMul[src.side] }
         if (type != 2) amount *= 1f - target.resist()
         if (target.reduceUntil > nowF) amount *= 1f - target.reducePct
         if (src != null && executeUntil[srcSide] > now && target.hpPct() < 0.2f) amount = target.hp + target.shield + 1f
@@ -592,7 +599,18 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         var close = 0
         if (n > 0) for (h in heroes) if (h.alive(now) && h.lastCombat >= now - 2 && hypot(h.x - cx, h.y - cy) < 110f) close++
         if (close >= 6 && s0 >= 2 && s1 >= 2) {
-            if (fightStart < 0) { fightStart = now; fightKills[0] = 0; fightKills[1] = 0; fightN = 0 }
+            if (fightStart < 0) {
+                fightStart = now; fightKills[0] = 0; fightKills[1] = 0; fightN = 0
+                // Coaches may jump on comms for the big fights (objectives, late game, five against five).
+                for (sd in 0..1) if (commsLeft[sd] > 0 && commsUntil[sd] <= now) {
+                    val big = locCode(cx, cy) >= 10 || now / 60.0 > cfg.laneEnd * 1.5 || close >= 8
+                    val q = opts.coachQ.getOrElse(sd) { 50.0 }
+                    if (big && rng.chance((0.35 + q / 200) * (if (now / 60.0 > cfg.avgLength * 0.8) 1.3 else 1.0))) {
+                        commsLeft[sd]--; commsUntil[sd] = now + 45
+                        ev(Ev(now, "comms", sd, a = commsLeft[sd], n = MobaEngine.packPos(cx, cy)))
+                    }
+                }
+            }
             fightLast = now; fightX = cx; fightY = cy; fightN = max(fightN, close)
         } else if (fightStart >= 0 && now - fightLast > 5) {
             if (fightKills[0] + fightKills[1] > 0) {

@@ -134,10 +134,40 @@ class LiveMatch(val w: World, fixtureId: Int, spectatorWanted: Boolean = false, 
         bump()
     }
 
+    /** Rounds before which you called a tactical timeout in the current map (shooters, your matches). */
+    val myTimeouts = ArrayList<Int>()
+
+    /** Your team's timeouts are yours to call in a live map; the other coach calls his own. */
+    private fun timeoutPlan(): dev.uem.em.sim.TimeoutPlan? = if (series.t.isMoba || me < 0) null
+        else dev.uem.em.sim.TimeoutPlan(series.timeoutsAllowed, BooleanArray(2) { it != me }, myTimeouts.map { me to it }, doubleArrayOf(series.coachQ(0), series.coachQ(1)))
+
+    fun timeoutsLeft(): Int {
+        val g = game ?: return 0
+        val used = g.replay?.let { rp -> dev.uem.em.sim.ReplayCodec.events(rp, series.t).count { it.kind == "timeout" && it.team == me } } ?: 0
+        return (series.timeoutsAllowed - used).coerceAtLeast(0)
+    }
+
+    /**
+     * Call a tactical timeout before round `beforeRound` of the map being watched: the map is played
+     * again from there (every earlier round stays exactly as it was) and the view keeps its place.
+     */
+    fun callTimeout(beforeRound: Int, atSeconds: Int) {
+        if (me < 0 || stage != "watch" || series.t.isMoba || timeoutsLeft() <= 0) return
+        val s = setup ?: return
+        val d = draft ?: return
+        myTimeouts.add(beforeRound)
+        series.undoLast()
+        ReplayJump.seconds = atSeconds
+        game = series.play(s, d.runAll(), record = true, timeouts = timeoutPlan())
+        persist()
+        bump()
+    }
+
     fun startGame() {
         val s = setup ?: return
         val d = draft ?: return
-        game = series.play(s, d.runAll(), record = true)
+        myTimeouts.clear()
+        game = series.play(s, d.runAll(), record = true, timeouts = timeoutPlan())
         stage = "watch"
         persist()
         bump()

@@ -44,6 +44,8 @@ class ShooterRound(
     val weapons: Array<Array<Weapon>>, val armor: Array<IntArray>, val utility: Array<Array<MutableList<String>>>, val kit: Array<BooleanArray>,
     val timeBase: Int, val rec: Recorder?, val host: Host,
 ) {
+    /** First-shot edge of a defender holding an angle (Valorant's abilities give attackers more ways to clear angles). */
+    private val holdEdge = if (t.id == "valorant") 0.25f else 0.32f
     interface Host {
         fun kill(ks: Int, killer: PlayerCtx, victim: PlayerCtx, assister: PlayerCtx?, headshot: Boolean, where: Int, damage: Double)
         fun plant(p: PlayerCtx)
@@ -319,7 +321,7 @@ class ShooterRound(
             val fresh = u.target != tgt.gi
             u.target = tgt.gi
             // Initiative: holding an angle, information (recon/flash) or an entry ability wins the first shot.
-            var acc = u.w.spread * (u.aim + (if (u.holding && fresh) 0.32f else if (u.holding) 0.1f else 0f) + (if (tgt.revealedUntil > now) 0.1f else 0f) + (if (now - u.seenEnemyAt < 2f) 0.12f else 0f) +
+            var acc = u.w.spread * (u.aim + (if (u.holding && fresh) holdEdge else if (u.holding) 0.1f else 0f) + (if (tgt.revealedUntil > now) 0.1f else 0f) + (if (now - u.seenEnemyAt < 2f) 0.12f else 0f) +
                 (if (u.side == attack && !planted) u.entry else 0f) + (if (bySide[u.side].count { it.alive } == 1) u.clutch else 0f) - tgt.move)
             if (u.blindUntil > now) acc *= 0.12f
             if (!u.holding && !atEnd(u)) acc *= 0.72f // shooting on the move

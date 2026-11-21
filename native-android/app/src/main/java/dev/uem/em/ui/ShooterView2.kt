@@ -179,6 +179,13 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
             TextButton(onClick = { if (time >= dur) { time = 0f; playing = true } else playing = !playing }) { Text(if (time >= dur) "Replay" else if (playing) "Pause" else "Play", color = Ui.accent) }
             for (sp in listOf(1, 2, 4, 8, 16)) TextButton(onClick = { speed = sp }) { Text("${sp}×", color = if (speed == sp) Ui.accent else Ui.muted, fontSize = 12.sp) }
             TextButton(onClick = { time = dur; playing = false }) { Text("Skip to end", color = Ui.muted, fontSize = 12.sp) }
+            LiveHooks.onTimeout?.let { call ->
+                val left = LiveHooks.timeoutsLeft
+                val next = (round?.n?.takeIf { it >= 0 } ?: ri) + 1
+                TextButton(enabled = left > 0 && time < dur && next < rounds.size, onClick = { playing = false; call(next, Ti) }) {
+                    Text("Tactical timeout ($left left)", color = if (left > 0) Ui.gold else Ui.muted, fontSize = 12.sp)
+                }
+            }
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { rounds.getOrNull(ri - 1)?.let { time = it.t.toFloat() } }) { Text("◀ round", color = Ui.muted, fontSize = 12.sp) }
@@ -214,8 +221,10 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
                 }
             }
         }
+        val talk = remember(g) { Commentary.shooter(w, t, ev, teams) }
+        CommentaryCard(talk, Ti)
         Card("This round") {
-            val feed = inRound.filter { it.kind in setOf("kill", "plant", "defuse", "util") }.takeLast(12).reversed()
+            val feed = inRound.filter { it.kind in setOf("kill", "plant", "defuse", "util", "timeout") }.takeLast(12).reversed()
             if (feed.isEmpty()) Muted("Buy phase…")
             for (e in feed) Row(Modifier.padding(vertical = 1.dp)) {
                 Text(clock((e.t - (round?.t ?: 0)).coerceAtLeast(0)), color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(40.dp))
@@ -225,6 +234,7 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
                     "plant" -> Text("${w.players[e.a].handle} plants on ${map.sites.getOrNull(e.x)?.id ?: ""}", color = c, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     "defuse" -> Text("${w.players[e.a].handle} defuses", color = c, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     "util" -> Text("${w.players[e.a].handle}: ${UTIL_NAMES.getOrElse(e.x) { "utility" }}", color = c.copy(alpha = 0.8f), fontSize = 11.sp)
+                    "timeout" -> Text("${teams[e.team.coerceIn(0, 1)].short} call a tactical timeout (${e.a} left)", color = Ui.gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

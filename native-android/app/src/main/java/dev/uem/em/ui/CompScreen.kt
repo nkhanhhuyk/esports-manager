@@ -146,6 +146,17 @@ fun CompScreen(vm: GameVm, w: World, id: Int) {
                     Text(c.name, color = if (c.tier == CompTier.WORLDS) Ui.gold else Ui.text, fontWeight = FontWeight.Bold, fontSize = 19.sp)
                     FlowRow { TitleTag(t.id); Text("${tierLabel(c.tier)} · ${if (c.region.isNotEmpty()) GameData.regionName(c.region) else "international"} · ${statusLabel(c.status)}", color = Ui.muted, fontSize = 12.sp) }
                     Muted("${Dates.format(c.startDay)} – ${c.stages.lastOrNull()?.let { st -> w.fixtures.getOrNull(st.fixtureIds.lastOrNull() ?: -1)?.day?.let { Dates.format(it) } ?: "TBD" } ?: ""}", 11)
+                    // Match rules of this competition (coach comms, timeouts, import limit).
+                    val rules = buildList {
+                        if (t.isMoba) add("coach comms " + when (c.coachComms) { 1 -> "allowed"; 0 -> "not allowed"; else -> if (t.id in w.coachCommsTitles) "allowed (game rule)" else "not allowed (game rule)" })
+                        else add("${c.timeouts.takeIf { it >= 0 } ?: dev.uem.em.sim.TacticalEngine.defaultTimeouts(t.id)} tactical timeouts per map")
+                        c.leagueId.takeIf { it >= 0 }?.let { lid -> w.teams.firstOrNull { it.leagueId == lid }?.let { add(dev.uem.em.mgmt.Imports.ruleText(w, it)) } }
+                    }
+                    Muted("Rules: " + rules.joinToString(" · "), 11)
+                    if (w.role == "commissioner" && !c.done) Row {
+                        if (t.isMoba) { Pill("Comms: rule") { c.coachComms = -1; vm.edit() }; Pill("allow") { c.coachComms = 1; vm.edit() }; Pill("ban") { c.coachComms = 0; vm.edit() } }
+                        else for (k in listOf(1, 2, 3, 4)) Pill("$k timeouts") { c.timeouts = k; vm.edit() }
+                    }
                 }
             }
             if (editions.size > 1) Row(Modifier.padding(horizontal = 12.dp)) {

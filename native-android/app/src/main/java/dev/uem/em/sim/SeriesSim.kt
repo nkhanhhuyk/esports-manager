@@ -85,7 +85,25 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
         DoubleArray(2) { i -> Draft.knowledge(w, teams[i]) }, IntArray(2) { i -> Draft.banTendency(w, teams[i]) })
 
     /** Simulate one game with a finished draft; `record` keeps events for the 2D view. */
-    fun play(s: Setup, draft: Draft.Result, record: Boolean = false): GameRecord {
+    /** Tactical timeouts allowed per team per map in this series' competition. */
+    val timeoutsAllowed: Int get() = comp.timeouts.takeIf { it >= 0 } ?: TacticalEngine.defaultTimeouts(t.id)
+    /** Coach comms in MOBA fights under this competition's rules. */
+    val coachComms: Boolean get() = t.isMoba && (comp.coachComms == 1 || (comp.coachComms == -1 && t.id in w.coachCommsTitles))
+    fun coachQ(i: Int) = dev.uem.em.mgmt.Economy.coachQuality(w, teams[i])
+    private var lastLoserBefore = -1
+
+    /** Undo the last game (to replay it, e.g. with a timeout the user called). */
+    fun undoLast() {
+        val g = games.removeLastOrNull() ?: return
+        wins[g.winner]--
+        gi--
+        lastLoser = lastLoserBefore
+    }
+
+    fun play(s: Setup, draft: Draft.Result, record: Boolean = false, timeouts: TimeoutPlan? = null): GameRecord {
+        lastLoserBefore = lastLoser
+        // The game's own random stream: the same game can be replayed exactly (with a different timeout).
+        val grng = Rng.derive(w.seed, f.id, "play", gi)
         val rec = if (record) Recorder() else null
         if (players[0].isEmpty() || players[1].isEmpty()) {
             val wnr = if (players[0].isEmpty()) 1 else 0
@@ -97,14 +115,15 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
             val mine = lineups[si].filter { it >= 0 }.mapNotNull { pid -> chars[si][pid]?.let { t.charIndex[it] } }
             Draft.evaluate(t, patch, mine, draft.picks[1 - si].mapNotNull { t.charIndex[it] }, players[si], teams[si].style)
         }
-        val ctx = Array(2) { si -> TeamContexts.build(w, teams[si], lineups[si], si, chars[si], s.mapId, pressure, s.rng) }
+        val ctx = Array(2) { si -> TeamContexts.build(w, teams[si], lineups[si], si, chars[si], s.mapId, pressure, grng) }
         val g: GameRecord
         val winnerSeries: Int
         if (t.isMoba) {
             // Map-side order: the blue team is simulated as side 0.
             val order = if (s.blue == 0) intArrayOf(0, 1) else intArrayOf(1, 0)
             val sideCtx = order.mapIndexed { si, sx -> TeamCtx(ctx[sx].team, si, ctx[sx].players, ctx[sx].phase, ctx[sx].overall, ctx[sx].aggression) }
-            val out = MobaEngine.simulate(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), s.rng, patch, rec)
+            val out = MobaEngine.simulate(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), grng, patch, rec,
+                MobaEngine.Opts(coachComms, doubleArrayOf(coachQ(order[0]), coachQ(order[1]))))
             winnerSeries = order[out.winner]
             // Recorded events use series team indexes.
             if (rec != null) {
@@ -115,8 +134,8 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
             val score = if (s.blue == 0) out.score else intArrayOf(out.score[1], out.score[0])
             g = GameRecord(winnerSeries, out.duration, s.mapId, s.blue, intArrayOf(s.chooser, s.choice, if (s.byLoser) 1 else 0, s.firstPick), draft.bans, draft.picks[0] + draft.picks[1], score, lines, draftOrder = draft.order)
         } else {
-            val firstAttack = if (s.rng.chance(0.5)) 0 else 1
-            val out = TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, s.rng, patch, rec, s.mapId)
+            val firstAttack = if (grng.chance(0.5)) 0 else 1
+            val out = TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, grng, patch, rec, s.mapId, timeouts ?: TimeoutPlan(timeoutsAllowed, booleanArrayOf(true, true), emptyList(), doubleArrayOf(coachQ(0), coachQ(1))))
             winnerSeries = out.winner
             g = GameRecord(winnerSeries, out.duration, s.mapId, firstAttack, IntArray(0), emptyList(), draft.picks[0] + draft.picks[1], out.score, out.book.lines)
         }

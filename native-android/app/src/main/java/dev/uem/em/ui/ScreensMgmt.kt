@@ -238,6 +238,8 @@ private fun SquadTraining(vm: GameVm, w: World, team: Team, t: dev.uem.em.titles
         Slider(value = team.intensity.toFloat(), onValueChange = { team.intensity = it.roundToInt(); vm.edit() }, valueRange = 30f..95f)
         Muted("Scrims per week: ${team.scrims} — sharper and better drilled, but more tired", 12)
         Slider(value = team.scrims.toFloat(), onValueChange = { team.scrims = it.roundToInt(); vm.edit() }, valueRange = 0f..6f, steps = 5)
+        Muted("Solo queue practice — more queue time sharpens mechanics and widens character pools, but tires players", 12)
+        Tabs(listOf("Light", "Normal", "Heavy"), team.soloFocus.coerceIn(0, 2)) { team.soloFocus = it; vm.edit() }
         KV("Coaching quality", "%.0f".format(Economy.coachQuality(w, team)))
         KV("Training facilities", "level ${w.orgs[team.orgId].facilities[0]} (Finances)")
     }
@@ -344,6 +346,7 @@ fun MarketScreen(vm: GameVm, w: World) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
                 Text("Transfer market", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Muted(Market.windowLabel(w) + " (23 Nov – 12 Jan and 25 May – 20 Jun) · free agents can be signed any time", 12)
+                Pill("Scout the solo queue ladders (unsigned talent)") { vm.go(Screen.SoloQ) }
             }
         }
         item {
@@ -610,6 +613,7 @@ fun FinancesScreen(vm: GameVm, w: World) {
                 Tile("Months in the red", "${org.months.count { it.balance < 0 }}", "of ${org.months.size}"),
             ))
         }
+        item { CommercialCard(vm, w, org) }
         item {
             for ((label, map, col) in listOf(Triple("Revenue breakdown (projected month)", b.revenue, Ui.win), Triple("Expenditure breakdown (projected month)", b.expenses, Ui.loss))) {
                 val total = map.values.sum().coerceAtLeast(1.0)
@@ -869,5 +873,40 @@ private fun AcademyCard(vm: GameVm, w: World, team: Team) {
             if (Roles.can(w, "expansion")) TextButton(onClick = { val r = Academies.found(w, team); vm.toast = r.text; if (r.ok) vm.edit() }) { Text("Found academy · ${formatMoney(cost)}", color = Ui.accent, fontSize = 13.sp) }
             else Muted("As ${Roles.LABEL[w.role]} you cannot found academies — the owner or sporting director decides.", 11)
         }
+    }
+}
+
+/** Sponsorship offers (accept, decline, negotiate), current deals, streaming and merchandise. */
+@Composable
+fun CommercialCard(vm: GameVm, w: World, org: dev.uem.em.model.Org) {
+    var note by remember { mutableStateOf<String?>(null) }
+    Card("Commercial") {
+        val offers = w.sponsorOffers.filter { it.orgId == org.id }
+        if (offers.isEmpty()) Muted(if (Roles.delegated(w, "sponsors")) "Your commercial director signs sponsorship offers as they come." else "No sponsorship offers right now. New offers arrive at the start of a month when a slot is free.", 11)
+        for (o in offers) {
+            Gap(4)
+            Text("${o.name} · ${o.industry}", color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Muted("${formatMoney(o.perMonth)} per month · ${o.seasons} season(s) · ${formatMoney(o.bonus)} per trophy · answer by ${dev.uem.em.core.Dates.short(o.expires)}${if (o.note.isNotEmpty()) " · " + o.note else ""}", 11)
+            androidx.compose.foundation.layout.FlowRow {
+                Pill("Accept", Ui.win.copy(alpha = 0.35f)) { note = dev.uem.em.mgmt.Commerce.accept(w, o.id); vm.edit() }
+                Pill("Ask +10%") { note = dev.uem.em.mgmt.Commerce.negotiate(w, o.id, 0.10, false); vm.edit() }
+                Pill("Ask +25%") { note = dev.uem.em.mgmt.Commerce.negotiate(w, o.id, 0.25, false); vm.edit() }
+                Pill("Longer deal") { note = dev.uem.em.mgmt.Commerce.negotiate(w, o.id, 0.0, true); vm.edit() }
+                Pill("Decline", Ui.loss.copy(alpha = 0.3f)) { dev.uem.em.mgmt.Commerce.decline(w, o.id); note = "Declined ${o.name}"; vm.edit() }
+            }
+        }
+        note?.let { Text(it, color = Ui.gold, fontSize = 12.sp) }
+        val current = org.sponsors.filter { it.untilSeason >= w.season }
+        if (current.isNotEmpty()) {
+            Gap(6); Text("Current sponsors", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            for (s in current) Muted("${s.name}${if (s.industry.isNotEmpty()) " (${s.industry})" else ""}: ${formatMoney(s.perMonth)}/month until ${s.untilSeason}${if (s.bonus > 0) " · ${formatMoney(s.bonus)} per trophy" else ""}", 11)
+        }
+        Gap(8)
+        Text("Players' streaming", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Muted("The club takes a share of streaming income and gains fans; heavy streaming tires players, and some players dislike a ban. Expected: ${formatMoney(dev.uem.em.mgmt.Commerce.streaming(w, org))} per month.", 11)
+        Tabs(dev.uem.em.mgmt.Commerce.STREAM_LABEL, org.streamPolicy.coerceIn(0, 2)) { org.streamPolicy = it; vm.edit() }
+        Text("Merchandise range", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Muted("Bigger ranges sell more (jerseys sell best after trophies and with star players) but cost ${formatMoney(dev.uem.em.mgmt.Commerce.merchCost(org))} per month to run at this level.", 11)
+        Tabs(dev.uem.em.mgmt.Commerce.MERCH_LABEL, org.merchLevel.coerceIn(0, 3)) { org.merchLevel = it; vm.edit() }
     }
 }

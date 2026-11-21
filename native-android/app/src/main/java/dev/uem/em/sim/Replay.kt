@@ -38,7 +38,7 @@ object ReplayCodec {
 
     /** Event kinds (index = code). */
     val KINDS = listOf("kill", "fight", "tower", "base", "core", "obj", "end", "round", "plant", "defuse", "roundEnd", "buyback",
-        "cast", "shp", "ward", "unward", "spawn", "recall", "item", "aegis", "steal", "duel", "util", "move")
+        "cast", "shp", "ward", "unward", "spawn", "recall", "item", "aegis", "steal", "duel", "util", "move", "timeout", "comms")
     private val KIND_CODE = KINDS.withIndex().associate { it.value to it.index }
 
     /** Shooter buy types (index = code). */

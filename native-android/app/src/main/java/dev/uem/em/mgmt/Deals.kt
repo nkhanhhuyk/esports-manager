@@ -37,6 +37,7 @@ object Deals {
         p.loanFrom = from.id
         p.loanUntil = w.season
         p.teamId = dest.id
+        dev.uem.em.mgmt.Imports.onJoin(w, p, dest)
         dest.roster.add(p.id)
         p.career.add(CareerEntry(w.season, w.day, dest.id, "loan"))
         w.transfers.add(Transfer(w.day, w.season, p.id, from.id, dest.id, 0.0, "loan"))
@@ -76,6 +77,7 @@ object Deals {
         myTeam.roster.remove(mine.id); other.roster.remove(theirs.id)
         myTeam.lineup.replaceAll { if (it == mine.id) -1 else it }; other.lineup.replaceAll { if (it == theirs.id) -1 else it }
         mine.teamId = other.id; theirs.teamId = myTeam.id
+        dev.uem.em.mgmt.Imports.onJoin(w, mine, other); dev.uem.em.mgmt.Imports.onJoin(w, theirs, myTeam)
         other.roster.add(mine.id); myTeam.roster.add(theirs.id)
         mine.joinedDay = w.day; theirs.joinedDay = w.day
         mine.career.add(CareerEntry(w.season, w.day, other.id, "traded")); theirs.career.add(CareerEntry(w.season, w.day, myTeam.id, "traded"))
@@ -108,6 +110,7 @@ object Deals {
             val team = w.teams[p.preContractTeam]
             w.teams.getOrNull(p.teamId)?.let { it.roster.remove(p.id); it.lineup.replaceAll { x -> if (x == p.id) -1 else x } }
             p.teamId = team.id
+            dev.uem.em.mgmt.Imports.onJoin(w, p, team)
             team.roster.add(p.id)
             p.salary = p.preContractSalary
             p.contractEnd = w.season + 1

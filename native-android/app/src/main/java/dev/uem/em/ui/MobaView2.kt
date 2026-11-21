@@ -376,6 +376,8 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
                 }
             }
         }
+        val talk = remember(g) { Commentary.moba(w, t, g, ev, teams) }
+        CommentaryCard(talk, Ti)
         PlayFeed(w, t, ev, g, Ti, teams, ::mapSide, teamCol)
         Muted("  ${map.name} (walkable grid from the map's terrain; approximate layout). Everything shown — movement, health, abilities, minions, structures, wards, objectives — is the recorded simulation; playback speed and seeking never change it.", 10)
         Spacer(Modifier.height(12.dp))

@@ -152,6 +152,8 @@ object CustomComps {
         val comp = Season.mk(w, t, season, "${c.name} $season", c.short.ifBlank { c.name.take(6) }, CompTier.CUSTOM, null, rules, st, prizePool(c, teams), 40, emptyList())
         comp.finalBo = c.boFinal
         comp.customId = c.id
+        comp.coachComms = c.coachComms
+        comp.timeouts = c.timeouts
         if (t.isMoba && c.fearless != "none") { comp.fearlessMode = c.fearless; comp.fearless = c.fearless != "none" }
         // Entry fees are paid by the invited organisations.
         if (c.entryFee > 0) for (id in ids) dev.uem.em.mgmt.Economy.ledger(w, w.orgs[w.teams[id].orgId], "entry", -c.entryFee, "Entry fee: ${comp.name}")
