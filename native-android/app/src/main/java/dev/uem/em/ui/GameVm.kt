@@ -49,6 +49,7 @@ sealed class Screen {
     data object Settings : Screen()
     data class Comp(val id: Int) : Screen()
     data class Team(val id: Int) : Screen()
+    data class Org(val id: Int) : Screen()
     data class Player(val id: Int) : Screen()
     data class Match(val id: Int) : Screen()
     data class Compare(val a: Int, val b: Int) : Screen()
@@ -118,7 +119,8 @@ class GameVm(app: Application) : AndroidViewModel(app) {
                 BoxStore.clear()
                 WorldGen.create(src, "${System.currentTimeMillis()}", name.ifBlank { "Career" }, Dates.today(), fictional = fictional)
             }
-            slot = name.ifBlank { "career" }.replace(Regex("[^A-Za-z0-9_-]"), "_")
+            // A new file: never overwrite an existing save with the same name.
+            slot = store.freeSlot(name.ifBlank { "Career" })
             world = w
             lastAutosaveDay = w.day
             busy = null
@@ -235,6 +237,33 @@ class GameVm(app: Application) : AndroidViewModel(app) {
             }
         }
     }
+
+    /** "Save as new file" dialog open (from the top bar, the sidebar or Settings). */
+    var saveAsOpen by mutableStateOf(false)
+
+    /** Default label for a new save file: club, season and in-game date. */
+    fun defaultSaveLabel(w: World) = "${w.orgs.getOrNull(w.userOrg)?.short ?: w.name} S${w.season} ${Dates.short(w.day)}"
+
+    /** Save to a new file (the current file is kept as it is); later saves go to the new file. */
+    fun saveAs(label: String) {
+        val w = world ?: return
+        if (busy != null) return
+        viewModelScope.launch {
+            saveLock.withLock {
+                try {
+                    val s = withContext(Dispatchers.IO) { store.saveAs(label.ifBlank { defaultSaveLabel(w) }, w) }
+                    slot = s
+                    unsaved = false
+                    lastAutosaveDay = w.day
+                    toast = "Saved as a new file: ${label.ifBlank { defaultSaveLabel(w) }}"
+                } catch (e: Exception) {
+                    toast = "Save failed: ${e.message}"
+                }
+            }
+        }
+    }
+
+    fun renameSave(slotName: String, label: String) { runCatching { store.rename(slotName, label) } }
 
     /** Save on a background thread; never two at once. */
     fun save(silent: Boolean = false) {

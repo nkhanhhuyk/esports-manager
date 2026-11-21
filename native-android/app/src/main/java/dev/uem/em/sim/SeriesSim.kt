@@ -81,7 +81,8 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
         bannedBefore.addAll(g.bans)
     }
 
-    fun draftSession(s: Setup) = DraftSession(t, patch, players, arrayOf(teams[0].style, teams[1].style), s.firstPick, locked(), s.rng)
+    fun draftSession(s: Setup) = DraftSession(t, patch, players, arrayOf(teams[0].style, teams[1].style), s.firstPick, locked(), s.rng,
+        DoubleArray(2) { i -> Draft.knowledge(w, teams[i]) }, IntArray(2) { i -> Draft.banTendency(w, teams[i]) })
 
     /** Simulate one game with a finished draft; `record` keeps events for the 2D view. */
     fun play(s: Setup, draft: Draft.Result, record: Boolean = false): GameRecord {
@@ -112,7 +113,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
             }
             val lines = out.book.lines.map { l -> Line(l.playerId, order[l.team], l.roleId, l.charId, l.rating, l.s) }
             val score = if (s.blue == 0) out.score else intArrayOf(out.score[1], out.score[0])
-            g = GameRecord(winnerSeries, out.duration, s.mapId, s.blue, intArrayOf(s.chooser, s.choice, if (s.byLoser) 1 else 0, s.firstPick), draft.bans, draft.picks[0] + draft.picks[1], score, lines)
+            g = GameRecord(winnerSeries, out.duration, s.mapId, s.blue, intArrayOf(s.chooser, s.choice, if (s.byLoser) 1 else 0, s.firstPick), draft.bans, draft.picks[0] + draft.picks[1], score, lines, draftOrder = draft.order)
         } else {
             val firstAttack = if (s.rng.chance(0.5)) 0 else 1
             val out = TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, s.rng, patch, rec, s.mapId)

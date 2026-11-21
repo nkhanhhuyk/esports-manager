@@ -73,7 +73,11 @@ class World(
     val delegation: MutableMap<String, Boolean> = HashMap(),
     /** User-created competitions (drafts and published, with their editions). */
     val customComps: MutableList<CustomComp> = ArrayList(),
+    /** Folder name of this save's box-score pages (blank: the world name). Each save file has its own. */
+    var pagesKey: String = "",
 ) {
+    /** Where this world's box-score pages live. */
+    fun pagesName() = pagesKey.ifBlank { name }
     /** Multi-year simulation in progress: staff run every area (not saved). */
     @kotlinx.serialization.Transient
     var autopilot: Boolean = false
@@ -375,6 +379,8 @@ class GameRecord(
     val lines: List<Line>,
     /** The game's authoritative event stream and state snapshots (null when not recorded). */
     var replay: Replay? = null,
+    /** The draft step by step: "b|team|character" or "p|team|character|player" (team = series team). */
+    val draftOrder: List<String> = emptyList(),
 )
 
 /**

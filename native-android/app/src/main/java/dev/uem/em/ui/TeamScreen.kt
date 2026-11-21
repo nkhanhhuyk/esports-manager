@@ -58,7 +58,8 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
                     Text(team.name, color = if (w.isUserTeam(id)) Ui.gold else Ui.text, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                     FlowRow {
                         TitleTag(t.id)
-                        Text("${org.name} · ${GameData.regionName(team.region)}", color = Ui.muted, fontSize = 12.sp)
+                        OrgLink(w, org.id, color = Ui.accent, size = 12.sp)
+                        Text(" · ${GameData.regionName(team.region)}", color = Ui.muted, fontSize = 12.sp)
                     }
                     Muted(listOfNotNull(
                         team.leagueId.takeIf { it >= 0 }?.let { w.leagues[it].name } ?: if (team.active) "no league" else "dormant (no league place)",
@@ -283,10 +284,35 @@ private fun TeamHistory(vm: GameVm, w: World, team: Team) {
 }
 
 @Composable
-private fun TeamOrg(vm: GameVm, w: World, team: Team) {
-    val org = w.orgs[team.orgId]
-    val mine = team.orgId == w.userOrg
-    Card(org.name) {
+private fun TeamOrg(vm: GameVm, w: World, team: Team) = OrgDetails(vm, w, team.orgId, team.id)
+
+/** An organisation's page: all its teams across the games, supporters, trophies. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun OrgScreen(vm: GameVm, w: World, id: Int) {
+    val org = w.orgs[id]
+    LazyColumn(Modifier.fillMaxSize()) {
+        item {
+            Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                val first = org.teams.firstOrNull { w.teams[it].active } ?: org.teams.firstOrNull()
+                if (first != null) TeamPic(w.teams[first], 60.dp) else GenCrest(id * 17 + org.name.hashCode(), 60.dp, org.short)
+                HGap(12)
+                Column(Modifier.weight(1f)) {
+                    Text(org.name, color = if (id == w.userOrg) Ui.gold else Ui.text, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Muted("${flag(org.country)} ${GameData.countries[org.country]?.name ?: org.country} · ${GameData.regionName(org.region)} · ${org.teams.count { w.teams[it].active }} active teams", 12)
+                    FlowRow { for (tid in org.teams) if (w.teams[tid].active) TitleTag(w.teams[tid].titleId) }
+                }
+            }
+        }
+        item { OrgDetails(vm, w, id, -1); Gap(16) }
+    }
+}
+
+@Composable
+fun OrgDetails(vm: GameVm, w: World, orgId: Int, currentTeam: Int) {
+    val org = w.orgs[orgId]
+    val mine = orgId == w.userOrg
+    Card(org.name, right = { if (currentTeam >= 0) Pill("Organisation page") { vm.go(Screen.Org(orgId)) } }) {
         KV("Country", "${flag(org.country)} ${GameData.countries[org.country]?.name ?: org.country}")
         KV("Region", GameData.regionName(org.region))
         KV("Reputation") { Rating(org.rep) }
@@ -301,8 +327,9 @@ private fun TeamOrg(vm: GameVm, w: World, team: Team) {
             val x = w.teams[tid]
             Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Team(tid)) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 TitleTag(x.titleId)
+                TeamPic(x, 22.dp); HGap(6)
                 Column(Modifier.weight(1f)) {
-                    Text(x.name, color = if (tid == team.id) Ui.accent else Ui.text, fontSize = 13.sp)
+                    Text(x.name, color = if (tid == currentTeam) Ui.accent else Ui.text, fontSize = 13.sp)
                     Muted("${x.leagueId.takeIf { it >= 0 }?.let { w.leagues[it].short } ?: if (x.active) "no league" else "dormant"} · Elo ${x.elo.toInt()} · ${x.roster.size} players", 10)
                 }
                 Rating(Lineups.strength(w, x), 1)
@@ -320,7 +347,7 @@ private fun TeamOrg(vm: GameVm, w: World, team: Team) {
     }
     val trophies = org.teams.flatMap { tid -> w.teams[tid].trophies.map { tid to it } }.sortedByDescending { it.second.season }
     if (trophies.isNotEmpty()) Card("Organisation trophy cabinet (${trophies.size})") {
-        for ((tid, tr) in trophies.take(20)) Row(Modifier.padding(vertical = 2.dp)) { TitleTag(w.teams[tid].titleId); Text("${tr.season} · ${tr.name}", color = Ui.gold, fontSize = 12.sp) }
+        for ((tid, tr) in trophies.take(30)) Row(Modifier.fillMaxWidth().clickable { if (tr.compId in w.comps.indices) vm.go(Screen.Comp(tr.compId)) else vm.go(Screen.Team(tid)) }.padding(vertical = 2.dp)) { TitleTag(w.teams[tid].titleId); Text("${tr.season} · ${tr.name}", color = Ui.gold, fontSize = 12.sp) }
     }
 }
 

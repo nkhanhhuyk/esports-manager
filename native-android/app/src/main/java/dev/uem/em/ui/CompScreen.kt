@@ -96,7 +96,7 @@ fun CompsScreen(vm: GameVm, w: World) {
                             Muted("${tierLabel(latest.tier)} · ${if (latest.region.isNotEmpty()) GameData.regionName(latest.region) else "international"} · ${eds.size} edition${if (eds.size > 1) "s" else ""} · now ${latest.season}: ${statusLabel(latest.status)}", 11)
                             if (most != null) Muted("Most titles: ${w.teams[most.key].short} (${most.value})", 11)
                         }
-                        if (holder != null) Column(horizontalAlignment = Alignment.End) { Muted("Holder", 10); Text(w.teams[holder].short, color = Ui.gold, fontWeight = FontWeight.Bold, fontSize = 13.sp) }
+                        if (holder != null) Column(horizontalAlignment = Alignment.End) { Muted("Holder", 10); TeamLink(w, holder, short = true, color = Ui.gold, weight = FontWeight.Bold, size = 13.sp) }
                     }
                 }
             }
@@ -257,7 +257,7 @@ private fun BracketView(vm: GameVm, w: World, st: Stage) {
                             Row(Modifier.fillMaxWidth().padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                                 if (tid >= 0) {
                                     TeamPic(w.teams[tid], 16.dp); HGap(4)
-                                    Text(w.teams[tid].short, color = if (nd.winner == tid) Ui.text else if (nd.winner >= 0) Ui.muted else Ui.text, fontWeight = if (nd.winner == tid) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                                    TeamLink(w, tid, short = true, color = if (nd.winner == tid) Ui.text else if (nd.winner >= 0) Ui.muted else Ui.text, weight = if (nd.winner == tid) FontWeight.Bold else FontWeight.Normal, size = 12.sp, modifier = Modifier.weight(1f), maxLines = 1)
                                 } else Text(if (tid == -1) "bye" else "TBD", color = Ui.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
                                 if (score != null) Text("$score", color = if (nd.winner == tid) Ui.win else Ui.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }

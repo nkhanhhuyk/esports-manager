@@ -42,12 +42,25 @@ import java.util.Date
 fun StartScreen(vm: GameVm) {
     var name by remember { mutableStateOf("Career") }
     var fictional by remember { mutableStateOf(false) }
-    var saves by remember { mutableStateOf(vm.saves()) }
+    var saves by remember(vm.slot, vm.unsaved, vm.busy) { mutableStateOf(vm.saves()) }
     LazyColumn(Modifier.fillMaxSize().statusBarsPadding()) {
         item {
             Column(Modifier.padding(20.dp)) {
                 Text("ESPORTS MANAGER", color = Ui.accent, fontWeight = FontWeight.Black, fontSize = 26.sp)
                 Muted("Native Android edition · seven games · real teams and players", 13)
+            }
+        }
+        vm.world?.let { cur ->
+            item {
+                Card("Current game") {
+                    Muted("${cur.name} · season ${cur.season} · ${Dates.format(cur.day)}${if (vm.unsaved) " · unsaved changes" else ""}", 12)
+                    Row {
+                        Button(onClick = { vm.tab(Screen.Home) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Back to the game") }
+                        HGap(8)
+                        TextButton(onClick = { vm.save(); saves = vm.saves() }) { Text("Save", color = Ui.accent) }
+                        TextButton(onClick = { vm.saveAsOpen = true }) { Text("Save as new file…", color = Ui.accent) }
+                    }
+                }
             }
         }
         item {
@@ -69,17 +82,36 @@ fun StartScreen(vm: GameVm) {
                 TextButton(onClick = { importer.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) { Text("Import a save…", color = Ui.accent) }
             }
         }
-        items(saves) { s ->
+        items(saves, key = { it.slot }) { s ->
+            var renaming by remember { mutableStateOf(false) }
+            var deleting by remember { mutableStateOf(false) }
             Card {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(s.name, color = Ui.text, fontWeight = FontWeight.SemiBold)
-                        Muted("${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(s.modified))} · ${s.bytes / 1024} KB")
+                        Text(s.name + if (s.slot == vm.slot && vm.world != null) "  (open)" else "", color = Ui.text, fontWeight = FontWeight.SemiBold)
+                        if (s.career.isNotBlank() || s.club.isNotBlank()) Text(listOf(s.club, s.career).filter { it.isNotBlank() }.distinct().joinToString(" · "), color = Ui.muted, fontSize = 12.sp)
+                        Muted((if (s.season > 0) "Season ${s.season} · ${Dates.format(s.day)} · " else "") + "saved ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(s.modified))} · ${s.bytes / 1024} KB", 11)
                     }
-                    TextButton(onClick = { vm.store.delete(s.slot); saves = vm.saves() }) { Text("Delete", color = Ui.loss) }
                     Button(onClick = { vm.load(s.slot) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Load") }
                 }
+                Row {
+                    TextButton(onClick = { renaming = true }) { Text("Rename", color = Ui.muted) }
+                    TextButton(onClick = { deleting = true }) { Text("Delete", color = Ui.loss) }
+                }
             }
+            if (renaming) {
+                var label by remember { mutableStateOf(s.name) }
+                androidx.compose.material3.AlertDialog(onDismissRequest = { renaming = false },
+                    confirmButton = { TextButton(onClick = { vm.renameSave(s.slot, label.ifBlank { s.name }); renaming = false; saves = vm.saves() }) { Text("Rename") } },
+                    dismissButton = { TextButton(onClick = { renaming = false }) { Text("Cancel") } },
+                    title = { Text("Rename save") },
+                    text = { OutlinedTextField(value = label, onValueChange = { label = it.take(40) }, singleLine = true) })
+            }
+            if (deleting) androidx.compose.material3.AlertDialog(onDismissRequest = { deleting = false },
+                confirmButton = { TextButton(onClick = { vm.store.delete(s.slot); deleting = false; saves = vm.saves() }) { Text("Delete", color = Ui.loss) } },
+                dismissButton = { TextButton(onClick = { deleting = false }) { Text("Cancel") } },
+                title = { Text("Delete ${s.name}?") },
+                text = { Text("This save file is removed from the phone. Other save files of the same career are not affected.") })
         }
     }
 }
@@ -268,8 +300,8 @@ fun HomeScreen(vm: GameVm, w: World) {
         item {
             Card("News") {
                 for (n in w.news.takeLast(8).reversed()) {
-                    Text(n.title, color = Ui.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    if (n.body.isNotBlank() && n.body != n.title) Text(n.body, color = Ui.muted, fontSize = 12.sp, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    LinkedText(n.title, Ui.text, 14.sp, FontWeight.SemiBold)
+                    if (n.body.isNotBlank() && n.body != n.title) LinkedText(n.body, Ui.muted, 12.sp, maxLines = 3)
                     Muted(Dates.format(n.day), 10)
                     Gap(6)
                 }

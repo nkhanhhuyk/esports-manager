@@ -167,7 +167,7 @@ fun MobaAnalysisCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
     Card("Key moments") {
         for (m in r.moments.sortedByDescending { it.weight }.take(10).sortedBy { it.t }) Row(Modifier.fillMaxWidth().clickable { watch(m.t) }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(clock(m.t), color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(40.dp))
-            Text(m.text, color = if (m.side == 0) Ui.blue else Ui.red, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            LinkedText(m.text, if (m.side == 0) Ui.blue else Ui.red, 12.sp, modifier = Modifier.weight(1f))
             Text("Watch ▶", color = Ui.accent, fontSize = 11.sp)
         }
     }

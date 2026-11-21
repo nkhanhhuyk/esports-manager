@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,7 +49,7 @@ private val TIER_COLORS = mapOf("S" to Color(0xFFFF7F7F), "A" to Color(0xFFFFBF7
 @Composable
 fun WeaponPic(id: String, name: String, category: String, size: androidx.compose.ui.unit.Dp = 32.dp, tap: Boolean = true) {
     Box(if (tap) Modifier.clickable { Sheets.openWeapon(id) } else Modifier) {
-        Pic(Pics.weapon(id), name, size, false, Color(0xFF1D2539), fallback = { GenEmblem(id.hashCode(), size, category, name) })
+        Pic(Pics.weapon(id), name, size, false, Color(0xFF1D2539), fallback = { GenWeapon(id.hashCode(), size, category) })
     }
 }
 
@@ -185,6 +186,28 @@ private fun CharSheetBody(w: World, id: String) {
         Text("Base stats", color = Ui.text, fontWeight = FontWeight.SemiBold)
         for ((k, v) in stats) KV(k, v)
     }
+    // Counters and synergies on the current patch (they shift a little with every patch).
+    val (countered, strong) = remember(id, patch) { dev.uem.em.sim.Counters.countersOf(t, patch, id, 6) }
+    val partners = remember(id, patch) { t.characters.filter { it.id != id }.map { it.id to dev.uem.em.sim.Counters.synergy(t, id, it.id) }.sortedByDescending { it.second }.take(6) }
+    @Composable fun row(title: String, list: List<Pair<String, Double>>, color: Color) {
+        if (list.isEmpty()) return
+        Gap(6)
+        Text(title, color = Ui.text, fontWeight = FontWeight.SemiBold)
+        Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
+            for ((cid, v) in list) Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(60.dp)) {
+                CharPic(cid, t.charIndex[cid]?.name ?: cid, 36.dp, round = true)
+                Text(t.charIndex[cid]?.name ?: cid, color = Ui.text, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("%+.0f".format(v * 100), color = color, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+    if (t.characters.size > 1) {
+        row("Countered by (this patch)", countered, Ui.loss)
+        row("Strong against", strong, Ui.win)
+        if (t.isMoba) row("Works well with", partners, Ui.accent)
+        val p = dev.uem.em.sim.Counters.profile(t, id)
+        if (p != null && t.isMoba) Muted("Kit: control ${(p.hardCc * 100).toInt()} · mobility ${(p.mob * 100).toInt()} · range ${(p.range * 100).toInt()} · sustain ${(p.sustain * 100).toInt()} · burst ${(p.burst * 100).toInt()} · durability ${(p.tanky * 100).toInt()} (percentiles in ${t.short}); matchup scores change with patches.", 10)
+    }
     val skills = info?.skills ?: custom?.skills?.map { it.split('|').let { p -> Triple(p[0], p[1], p.getOrElse(2) { "" }) } } ?: emptyList()
     Gap(6)
     Text("Skills", color = Ui.text, fontWeight = FontWeight.SemiBold)
@@ -197,7 +220,7 @@ private fun CharSheetBody(w: World, id: String) {
     if (best.isNotEmpty()) {
         Gap(6)
         Text("Best players on ${c.name}", color = Ui.text, fontWeight = FontWeight.SemiBold)
-        for (p in best) Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        for (p in best) Row(Modifier.fillMaxWidth().clickable { Sheets.open = null; Links.go?.invoke(Screen.Player(p.id)) }.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             PlayerPic(p, 22.dp); HGap(6)
             Text(p.handle, color = Ui.text, fontSize = 12.sp, modifier = Modifier.weight(1f))
             Rating(p.profChar[id] ?: 0.0, size = 12)

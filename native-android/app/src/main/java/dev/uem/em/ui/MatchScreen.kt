@@ -138,6 +138,7 @@ private fun MatchPreview(vm: GameVm, w: World, f: Fixture, t: TitleDef) {
         }
         dev.uem.em.mgmt.Deals.rivalsOf(w, f.a).firstOrNull { it.first == f.b }?.let { KV("Rivalry", "intensity ${it.second.toInt()}", Ui.loss) }
     }
+    ScoutingCard(vm, w, f, t)
     Card("Expected lineups") {
         Row {
             for (tm in listOf(ta, tb)) Column(Modifier.weight(1f).padding(end = 6.dp)) {
@@ -173,7 +174,7 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
             else "${w.teams[teams[g.winner]].name} take ${t.maps.firstOrNull { it.id == g.mapId }?.name ?: "the map"} ${maxOf(g.score.getOrElse(0) { 0 }, g.score.getOrElse(1) { 0 })}–${minOf(g.score.getOrElse(0) { 0 }, g.score.getOrElse(1) { 0 })}",
             color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 14.sp,
         )
-        if (mvp != null) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+        if (mvp != null) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { vm.go(Screen.Player(mvp.playerId)) }.padding(top = 4.dp)) {
             Text("Game MVP  ", color = Ui.gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             if (mvp.charId.isNotEmpty()) { CharPic(mvp.charId, mvp.charId, 20.dp, round = true); HGap(4) }
             Text("${w.players[mvp.playerId].handle}${t.charIndex[mvp.charId]?.let { " (${it.name})" } ?: ""} · %.2f".format(mvp.rating), color = Ui.text, fontSize = 12.sp)
@@ -187,7 +188,6 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
             Muted(selectionText(t, listOf(w.teams[f.a].short, w.teams[f.b].short), g.sel[0], g.sel[1], g.sel[2] == 1, g.blue, firstPick), 12)
         }
     }
-    if (t.isMoba) MobaAnalysisCard(vm, w, f, t, g, gi) else ShooterAnalysisCard(vm, w, f, t, g, gi)
     if (t.characters.isNotEmpty() && (g.bans.isNotEmpty() || g.lines.any { it.charId.isNotEmpty() })) Card("Draft") {
         val fm = if (dev.uem.em.comp.Fearless.applies(t)) dev.uem.em.comp.Fearless.modeOf(w.comps[f.compId]) else "none"
         val earlier = BoxStore.get(w, f.id)?.games?.take(gi) ?: emptyList()
@@ -228,6 +228,7 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
                 }
             }
         }
+        if (g.draftOrder.isNotEmpty() && t.draft.mode == "sequential") DraftRecap(vm, w, f, t, g, order)
     }
     Card("Box score") {
         for (side in order) {
@@ -242,6 +243,8 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
         }
     }
     TeamCompare(w, t, f, g.lines, order)
+    // Analysis from the recorded game comes after the draft and the box score.
+    if (t.isMoba) MobaAnalysisCard(vm, w, f, t, g, gi) else ShooterAnalysisCard(vm, w, f, t, g, gi)
 }
 
 @Composable
@@ -321,5 +324,94 @@ private fun SeriesTotals(vm: GameVm, w: World, f: Fixture, t: TitleDef, games: L
     }
     if (!t.isMoba) Card("Maps") {
         FlowRow { games.forEachIndexed { i, g -> Pill("${i + 1}. ${t.maps.firstOrNull { it.id == g.mapId }?.name ?: g.mapId}: ${g.score.getOrElse(0) { 0 }}-${g.score.getOrElse(1) { 0 }}", if (g.winner == 0) Ui.blue.copy(alpha = 0.35f) else Ui.red.copy(alpha = 0.35f)) } }
+    }
+}
+
+/** The draft step by step: who banned and picked what, in order, and for whom. */
+@Composable
+private fun DraftRecap(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecord, order: IntArray) {
+    val teams = intArrayOf(f.a, f.b)
+    Gap(8)
+    Text("Draft recap", color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+    Muted("${w.teams[teams[order[0]]].short} on the left, ${w.teams[teams[order[1]]].short} on the right", 10)
+    var lastBan: Boolean? = null
+    var phase = 0
+    g.draftOrder.forEachIndexed { i, e ->
+        val p = e.split('|')
+        if (p.size < 3) return@forEachIndexed
+        val ban = p[0] == "b"
+        val team = p[1].toIntOrNull() ?: 0
+        val cid = p[2]
+        if (ban != lastBan) { phase++; lastBan = ban; Text("${if (ban) "Ban" else "Pick"} phase ${(phase + 1) / 2}", color = Ui.muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)) }
+        val left = team == order[0]
+        val pid = p.getOrNull(3)?.toIntOrNull() ?: -1
+        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("${i + 1}", color = Ui.muted, fontSize = 10.sp, modifier = Modifier.width(20.dp))
+            @Composable fun cell(mod: Modifier) = Row(mod.clickable(enabled = pid >= 0) { vm.go(Screen.Player(pid)) }, verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.alpha(if (ban) 0.7f else 1f)) {
+                    CharPic(cid, t.charIndex[cid]?.name ?: cid, 26.dp, round = !ban)
+                    if (ban) Text("✕", color = Ui.loss, fontWeight = FontWeight.Black, fontSize = 12.sp, modifier = Modifier.align(Alignment.Center))
+                }
+                HGap(4)
+                Column {
+                    Text(t.charIndex[cid]?.name ?: cid, color = if (ban) Ui.muted else Ui.text, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(if (ban) "ban · ${w.teams[teams[team]].short}" else (w.players.getOrNull(pid)?.handle ?: w.teams[teams[team]].short), color = if (left) Ui.blue else Ui.red, fontSize = 9.sp, maxLines = 1)
+                }
+            }
+            if (left) { cell(Modifier.weight(1f)); Box(Modifier.weight(1f)) }
+            else { Box(Modifier.weight(1f)); cell(Modifier.weight(1f)) }
+        }
+    }
+}
+
+/** Scouting report before a series: the opponent first when it is your match. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ScoutingCard(vm: GameVm, w: World, f: Fixture, t: TitleDef) {
+    val mineA = w.isUserTeam(f.a); val mineB = w.isUserTeam(f.b)
+    val order = if (mineA) listOf(f.b, f.a) else listOf(f.a, f.b)
+    var sel by remember(f.id) { mutableIntStateOf(0) }
+    val teamId = order[sel]
+    val r = remember(f.id, teamId, vm.version) { dev.uem.em.mgmt.Scouting.report(w, teamId, order[1 - sel]) }
+    Card("Scouting report") {
+        Tabs(order.map { w.teams[it].short + if (w.isUserTeam(it)) " (you)" else "" }, sel) { sel = it }
+        if (r.series == 0) { Muted("No recorded matches yet: the report fills in as they play.", 11); return@Card }
+        Muted("Last ${r.series} series · ${r.games} ${if (t.isMoba) "games" else "maps"} · won ${r.wins} · form ${r.form}" + (if (t.isMoba && r.avgLength > 0) " · avg %d:%02d · %.1f kills".format(r.avgLength / 60, r.avgLength % 60, r.avgKills) else ""), 11)
+        if (r.banApproach.isNotEmpty()) KV("Analysts' read", "They usually ${r.banApproach}")
+        if (r.sideGames.sum() > 0) {
+            val names = if (t.isMoba) (if (t.id == "dota2") "Radiant" to "Dire" else "Blue" to "Red") else "Attack first" to "Defence first"
+            KV("By side", "${names.first} ${r.sideWins[0]}-${r.sideGames[0] - r.sideWins[0]} · ${names.second} ${r.sideWins[1]}-${r.sideGames[1] - r.sideWins[1]}")
+        }
+        @Composable fun charRow(title: String, list: List<Pair<String, Int>>) {
+            if (list.isEmpty()) return
+            Gap(4); Text(title, color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 3.dp)) {
+                for ((cid, n) in list) Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(54.dp)) {
+                    CharPic(cid, t.charIndex[cid]?.name ?: cid, 30.dp, round = true)
+                    Text(t.charIndex[cid]?.name ?: cid, color = Ui.text, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("×$n", color = Ui.muted, fontSize = 9.sp)
+                }
+            }
+        }
+        charRow("Their bans", r.bans)
+        charRow("Their first picks", r.firstPicks)
+        charRow("Banned against them", r.bansAgainst)
+        if (r.maps.isNotEmpty()) { Gap(4); Text("Maps", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold); FlowRow { for ((m, g, wn) in r.maps) Pill("${t.maps.firstOrNull { it.id == m }?.name ?: m} $wn-${g - wn}") } }
+        if (t.characters.isNotEmpty()) {
+            Gap(4); Text("Players: most played · most comfortable", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            for (n in r.players) Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Player(n.playerId)) }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                PlayerPic(w.players[n.playerId], 22.dp, round = true); HGap(4)
+                Text(w.players[n.playerId].handle, color = Ui.text, fontSize = 12.sp, modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
+                    for ((cid, c) in n.played) { CharPic(cid, t.charIndex[cid]?.name ?: cid, 22.dp, round = true); Text("$c ", color = Ui.muted, fontSize = 9.sp) }
+                    if (n.played.isNotEmpty()) Text("· ", color = Ui.muted, fontSize = 11.sp)
+                    for ((cid, _) in n.comfort) { Box(Modifier.alpha(0.75f)) { CharPic(cid, t.charIndex[cid]?.name ?: cid, 22.dp) }; HGap(2) }
+                }
+            }
+        }
+        if (r.ideas.isNotEmpty()) {
+            Gap(6); Text("Ideas", color = Ui.gold, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            for (i in r.ideas) Muted("• $i", 11)
+        }
     }
 }

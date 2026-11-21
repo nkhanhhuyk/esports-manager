@@ -35,7 +35,7 @@ object BoxStore {
         val old = recent.values.filter { it.day <= w.day - 2 }.sortedBy { it.fixtureId }
         if (old.isEmpty()) return
         val page = ++w.boxPage
-        s.write(w.name, page, old)
+        s.write(w.pagesName(), page, old)
         for (r in old) {
             w.fixtures[r.fixtureId].page = page
             recent.remove(r.fixtureId)
@@ -51,12 +51,12 @@ object BoxStore {
         val s = store ?: return
         var page = w.replayPrunedPage + 1
         while (page <= w.boxPage) {
-            val list = s.read(w.name, page)
+            val list = s.read(w.pagesName(), page)
             if (list != null) {
                 if (list.any { it.day >= beforeDay }) return
                 if (list.any { r -> r.games.any { it.replay != null } }) {
                     for (r in list) for (g in r.games) g.replay = null
-                    s.write(w.name, page, list)
+                    s.write(w.pagesName(), page, list)
                     synchronized(pageCache) { pageCache.remove(page) }
                 }
             }
@@ -69,7 +69,7 @@ object BoxStore {
         recent[fixtureId]?.let { return it }
         val page = w.fixtures.getOrNull(fixtureId)?.page ?: return null
         if (page < 0) return null
-        val list = synchronized(pageCache) { pageCache[page] } ?: store?.read(w.name, page)?.also { synchronized(pageCache) { pageCache[page] = it } } ?: return null
+        val list = synchronized(pageCache) { pageCache[page] } ?: store?.read(w.pagesName(), page)?.also { synchronized(pageCache) { pageCache[page] = it } } ?: return null
         return list.firstOrNull { it.fixtureId == fixtureId }
     }
 }

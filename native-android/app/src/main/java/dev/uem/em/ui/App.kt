@@ -45,6 +45,7 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
         Box(Modifier.fillMaxSize().background(Ui.bg)) {
             val w = vm.world
             Sheets.world = w
+            Links.go = if (vm.live == null && busy0(vm)) { s -> vm.go(s) } else null
             val busy = vm.busy
             // While the simulation runs on other threads the world is not read by any screen.
             if (busy != null) BusyScreen(vm, busy)
@@ -74,6 +75,7 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                         Screen.Settings -> SettingsScreen(vm, w)
                         is Screen.Comp -> CompScreen(vm, w, s.id)
                         is Screen.Team -> TeamScreen(vm, w, s.id)
+                        is Screen.Org -> OrgScreen(vm, w, s.id)
                         is Screen.Player -> PlayerScreen(vm, w, s.id)
                         is Screen.Match -> MatchScreen(vm, w, s.id)
                         is Screen.Compare -> CompareScreen(vm, w, s.a, s.b)
@@ -87,6 +89,7 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                 }
                 BottomBar(vm)
             } }
+            if (vm.saveAsOpen && w != null && busy == null) SaveAsDialog(vm, w)
             val sheet = Sheets.open
             if (sheet != null && w != null && busy == null) InfoSheet(w, sheet.first, sheet.second) { Sheets.open = null }
             vm.toast?.let { msg ->
@@ -134,6 +137,7 @@ private fun TopBar(vm: GameVm, w: dev.uem.em.model.World, openMenu: () -> Unit =
                     DropdownMenuItem(text = { Text("${span.years} seasons") }, onClick = { menu = false; years = span })
                 }
                 DropdownMenuItem(text = { Text("Save now") }, onClick = { menu = false; vm.save() })
+                DropdownMenuItem(text = { Text("Save as new file…") }, onClick = { menu = false; vm.saveAsOpen = true })
             }
         }
     }
@@ -168,3 +172,22 @@ fun Gap(h: Int = 8) = Spacer(Modifier.height(h.dp))
 
 @Composable
 fun HGap(wd: Int = 8) = Spacer(Modifier.width(wd.dp))
+
+private fun busy0(vm: GameVm) = vm.busy == null
+
+/** Save to a new file with a name (the current file stays as it is). */
+@Composable
+fun SaveAsDialog(vm: GameVm, w: dev.uem.em.model.World) {
+    var label by remember { mutableStateOf(vm.defaultSaveLabel(w)) }
+    AlertDialog(onDismissRequest = { vm.saveAsOpen = false },
+        confirmButton = { TextButton(onClick = { vm.saveAsOpen = false; vm.saveAs(label) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = { vm.saveAsOpen = false }) { Text("Cancel") } },
+        title = { Text("Save as a new file") },
+        text = {
+            Column {
+                androidx.compose.material3.OutlinedTextField(value = label, onValueChange = { label = it.take(40) }, label = { Text("Name") }, singleLine = true)
+                Spacer(Modifier.height(8.dp))
+                Text("Your current file is kept. From now on, Save and autosave write to this new file. You can keep as many files as you like.", fontSize = 12.sp)
+            }
+        })
+}

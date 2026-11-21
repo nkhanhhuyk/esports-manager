@@ -113,7 +113,9 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         // Execution from the player's ratings (each mechanic reads one phase).
         val aim = 0.72f + 0.10f * z(Phase.SKIRMISH)
         val fightIq = 1f + 0.08f * z(Phase.TEAMFIGHT)
-        val laning = 0.72f + 0.11f * z(Phase.LANING)
+        var laning = 0.72f + 0.11f * z(Phase.LANING)
+        /** Matchup edge against each enemy hero (index gi): damage multiplier from counters on this patch. */
+        val vs = FloatArray(10) { 1f }
         /** Mechanical execution: damage actually landed from attacks and combos. */
         val execution = 1f + 0.07f * z(Phase.SKIRMISH) + 0.04f * z(Phase.TEAMFIGHT)
         val clutch = z(Phase.CLUTCH)
@@ -180,7 +182,14 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         }
     }
 
-    val heroes: List<Hero> = (0..1).flatMap { s -> teams[s].players.mapIndexed { i, pc -> Hero(s, i, pc) } }
+    val heroes: List<Hero> = (0..1).flatMap { s -> teams[s].players.mapIndexed { i, pc -> Hero(s, i, pc) } }.also { hs ->
+        // Counters on this patch: a small damage edge in every fight, a laning edge against the lane opponent.
+        if (patch != null) for (h in hs) for (e in hs) if (e.side != h.side) {
+            val sc = Counters.score(t, patch, h.pc.charId ?: "", e.pc.charId ?: "").toFloat()
+            h.vs[e.gi] = 1f + 0.07f * sc
+            if (h.lane >= 0 && e.lane >= 0 && e.laneMap == h.laneMap && e.duoSecond == h.duoSecond) h.laning *= 1f + 0.06f * sc // same physical lane
+        }
+    }
     /** Box-score line of each hero (index gi), for direct stat updates. */
     val lineOf = arrayOfNulls<DoubleArray>(10).also { a -> for (h in heroes) a[h.gi] = book.lines.first { it.playerId == h.pc.p.id }.s }
     fun stat(h: Hero, k: Int, v: Double) { if (k >= 0) lineOf[h.gi]!![k] += v }
@@ -265,9 +274,15 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     }
 
     // ---------------------------------------------------------------------------- objectives
-    inner class Obj(val o: Objective, val idx: Int) {
-        val pit = map.pits.firstOrNull { o.id in it.objectives } ?: map.pits.firstOrNull()
-        val x = pit?.x ?: 500f; val y = pit?.y ?: 500f
+    /**
+     * One objective instance at a pit. An objective with its own pits on each side (Dota 2 Wisdom
+     * shrines, Tormentors) has one instance per pit; one that moves (Roshan between its two pits
+     * with day and night) has one instance whose pit changes at each spawn.
+     */
+    inner class Obj(val o: Objective, val idx: Int, val k: Int, val pits: List<MobaMap.Pit>) {
+        var pit = pits.firstOrNull() ?: map.pits.firstOrNull()
+        var x = pit?.x ?: 500f; var y = pit?.y ?: 500f
+        fun place() { if (pits.size > 1) { pit = pits[(now / 300) % pits.size]; x = pit!!.x; y = pit!!.y } }
         var alive = false
         var next = (o.spawn * 60 * (patch?.objRespawn(o.id)?.let { 1.0 } ?: 1.0)).toInt()
         val maxHp = when (o.kind) { "aegis" -> 9000f; "push" -> if (o.major) 11000f else 6000f; "execute" -> 12000f; "stack" -> 5200f; "siege" -> 3500f; "xp" -> 1f; else -> 4800f } * (1f + o.spawn.toFloat() / 60f)
@@ -275,7 +290,14 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         val dmgBy = FloatArray(2)
         val capture = o.kind == "xp"
     }
-    val objs = cfg.objectives.mapIndexed { i, o -> Obj(o, i) }
+    val objs: List<Obj> = ArrayList<Obj>().also { list ->
+        cfg.objectives.forEachIndexed { i, o ->
+            val pits = map.pits.filter { o.id in it.objectives }
+            val own = pits.filter { it.objectives.size == 1 }
+            if (own.size >= 2) for (pt in own) list.add(Obj(o, i, list.size, listOf(pt)))
+            else list.add(Obj(o, i, list.size, pits))
+        }
+    }
 
     // ---------------------------------------------------------------------------------- camps
     val campNext = IntArray(map.camps.size) { if (t.id == "dota2") 60 else 90 }
@@ -350,6 +372,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     fun damage(src: Hero?, srcSide: Int, target: Hero, amount0: Float, type: Int) {
         if (!target.alive(now) || target.immuneUntil > nowF && type != 2) return
         var amount = amount0
+        if (src != null) amount *= src.vs[target.gi]
         if (type != 2) amount *= 1f - target.resist()
         if (target.reduceUntil > nowF) amount *= 1f - target.reducePct
         if (src != null && executeUntil[srcSide] > now && target.hpPct() < 0.2f) amount = target.hp + target.shield + 1f
@@ -769,8 +792,9 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             if (o.alive) { if (o.o.until != null && m > o.o.until + 1) o.alive = false; continue }
             if (o.o.until != null && m > o.o.until) continue
             if (now >= o.next && o.next >= 0) {
+                o.place()
                 o.alive = true; o.hp = o.maxHp * (1f + (m / 30.0).toFloat() * 0.6f); o.dmgBy[0] = 0f; o.dmgBy[1] = 0f
-                ev(Ev(now, "spawn", -1, x = o.idx))
+                ev(Ev(now, "spawn", -1, x = o.idx, n = MobaEngine.packPos(o.x, o.y)))
             }
         }
     }
@@ -924,8 +948,10 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
                 if (!o.alive && !(o.next - now in 0..20)) continue
                 val value = (if (o.o.major) 2.0 else 1.0) * (if (m < cfg.laneEnd) 0.75 else 1.0)
                 val adv = (alive - enemyAlive) * 0.8 + (ratio - 1) * 2.2 + macro * 0.2 + (tc.aggression - 50) / 150.0
-                val score = value * (0.55 + adv)
-                if (score > bestVal) { bestVal = score; bestObj = o.idx }
+                // Nearer objectives first (each side's own Wisdom shrine and Tormentor).
+                val near = hypot(o.x - fountain(side)[0], o.y - fountain(side)[1]) / 1000f
+                val score = value * (0.55 + adv) - (if (objs.count { it.idx == o.idx } > 1) near * 0.6 else 0.0)
+                if (score > bestVal) { bestVal = score; bestObj = o.k }
             }
             val old = plan[side]
             if (threatened >= 0 && m > 2.5 && ratio > 0.45) { plan[side] = 3; planLane[side] = threatened }

@@ -299,7 +299,7 @@ fun HistoryScreen(vm: GameVm, w: World) {
                     if (rows.isEmpty()) Muted("No titles won yet.")
                     rows.forEachIndexed { i, (o, a, total) ->
                         val org = w.orgs[o]
-                        Row(Modifier.fillMaxWidth().clickable { org.teams.firstOrNull()?.let { vm.go(Screen.Team(it)) } }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Org(o)) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("${i + 1}", color = if (i == 0) Ui.gold else Ui.muted, fontSize = 12.sp, modifier = Modifier.width(24.dp))
                             Pic(org.teams.firstNotNullOfOrNull { Pics.team(w.teams[it]) }, org.short, 20.dp); HGap(6)
                             Column(Modifier.weight(1f)) { Text(org.name, color = if (o == w.userOrg) Ui.gold else Ui.text, fontSize = 13.sp); Muted("${a[0]} worlds · ${a[1]} internationals · ${a[2]} leagues", 10) }

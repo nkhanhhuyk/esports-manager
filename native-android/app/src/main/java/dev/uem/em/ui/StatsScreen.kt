@@ -138,7 +138,7 @@ private fun Records(vm: GameVm, w: World, title: String) {
     @Suppress("UNCHECKED_CAST")
     run {
         RecordList("Most world titles (team)", data[0] as List<Map.Entry<Int, Int>>, { TeamChip(w, it.key, vm, 18.dp) }) { "${it.value}" }
-        RecordList("Most world titles (organisation)", data[7] as List<Map.Entry<Int, Int>>, { Text(w.orgs[it.key].name, color = Ui.text, fontSize = 13.sp) }) { "${it.value}" }
+        RecordList("Most world titles (organisation)", data[7] as List<Map.Entry<Int, Int>>, { OrgLink(w, it.key) }) { "${it.value}" }
         RecordList("Most trophies (team)", data[1] as List<dev.uem.em.model.Team>, { TeamChip(w, it.id, vm, 18.dp) }) { "${it.trophies.size}" }
         RecordList("Most MVP awards", data[2] as List<Map.Entry<Int, Int>>, { PlayerChip(w.players[it.key], vm, 18.dp) }) { "${it.value}" }
         RecordList("Best season rating (min. 20 games)", data[3] as List<Pair<Player, dev.uem.em.model.SeasonLine>>, { (p, l) -> Row(verticalAlignment = Alignment.CenterVertically) { PlayerChip(p, vm, 18.dp); Muted("  ${l.season} · ${w.teams.getOrNull(l.teamId)?.short ?: ""}", 10) } }) { "%.2f".format(it.second.ratingSum / it.second.gp) }

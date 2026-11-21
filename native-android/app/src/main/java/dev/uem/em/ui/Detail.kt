@@ -59,7 +59,7 @@ fun Rating(v: Double, digits: Int = 0, size: Int = 13, bold: Boolean = true) =
 /** A label / value row with a hairline under it (the web version's attr-row). */
 @Composable
 fun KV(label: String, value: String, color: Color = Ui.text, faded: Boolean = false) = KV(label, faded) {
-    Text(value, color = color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 230.dp))
+    LinkedText(value, color, 13.sp, FontWeight.SemiBold, maxLines = 3, align = TextAlign.End, modifier = Modifier.widthIn(max = 230.dp))
 }
 
 @Composable

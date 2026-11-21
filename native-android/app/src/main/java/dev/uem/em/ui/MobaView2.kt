@@ -74,6 +74,7 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
     val rp = g.replay ?: return
     val map = remember(t.id) { MobaMap.of(t.id) }
     val ev = remember(g) { ReplayCodec.events(rp, t) }
+    val positional = remember(g) { ev.any { it.kind == "spawn" && it.n >= 0 } }
     val teams = arrayOf(w.teams[f.a], w.teams[f.b])
     val blue = g.blue
     fun mapSide(seriesTeam: Int) = if (seriesTeam == blue) 0 else 1
@@ -125,6 +126,8 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
     val kNow = HashMap<Int, Int>(); val dNow = HashMap<Int, Int>(); val aNow = HashMap<Int, Int>()
     val structHp = IntArray(map.structs.size) { 100 }
     val objAlive = BooleanArray(t.moba!!.objectives.size)
+    /** Objectives alive by pit position (newer replays record where each one spawned). */
+    val aliveAt = HashSet<Int>()
     val wards = ArrayList<Triple<Float, Float, Int>>()
     for (e in ev) {
         if (e.t > Ti) break
@@ -135,8 +138,8 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
                 for (i in 0 until 5) if (e.m and (1 shl i) != 0) rp.pids.getOrNull(side * (n / 2) + i)?.let { aNow.merge(it, 1, Int::plus) }
                 dNow.merge(e.b, 1, Int::plus)
             } else dNow.merge(e.b, 1, Int::plus)
-            "obj" -> { objs[mapSide(e.team)]++; objAlive.getOrNull(e.x)?.let { objAlive[e.x] = false } }
-            "spawn" -> if (e.x in objAlive.indices) objAlive[e.x] = true
+            "obj" -> { objs[mapSide(e.team)]++; objAlive.getOrNull(e.x)?.let { objAlive[e.x] = false }; if (e.n >= 0) aliveAt.remove(e.n) }
+            "spawn" -> { if (e.x in objAlive.indices) objAlive[e.x] = true; if (e.n >= 0) aliveAt.add(e.n) }
             "shp" -> if (e.x in structHp.indices) structHp[e.x] = min(structHp[e.x], e.a)
             "tower", "base", "core" -> if (e.n in structHp.indices) structHp[e.n] = 0
         }
@@ -191,7 +194,10 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
             for (s in 0..1) drawCircle(teamCol[s].copy(alpha = 0.22f), W * 0.05f, p(map.fountains[s][0], map.fountains[s][1]))
             for (c in map.camps) drawCircle(Color(0x553DDC97), W * 0.009f, p(c.x, c.y))
             // Objectives: bright when alive, dim when taken.
-            for ((oi, o) in t.moba.objectives.withIndex()) {
+            if (positional) for (pit in map.pits) {
+                val on = dev.uem.em.sim.MobaEngine.packPos(pit.x, pit.y) in aliveAt
+                drawCircle(if (on) Color(0xFFB98CFF) else Color(0x556E5A9B), W * 0.028f, p(pit.x, pit.y), style = Stroke(if (on) 5f else 2f))
+            } else for ((oi, o) in t.moba.objectives.withIndex()) {
                 val pit = map.pits.firstOrNull { o.id in it.objectives } ?: continue
                 drawCircle(if (objAlive[oi]) Color(0xFFB98CFF) else Color(0x556E5A9B), W * 0.028f, p(pit.x, pit.y), style = Stroke(if (objAlive[oi]) 5f else 2f))
             }

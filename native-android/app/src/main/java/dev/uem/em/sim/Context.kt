@@ -57,7 +57,7 @@ class CompEval(val total: Double, val counter: Double, val profile: Map<String, 
  * The balance patch of a title in a season: character meta strength (−10..10) and style weights,
  * derived from the world seed (stage 1 of the native app: one patch per title per season).
  */
-class Patch(val charMeta: Map<String, Double>, val styles: Map<String, Double>, val obj: Map<String, Double> = emptyMap()) {
+class Patch(val charMeta: Map<String, Double>, val styles: Map<String, Double>, val obj: Map<String, Double> = emptyMap(), val seedKey: String = "", val n: Int = 0) {
     fun objValue(id: String) = obj[id] ?: 1.0
     fun objRespawn(id: String) = obj["$id@respawn"] ?: 1.0
 
@@ -76,7 +76,7 @@ class Patch(val charMeta: Map<String, Double>, val styles: Map<String, Double>, 
                     for ((k, v) in p.styleDelta) styles[k] = clamp((styles[k] ?: 1.0) + v, 0.7, 1.3)
                     for ((k, v) in p.objMods) obj[k] = if (k == "defender") (obj[k] ?: 0.0) + v else clamp((obj[k] ?: 1.0) * v, 0.5, 2.0)
                 }
-                Patch(dev.uem.em.mgmt.PatchState.metaOf(w, t), styles, obj)
+                Patch(dev.uem.em.mgmt.PatchState.metaOf(w, t), styles, obj, w.seed, n)
             }
         }
     }

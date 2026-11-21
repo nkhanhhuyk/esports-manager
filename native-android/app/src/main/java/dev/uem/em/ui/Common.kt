@@ -60,7 +60,7 @@ fun Card(title: String? = null, modifier: Modifier = Modifier, right: (@Composab
 }
 
 @Composable
-fun Muted(text: String, size: Int = 12) = Text(text, color = Ui.muted, fontSize = size.sp)
+fun Muted(text: String, size: Int = 12) = LinkedText(text, Ui.muted, size.sp)
 
 @Composable
 fun TeamChip(w: World, teamId: Int, vm: GameVm, size: Dp = 22.dp, bold: Boolean = false) {

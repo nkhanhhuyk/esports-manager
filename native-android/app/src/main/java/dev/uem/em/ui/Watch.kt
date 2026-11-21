@@ -207,7 +207,7 @@ fun SpectatorHome(vm: GameVm, w: World) {
         item {
             Card("News") {
                 for (n in w.news.takeLast(8).reversed()) {
-                    Text(n.title, color = Ui.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    LinkedText(n.title, Ui.text, 14.sp, FontWeight.SemiBold)
                     Muted(Dates.format(n.day), 10)
                     Gap(6)
                 }

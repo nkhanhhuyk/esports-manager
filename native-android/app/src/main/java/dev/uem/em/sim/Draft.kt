@@ -13,30 +13,8 @@ import dev.uem.em.titles.TitleDef
  * Valorant agents are chosen per team (no bans); CS2 has no characters.
  */
 object Draft {
-    class Result(val picks: Array<ArrayList<String>>, val bans: List<String>, val assign: Array<HashMap<Int, String>>, val firstPick: Int)
-
-    private val COUNTERS = listOf(
-        Triple(Regex("assassin|flank|speedster|skirmisher"), Regex("marksman|mage|sniper|sharpshooter|hunter|carry|artillery|support|healer|strategist|enchanter"), 0.5),
-        Triple(Regex("tank|guardian|vanguard|front|defender|brawler"), Regex("assassin|flank|speedster|fighter|warrior"), 0.4),
-        Triple(Regex("marksman|hunter|sharpshooter|carry|damage|duelist"), Regex("tank|guardian|vanguard|front|defender"), 0.45),
-        Triple(Regex("mage|nuker|caster|controller|artillery"), Regex("fighter|warrior|bruiser|all-rounder|tank"), 0.35),
-        Triple(Regex("fighter|warrior|bruiser|all-rounder"), Regex("marksman|mage|support|enchanter"), 0.3),
-        Triple(Regex("initiator|intel|recon"), Regex("sentinel|anchor|trapper|controller"), 0.3),
-        Triple(Regex("sentinel|anchor|trapper"), Regex("duelist|entry"), 0.35),
-        Triple(Regex("duelist|entry"), Regex("initiator|controller|intel"), 0.25),
-    )
-    private val counterCache = java.util.concurrent.ConcurrentHashMap<String, Double>()
-
-    fun counter(a: CharDef, b: CharDef): Double = counterCache.getOrPut("${a.cls}|${b.cls}") {
-        val ca = a.cls.lowercase()
-        val cb = b.cls.lowercase()
-        var s = 0.0
-        for ((x, y, v) in COUNTERS) {
-            if (x.containsMatchIn(ca) && y.containsMatchIn(cb)) s += v
-            if (x.containsMatchIn(cb) && y.containsMatchIn(ca)) s -= v
-        }
-        s
-    }
+    /** `order`: the draft step by step ("b|team|character" or "p|team|character|player"), team = series team. */
+    class Result(val picks: Array<ArrayList<String>>, val bans: List<String>, val assign: Array<HashMap<Int, String>>, val firstPick: Int, val order: List<String> = emptyList())
 
     private val FRONT = Regex("tank|guardian|vanguard|front|defender|fighter|warrior|bruiser|captain")
     private val DAMAGE = Regex("marksman|mage|assassin|sniper|hunter|sharpshooter|damage|duelist|attacker|carry|nuker|caster|energy")
@@ -58,13 +36,18 @@ object Draft {
         val dmg = chars.count { DAMAGE.containsMatchIn(it.cls.lowercase()) }
         val sup = chars.any { SUPPORT.containsMatchIn(it.cls.lowercase()) }
         val coverage = (if (hasFront) 0.25 else -0.35) + (if (dmg >= minOf(2, chars.size - 1)) 0.2 else -0.3) + (if (sup) 0.1 else -0.15)
+        // Matchups on this patch (lane opponents count double), synergy and kit strength.
         var counter = 0.0
         if (enemy.isNotEmpty()) {
-            for (c in chars) for (e in enemy) counter += counter(c, e)
-            counter = clamp(counter / (chars.size * enemy.size) * 3, -1.0, 1.0)
+            var wsum = 0.0
+            for ((i, c) in chars.withIndex()) for ((j, e) in enemy.withIndex()) { val wt = if (i == j) 2.0 else 1.0; counter += Counters.score(t, patch, c.id, e.id) * wt; wsum += wt }
+            counter = clamp(counter / maxOf(1.0, wsum) * 2.2, -1.0, 1.0)
         }
+        var syn = 0.0
+        if (chars.size > 1) { var n = 0; for (i in chars.indices) for (j in i + 1 until chars.size) { syn += Counters.synergy(t, chars[i].id, chars[j].id); n++ }; syn /= maxOf(1, n) }
+        val power = chars.sumOf { Counters.power(t, it.id) } / chars.size
         val comfort = if (players.isEmpty()) 0.5 else players.indices.sumOf { i -> chars.getOrNull(i)?.let { (players[i].profChar[it.id] ?: 25.0) / 100 } ?: 0.0 } / players.size
-        val total = 0.35 * meta + 0.22 * style + 0.18 * coverage + 0.13 * counter + 0.12 * (comfort - 0.6) * 2
+        val total = 0.30 * meta + 0.18 * style + 0.16 * coverage + 0.16 * counter + 0.10 * (comfort - 0.6) * 2 + 0.06 * (syn - 0.3) * 2 + 0.04 * (power - 0.5) * 2
         return CompEval(total, counter, profile)
     }
 
@@ -93,8 +76,15 @@ object Draft {
             .sortedByDescending { it.second }.take(14).map { it.first }.toList()
     }
 
-    fun run(t: TitleDef, patch: Patch, lineups: Array<List<Player>>, styles: Array<String>, firstPick: Int, locked: Array<Set<String>>, rng: Rng): Result =
-        DraftSession(t, patch, lineups, styles, firstPick, locked, rng).runAll()
+    fun run(t: TitleDef, patch: Patch, lineups: Array<List<Player>>, styles: Array<String>, firstPick: Int, locked: Array<Set<String>>, rng: Rng, know: DoubleArray = doubleArrayOf(0.7, 0.7), banPref: IntArray? = null): Result =
+        DraftSession(t, patch, lineups, styles, firstPick, locked, rng, know, banPref).runAll()
+
+    /** How well a team reads the patch: meta adaptation and the head coach. */
+    fun knowledge(w: dev.uem.em.model.World, team: dev.uem.em.model.Team) = clamp((team.metaAdapt * 0.6 + team.coach * 0.4) / 100.0, 0.3, 1.0)
+
+    /** A team's usual ban approach this season (meta threats, comfort targeting, balanced, handshake): scouts can read it. */
+    fun banTendency(w: dev.uem.em.model.World, team: dev.uem.em.model.Team) = Math.floorMod(team.id * 7 + w.season * 3 + team.style.length, 4)
+    val BAN_TENDENCY = listOf("bans the meta threats", "targets the opponents' comfort picks", "mixes meta and comfort bans", "leaves power picks open to trade them (handshake)")
 
     internal fun prefs(t: TitleDef, patch: Patch, p: Player, roleIdx: Int, style: String) = preferred(t, patch, p, roleIdx, style)
 }
@@ -104,10 +94,18 @@ object Draft {
  * [aiStep]; the user acts with [ban] / [pick]. Same rules for both: bans, uniqueness, Fearless.
  * Valorant agents are chosen per team without bans; CS2 has no characters.
  */
-class DraftSession(val t: TitleDef, val patch: Patch, val lineups: Array<List<Player>>, val styles: Array<String>, val firstPick: Int, val locked: Array<Set<String>>, val rng: Rng) {
+class DraftSession(
+    val t: TitleDef, val patch: Patch, val lineups: Array<List<Player>>, val styles: Array<String>, val firstPick: Int, val locked: Array<Set<String>>, val rng: Rng,
+    /** How well each team reads the patch (coaches and analysts, 0.3..1): weight of counters, synergy and kit strength. */
+    val know: DoubleArray = doubleArrayOf(0.7, 0.7),
+    /** Each team's usual ban approach this season (-1: none), see [banStyle]. */
+    banPref: IntArray? = null,
+) {
     val picks = arrayOf(ArrayList<String>(), ArrayList<String>())
     val assign = arrayOf(HashMap<Int, String>(), HashMap<Int, String>())
     val bans = ArrayList<String>()
+    /** Every ban and pick in order (see [Draft.Result.order]). */
+    val order = ArrayList<String>()
     val banned = HashSet<String>()
     val picked = HashSet<String>()
     val open = arrayOf(lineups[0].indices.toMutableList(), lineups[1].indices.toMutableList())
@@ -128,7 +126,7 @@ class DraftSession(val t: TitleDef, val patch: Patch, val lineups: Array<List<Pl
 
     // ------------------------------------------------------------------ ban planning
     /** How a team bans in this draft: 0 meta threats, 1 target the opponents' comfort picks, 2 balanced, 3 handshake (leave power picks to trade). */
-    val banStyle = IntArray(2) { rng.int(0, 3) }
+    val banStyle = IntArray(2) { s -> val pref = banPref?.getOrNull(s) ?: -1; if (pref >= 0 && rng.chance(0.65)) pref else rng.int(0, 3) }
     val BAN_STYLE_NAMES = listOf("meta threats", "target comfort picks", "balanced", "handshake")
     /** Patch strength as standard scores: only characters clearly above the field count as overpowered (0 to several per patch). */
     private val metaZ: Map<String, Double> by lazy {
@@ -160,6 +158,7 @@ class DraftSession(val t: TitleDef, val patch: Patch, val lineups: Array<List<Pl
         val cand = LinkedHashSet<CharDef>()
         for (i in open[enemy].ifEmpty { lineups[enemy].indices.toList() }) cand.addAll(prefs[enemy][i].take(6))
         cand.addAll(t.characters.sortedByDescending { metaZ[it.id] ?: 0.0 }.take(10))
+        if (know[team] > 0.5) for (i in open[team]) prefs[team][i].firstOrNull()?.let { mp -> Counters.countersOf(t, patch, mp.id, 2).first.forEach { (cid, _) -> t.charIndex[cid]?.let { cand.add(it) } } }
         val mineNext = nextPickIsMine(team)
         var best: CharDef? = null; var bv = -9.0
         for (c in cand) {
@@ -175,7 +174,13 @@ class DraftSession(val t: TitleDef, val patch: Patch, val lineups: Array<List<Pl
             }
             var mine = 0.0
             for (i in open[team]) if (c in prefs[team][i].take(4)) mine = maxOf(mine, comfortOf[team][i](c) / 100)
-            var v = wMeta * op + wTarget * target * 1.4 + rng.normal(0.0, 0.3)
+            // A counter we are comfortable on: the overpowered pick can stay open (we answer it).
+            var answer = 0.0
+            for (i in open[team]) for (x in prefs[team][i].take(8)) if (legal(team, false, x.id) && x.id != c.id) answer = maxOf(answer, Counters.score(t, patch, x.id, c.id) * comfortOf[team][i](x) / 100)
+            // It counters what we want to play: ban it to protect our comfort picks.
+            var threat = 0.0
+            for (i in open[team]) prefs[team][i].firstOrNull { legal(team, false, it.id) && it.id != c.id }?.let { mp -> threat = maxOf(threat, Counters.score(t, patch, c.id, mp.id) * comfortOf[team][i](mp) / 100) }
+            var v = wMeta * op + wTarget * target * 1.4 + know[team] * (threat * 0.9 - answer * 0.8 * minOf(1.0, op)) + rng.normal(0.0, 0.3)
             // Handshake: a power pick we can take with our next pick stays open.
             if (mineNext && (style == 3 || style == 2) && mine > 0.45 && op > 0.3) v -= 1.2 + mine
             if (v > bv) { bv = v; best = c }
@@ -188,7 +193,7 @@ class DraftSession(val t: TitleDef, val patch: Patch, val lineups: Array<List<Pl
     fun ban(id: String): Boolean {
         val cur = current() ?: return false
         if (!cur.second || !legal(cur.first, true, id)) return false
-        banned.add(id); bans.add(id); step++
+        banned.add(id); bans.add(id); order.add("b|${cur.first}|$id"); step++
         return true
     }
 
@@ -206,6 +211,7 @@ class DraftSession(val t: TitleDef, val patch: Patch, val lineups: Array<List<Pl
 
     private fun place(team: Int, idx: Int, id: String) {
         picked.add(id); picks[team].add(id); assign[team][lineups[team][idx].id] = id; open[team].remove(idx)
+        order.add("p|$team|$id|${lineups[team][idx].id}")
     }
 
     /** The AI acts for whichever team's turn it is. */
@@ -214,20 +220,34 @@ class DraftSession(val t: TitleDef, val patch: Patch, val lineups: Array<List<Pl
         val team = cur.first
         if (cur.second) {
             val c = chooseBan(team)
-            if (c != null) { banned.add(c.id); bans.add(c.id) }
+            if (c != null) { banned.add(c.id); bans.add(c.id); order.add("b|$team|${c.id}") }
             step++
             return
         }
         if (open[team].isEmpty()) { step++; return }
-        var best = -1.0
+        var best = -99.0
         var bc: CharDef? = null
         var bi = -1
+        val enemy = 1 - team
+        val k = know[team]
+        // Lane opponents already shown by the enemy (their character by lineup slot).
+        val enemyBySlot = HashMap<Int, String>()
+        for ((pid, cid) in assign[enemy]) { val slot = lineups[enemy].indexOfFirst { it.id == pid }; if (slot >= 0) enemyBySlot[slot] = cid }
         for (i in open[team]) {
             val list = prefs[team][i]
-            val idx = list.indexOfFirst { legal(team, false, it.id) }
-            if (idx < 0) continue
-            val v = 14 - idx + rng.next() * 1.5
-            if (v > best) { best = v; bc = list[idx]; bi = i }
+            var legalSeen = 0
+            for ((idx, c) in list.withIndex()) {
+                if (!legal(team, false, c.id)) continue
+                if (++legalSeen > 6) break
+                var v = (14 - idx) / 14.0 * 3.0
+                // Counter-pick: the lane opponent first, then the rest of their picks.
+                enemyBySlot[i]?.let { v += k * 1.6 * Counters.score(t, patch, c.id, it) }
+                if (picks[enemy].isNotEmpty()) v += k * 0.9 * picks[enemy].sumOf { Counters.score(t, patch, c.id, it) } / picks[enemy].size
+                if (picks[team].isNotEmpty()) v += k * 0.7 * picks[team].sumOf { Counters.synergy(t, c.id, it) } / picks[team].size
+                v += k * 0.5 * (Counters.power(t, c.id) - 0.5)
+                v += rng.next() * 0.45
+                if (v > best) { best = v; bc = c; bi = i }
+            }
         }
         if (bc == null) {
             bi = open[team][0]
@@ -268,5 +288,5 @@ class DraftSession(val t: TitleDef, val patch: Patch, val lineups: Array<List<Pl
         return result()
     }
 
-    fun result() = Draft.Result(picks, bans, assign, firstPick)
+    fun result() = Draft.Result(picks, bans, assign, firstPick, order)
 }

@@ -116,6 +116,6 @@ fun TeamPic(t: Team, size: Dp = 28.dp, round: Boolean = false) {
 fun CharPic(id: String?, label: String, size: Dp = 28.dp, round: Boolean = false, color: Color = Color(0xFF2B3550), tap: Boolean = true) {
     val cls = id?.let { Sheets.charClass(it) } ?: ""
     Box(if (tap && id != null) Modifier.clickable { Sheets.openChar(id) } else Modifier) {
-        Pic(Pics.char(id), label, size, round, color, fallback = { GenEmblem((id ?: label).hashCode(), size, cls, label) })
+        Pic(Pics.char(id), label, size, round, color, fallback = { GenChampion((id ?: label).hashCode(), size, cls) })
     }
 }

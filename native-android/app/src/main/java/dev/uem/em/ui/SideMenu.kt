@@ -70,7 +70,9 @@ fun SideMenu(vm: GameVm, w: World, content: @Composable (open: () -> Unit) -> Un
                 item("History & awards") { go(Screen.History) }
                 item("World, nations & rankings") { go(Screen.World) }
                 head("GAME")
-                item("Save now") { close(); vm.save() }
+                item("Save now", "overwrites the current file") { close(); vm.save() }
+                item("Save as new file…", "keeps the current file") { close(); vm.saveAsOpen = true }
+                item("Load or manage saves", "all save files: load, rename, delete, import") { close(); vm.tab(Screen.Start) }
                 item("Settings", "job, delegation, back-up/export, replays, pictures") { go(Screen.Settings) }
                 item("More…") { go(Screen.More) }
             }

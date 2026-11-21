@@ -28,7 +28,8 @@ class SaveStore(private val root: File) {
     @Serializable
     class SaveFile(val world: World, val records: List<MatchRecord>)
 
-    class Meta(val slot: String, val name: String, val day: Int, val season: Int, val modified: Long, val bytes: Long)
+    /** A save file as listed: its label (renameable), career, club, date in the game and on the phone. */
+    class Meta(val slot: String, val name: String, val day: Int, val season: Int, val modified: Long, val bytes: Long, val career: String = "", val club: String = "", val pagesKey: String = "")
 
     init {
         root.mkdirs()
@@ -54,13 +55,67 @@ class SaveStore(private val root: File) {
         }
     }
 
-    fun save(slot: String, w: World) {
+    private fun metaFile(slot: String) = File(root, "$slot.meta.json")
+
+    fun save(slot: String, w: World, label: String? = null) {
         val bytes = ProtoBuf.encodeToByteArray(SaveFile(w, BoxStore.unpaged()))
         val tmp = File(root, "$slot.tmp")
         GZIPOutputStream(tmp.outputStream().buffered(1 shl 16)).use { it.write(bytes) }
         val target = file(slot)
         if (target.exists()) target.copyTo(File(root, "$slot.bak"), overwrite = true)
         if (!tmp.renameTo(target)) { tmp.copyTo(target, overwrite = true); tmp.delete() }
+        writeMeta(slot, w, label ?: readMeta(slot)?.get("label") ?: slot)
+    }
+
+    private fun writeMeta(slot: String, w: World, label: String) {
+        val club = w.orgs.getOrNull(w.userOrg)?.name ?: if (w.spectator) "Spectator" else ""
+        val j = kotlinx.serialization.json.buildJsonObject {
+            put("label", kotlinx.serialization.json.JsonPrimitive(label))
+            put("career", kotlinx.serialization.json.JsonPrimitive(w.name))
+            put("club", kotlinx.serialization.json.JsonPrimitive(club))
+            put("season", kotlinx.serialization.json.JsonPrimitive(w.season))
+            put("day", kotlinx.serialization.json.JsonPrimitive(w.day))
+            put("pages", kotlinx.serialization.json.JsonPrimitive(w.pagesName()))
+        }
+        metaFile(slot).writeText(j.toString())
+    }
+
+    private fun readMeta(slot: String): Map<String, String>? = runCatching {
+        (kotlinx.serialization.json.Json.parseToJsonElement(metaFile(slot).readText()) as kotlinx.serialization.json.JsonObject).mapValues { (it.value as kotlinx.serialization.json.JsonPrimitive).content }
+    }.getOrNull()
+
+    /** A file name nobody uses yet, from a label. */
+    fun freeSlot(label: String): String {
+        val base = label.replace(Regex("[^A-Za-z0-9_-]"), "_").take(40).ifBlank { "save" }
+        var slot = base; var k = 2
+        while (file(slot).exists() || metaFile(slot).exists()) slot = "${base}_${k++}"
+        return slot
+    }
+
+    /**
+     * Save the world as a new file (the current one is kept). The new file gets its own box-score
+     * folder: the pages are hard-linked (no extra space; a page rewritten later is replaced in one
+     * folder only), or copied where links are not supported.
+     */
+    fun saveAs(label: String, w: World): String {
+        val slot = freeSlot(label)
+        val oldDir = pagesDir(w.pagesName())
+        val key = "${slot}_${System.currentTimeMillis() % 1_000_000}"
+        val newDir = pagesDir(key)
+        for (f in oldDir.listFiles { x -> x.name.endsWith(".bin") }.orEmpty()) {
+            val dst = File(newDir, f.name)
+            try { java.nio.file.Files.createLink(dst.toPath(), f.toPath()) } catch (e: Exception) { f.copyTo(dst, overwrite = true) }
+        }
+        val old = w.pagesKey
+        w.pagesKey = key
+        try { save(slot, w, label) } catch (e: Exception) { w.pagesKey = old; newDir.deleteRecursively(); throw e }
+        return slot
+    }
+
+    fun rename(slot: String, label: String) {
+        val m = readMeta(slot)?.toMutableMap() ?: mutableMapOf()
+        m["label"] = label
+        metaFile(slot).writeText(kotlinx.serialization.json.JsonObject(m.mapValues { kotlinx.serialization.json.JsonPrimitive(it.value) }).toString())
     }
 
     fun load(slot: String): World {
@@ -76,8 +131,9 @@ class SaveStore(private val root: File) {
     private fun read(f: File): SaveFile = GZIPInputStream(f.inputStream().buffered(1 shl 16)).use { ProtoBuf.decodeFromByteArray<SaveFile>(it.readBytes()) }
 
     fun list(): List<Meta> = root.listFiles { f -> f.name.endsWith(".uem") }.orEmpty().mapNotNull { f ->
-        // Reading the whole save for its date is fine for a handful of slots; the name is the slot.
-        Meta(f.nameWithoutExtension, f.nameWithoutExtension, 0, 0, f.lastModified(), f.length())
+        val slot = f.nameWithoutExtension
+        val m = readMeta(slot)
+        Meta(slot, m?.get("label") ?: slot, m?.get("day")?.toIntOrNull() ?: 0, m?.get("season")?.toIntOrNull() ?: 0, f.lastModified(), f.length(), m?.get("career") ?: "", m?.get("club") ?: "", m?.get("pages") ?: "")
     }.sortedByDescending { it.modified }
 
     // ------------------------------------------------------------------ export / import
@@ -95,7 +151,7 @@ class SaveStore(private val root: File) {
         val world = read(f).world
         val files = ArrayList<Pair<String, ByteArray>>()
         files.add("world.uem" to f.readBytes())
-        pagesDir(world.name).listFiles { x -> x.name.endsWith(".bin") }.orEmpty().sortedBy { it.name }.forEach { files.add("pages/${it.name}" to it.readBytes()) }
+        pagesDir(world.pagesName()).listFiles { x -> x.name.endsWith(".bin") }.orEmpty().sortedBy { it.name }.forEach { files.add("pages/${it.name}" to it.readBytes()) }
         val manifest = kotlinx.serialization.json.buildJsonObject {
             put("format", kotlinx.serialization.json.JsonPrimitive(FORMAT))
             put("formatVersion", kotlinx.serialization.json.JsonPrimitive(FORMAT_VERSION))
@@ -160,18 +216,25 @@ class SaveStore(private val root: File) {
         var k = 2
         while (file(slot).exists()) slot = name.replace(Regex("[^A-Za-z0-9_-]"), "_") + "_$k".also { k++ }
         sf.world.name = name
+        sf.world.pagesKey = ""
         // Pages first, then the world (renamed into place).
         val dir = pagesDir(name)
         for ((n, b) in entries) if (n.startsWith("pages/") && n.endsWith(".bin")) File(dir, n.removePrefix("pages/")).writeBytes(b)
         val tmp = File(root, "$slot.tmp")
         GZIPOutputStream(tmp.outputStream().buffered(1 shl 16)).use { it.write(ProtoBuf.encodeToByteArray(sf)) }
         if (!tmp.renameTo(file(slot))) { tmp.copyTo(file(slot), overwrite = true); tmp.delete() }
+        writeMeta(slot, sf.world, name)
         return ImportResult(slot, name, renamed)
     }
 
+    /** Delete a save file and its own box-score folder (other saves of the same career keep theirs). */
     fun delete(slot: String) {
+        val key = readMeta(slot)?.get("pages")
         file(slot).delete()
         File(root, "$slot.bak").delete()
-        File(root, "$slot.pages").deleteRecursively()
+        metaFile(slot).delete()
+        val inUse = list().map { it.pagesKey.ifBlank { it.slot } }.toSet()
+        if (key != null && key !in inUse) pagesDir(key).deleteRecursively()
+        if (slot !in inUse) File(root, "$slot.pages").takeIf { it.exists() && (key == null || key == slot) }?.deleteRecursively()
     }
 }

@@ -562,13 +562,13 @@ fun InboxScreen(vm: GameVm, w: World) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp).background(if (m.read) Ui.card else Ui.card2, RoundedCornerShape(10.dp)).clickable { open = !open; if (!m.read) { m.read = true; vm.touch() } }.padding(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (!m.read) Text("● ", color = Ui.accent, fontSize = 12.sp)
-                    Text(m.subject, color = Ui.text, fontWeight = if (m.read) FontWeight.Normal else FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    LinkedText(m.subject, Ui.text, 14.sp, if (m.read) FontWeight.Normal else FontWeight.Bold, modifier = Modifier.weight(1f))
                     if (m.offerId >= 0) Tag("offer", Ui.accent.copy(alpha = 0.3f))
                 }
                 Muted("${m.from} · ${Dates.format(m.day)}", 11)
                 if (open) {
                     Gap(6)
-                    Text(m.body, color = Ui.text, fontSize = 13.sp)
+                    LinkedText(m.body, Ui.text, 13.sp)
                     val o = w.offers.getOrNull(m.offerId)
                     if (o != null) {
                         val p = w.players[o.playerId]
