@@ -192,6 +192,22 @@ class GameVm(app: Application) : AndroidViewModel(app) {
 
     fun stop() = cancel.set(true)
 
+    /** A series being played live (draft / veto and the 2D view). */
+    var live by mutableStateOf<LiveMatch?>(null)
+        private set
+
+    fun startLive(fixtureId: Int) {
+        val w = world ?: return
+        if (busy != null) return
+        live = LiveMatch(w, fixtureId)
+    }
+
+    fun endLive() {
+        live = null
+        unsaved = true
+        touch()
+    }
+
     /** Tests only: show an already built world. */
     fun setWorldForTest(w: World) { world = w; touch() }
 }

@@ -93,75 +93,131 @@ object Draft {
             .sortedByDescending { it.second }.take(14).map { it.first }.toList()
     }
 
-    /**
-     * Draft one game. `lineups[i]` are the series team's players in lineup order; `firstPick` is the
-     * series team picking first; `locked[i]` are characters a team may not pick (Fearless).
-     */
-    fun run(t: TitleDef, patch: Patch, lineups: Array<List<Player>>, styles: Array<String>, firstPick: Int, locked: Array<Set<String>>, rng: Rng): Result {
-        val picks = arrayOf(ArrayList<String>(), ArrayList<String>())
-        val assign = arrayOf(HashMap<Int, String>(), HashMap<Int, String>())
-        val bans = ArrayList<String>()
-        if (t.characters.isEmpty() || t.draft.mode == "none") return Result(picks, bans, assign, firstPick)
-        val prefs = Array(2) { s -> lineups[s].mapIndexed { i, p -> preferred(t, patch, p, i, styles[s]) } }
-        if (t.draft.mode == "simultaneous") {
-            // Each team: players pick their best available preferred agent (unique within the team).
-            for (s in 0..1) {
-                val taken = HashSet<String>()
-                lineups[s].indices.sortedBy { rng.next() }.forEach { i ->
-                    val c = prefs[s][i].firstOrNull { it.id !in taken && it.id !in locked[s] } ?: t.characters.first { it.id !in taken }
-                    taken.add(c.id)
-                    picks[s].add(c.id)
-                    assign[s][lineups[s][i].id] = c.id
-                }
-            }
-            return Result(picks, bans, assign, firstPick)
-        }
-        val banned = HashSet<String>()
-        val picked = HashSet<String>()
-        val open = arrayOf(lineups[0].indices.toMutableList(), lineups[1].indices.toMutableList())
-        fun legal(team: Int, ban: Boolean, id: String) = id !in banned && (if (ban) id !in picked else id !in picked && id !in locked[team])
-        for (step in t.draft.steps) {
-            val team = if (step.team == 0) firstPick else 1 - firstPick
-            if (step.ban) {
-                val enemy = 1 - team
-                var first: CharDef? = null
-                var second: CharDef? = null
-                for (i in open[enemy].ifEmpty { lineups[enemy].indices.toList() }) for (c in prefs[enemy][i].take(4)) {
-                    if (!legal(team, true, c.id) || c === first || c === second) continue
-                    val v = patch.charMeta[c.id] ?: 0.0
-                    if (first == null || v > (patch.charMeta[first.id] ?: 0.0)) { second = first; first = c } else if (second == null || v > (patch.charMeta[second.id] ?: 0.0)) second = c
-                }
-                val c = (if (rng.int(0, 1) == 1 && second != null) second else first) ?: t.characters.filter { legal(team, true, it.id) }.maxByOrNull { patch.charMeta[it.id] ?: 0.0 }
-                if (c != null) { banned.add(c.id); bans.add(c.id) }
-            } else {
-                if (open[team].isEmpty()) continue
-                var best = -1.0
-                var bc: CharDef? = null
-                var bi = -1
-                for (i in open[team]) {
-                    val list = prefs[team][i]
-                    val idx = list.indexOfFirst { legal(team, false, it.id) }
-                    if (idx < 0) continue
-                    val v = 14 - idx + rng.next() * 1.5
-                    if (v > best) { best = v; bc = list[idx]; bi = i }
-                }
-                if (bc == null) {
-                    bi = open[team][0]
-                    bc = t.characters.filter { legal(team, false, it.id) }.maxByOrNull { patch.charMeta[it.id] ?: 0.0 } ?: continue
-                }
-                picked.add(bc.id)
-                picks[team].add(bc.id)
-                assign[team][lineups[team][bi].id] = bc.id
-                open[team].remove(bi)
-            }
-        }
-        // Any player left without a pick (short drafts) takes the best legal option.
-        for (s in 0..1) for (i in open[s]) {
-            val c = prefs[s][i].firstOrNull { legal(s, false, it.id) } ?: t.characters.first { legal(s, false, it.id) }
-            picked.add(c.id)
-            picks[s].add(c.id)
-            assign[s][lineups[s][i].id] = c.id
-        }
-        return Result(picks, bans, assign, firstPick)
+    fun run(t: TitleDef, patch: Patch, lineups: Array<List<Player>>, styles: Array<String>, firstPick: Int, locked: Array<Set<String>>, rng: Rng): Result =
+        DraftSession(t, patch, lineups, styles, firstPick, locked, rng).runAll()
+
+    internal fun prefs(t: TitleDef, patch: Patch, p: Player, roleIdx: Int, style: String) = preferred(t, patch, p, roleIdx, style)
+}
+
+/**
+ * A draft played step by step (the title's real ban/pick order). The AI acts for a team with
+ * [aiStep]; the user acts with [ban] / [pick]. Same rules for both: bans, uniqueness, Fearless.
+ * Valorant agents are chosen per team without bans; CS2 has no characters.
+ */
+class DraftSession(val t: TitleDef, val patch: Patch, val lineups: Array<List<Player>>, val styles: Array<String>, val firstPick: Int, val locked: Array<Set<String>>, val rng: Rng) {
+    val picks = arrayOf(ArrayList<String>(), ArrayList<String>())
+    val assign = arrayOf(HashMap<Int, String>(), HashMap<Int, String>())
+    val bans = ArrayList<String>()
+    val banned = HashSet<String>()
+    val picked = HashSet<String>()
+    val open = arrayOf(lineups[0].indices.toMutableList(), lineups[1].indices.toMutableList())
+    var step = 0
+        private set
+    private val prefs = Array(2) { s -> lineups[s].mapIndexed { i, p -> Draft.prefs(t, patch, p, i, styles[s]) } }
+    val sequential = t.draft.mode == "sequential" && t.characters.isNotEmpty()
+    val none = t.characters.isEmpty() || t.draft.mode == "none"
+
+    /** Series team acting now and whether it bans (null when the draft is over). */
+    fun current(): Pair<Int, Boolean>? {
+        if (!sequential) return null
+        val st = t.draft.steps.getOrNull(step) ?: return null
+        return (if (st.team == 0) firstPick else 1 - firstPick) to st.ban
     }
+
+    val done get() = none || (sequential && current() == null) || (!sequential && picks[0].size >= lineups[0].size && picks[1].size >= lineups[1].size)
+
+    fun legal(team: Int, ban: Boolean, id: String) = id !in banned && (if (ban) id !in picked else id !in picked && id !in locked[team])
+
+    fun ban(id: String): Boolean {
+        val cur = current() ?: return false
+        if (!cur.second || !legal(cur.first, true, id)) return false
+        banned.add(id); bans.add(id); step++
+        return true
+    }
+
+    /** Pick for the acting team; the character goes to the open player it suits best (or `playerIdx`). */
+    fun pick(id: String, playerIdx: Int = -1): Boolean {
+        val cur = current() ?: return false
+        val team = cur.first
+        if (cur.second || !legal(team, false, id) || open[team].isEmpty()) return false
+        val c = t.charIndex[id] ?: return false
+        val idx = if (playerIdx in open[team]) playerIdx else open[team].maxBy { i -> (if (c.fits(t.lineupRoles[i])) 100.0 else 0.0) + (lineups[team][i].profChar[id] ?: 0.0) }
+        place(team, idx, id)
+        step++
+        return true
+    }
+
+    private fun place(team: Int, idx: Int, id: String) {
+        picked.add(id); picks[team].add(id); assign[team][lineups[team][idx].id] = id; open[team].remove(idx)
+    }
+
+    /** The AI acts for whichever team's turn it is. */
+    fun aiStep() {
+        val cur = current() ?: return
+        val team = cur.first
+        if (cur.second) {
+            val enemy = 1 - team
+            var first: CharDef? = null
+            var second: CharDef? = null
+            for (i in open[enemy].ifEmpty { lineups[enemy].indices.toList() }) for (c in prefs[enemy][i].take(4)) {
+                if (!legal(team, true, c.id) || c === first || c === second) continue
+                val v = patch.charMeta[c.id] ?: 0.0
+                if (first == null || v > (patch.charMeta[first.id] ?: 0.0)) { second = first; first = c } else if (second == null || v > (patch.charMeta[second.id] ?: 0.0)) second = c
+            }
+            val c = (if (rng.int(0, 1) == 1 && second != null) second else first) ?: t.characters.filter { legal(team, true, it.id) }.maxByOrNull { patch.charMeta[it.id] ?: 0.0 }
+            if (c != null) { banned.add(c.id); bans.add(c.id) }
+            step++
+            return
+        }
+        if (open[team].isEmpty()) { step++; return }
+        var best = -1.0
+        var bc: CharDef? = null
+        var bi = -1
+        for (i in open[team]) {
+            val list = prefs[team][i]
+            val idx = list.indexOfFirst { legal(team, false, it.id) }
+            if (idx < 0) continue
+            val v = 14 - idx + rng.next() * 1.5
+            if (v > best) { best = v; bc = list[idx]; bi = i }
+        }
+        if (bc == null) {
+            bi = open[team][0]
+            bc = t.characters.filter { legal(team, false, it.id) }.maxByOrNull { patch.charMeta[it.id] ?: 0.0 }
+        }
+        if (bc != null) place(team, bi, bc.id)
+        step++
+    }
+
+    /** Per-team agent choice (Valorant): each player takes his best available preferred agent. */
+    fun autoTeam(s: Int) {
+        val taken = HashSet(picks[s])
+        lineups[s].indices.filter { it in open[s] }.sortedBy { (it * 7919 + s * 31 + step) % 11 }.forEach { i ->
+            val c = prefs[s][i].firstOrNull { it.id !in taken && it.id !in locked[s] } ?: t.characters.first { it.id !in taken }
+            taken.add(c.id)
+            place(s, i, c.id)
+        }
+    }
+
+    /** Valorant: set one player's agent (unique within the team). */
+    fun setAgent(s: Int, idx: Int, id: String): Boolean {
+        if (picks[s].contains(id)) return false
+        lineups[s][idx].id.let { pid -> assign[s][pid]?.let { old -> picks[s].remove(old); picked.remove(old) } }
+        picks[s].add(id); assign[s][lineups[s][idx].id] = id; open[s].remove(idx)
+        return true
+    }
+
+    fun runAll(): Draft.Result {
+        if (none) return result()
+        if (!sequential) { autoTeam(0); autoTeam(1); return result() }
+        var guard = 0
+        while (!done && guard++ < 200) aiStep()
+        // Anyone left without a pick (short drafts) takes the best legal option.
+        for (s in 0..1) for (i in open[s].toList()) {
+            val c = prefs[s][i].firstOrNull { legal(s, false, it.id) } ?: t.characters.first { legal(s, false, it.id) }
+            place(s, i, c.id)
+        }
+        return result()
+    }
+
+    fun result() = Draft.Result(picks, bans, assign, firstPick)
 }

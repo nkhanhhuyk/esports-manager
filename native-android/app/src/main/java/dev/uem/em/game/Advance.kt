@@ -47,6 +47,9 @@ object Advance {
         return Result(done, false)
     }
 
+    /** The user's next unplayed series due today or tomorrow. */
+    fun userFixtureDue(w: World) = w.fixtures.asReversed().firstOrNull { !it.done && it.day <= w.day + 1 && (w.isUserTeam(it.a) || w.isUserTeam(it.b)) }
+
     fun userPlaysOn(w: World, day: Int): Boolean = w.userOrg >= 0 && (w.schedule[day] ?: emptyList<Int>()).any { fid -> w.fixtures[fid].let { w.isUserTeam(it.a) || w.isUserTeam(it.b) } }
 
     /** Time spent per part of the day (nanoseconds), for profiling. */
@@ -88,7 +91,8 @@ object Advance {
     }
 
     /** Apply one series: fixture result, player and competition stats, learning, Elo, competition progress. */
-    private fun apply(w: World, o: SeriesOutcome) {
+    /** Apply a series result (also used for a series you played live). */
+    fun apply(w: World, o: SeriesOutcome) {
         val f = o.fixture
         val t = Catalogue.get(f.titleId)
         val c = w.comps[f.compId]

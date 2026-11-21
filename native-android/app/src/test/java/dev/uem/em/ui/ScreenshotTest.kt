@@ -25,6 +25,14 @@ import java.io.File
 class ScreenshotTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
 
+    private fun shot(out: File, name: String) {
+        rule.waitForIdle()
+        val v = rule.activity.window.decorView
+        val bmp = Bitmap.createBitmap(v.width, v.height, Bitmap.Config.ARGB_8888)
+        v.draw(Canvas(bmp))
+        File(out, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
     @Test
     fun screens() {
         TestData.init()
@@ -45,6 +53,31 @@ class ScreenshotTest {
         val shots = listOf("home" to Screen.Home, "comp" to Screen.Comp(comp.id), "team" to Screen.Team(t1.id), "player" to Screen.Player(faker.id), "match" to Screen.Match(match.id), "comps" to Screen.Comps, "squad" to Screen.Squad, "market" to Screen.Market, "finances" to Screen.Finances, "inbox" to Screen.Inbox, "board" to Screen.Board, "patches" to Screen.Patches, "more" to Screen.More)
         vm.tab(Screen.Home)
         rule.setContent { AppRoot(vm) {} }
+        rule.waitForIdle()
+        // Live match: draft, then the 2D view part-way through game 1 (MOBA and shooter).
+        LiveDefaults.autoplay = false
+        LiveDefaults.startFraction = 0.45f
+        val lolFx = w.fixtures.first { !it.done && it.titleId == "lol" && (it.a == t1.id || it.b == t1.id) }
+        rule.runOnIdle { vm.startLive(lolFx.id) }
+        shot(out, "live-draft")
+        rule.runOnIdle { vm.live!!.draftAct(vm.live!!.draft!!.t.characters.first { vm.live!!.draft!!.legal(vm.live!!.me, vm.live!!.draft!!.current()?.second ?: true, it.id) }.id); vm.live!!.autoDraft() }
+        println("after auto draft: done=${vm.live!!.draft!!.done} picks=${vm.live!!.draft!!.picks.map { it.size }} bans=${vm.live!!.draft!!.bans.size} stage=${vm.live!!.stage} rev=${vm.live!!.rev}")
+        shot(out, "live-draft-done")
+        rule.runOnIdle { vm.live!!.startGame() }
+        shot(out, "live-moba")
+        println("moba events: " + vm.live!!.events.groupBy { it.kind }.mapValues { it.value.size } + " score " + vm.live!!.game!!.score.joinToString("-"))
+        rule.runOnIdle { vm.live!!.simRest() }
+        shot(out, "live-result")
+        rule.runOnIdle { vm.endLive() }
+        val valTeam = w.teams.first { it.orgId == t1.orgId && it.titleId == "valorant" }
+        val valFx = w.fixtures.firstOrNull { !it.done && it.titleId == "valorant" && (it.a == valTeam.id || it.b == valTeam.id) }
+            ?: w.fixtures.first { !it.done && it.titleId == "valorant" }
+        rule.runOnIdle { vm.startLive(valFx.id) }
+        shot(out, "live-veto")
+        rule.runOnIdle { val l = vm.live!!; while (l.stage == "veto") l.vetoAct(l.veto!!.pool.first()); l.startGame() }
+        shot(out, "live-shooter")
+        println("shooter events: " + vm.live!!.events.groupBy { it.kind }.mapValues { it.value.size } + " score " + vm.live!!.game!!.score.joinToString("-"))
+        rule.runOnIdle { vm.live!!.simRest(); vm.endLive() }
         for ((name, s) in shots) {
             rule.runOnIdle { vm.tab(s) }
             rule.waitForIdle()

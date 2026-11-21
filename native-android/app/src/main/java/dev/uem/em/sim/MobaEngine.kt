@@ -44,7 +44,9 @@ object MobaEngine {
         fun goldSum() = gold.sum()
     }
 
-    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, rng: Rng, patch: Patch? = null): GameOutcome {
+    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, rng: Rng, patch: Patch? = null, events: MutableList<Ev>? = null): GameOutcome {
+        // Location codes for the 2D view: 0 top, 1 mid, 2 bot lane, 3 jungle, 10+i objective i.
+        var loc = 1
         val cfg = t.moba!!
         val tune = TUNE[t.id] ?: Tune(1.0, 1.0)
         val book = StatBook(teams, t)
@@ -76,6 +78,7 @@ object MobaEngine {
         fun awardKill(killerSide: Int, victim: PlayerCtx, minute: Double, participants: List<PlayerCtx>) {
             val ks = sides[killerSide]
             val killer = rng.pickCtx(participants) { it.dmgW * it.phase[TF] }
+            events?.add(Ev((minute * 60).toInt() - (killer.p.id * 7 + victim.p.id * 3 + ks.kills) % 25, "kill", killerSide, killer.p.id, victim.p.id, loc))
             book.add(killer.p.id, K, 1.0)
             for (pc in participants) if (pc !== killer && rng.chance(0.65)) book.add(pc.p.id, A, 1.0)
             book.add(victim.p.id, D, 1.0)
@@ -97,14 +100,16 @@ object MobaEngine {
                 if (open.isNotEmpty() && !(anyDown && rng.chance(0.45))) {
                     val lane = rng.weighted(open) { 1 + def.laneDown[it] * 1.5 }
                     def.laneDown[lane]++
+                    events?.add(Ev((minute * 60).toInt(), "tower", side, x = lane, a = def.laneDown[lane]))
                     att.structures++
                     book.add(rng.pickCtx(att.tc.players) { it.base.phaseS[MA] }.p.id, TOWERS, 1.0)
                     continue
                 }
                 if (anyDown) {
-                    if (def.baseDown < st.base) { def.baseDown++; att.structures++ }
+                    if (def.baseDown < st.base) { def.baseDown++; att.structures++; events?.add(Ev((minute * 60).toInt(), "base", side, a = def.baseDown)) }
                     else {
                         def.coreDamage++
+                        events?.add(Ev((minute * 60).toInt(), "core", side, a = def.coreDamage))
                         if (def.coreDamage >= 2 + (if (t.id == "dota2") 1 else 0)) { winner = side; endT = (minute * 60).toInt() }
                     }
                 }
@@ -125,6 +130,7 @@ object MobaEngine {
             wKills = minOf(wKills, l.tc.players.size)
             lKills = minOf(lKills, w.tc.players.size - 1)
             if (l.aegis && wKills > 0) { wKills--; l.aegis = false }
+            events?.add(Ev((minute * 60).toInt() - 30, "fight", win, x = loc, a = wKills, b = lKills))
             val wp = w.tc.players
             val lp = l.tc.players
             val victimsL = rng.sample(lp, wKills)
@@ -155,6 +161,7 @@ object MobaEngine {
         }
 
         fun takeObjective(o0: Objective, side: Int, minute: Double) {
+            events?.add(Ev((minute * 60).toInt(), "obj", side, x = cfg.objectives.indexOfFirst { it.id == o0.id }, text = o0.name))
             val mod = patch?.objValue(o0.id) ?: 1.0
             val o = if (mod == 1.0) o0 else Objective(o0.id, o0.name, o0.spawn, o0.respawn, o0.until, o0.kind, if (o0.kind == "aegis") o0.value else o0.value * mod, o0.maxStacks, o0.soul * mod, o0.major)
             val s = sides[side]
@@ -182,6 +189,7 @@ object MobaEngine {
             val diff = (ctrl(sides[0]) - ctrl(sides[1])) / 10 + goldLead(0) * 2.2 + (comp[0].total - comp[1].total) * 0.5
             val fightChance = (0.2 + (sides[0].tc.aggression + sides[1].tc.aggression) / 500 + (if (o.major) 0.25 else 0.0) - abs(diff) * 0.08) * minOf(1.0, tune.kill)
             if (rng.chance(clamp(fightChance, 0.1, 0.85))) {
+                loc = 10 + cfg.objectives.indexOf(o)
                 val w = teamfight(minute)
                 if (winner >= 0) return
                 takeObjective(o, if (rng.chance(0.88)) w else 1 - w, minute)
@@ -227,6 +235,7 @@ object MobaEngine {
                     val aggr = (sides[0].tc.aggression + sides[1].tc.aggression) / 100
                     if (rng.chance(0.018 * tickMin * 2 * (1 + abs(d) * 1.5) * aggr * tune.kill)) {
                         val ws = if (rng.chance(logistic(d * 1.4))) 0 else 1
+                        loc = laneRoles.indexOf(roles)
                         awardKill(ws, rng.pick(if (ws == 0) lb else la), minute, if (ws == 0) la else lb)
                     }
                 }
@@ -241,6 +250,7 @@ object MobaEngine {
                     val victim = rng.pick(targets)
                     val laner = s.tc.players.firstOrNull { pc -> cfg.lanes.any { pc.roleId in it.second && victim.roleId in it.second } } ?: jg
                     val succ = logistic((jg.phase[JG] + laner.phase[LA] - victim.phase[VI] * 0.6 - o.tc.phase[VI] * 0.4 - victim.phase[LA] * 0.6) / 9 + comp[i].total * 0.4 + 0.15)
+                    loc = cfg.lanes.indexOfFirst { victim.roleId in it.second }.let { if (it < 0) 3 else it }
                     if (rng.chance(succ)) awardKill(i, victim, minute, listOf(jg, laner).distinct())
                     else if (rng.chance(0.3)) awardKill(1 - i, jg, minute, listOf(victim))
                 }
@@ -260,10 +270,11 @@ object MobaEngine {
                     val sa = sides[0].tc.phase[SK] * (1 + comp[0].total * 0.1) * (1 + (comp[0].prof("pick") - 5) * 0.01)
                     val sb = sides[1].tc.phase[SK] * (1 + comp[1].total * 0.1) * (1 + (comp[1].prof("pick") - 5) * 0.01)
                     val w = if (rng.chance(logistic((sa - sb) / 9 + goldLead(0) * 1.6))) 0 else 1
+                    loc = rng.int(0, 3)
                     awardKill(w, rng.pick(sides[1 - w].tc.players), minute, rng.sample(sides[w].tc.players, 2))
                     if (rng.chance(0.25)) pushStructures(w, minute, 1)
                 }
-                if (winner < 0 && rng.chance(0.14 * tickMin * 2 * aggr * (1 + minute / cfg.avgLength) * tune.kill)) teamfight(minute)
+                if (winner < 0 && rng.chance(0.14 * tickMin * 2 * aggr * (1 + minute / cfg.avgLength) * tune.kill)) { loc = rng.int(0, 3); teamfight(minute) }
                 for (i in 0..1) {
                     if (winner >= 0) break
                     val s = sides[i]
@@ -284,6 +295,8 @@ object MobaEngine {
             val k = book.get(l, K); val d = book.get(l, D); val a = book.get(l, A)
             (k * 3 + a * 1.5 + 1) / (d * 2 + 2) + book.get(l, GOLD) / 1000 * 0.25 + book.get(l, DMG) / 15000 + book.get(l, HEAL) / 20000 + book.get(l, OBJ) * 0.4 + book.get(l, TOWERS) * 0.3 + book.get(l, VISION) / 40
         }
+        events?.add(Ev(endT, "end", winner))
+        events?.sortBy { it.t }
         return GameOutcome(winner, endT, intArrayOf(sides[0].kills, sides[1].kills), book)
     }
 }

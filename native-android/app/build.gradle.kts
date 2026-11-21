@@ -40,6 +40,12 @@ android {
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
 
+// The world is one mutable object graph that screens read directly; with strong skipping a screen
+// given the same World instance would not redraw after the simulation changed it.
+composeCompiler {
+    featureFlags.add(org.jetbrains.kotlin.compose.compiler.gradle.ComposeFeatureFlag.StrongSkipping.disabled())
+}
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2025.06.00")
     implementation(composeBom)

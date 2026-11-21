@@ -17,7 +17,8 @@ object TacticalEngine {
     private const val COORDINATION = 44
     private const val CROSSHAIR = 74
 
-    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, firstAttack: Int, rng: Rng, patch: Patch? = null): GameOutcome {
+    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, firstAttack: Int, rng: Rng, patch: Patch? = null, events: MutableList<Ev>? = null): GameOutcome {
+        // Events for the 2D view: t = round number; x = site (0 A, 1 B).
         val cfg = t.tactical!!
         val defEdge = cfg.defenderEdge + (patch?.obj?.get("defender") ?: 0.0)
         val fullBuy = cfg.fullBuy * (patch?.obj?.get("fullbuy") ?: 1.0)
@@ -75,9 +76,12 @@ object TacticalEngine {
             var clutchPlayer: PlayerCtx? = null
             val baseEdge = -defEdge + (qA - qD) * 1.7 + (teamUtil[attack] - teamUtil[def]) / 60 + (teamInfo[attack] - teamInfo[def]) / 80 + (igl[attack] - igl[def]) / 80 + (comp[attack].total - comp[def].total) * 0.4
             val swing = rng.normal(0.0, 0.32)
+            val site = (round * 7 + score[0] * 3 + score[1]) % 2
+            events?.add(Ev(round, "round", attack, x = site, a = score[0], b = score[1], text = bA.second + "|" + bD.second))
             fun kill(ks: Int, killer: PlayerCtx, victim: PlayerCtx) {
                 val vs = 1 - ks
                 alive[vs].remove(victim)
+                events?.add(Ev(round, "kill", ks, killer.p.id, victim.p.id, if (planted) 1 else 0))
                 book.add(killer.p.id, K, 1.0)
                 book.add(victim.p.id, D, 1.0)
                 book.add(killer.p.id, DMG, 100.0 + rng.int(0, 60))
@@ -115,6 +119,7 @@ object TacticalEngine {
                 }
                 if (!planted && alive[attack].isNotEmpty() && alive[def].isNotEmpty() && (alive[attack].size >= alive[def].size || rng.chance(0.3)) && rng.chance(0.55)) {
                     planted = true
+                    events?.add(Ev(round, "plant", attack, x = site))
                     book.add(rng.pickCtx(alive[attack]) { if (it.role.isSupport) 2.0 else 1.0 }.p.id, PLANT, 1.0)
                     for (i in 0 until n) money[attack][i] += cfg.plantReward / (if (t.id == "cs2") n.toDouble() else 1.0)
                 }
@@ -122,11 +127,12 @@ object TacticalEngine {
             val rw = when {
                 alive[def].isEmpty() -> attack
                 alive[attack].isEmpty() -> if (planted) {
-                    if (rng.chance(clamp(0.9 - (if (alive[def].size == 1) 0.12 else 0.0), 0.5, 0.97))) { book.add(rng.pickCtx(alive[def]) { it.phase[CL] }.p.id, DEFUSE, 1.0); def } else attack
+                    if (rng.chance(clamp(0.9 - (if (alive[def].size == 1) 0.12 else 0.0), 0.5, 0.97))) { book.add(rng.pickCtx(alive[def]) { it.phase[CL] }.p.id, DEFUSE, 1.0); events?.add(Ev(round, "defuse", def)); def } else attack
                 } else def
                 else -> if (planted) attack else def
             }
             score[rw]++
+            events?.add(Ev(round, "roundEnd", rw, a = score[0], b = score[1]))
             if (clutchSide == rw) clutchPlayer?.let { book.add(it.p.id, CLUTCH, 1.0) }
             for (s in 0..1) for (pc in teams[s].players) {
                 val k = roundKills[pc.p.id] ?: 0

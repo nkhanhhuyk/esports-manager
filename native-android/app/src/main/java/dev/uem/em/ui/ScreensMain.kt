@@ -121,6 +121,21 @@ fun HomeScreen(vm: GameVm, w: World) {
                 }
             }
         }
+        dev.uem.em.game.Advance.userFixtureDue(w)?.let { f ->
+            item(key = "matchday") {
+                val opp = if (w.isUserTeam(f.a)) f.b else f.a
+                Card("Match day ${if (f.day <= w.day) "today" else "tomorrow"}") {
+                    Row(verticalAlignment = Alignment.CenterVertically) { Muted("${w.comps[f.compId].short} · Bo${f.bestOf} vs ", 13); TeamChip(w, opp, vm, 20.dp) }
+                    Gap()
+                    Row {
+                        Button(onClick = { vm.startLive(f.id) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Play live") }
+                        HGap()
+                        TextButton(onClick = { vm.advance(GameVm.Span.DAY) }) { Text("Let the staff simulate it", color = Ui.accent) }
+                    }
+                    Muted("Live: you draft (or veto maps) and watch each game on the 2D map.", 11)
+                }
+            }
+        }
         for (team in teams) {
             val t = Catalogue.get(team.titleId)
             item(key = "t${team.id}") {

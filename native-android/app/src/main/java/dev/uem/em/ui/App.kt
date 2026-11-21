@@ -49,6 +49,7 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
             else if (w == null || vm.screen == Screen.Start) StartScreen(vm)
             else if (vm.screen == Screen.PickOrg || w.userOrg < 0) PickOrgScreen(vm, w)
             else if (w.sacked) Column(Modifier.fillMaxSize().statusBarsPadding()) { JobOffersScreen(vm, w) }
+            else if (vm.live != null) Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) { LiveScreen(vm, w, vm.live!!) }
             else Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 TopBar(vm, w)
                 Box(Modifier.weight(1f)) {
