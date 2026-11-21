@@ -46,6 +46,25 @@ object BoxStore {
     fun unpaged(): List<MatchRecord> = recent.values.sortedBy { it.fixtureId }
     fun restore(records: List<MatchRecord>) { for (r in records) recent[r.fixtureId] = r }
 
+    /** Strip 2D replays from pages whose matches are all older than `beforeDay` (box scores stay). */
+    fun pruneReplays(w: World, beforeDay: Int) {
+        val s = store ?: return
+        var page = w.replayPrunedPage + 1
+        while (page <= w.boxPage) {
+            val list = s.read(w.name, page)
+            if (list != null) {
+                if (list.any { it.day >= beforeDay }) return
+                if (list.any { r -> r.games.any { it.replay != null } }) {
+                    for (r in list) for (g in r.games) g.replay = null
+                    s.write(w.name, page, list)
+                    synchronized(pageCache) { pageCache.remove(page) }
+                }
+            }
+            w.replayPrunedPage = page
+            page++
+        }
+    }
+
     fun get(w: World, fixtureId: Int): MatchRecord? {
         recent[fixtureId]?.let { return it }
         val page = w.fixtures.getOrNull(fixtureId)?.page ?: return null

@@ -7,38 +7,87 @@ import dev.uem.em.game.Advance
 import dev.uem.em.model.GameRecord
 import dev.uem.em.model.World
 import dev.uem.em.sim.DraftSession
-import dev.uem.em.sim.Ev
 import dev.uem.em.sim.Lineups
 import dev.uem.em.sim.LiveSeries
 import dev.uem.em.sim.VetoSession
 
 /**
- * A series you play live: map veto (shooters) or draft (MOBAs) for each game, then the game on the
- * 2D map. `rev` changes whenever the screen should redraw.
+ * A series played or watched live: map veto (shooters) or draft (MOBAs) for each game, then the
+ * game on the 2D map from its recorded replay. With `spectator` both teams are run by their coaches
+ * (the same AI as for any other match, so watching never changes the result) and every veto and
+ * draft step is shown one at a time. Progress is kept in `World.live` after each game, so an
+ * unfinished series resumes where it stopped (also after the app is closed). `rev` changes whenever
+ * the screen should redraw.
  */
-class LiveMatch(val w: World, fixtureId: Int) {
+class LiveMatch(val w: World, fixtureId: Int, spectatorWanted: Boolean = false, private val onProgress: () -> Unit = {}) {
     val f = w.fixtures[fixtureId]
     val series = LiveSeries(w, f, arrayOf(
         dev.uem.em.mgmt.Supporters.lineupFor(w, w.comps[f.compId], w.teams[f.a], Lineups.ensure(w, w.teams[f.a]).toList()),
         dev.uem.em.mgmt.Supporters.lineupFor(w, w.comps[f.compId], w.teams[f.b], Lineups.ensure(w, w.teams[f.b]).toList()),
     ))
-    /** The user's series team (0 or 1). */
-    val me = if (w.isUserTeam(f.a)) 0 else 1
+    /** Watching only: neither team is yours (or you chose to watch). */
+    val spectator = spectatorWanted || (!w.isUserTeam(f.a) && !w.isUserTeam(f.b))
+    /** The user's series team (0 or 1), or -1 when spectating. */
+    val me = if (spectator) -1 else if (w.isUserTeam(f.a)) 0 else 1
     var stage = if (series.t.isMoba) "draft" else "veto"
-    var veto: VetoSession? = if (series.t.isMoba) null else VetoSession(series)
+    var veto: VetoSession? = null
     var setup: LiveSeries.Setup? = null
     var draft: DraftSession? = null
     var game: GameRecord? = null
-    var events: List<Ev> = emptyList()
     var rev by mutableIntStateOf(0)
+    /** Set when this series continues from a saved state. */
+    val resumed: Boolean
 
     init {
-        if (stage == "veto") runAiVeto() else nextGame()
+        val saved = w.live?.takeIf { it.fixtureId == f.id }
+        resumed = saved != null && saved.games.isNotEmpty()
+        if (saved != null && (saved.games.isNotEmpty() || saved.maps.isNotEmpty())) {
+            series.restore(saved)
+            if (series.done) finish() else nextGame()
+        } else if (!series.t.isMoba) {
+            veto = VetoSession(series)
+            stage = "veto"
+            runAiVeto()
+        } else nextGame()
+        persist()
     }
 
     private fun bump() { rev++ }
 
+    private fun persist() {
+        if (stage != "result") w.live = series.liveState(spectator)
+        onProgress()
+    }
+
+    /** One AI step of the veto or draft (spectator autoplay); false when there is nothing to do. */
+    fun aiTick(): Boolean {
+        when (stage) {
+            "veto" -> {
+                val v = veto ?: return false
+                if (v.done) return false
+                v.aiAct()
+                if (v.done) { persist(); nextGame() }
+                bump()
+                return true
+            }
+            "draft" -> {
+                val d = draft ?: return false
+                if (d.done) return false
+                if (!d.sequential) { d.autoTeam(0); d.autoTeam(1) } else d.aiStep()
+                bump()
+                return true
+            }
+        }
+        return false
+    }
+
+    /** Finish the veto / draft at once (spectator "skip"). */
+    fun aiFinish() {
+        while (aiTick()) Unit
+    }
+
     private fun runAiVeto() {
+        if (spectator) return
         val v = veto ?: return
         while (!v.done && v.current()?.first != me) v.aiAct()
         if (v.done) nextGame()
@@ -46,6 +95,7 @@ class LiveMatch(val w: World, fixtureId: Int) {
     }
 
     fun vetoAct(map: String) {
+        if (spectator) return
         veto?.act(map)
         runAiVeto()
     }
@@ -57,7 +107,8 @@ class LiveMatch(val w: World, fixtureId: Int) {
         draft = series.draftSession(s)
         stage = "draft"
         val d = draft!!
-        if (d.none) startGame() else if (!d.sequential) { d.autoTeam(0); d.autoTeam(1) } else runAiDraft()
+        if (d.none) startGame()
+        else if (!spectator) { if (!d.sequential) { d.autoTeam(0); d.autoTeam(1) } else runAiDraft() }
         bump()
     }
 
@@ -68,6 +119,7 @@ class LiveMatch(val w: World, fixtureId: Int) {
     }
 
     fun draftAct(charId: String) {
+        if (spectator) return
         val d = draft ?: return
         val cur = d.current() ?: return
         if (cur.first != me) return
@@ -86,8 +138,8 @@ class LiveMatch(val w: World, fixtureId: Int) {
         val s = setup ?: return
         val d = draft ?: return
         game = series.play(s, d.runAll(), record = true)
-        events = series.lastEvents
         stage = "watch"
+        persist()
         bump()
     }
 
@@ -95,18 +147,21 @@ class LiveMatch(val w: World, fixtureId: Int) {
         if (series.done) finish() else nextGame()
     }
 
-    /** Simulate the remaining games without watching. */
+    /** Simulate the remaining games without watching (same AI and engine). */
     fun simRest() {
+        if (stage == "veto") aiFinish()
         while (!series.done) {
             val s = series.setup()
-            series.play(s, series.draftSession(s).runAll())
+            series.play(s, series.draftSession(s).runAll(), record = true)
         }
         finish()
     }
 
     private fun finish() {
-        if (stage != "result") Advance.apply(w, series.outcome())
+        if (stage != "result" && !f.done) Advance.apply(w, series.outcome())
+        w.live = null
         stage = "result"
+        onProgress()
         bump()
     }
 }

@@ -52,6 +52,8 @@ sealed class Screen {
     data class Match(val id: Int) : Screen()
     data class Compare(val a: Int, val b: Int) : Screen()
     data object World : Screen()
+    data object Watch : Screen()
+    data class Replay(val fixtureId: Int, val game: Int) : Screen()
 }
 
 class Busy(val label: String, val done: Int, val total: Int)
@@ -130,6 +132,18 @@ class GameVm(app: Application) : AndroidViewModel(app) {
         save(silent = true)
     }
 
+    /** Spectator career: no club; follow teams and watch any match. */
+    fun chooseSpectator() {
+        val w = world ?: return
+        w.userOrg = -1
+        w.board = null
+        // Start by following the strongest team of each game.
+        if (w.followed.isEmpty()) for (id in w.titles) w.teams.filter { it.titleId == id && it.active && it.leagueId >= 0 }.maxByOrNull { it.elo }?.let { w.followed.add(it.id) }
+        touch()
+        tab(Screen.Home)
+        save(silent = true)
+    }
+
     fun load(slotName: String) {
         if (busy != null) return
         busy = Busy("Loading…", 0, 0)
@@ -147,7 +161,7 @@ class GameVm(app: Application) : AndroidViewModel(app) {
                 lastAutosaveDay = w.day
                 unsaved = false
                 touch()
-                tab(if (w.userOrg >= 0) Screen.Home else Screen.PickOrg)
+                tab(if (w.userOrg >= 0 || w.board == null && w.followed.isNotEmpty()) Screen.Home else Screen.PickOrg)
             } catch (e: Exception) {
                 toast = "Could not load: ${e.message}"
             } finally {
@@ -207,10 +221,41 @@ class GameVm(app: Application) : AndroidViewModel(app) {
     var live by mutableStateOf<LiveMatch?>(null)
         private set
 
-    fun startLive(fixtureId: Int) {
+    /**
+     * Play (your match) or watch (any match) a series live. Only one series can be live at a time:
+     * an unfinished one is completed by the coaches first, so no watched game is ever lost.
+     */
+    fun startLive(fixtureId: Int, spectate: Boolean = false) {
         val w = world ?: return
         if (busy != null) return
-        live = LiveMatch(w, fixtureId)
+        val pending = w.live
+        if (pending != null && pending.fixtureId != fixtureId && !w.fixtures[pending.fixtureId].done) {
+            val old = w.fixtures[pending.fixtureId]
+            LiveMatch(w, pending.fixtureId).simRest()
+            toast = "${w.teams[old.a].short} vs ${w.teams[old.b].short} was finished by the coaches"
+        }
+        live = LiveMatch(w, fixtureId, spectate) { unsaved = true; save(silent = true) }
+    }
+
+    /** Simulate up to the day before a fixture, then watch (or play) it live. */
+    fun advanceAndWatch(fixtureId: Int) {
+        val w = world ?: return
+        if (busy != null) return
+        val f = w.fixtures[fixtureId]
+        val days = f.day - 1 - w.day
+        if (days <= 0) { startLive(fixtureId, spectate = !w.isUserTeam(f.a) && !w.isUserTeam(f.b)); return }
+        cancel.set(false)
+        busy = Busy("Simulating to match day…", 0, days)
+        simJob = viewModelScope.launch {
+            val res = withContext(Dispatchers.Default) {
+                Advance.run(w, days, stopForUser = true, onDay = { d -> busy = Busy("Simulating to match day…", d, days) }, cancelled = { cancel.get() })
+            }
+            busy = null
+            unsaved = true
+            touch()
+            if (!f.done && f.day <= w.day + 1) startLive(fixtureId, spectate = !w.isUserTeam(f.a) && !w.isUserTeam(f.b))
+            else if (res.stoppedForUser) toast = "Stopped: your team plays tomorrow"
+        }
     }
 
     fun endLive() {

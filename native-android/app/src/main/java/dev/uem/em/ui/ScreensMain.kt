@@ -85,6 +85,14 @@ fun PickOrgScreen(vm: GameVm, w: World) {
         Column(Modifier.padding(16.dp)) {
             Text("Choose your organisation", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 20.sp)
             Muted("Real organisations first, by reputation")
+            Gap(8)
+            Row(Modifier.fillMaxWidth().background(Ui.card2, RoundedCornerShape(12.dp)).clickable { vm.chooseSpectator() }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Spectator mode", color = Ui.text, fontWeight = FontWeight.Bold)
+                    Muted("No club to manage: follow any teams, watch any match live on the 2D map, browse the whole world.", 12)
+                }
+                Text("›", color = Ui.accent, fontSize = 22.sp)
+            }
         }
         Tabs(listOf("All") + Catalogue.IDS.map { Catalogue.get(it).short }, if (title == null) 0 else Catalogue.IDS.indexOf(title) + 1) { i -> title = if (i == 0) null else Catalogue.IDS[i - 1] }
         LazyColumn(Modifier.fillMaxSize()) {
@@ -109,6 +117,7 @@ fun PickOrgScreen(vm: GameVm, w: World) {
 
 @Composable
 fun HomeScreen(vm: GameVm, w: World) {
+    if (w.userOrg < 0) { SpectatorHome(vm, w); return }
     val org = w.orgs[w.userOrg]
     val teams = org.teams.map { w.teams[it] }.filter { it.active }
     LazyColumn(Modifier.fillMaxSize()) {
@@ -137,6 +146,7 @@ fun HomeScreen(vm: GameVm, w: World) {
                 if (b != null) Tile("Board confidence", "${b.confidence.toInt()}/100", if (b.contractEnd > 0) "your contract: end of ${b.contractEnd}" else null, Rate.color(b.confidence)) else null,
             ))
         }
+        item(key = "resume") { ResumeLiveCard(vm, w) }
         item(key = "upcoming") {
             val next = w.fixtures.filter { !it.done && it.day >= w.day && (w.isUserTeam(it.a) || w.isUserTeam(it.b)) }.sortedBy { it.day }.take(6)
             if (next.isNotEmpty()) Card("Upcoming matches", right = { TextButton(onClick = { vm.go(Screen.Schedule) }) { Text("Schedule ›", color = Ui.accent) } }) {
@@ -252,6 +262,7 @@ fun HomeScreen(vm: GameVm, w: World) {
 fun MoreScreen(vm: GameVm, w: World) {
     val unread = w.inbox.count { !it.read }
     val menu = listOf(
+        Triple("Match centre", "Watch any match live on the 2D map, recorded replays", Screen.Watch),
         Triple("Inbox", if (unread > 0) "$unread unread" else "Messages, offers, reports", Screen.Inbox),
         Triple("Finances", "Balance, income and expenses, sponsors, facilities", Screen.Finances),
         Triple("Board", "Objectives and confidence", Screen.Board),

@@ -119,6 +119,17 @@ fun SettingsScreen(vm: GameVm, w: World) {
             }
         }
         item {
+            Card("Replays") {
+                val opts = listOf("important" to "Important (recommended)", "mine" to "My and followed teams", "all" to "Every match", "off" to "Off")
+                Tabs(opts.map { it.second }, opts.indexOfFirst { it.first == w.replays }.coerceAtLeast(0)) { w.replays = opts[it].first; vm.edit() }
+                Muted("Which background matches keep a 2D replay (matches you watch always do). Important = your and followed teams, internationals, Worlds and league finals. Replays older than about two seasons are removed at the season change; box scores are always kept.", 11)
+                if (w.userOrg < 0) {
+                    Gap(6)
+                    Tabs(listOf("Stop before followed teams play", "Do not stop"), if (w.stopForFollowed) 0 else 1) { w.stopForFollowed = it == 0; vm.edit() }
+                }
+            }
+        }
+        item {
             Card("Difficulty") {
                 Tabs(listOf("Easy", "Normal", "Hard"), listOf("easy", "normal", "hard").indexOf(w.difficulty).coerceAtLeast(0)) { w.difficulty = listOf("easy", "normal", "hard")[it]; vm.edit() }
                 Muted("Easy: 25% more income and a more patient board. Hard: 15% less income and a stricter board.")

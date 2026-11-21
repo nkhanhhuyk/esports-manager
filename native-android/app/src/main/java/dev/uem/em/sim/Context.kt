@@ -148,6 +148,7 @@ class StatBook(teams: List<TeamCtx>, val t: TitleDef) {
     fun idx(key: String) = t.statIndex[key] ?: -1
     fun add(pid: Int, k: Int, v: Double) { if (k >= 0) byPlayer[pid]?.let { it.s[k] += v } }
     fun get(l: Line, k: Int) = if (k >= 0) l.s[k] else 0.0
+    fun value(pid: Int, k: Int) = if (k >= 0) byPlayer[pid]?.s?.get(k) ?: 0.0 else 0.0
 
     fun finalise() { for (l in lines) for (i in l.s.indices) l.s[i] = l.s[i].roundToInt().toDouble() }
 

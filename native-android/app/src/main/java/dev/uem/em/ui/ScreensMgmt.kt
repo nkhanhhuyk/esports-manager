@@ -571,6 +571,7 @@ fun InboxScreen(vm: GameVm, w: World) {
 
 @Composable
 fun FinancesScreen(vm: GameVm, w: World) {
+    if (w.userOrg < 0) { Card { Muted("Spectator mode: no club finances.") }; return }
     val org = w.orgs[w.userOrg]
     val b = Economy.monthly(w, org)
     val prizes = org.ledger.filter { it.kind == "prize" }.sumOf { it.amount }

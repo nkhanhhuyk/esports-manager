@@ -17,7 +17,8 @@ object TacticalEngine {
     private const val COORDINATION = 44
     private const val CROSSHAIR = 74
 
-    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, firstAttack: Int, rng: Rng, patch: Patch? = null, events: MutableList<Ev>? = null): GameOutcome {
+    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, firstAttack: Int, rng: Rng, patch: Patch? = null, rec: Recorder? = null): GameOutcome {
+        val events = rec?.events
         // Events for the 2D view: t = round number; x = site (0 A, 1 B).
         val cfg = t.tactical!!
         val defEdge = cfg.defenderEdge + (patch?.obj?.get("defender") ?: 0.0)
@@ -54,6 +55,7 @@ object TacticalEngine {
             val cost = when (buy) { "full" -> fullBuy.toDouble(); "force" -> fullBuy * 0.6; "pistol" -> minOf(cfg.startMoney, 800).toDouble(); else -> 300.0 }
             for (i in 0 until n) money[ti][i] = maxOf(0.0, money[ti][i] - maxOf(0.0, cost - carried[ti][i]))
         }
+        rec?.pids = (teams[0].players + teams[1].players).map { it.p.id }.toIntArray()
         fun duel(pc: PlayerCtx, initiating: Boolean) = pc.phase[AIM] * 0.68 + (if (initiating) pc.phase[ENTRY] else pc.phase[CL]) * 0.2 + pc.phase[MOV] * 0.12
 
         while (true) {
@@ -77,11 +79,24 @@ object TacticalEngine {
             val baseEdge = -defEdge + (qA - qD) * 1.7 + (teamUtil[attack] - teamUtil[def]) / 60 + (teamInfo[attack] - teamInfo[def]) / 80 + (igl[attack] - igl[def]) / 80 + (comp[attack].total - comp[def].total) * 0.4
             val swing = rng.normal(0.0, 0.32)
             val site = (round * 7 + score[0] * 3 + score[1]) % 2
-            events?.add(Ev(round, "round", attack, x = site, a = score[0], b = score[1], text = bA.second + "|" + bD.second))
+            events?.add(Ev(round, "round", attack, x = site, a = score[0], b = score[1], text = bA.second + "|" + bD.second, m = ReplayCodec.BUYS.indexOf(bA.second) * 4 + ReplayCodec.BUYS.indexOf(bD.second)))
+            if (rec != null) {
+                // Credits after the buy and loadout quality, per player.
+                val v = IntArray(rec.pids.size * ReplayCodec.PER_PLAYER)
+                var k = 0
+                for (s in 0..1) for (i in 0 until teams[s].players.size) {
+                    v[k++] = money[s].getOrElse(i) { 0.0 }.toInt()
+                    v[k++] = ((if (s == attack) qA else qD) * 100).toInt()
+                    v[k++] = 0
+                    v[k++] = 0
+                }
+                rec.snapshot(round, v)
+            }
             fun kill(ks: Int, killer: PlayerCtx, victim: PlayerCtx) {
                 val vs = 1 - ks
                 alive[vs].remove(victim)
-                events?.add(Ev(round, "kill", ks, killer.p.id, victim.p.id, if (planted) 1 else 0))
+                val where = if (planted) ReplayCodec.LOC_POSTPLANT else if (duels <= 1) ReplayCodec.LOC_APPROACH else ReplayCodec.LOC_SITE
+                var assister = -1
                 book.add(killer.p.id, K, 1.0)
                 book.add(victim.p.id, D, 1.0)
                 book.add(killer.p.id, DMG, 100.0 + rng.int(0, 60))
@@ -91,10 +106,12 @@ object TacticalEngine {
                 val mates = alive[ks].filter { it !== killer }
                 if (mates.isNotEmpty() && rng.chance(0.42)) {
                     val asst = rng.pickCtx(mates) { it.phase[UT] }
+                    assister = asst.p.id
                     book.add(asst.p.id, A, 1.0)
                     assisted.add(asst.p.id)
                     if (rng.chance(0.4)) book.add(asst.p.id, UTIL, 1.0)
                 }
+                events?.add(Ev(round, "kill", ks, killer.p.id, victim.p.id, if (planted) 1 else 0, m = where, n = assister))
                 val ki = teams[ks].players.indexOf(killer)
                 if (ki >= 0) money[ks][ki] += cfg.killReward.toDouble()
                 for (s in 0..1) if (alive[s].size == 1 && alive[1 - s].size >= 2 && clutchSide < 0) { clutchSide = s; clutchPlayer = alive[s][0] }

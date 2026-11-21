@@ -35,8 +35,11 @@ class SaveStore(private val root: File) {
     /** Page store for box scores (attach with BoxStore.store = saveStore.pages()). */
     fun pages() = object : BoxStore.PageStore {
         override fun write(saveName: String, page: Int, records: List<MatchRecord>) {
+            // Written to a temporary file and renamed, so a page is never half-written.
             val f = File(pagesDir(saveName), "$page.bin")
-            GZIPOutputStream(f.outputStream().buffered()).use { it.write(ProtoBuf.encodeToByteArray(ListSerializer(MatchRecord.serializer()), records)) }
+            val tmp = File(pagesDir(saveName), "$page.tmp")
+            GZIPOutputStream(tmp.outputStream().buffered()).use { it.write(ProtoBuf.encodeToByteArray(ListSerializer(MatchRecord.serializer()), records)) }
+            if (!tmp.renameTo(f)) { tmp.copyTo(f, overwrite = true); tmp.delete() }
         }
 
         override fun read(saveName: String, page: Int): List<MatchRecord>? {

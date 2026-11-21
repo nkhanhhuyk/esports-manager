@@ -17,8 +17,12 @@ import dev.uem.em.titles.Engine
  */
 class SeriesOutcome(val fixture: Fixture, val winner: Int, val wins: IntArray, val record: MatchRecord, val mvp: Int)
 
-/** A match event for the live 2D view (not saved). Teams are series team indexes. */
-class Ev(val t: Int, val kind: String, val team: Int, val a: Int = -1, val b: Int = -1, val x: Int = 0, val text: String = "")
+/**
+ * A match event (stored compactly in [dev.uem.em.model.Replay]). Teams are series team indexes once
+ * a game is recorded. MOBA kill: a killer, b victim, x location, m assist bits (killer side's player
+ * order), n respawn second. Shooter kill: x 1 after the plant, m location code, n assister id.
+ */
+class Ev(val t: Int, val kind: String, val team: Int, val a: Int = -1, val b: Int = -1, val x: Int = 0, val text: String = "", val m: Int = 0, val n: Int = -1)
 
 class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
     val t = Catalogue.get(f.titleId)
@@ -66,7 +70,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
 
     /** Simulate one game with a finished draft; `record` keeps events for the 2D view. */
     fun play(s: Setup, draft: Draft.Result, record: Boolean = false): GameRecord {
-        val events = if (record) ArrayList<Ev>() else null
+        val rec = if (record) Recorder() else null
         if (players[0].isEmpty() || players[1].isEmpty()) {
             val wnr = if (players[0].isEmpty()) 1 else 0
             wins[wnr] = need
@@ -84,20 +88,24 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
             // Map-side order: the blue team is simulated as side 0.
             val order = if (s.blue == 0) intArrayOf(0, 1) else intArrayOf(1, 0)
             val sideCtx = order.mapIndexed { si, sx -> TeamCtx(ctx[sx].team, si, ctx[sx].players, ctx[sx].phase, ctx[sx].overall, ctx[sx].aggression) }
-            val sideEvents = if (events != null) ArrayList<Ev>() else null
-            val out = MobaEngine.simulate(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), s.rng, patch, sideEvents)
+            val out = MobaEngine.simulate(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), s.rng, patch, rec)
             winnerSeries = order[out.winner]
-            sideEvents?.forEach { e -> events!!.add(Ev(e.t, e.kind, if (e.team >= 0) order[e.team] else -1, e.a, e.b, e.x, e.text)) }
+            // Recorded events use series team indexes.
+            if (rec != null) {
+                val mapped = rec.events.map { e -> Ev(e.t, e.kind, if (e.team >= 0) order[e.team] else -1, e.a, e.b, e.x, e.text, e.m, e.n) }
+                rec.events.clear(); rec.events.addAll(mapped)
+            }
             val lines = out.book.lines.map { l -> Line(l.playerId, order[l.team], l.roleId, l.charId, l.rating, l.s) }
             val score = if (s.blue == 0) out.score else intArrayOf(out.score[1], out.score[0])
             g = GameRecord(winnerSeries, out.duration, s.mapId, s.blue, intArrayOf(s.chooser, s.choice, if (s.byLoser) 1 else 0), draft.bans, draft.picks[0] + draft.picks[1], score, lines)
         } else {
             val firstAttack = if (s.rng.chance(0.5)) 0 else 1
-            val out = TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, s.rng, patch, events)
+            val out = TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, s.rng, patch, rec)
             winnerSeries = out.winner
             g = GameRecord(winnerSeries, out.duration, s.mapId, firstAttack, IntArray(0), emptyList(), draft.picks[0] + draft.picks[1], out.score, out.book.lines)
         }
-        lastEvents = events ?: emptyList()
+        if (rec != null) g.replay = ReplayCodec.encode(rec)
+        lastEvents = rec?.events ?: emptyList()
         games.add(g)
         fearless.addAll(draft.picks[0])
         fearless.addAll(draft.picks[1])
@@ -106,6 +114,20 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
         gi++
         return g
     }
+
+    /** Continue a series from a saved live state (games already played, maps, Fearless pool). */
+    fun restore(st: dev.uem.em.model.LiveState) {
+        maps = st.maps
+        fearless.addAll(st.fearless)
+        for (g in st.games) {
+            games.add(g)
+            wins[g.winner]++
+            lastLoser = 1 - g.winner
+            gi++
+        }
+    }
+
+    fun liveState(spectator: Boolean) = dev.uem.em.model.LiveState(f.id, games.toMutableList(), maps, fearless.toList(), spectator)
 
     fun outcome(): SeriesOutcome {
         val winner = if (wins[0] >= wins[1]) 0 else 1
@@ -116,25 +138,6 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
         return SeriesOutcome(f, winner, wins, MatchRecord(f.id, f.day, games), mvp)
     }
 
-    /** Shooter map pool order for the AI veto: weakest maps banned, strongest picked, the rest decides. */
-    fun autoVeto(): List<String> {
-        val rng = Rng.derive(w.seed, f.id, "veto")
-        val pool = t.maps.map { it.id }.toMutableList()
-        val noise = pool.associateWith { rng.normal(0.0, 15.0) }
-        fun pref(s: Int, m: String) = lineups[s].filter { it >= 0 }.sumOf { w.players[it].profMap[m] ?: 40.0 } + noise[m]!! * (if (s == 0) 1 else -1)
-        val picks = ArrayList<String>()
-        val n = f.bestOf
-        var turn = 0
-        while (pool.size > 1 && picks.size < n - 1) {
-            val s = turn % 2
-            val ban = (picks.isEmpty() && turn < 2) || n == 1 || (pool.size - (n - 1 - picks.size) > 1 && turn >= 2 && picks.size >= 2)
-            if (ban) pool.remove(pool.minBy { pref(s, it) }) else { val m = pool.maxBy { pref(s, it) }; picks.add(m); pool.remove(m) }
-            turn++
-        }
-        while (picks.size < n && pool.isNotEmpty()) { val m = pool[rng.int(0, pool.size - 1)]; picks.add(m); pool.remove(m) }
-        return picks
-    }
-
     companion object {
         /** Titles where the side chooser picks either a side or the pick order. */
         val SPLIT_SELECTION = setOf("lol", "dota2")
@@ -142,12 +145,18 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
 }
 
 object SeriesSim {
-    fun run(w: World, f: Fixture, lineups: Array<List<Int>>): SeriesOutcome {
+    /**
+     * A whole series with AI decisions on both sides. It takes exactly the same path as a series
+     * watched live (the same map veto, draft session and engine), so watching a match never changes
+     * its result; `record` keeps every game's replay.
+     */
+    fun run(w: World, f: Fixture, lineups: Array<List<Int>>, record: Boolean = false, resume: dev.uem.em.model.LiveState? = null): SeriesOutcome {
         val s = LiveSeries(w, f, lineups)
-        if (s.t.engine == Engine.TACTICAL) s.maps = s.autoVeto()
+        if (resume != null) s.restore(resume)
+        else if (s.t.engine == Engine.TACTICAL) { val v = VetoSession(s); while (!v.done) v.aiAct() }
         while (!s.done) {
             val setup = s.setup()
-            s.play(setup, s.draftSession(setup).runAll())
+            s.play(setup, s.draftSession(setup).runAll(), record)
         }
         return s.outcome()
     }

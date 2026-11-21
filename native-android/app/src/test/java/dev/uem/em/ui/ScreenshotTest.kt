@@ -68,7 +68,7 @@ class ScreenshotTest {
         shot(out, "live-draft-done")
         rule.runOnIdle { vm.live!!.startGame() }
         shot(out, "live-moba")
-        println("moba events: " + vm.live!!.events.groupBy { it.kind }.mapValues { it.value.size } + " score " + vm.live!!.game!!.score.joinToString("-"))
+        println("moba events: " + vm.live!!.game!!.replay!!.ev.size / 9 + " score " + vm.live!!.game!!.score.joinToString("-"))
         rule.runOnIdle { vm.live!!.simRest() }
         shot(out, "live-result")
         rule.runOnIdle { vm.endLive() }
@@ -79,7 +79,7 @@ class ScreenshotTest {
         shot(out, "live-veto")
         rule.runOnIdle { val l = vm.live!!; while (l.stage == "veto") l.vetoAct(l.veto!!.pool.first()); l.startGame() }
         shot(out, "live-shooter")
-        println("shooter events: " + vm.live!!.events.groupBy { it.kind }.mapValues { it.value.size } + " score " + vm.live!!.game!!.score.joinToString("-"))
+        println("shooter events: " + vm.live!!.game!!.replay!!.ev.size / 9 + " score " + vm.live!!.game!!.score.joinToString("-"))
         rule.runOnIdle { vm.live!!.simRest(); vm.endLive() }
         // Every tab of the player and team pages.
         for (i in 0..8) {

@@ -120,10 +120,9 @@ private fun MatchPreview(vm: GameVm, w: World, f: Fixture, t: TitleDef) {
     val pa = 1 / (1 + 10.0.pow((tb.elo - ta.elo) / 400))
     val mine = w.isUserTeam(f.a) || w.isUserTeam(f.b)
     Card("Preview") {
-        if (mine && f.day <= w.day + 1) {
-            Button(onClick = { vm.startLive(f.id) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Play live (veto / draft, game by game)") }
-            Gap(6)
-        } else if (mine) Muted("Your match: play it live on match day (Continue stops the day before).", 12)
+        WatchButton(vm, w, f)
+        Muted(if (mine) "Your match: you make the veto / draft calls, then each game plays on the 2D map." else "Watch it live: both coaches draft (shown step by step), then each game plays on the 2D map. Watching does not change the result.", 11)
+        Gap(6)
         Text("Win chance (Elo)", color = Ui.muted, fontSize = 12.sp)
         Row(Modifier.fillMaxWidth().height(16.dp).padding(vertical = 3.dp)) {
             Box(Modifier.weight(pa.toFloat().coerceIn(0.02f, 0.98f)).height(10.dp).background(Ui.blue, RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp)))
@@ -178,6 +177,9 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
             if (mvp.charId.isNotEmpty()) { Pic(Pics.char(mvp.charId), mvp.charId, 20.dp, round = true); HGap(4) }
             Text("${w.players[mvp.playerId].handle}${t.charIndex[mvp.charId]?.let { " (${it.name})" } ?: ""} · %.2f".format(mvp.rating), color = Ui.text, fontSize = 12.sp)
         }
+        Gap(4)
+        if (g.replay != null) Button(onClick = { vm.go(Screen.Replay(f.id, gi)) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Watch 2D replay") }
+        else Muted("No 2D replay was kept for this game (Settings → Replays chooses which matches keep one).", 11)
         if (t.isMoba && g.sel.size == 3) {
             val chooser = w.teams[teams[g.sel[0]]].short
             val how = if (g.sel[2] == 0) "won the coin toss" else "lost the previous game"

@@ -52,9 +52,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.uem.em.model.Fixture
+import dev.uem.em.model.GameRecord
 import dev.uem.em.model.Line
 import dev.uem.em.model.World
 import dev.uem.em.sim.Ev
+import dev.uem.em.sim.ReplayCodec
+import dev.uem.em.titles.Catalogue
 import dev.uem.em.titles.TitleDef
 import kotlinx.coroutines.delay
 import kotlin.math.abs
@@ -186,16 +190,18 @@ internal fun laneId(t: TitleDef, engineLane: Int, side: Int): String = when {
     else -> "bot"
 }
 
-private val LEVEL_CAP = mapOf("lol" to 18, "dota2" to 30)
-private val CAP_MINUTES = mapOf("lol" to 36f, "dota2" to 55f)
-
+/**
+ * A MOBA game on its real map, read entirely from the game's recorded replay: kills with assists,
+ * deaths and respawn times, structures, objectives, gold, CS and levels are what the engine
+ * played. Player movement between those events is drawn by the viewer.
+ */
 @Composable
-fun MobaViewer(w: World, live: LiveMatch) {
-    val g = live.game ?: return
-    val s = live.series
-    val t = s.t
+fun MobaViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -> Unit)? = null) {
+    val t = Catalogue.get(f.titleId)
     val map = Maps.moba(t.id) ?: return
-    val ev = live.events
+    val rp = g.replay ?: run { Card { Muted("No 2D replay was recorded for this game.") }; return }
+    val ev = remember(g) { ReplayCodec.events(rp, t) }
+    val teams = arrayOf(w.teams[f.a], w.teams[f.b])
     val blue = g.blue
     fun mapSide(seriesTeam: Int) = if (seriesTeam == blue) 0 else 1
     val teamCol = arrayOf(Ui.blue, Ui.red)
@@ -205,6 +211,8 @@ fun MobaViewer(w: World, live: LiveMatch) {
     var speed by remember { mutableIntStateOf(30) }
     var names by remember { mutableStateOf(true) }
     var health by remember { mutableStateOf(true) }
+    var minions by remember { mutableStateOf(true) }
+    var showSide by remember { mutableIntStateOf(-1) }
     val cam = remember(g) { MapCam() }
     val dur = g.duration.toFloat().coerceAtLeast(60f)
     LaunchedEffect(playing, speed, g) {
@@ -213,25 +221,28 @@ fun MobaViewer(w: World, live: LiveMatch) {
     }
     val T = time.toInt()
     val laneEnd = t.moba!!.laneEnd * 60
-    val stat = { k: String -> t.statIndex[k] ?: -1 }
-    fun fin(l: Line, k: String) = stat(k).let { if (it >= 0) l.s[it] else 0.0 }
+    val half = rp.pids.size / 2
 
-    // State at time T: structures, kills, deaths, objectives.
+    // State at time T, all from the recorded game.
     val down = Array(2) { HashMap<String, Int>() }
     val baseDown = IntArray(2)
     val kills = IntArray(2)
     val objs = IntArray(2)
     val kNow = HashMap<Int, Int>()
     val dNow = HashMap<Int, Int>()
-    val teamKillsTotal = IntArray(2)
-    for (e in ev) if (e.kind == "kill") teamKillsTotal[e.team]++
+    val aNow = HashMap<Int, Int>()
     for (e in ev) {
         if (e.t > T) break
         val side = if (e.team >= 0) mapSide(e.team) else -1
         when (e.kind) {
             "tower" -> { val def = 1 - side; val lane = laneId(t, e.x, def); down[def][lane] = maxOf(down[def][lane] ?: 0, e.a) }
             "base" -> baseDown[1 - side] = maxOf(baseDown[1 - side], e.a)
-            "kill" -> { kills[side]++; kNow.merge(e.a, 1, Int::plus); dNow.merge(e.b, 1, Int::plus) }
+            "kill" -> {
+                kills[side]++
+                kNow.merge(e.a, 1, Int::plus)
+                dNow.merge(e.b, 1, Int::plus)
+                for (i in 0 until half) if (e.m and (1 shl i) != 0) rp.pids.getOrNull(side * half + i)?.let { aNow.merge(it, 1, Int::plus) }
+            }
             "obj" -> objs[side]++
         }
     }
@@ -243,10 +254,13 @@ fun MobaViewer(w: World, live: LiveMatch) {
         val theirs = towers.filter { it.lane == lane && it.team == 1 && alive(it) }.minOfOrNull { line.fractionOf(it.pos) } ?: 0.9f
         return (mine + theirs) / 2
     }
-    fun lanePoint(lane: String, f: Float) = map.lanes[lane]?.at(f) ?: Offset(0.5f, 0.5f)
-    fun respawn(kt: Int) = (8 + kt / 60f * 1.6f).toInt()
-    fun lastDeath(pid: Int) = ev.lastOrNull { it.kind == "kill" && it.b == pid && it.t <= T }
-    fun respawnLeft(pid: Int) = lastDeath(pid)?.let { k -> k.t + respawn(k.t) - T }?.takeIf { it > 0 }
+    fun lanePoint(lane: String, f0: Float) = map.lanes[lane]?.at(f0) ?: Offset(0.5f, 0.5f)
+    /** Seconds until the player respawns (null when alive): the engine's recorded respawn time. */
+    fun respawnLeft(pid: Int): Int? {
+        val k = ev.lastOrNull { it.kind == "kill" && it.b == pid && it.t <= T } ?: return null
+        if (ev.any { it.kind == "buyback" && it.a == pid && it.t in k.t..T }) return null
+        return (k.n - T).takeIf { it > 0 }
+    }
     fun objPoint(i: Int): Offset {
         val id = t.moba.objectives.getOrNull(i)?.id ?: return Offset(0.5f, 0.5f)
         return map.pits.firstOrNull { id in it.objectives }?.pos ?: map.pits.firstOrNull()?.pos ?: Offset(0.5f, 0.5f)
@@ -260,9 +274,21 @@ fun MobaViewer(w: World, live: LiveMatch) {
         loc == 3 -> jungle(side, 1)
         else -> laneId(t, loc, side).let { lanePoint(it, front(it)) }
     }
+    /** Where a player is heading at time `at`: the place of his next / last recorded play, else his role's spot. */
     fun target(pid: Int, side: Int, roleIdx: Int, roleId: String, at: Int): Offset {
-        val near = ev.firstOrNull { abs(it.t - at) < 18 && ((it.kind == "kill" && (it.a == pid || it.b == pid)) || it.kind == "fight") }
-        if (near != null) return locPoint(near.x, side) + Offset(if (side == 0) -0.035f else 0.035f, if (side == 0) 0.02f else -0.02f) + ring(roleIdx, 5, 0.045f)
+        val near = ev.firstOrNull { abs(it.t - at) < 18 && ((it.kind == "kill" && (it.a == pid || it.b == pid)) || (it.kind == "fight") || (it.kind == "obj" && mapSide(it.team) == side)) }
+        if (near != null) {
+            val spot = if (near.kind == "obj") objPoint(near.x) else locPoint(near.x, side)
+            return spot + Offset(if (side == 0) -0.035f else 0.035f, if (side == 0) 0.02f else -0.02f) + ring(roleIdx, 5, 0.045f)
+        }
+        // Sieging: the team that takes a structure stands at it shortly before.
+        val siege = ev.firstOrNull { it.kind == "tower" && mapSide(it.team) == side && it.t - at in 0..20 }
+        if (siege != null) {
+            val defSide = 1 - side
+            val lane = laneId(t, siege.x, defSide)
+            val tw = towers.filter { it.lane == lane && it.team == defSide && alive(it) }.minByOrNull { it.tier }
+            if (tw != null) return tw.pos + ring(roleIdx, 5, 0.05f)
+        }
         val lane = t.moba.lanes.indexOfFirst { roleId in it.second }
         val jungler = roleId in t.moba.junglers && lane < 0
         if (at < laneEnd) {
@@ -282,21 +308,15 @@ fun MobaViewer(w: World, live: LiveMatch) {
         val c = target(l.playerId, side, roleIdx, l.roleId, at - 12)
         return Offset((a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3)
     }
-    // Estimates for the live HUD (the box score has the real totals at the end).
-    val cap = LEVEL_CAP[t.id] ?: 15
-    val capMin = CAP_MINUTES[t.id] ?: 17f
-    fun assists(l: Line): Int {
-        val tk = ev.count { it.kind == "kill" && it.team == l.team && it.t <= T }
-        return (fin(l, "a") * tk / maxOf(1, teamKillsTotal[l.team])).roundToInt()
-    }
-    val avgCs = g.lines.map { fin(it, "cs") }.average().coerceAtLeast(1.0)
-    fun level(l: Line): Int {
-        val base = 1 + (cap - 1) * (T / (capMin * 60f)).coerceIn(0f, 1f).pow(0.72f)
-        val farm = ((fin(l, "cs") / avgCs - 1) * 1.6).toFloat().coerceIn(-2f, 1.5f) * (T / dur).coerceAtMost(1f).pow(0.5f)
-        return (base + farm + 0.25f * (kNow[l.playerId] ?: 0) + 0.12f * assists(l)).toInt().coerceIn(1, cap)
-    }
-    fun goldNow(l: Line): Double = fin(l, "gold").let { gf -> if (gf <= 0) 0.0 else 500 + (gf - 500).coerceAtLeast(0.0) * ((T + 30.0) / (dur + 30.0)).pow(1.12) }
-    fun csNow(l: Line): Int = (fin(l, "cs") * (T / dur.toDouble()).pow(1.05)).toInt()
+    // Gold, CS and levels from the engine's snapshots (interpolated between ticks).
+    val si = ReplayCodec.snapAt(rp, T)
+    val sj = (si + 1).coerceAtMost(rp.snapT.size - 1)
+    val frac = if (si >= 0 && sj > si) ((T - rp.snapT[si]).toFloat() / (rp.snapT[sj] - rp.snapT[si])).coerceIn(0f, 1f) else 0f
+    fun interp(pid: Int, field: Int) = ReplayCodec.value(rp, si, pid, field) * (1 - frac) + ReplayCodec.value(rp, sj, pid, field) * frac
+    fun assists(l: Line): Int = aNow[l.playerId] ?: 0
+    fun level(l: Line): Int = ReplayCodec.value(rp, si, l.playerId, 2).coerceAtLeast(1)
+    fun goldNow(l: Line): Double = interp(l.playerId, 0).toDouble()
+    fun csNow(l: Line): Int = interp(l.playerId, 1).toInt()
     fun lastHit(pid: Int, side: Int): Int? = ev.lastOrNull { it.t <= T && it.t > T - 16 && ((it.kind == "kill" && it.a == pid) || (it.kind == "fight")) }?.t
     fun hp(l: Line): Float {
         val h = lastHit(l.playerId, mapSide(l.team)) ?: return 1f
@@ -320,11 +340,11 @@ fun MobaViewer(w: World, live: LiveMatch) {
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Pic(Pics.team(s.teams[blue]), s.teams[blue].short, 26.dp)
-            Text(" ${s.teams[blue].short}", color = Ui.blue, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Pic(Pics.team(teams[blue]), teams[blue].short, 26.dp)
+            Text(" ${teams[blue].short}", color = Ui.blue, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Text("${kills[0]} – ${kills[1]}", color = Ui.text, fontWeight = FontWeight.Black, fontSize = 22.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-            Text("${s.teams[1 - blue].short} ", color = Ui.red, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Pic(Pics.team(s.teams[1 - blue]), s.teams[1 - blue].short, 26.dp)
+            Text("${teams[1 - blue].short} ", color = Ui.red, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Pic(Pics.team(teams[1 - blue]), teams[1 - blue].short, 26.dp)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(k1(teamGold[0]), color = Ui.gold, fontSize = 12.sp)
@@ -344,6 +364,23 @@ fun MobaViewer(w: World, live: LiveMatch) {
                 drawCircle(if (taken) Color(0xAAFFD166) else Color(0xFF6E5A9B), W * 0.03f, p(pit.pos), style = Stroke(if (taken) 6f else 3f))
             }
             for (c in map.camps) drawCircle(Color(0x553DDC97), W * 0.01f, p(c.pos))
+            // Minion waves (drawn): a wave leaves each base every 30 s and walks to the lane front.
+            if (minions && T >= 65) for ((laneName, line) in map.lanes) {
+                val fr = front(laneName)
+                for (side in 0..1) {
+                    var spawn = 65
+                    while (spawn <= T) {
+                        val age = T - spawn
+                        val walk = (age / 40f).coerceAtMost(1f)
+                        if (age < 70) {
+                            val pos = if (side == 0) fr * walk else 1f - (1f - fr) * walk
+                            val pt = p(line.at(pos.coerceIn(0f, 1f)))
+                            for (k in 0..2) drawRect(teamCol[side].copy(alpha = 0.8f), pt + Offset((k - 1) * W * 0.008f, (k % 2) * W * 0.006f) - Offset(W * 0.003f, W * 0.003f), Size(W * 0.006f, W * 0.006f))
+                        }
+                        spawn += 30
+                    }
+                }
+            }
             for (st in map.structures) {
                 val c = teamCol[st.team]
                 val pt = p(st.pos)
@@ -371,9 +408,10 @@ fun MobaViewer(w: World, live: LiveMatch) {
         }) { side ->
             for (l in g.lines) {
                 val ms = mapSide(l.team)
+                if (showSide >= 0 && ms != showSide) continue
                 val left = respawnLeft(l.playerId)
                 val pos = if (left != null) map.fountains.getOrElse(ms) { Offset(0.5f, 0.5f) } else posAt(l, T)
-                val p = s.w.players[l.playerId]
+                val p = w.players[l.playerId]
                 Token(
                     side, cam.view(pos), Pics.char(l.charId), t.charIndex[l.charId]?.name ?: p.handle, p.handle, teamCol[ms],
                     if (health) hp(l) else null, level(l), left != null, cam.follow == l.playerId, names, deadText = left?.toString(),
@@ -388,21 +426,48 @@ fun MobaViewer(w: World, live: LiveMatch) {
             TextButton(onClick = { cam.zoom = (cam.zoom * 1.3f).coerceAtMost(3f); cam.clampCenter() }) { Text("+", color = Ui.muted) }
             TextButton(onClick = { cam.zoom = (cam.zoom / 1.3f).coerceAtLeast(1f); cam.clampCenter() }) { Text("−", color = Ui.muted) }
         }
-        Row(Modifier.padding(horizontal = 8.dp)) { Toggle("names", names) { names = it }; Toggle("health", health) { health = it } }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            fun jump(kinds: Set<String>, forward: Boolean) {
+                val e = if (forward) ev.firstOrNull { it.kind in kinds && it.t > T + 1 } else ev.lastOrNull { it.kind in kinds && it.t < T - 3 }
+                if (e != null) { time = (e.t - 4).coerceIn(0, dur.toInt()).toFloat(); playing = false }
+            }
+            TextButton(onClick = { jump(setOf("kill"), false) }) { Text("◀ kill", color = Ui.muted, fontSize = 12.sp) }
+            TextButton(onClick = { jump(setOf("kill"), true) }) { Text("kill ▶", color = Ui.accent, fontSize = 12.sp) }
+            TextButton(onClick = { jump(setOf("fight"), true) }) { Text("fight ▶", color = Ui.accent, fontSize = 12.sp) }
+            TextButton(onClick = { jump(setOf("obj"), true) }) { Text("objective ▶", color = Ui.accent, fontSize = 12.sp) }
+            TextButton(onClick = { jump(setOf("tower", "base", "core"), true) }) { Text("structure ▶", color = Ui.accent, fontSize = 12.sp) }
+        }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
+            Toggle("names", names) { names = it }; Toggle("health", health) { health = it }; Toggle("minions", minions) { minions = it }
+            Toggle("both teams", showSide < 0) { showSide = -1 }; Toggle(teams[blue].short, showSide == 0) { showSide = if (it) 0 else -1 }; Toggle(teams[1 - blue].short, showSide == 1) { showSide = if (it) 1 else -1 }
+        }
         Slider(value = time, onValueChange = { time = it }, valueRange = 0f..dur, modifier = Modifier.padding(horizontal = 12.dp))
-        if (time >= dur) WatchDone(live)
+        // Timeline: kills (team colours), objectives (gold), structures (white).
+        Canvas(Modifier.fillMaxWidth().height(14.dp).padding(horizontal = 22.dp)) {
+            val W = size.width
+            for (e in ev) {
+                val x = W * (e.t / dur).coerceIn(0f, 1f)
+                when (e.kind) {
+                    "kill" -> drawLine(teamCol[mapSide(e.team)], Offset(x, 0f), Offset(x, size.height * 0.5f), strokeWidth = 2f)
+                    "obj" -> drawCircle(Ui.gold, 4f, Offset(x, size.height * 0.75f))
+                    "tower", "base" -> drawRect(Color.White.copy(alpha = 0.7f), Offset(x - 2f, size.height * 0.6f), Size(4f, 4f))
+                }
+            }
+            drawLine(Color.White, Offset(W * (T / dur), 0f), Offset(W * (T / dur), size.height), strokeWidth = 2f)
+        }
+        if (time >= dur) after?.invoke()
         // Live scoreboard: tap a player to follow them on the map.
         Card("Scoreboard", right = { Muted("tap a player to follow") }) {
             for (team in intArrayOf(blue, 1 - blue)) {
                 val ms = mapSide(team)
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)) {
                     Box(Modifier.size(10.dp).background(teamCol[ms], CircleShape)); HGap(6)
-                    Text("${if (ms == 0) sideNames.first else sideNames.second} · ${s.teams[team].name}", color = teamCol[ms], fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    Text("${if (ms == 0) sideNames.first else sideNames.second} · ${teams[team].name}", color = teamCol[ms], fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
                     Muted("Lv", 10); Spacer(Modifier.width(22.dp)); Muted("K/D/A", 10); Spacer(Modifier.width(28.dp)); Muted("Gold", 10); Spacer(Modifier.width(6.dp))
                 }
                 val rows = g.lines.filter { it.team == team }.sortedBy { t.lineup.indexOf(it.roleId).let { i -> if (i < 0) 9 else i } }
                 for (l in rows) {
-                    val p = s.w.players[l.playerId]
+                    val p = w.players[l.playerId]
                     val left = respawnLeft(l.playerId)
                     Row(
                         Modifier.fillMaxWidth().background(if (cam.follow == l.playerId) Ui.card2 else Color.Transparent, RoundedCornerShape(6.dp))
@@ -437,33 +502,38 @@ fun MobaViewer(w: World, live: LiveMatch) {
                             val ka = g.lines.firstOrNull { it.playerId == e.a }
                             val kb = g.lines.firstOrNull { it.playerId == e.b }
                             Pic(Pics.char(ka?.charId), ka?.charId ?: "", 20.dp, round = true); HGap(4)
-                            Text(s.w.players[e.a].handle, color = teamCol[ms], fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(w.players[e.a].handle, color = teamCol[ms], fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             Text("  killed  ", color = Ui.muted, fontSize = 11.sp)
                             Pic(Pics.char(kb?.charId), kb?.charId ?: "", 20.dp, round = true); HGap(4)
-                            Text(s.w.players[e.b].handle, color = teamCol[1 - ms], fontSize = 12.sp)
+                            Text(w.players[e.b].handle, color = teamCol[1 - ms], fontSize = 12.sp)
                         }
-                        "obj" -> Text("${s.teams[e.team].short} take ${e.text}", color = teamCol[ms], fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        "tower" -> Text("${s.teams[e.team].short} destroy the ${t.moba.structures.tierNames.getOrElse(e.a - 1) { "tower" }} in ${laneId(t, e.x, 1 - ms)}", color = teamCol[ms], fontSize = 12.sp)
-                        "fight" -> Text("Teamfight: ${s.teams[e.team].short} win it ${e.a} for ${e.b}", color = teamCol[ms], fontSize = 12.sp)
-                        else -> Text("${s.teams[e.team].short} break into the base (${t.moba.structures.baseName})", color = teamCol[ms], fontSize = 12.sp)
+                        "obj" -> Text("${teams[e.team].short} take ${e.text}", color = teamCol[ms], fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        "tower" -> Text("${teams[e.team].short} destroy the ${t.moba.structures.tierNames.getOrElse(e.a - 1) { "tower" }} in ${laneId(t, e.x, 1 - ms)}", color = teamCol[ms], fontSize = 12.sp)
+                        "fight" -> Text("Teamfight: ${teams[e.team].short} win it ${e.a} for ${e.b}", color = teamCol[ms], fontSize = 12.sp)
+                        else -> Text("${teams[e.team].short} break into the base (${t.moba.structures.baseName})", color = teamCol[ms], fontSize = 12.sp)
                     }
                 }
             }
         }
-        Muted("  ${map.name}. Pinch to zoom, drag to pan, tap a player to follow. Levels, gold and health are a live read of the simulation; the box score has the final numbers.", 10)
+        Muted("  ${map.name}. Pinch to zoom, drag to pan, tap a player to follow. Kills, assists, deaths and respawns, structures, objectives, gold, CS and levels are the recorded game; movement, minion waves and health bars are drawn between those events.", 10)
         Spacer(Modifier.height(12.dp))
     }
 }
 
 // ------------------------------------------------------------------------------- shooter 2D view
 
+/**
+ * A shooter map round by round from the recorded replay: buys and credits, kills (with where they
+ * happened and who assisted), plants, defuses and the score are the engine's; the walking between
+ * them is drawn by the viewer along the map's routes.
+ */
 @Composable
-fun TacticalViewer(w: World, live: LiveMatch) {
-    val g = live.game ?: return
-    val s = live.series
-    val t = s.t
+fun TacticalViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -> Unit)? = null) {
+    val t = Catalogue.get(f.titleId)
     val map = Maps.shooter(g.mapId)
-    val ev = live.events
+    val rp = g.replay ?: run { Card { Muted("No 2D replay was recorded for this map.") }; return }
+    val ev = remember(g) { ReplayCodec.events(rp, t) }
+    val teams = arrayOf(w.teams[f.a], w.teams[f.b])
     val teamCol = arrayOf(Ui.blue, Ui.red)
     val rounds = remember(g) { ev.groupBy { it.t }.toSortedMap().values.toList() }
     val nRounds = rounds.size.coerceAtLeast(1)
@@ -497,8 +567,14 @@ fun TacticalViewer(w: World, live: LiveMatch) {
     // Kills and deaths on this map so far.
     val kMap = HashMap<Int, Int>()
     val dMap = HashMap<Int, Int>()
-    for (ri in 0 until r) for (e in rounds[ri]) if (e.kind == "kill") { kMap.merge(e.a, 1, Int::plus); dMap.merge(e.b, 1, Int::plus) }
-    for (e in shown) if (e.kind == "kill") { kMap.merge(e.a, 1, Int::plus); dMap.merge(e.b, 1, Int::plus) }
+    val aMap = HashMap<Int, Int>()
+    fun count(e: Ev) { kMap.merge(e.a, 1, Int::plus); dMap.merge(e.b, 1, Int::plus); if (e.n >= 0) aMap.merge(e.n, 1, Int::plus) }
+    for (ri in 0 until r) for (e in rounds[ri]) if (e.kind == "kill") count(e)
+    for (e in shown) if (e.kind == "kill") count(e)
+    // Economy at the start of this round (credits after the buy, loadout) from the recorded snapshots.
+    val snapIdx = ReplayCodec.snapAt(rp, start?.t ?: r)
+    fun credits(side: Int) = g.lines.filter { it.team == side }.sumOf { ReplayCodec.value(rp, snapIdx, it.playerId, 0) }
+    fun loadout(side: Int) = g.lines.firstOrNull { it.team == side }?.let { ReplayCodec.value(rp, snapIdx, it.playerId, 1) } ?: 0
     val deadIds = shown.filter { it.kind == "kill" }.map { it.b }.toSet()
     fun posOf(side: Int, i: Int, ph: Float): Offset {
         if (map == null) return Offset(0.5f, 0.5f)
@@ -510,6 +586,14 @@ fun TacticalViewer(w: World, live: LiveMatch) {
             val home = if (n == 0) map.nodes[map.def].pos else map.sites[i % n].pos + ring(i / n, (5 + n - 1 - i % n) / n, 0.045f)
             val k = if (site != null && ph > plantPhase) ((ph - plantPhase) / 0.3f).coerceIn(0f, 1f) else 0f
             home + ((site?.pos ?: home) - home) * k
+        }
+    }
+    fun deathPos(e: Ev, i: Int): Offset {
+        val victimSide = 1 - e.team
+        val siteP = site?.pos ?: Offset(0.5f, 0.5f)
+        return when (e.m) {
+            ReplayCodec.LOC_APPROACH -> (atkRoute?.at(if (victimSide == attack) 0.45f else 0.7f) ?: siteP) + ring(i, 5, 0.035f)
+            else -> siteP + ring(i, 5, 0.05f)
         }
     }
     fun hpOf(pid: Int): Float {
@@ -524,15 +608,19 @@ fun TacticalViewer(w: World, live: LiveMatch) {
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Pic(Pics.team(s.teams[0]), s.teams[0].short, 26.dp)
-            Text(" ${s.teams[0].short}", color = Ui.blue, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Pic(Pics.team(teams[0]), teams[0].short, 26.dp)
+            Text(" ${teams[0].short}", color = Ui.blue, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Text("${score[0]} – ${score[1]}", color = Ui.text, fontWeight = FontWeight.Black, fontSize = 22.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-            Text("${s.teams[1].short} ", color = Ui.red, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Pic(Pics.team(s.teams[1]), s.teams[1].short, 26.dp)
+            Text("${teams[1].short} ", color = Ui.red, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Pic(Pics.team(teams[1]), teams[1].short, 26.dp)
         }
         Text("Round ${r + 1} · ${map?.name ?: t.maps.firstOrNull { it.id == g.mapId }?.name ?: ""}", color = Ui.text, fontSize = 13.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         val buys = start?.text?.split("|") ?: emptyList()
-        Text("${s.teams[attack].short} ${sideName(attack).lowercase()} (${buys.getOrElse(0) { "?" }} buy) on ${site?.id ?: "?"} · ${s.teams[1 - attack].short} ${sideName(1 - attack).lowercase()} (${buys.getOrElse(1) { "?" }} buy)", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 12.dp))
+        Text("${teams[attack].short} ${sideName(attack).lowercase()} (${buys.getOrElse(0) { "?" }} buy) on ${site?.id ?: "?"} · ${teams[1 - attack].short} ${sideName(1 - attack).lowercase()} (${buys.getOrElse(1) { "?" }} buy)", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 12.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            Text("${if (t.id == "cs2") "$" else "¤"}${credits(0)} left · loadout ${loadout(0)}%", color = Ui.blue, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            Text("${if (t.id == "cs2") "$" else "¤"}${credits(1)} left · loadout ${loadout(1)}%", color = Ui.red, fontSize = 11.sp)
+        }
         // Round history.
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             for (ri in 0 until nRounds) {
@@ -556,10 +644,10 @@ fun TacticalViewer(w: World, live: LiveMatch) {
                 drawCircle(Color(0x664F8CFF), W * 0.025f, p(map.nodes[map.def].pos))
                 if (planted && site != null) drawCircle(Color(0xFFFF5A6E), W * 0.012f, p(site.pos))
                 atkRoute?.let { rt -> for (i in 1 until rt.pts.size) drawLine(teamCol[attack].copy(alpha = 0.25f), p(rt.pts[i - 1]), p(rt.pts[i]), strokeWidth = 3f) }
-                // Death markers.
-                for ((pid, dp) in deathPhase) if (pid in deadIds) {
-                    val l = g.lines.firstOrNull { it.playerId == pid } ?: continue
-                    val at = p(posOf(l.team, roster[l.team].indexOf(l), dp))
+                // Death markers where the engine says the kill happened: on the approach, on the site, or after the plant.
+                for (e in shown) if (e.kind == "kill") {
+                    val l = g.lines.firstOrNull { it.playerId == e.b } ?: continue
+                    val at = p(deathPos(e, roster[l.team].indexOf(l)))
                     val d = W * 0.014f
                     drawLine(teamCol[l.team].copy(alpha = 0.8f), at - Offset(d, d), at + Offset(d, d), strokeWidth = 4f)
                     drawLine(teamCol[l.team].copy(alpha = 0.8f), at + Offset(d, -d), at - Offset(d, -d), strokeWidth = 4f)
@@ -574,7 +662,7 @@ fun TacticalViewer(w: World, live: LiveMatch) {
                 for (sd in 0..1) roster[sd].forEachIndexed { i, l ->
                     val pid = l.playerId
                     if (pid in deadIds) return@forEachIndexed
-                    val p = s.w.players[pid]
+                    val p = w.players[pid]
                     Token(
                         side, cam.view(posOf(sd, i, phase)), if (l.charId.isNotEmpty()) Pics.char(l.charId) else Pics.player(p), p.handle, p.handle, teamCol[sd],
                         hpOf(pid), null, false, cam.follow == pid, names, size = 30.dp,
@@ -582,29 +670,35 @@ fun TacticalViewer(w: World, live: LiveMatch) {
                 }
             }
             if (phase >= 0.97f && end != null) Text(
-                "${s.teams[end.team].short} win the round", color = Color.White, fontWeight = FontWeight.Bold,
+                "${teams[end.team].short} win the round", color = Color.White, fontWeight = FontWeight.Bold,
                 modifier = Modifier.align(Alignment.Center).background(Color(0xCC000000), RoundedCornerShape(8.dp)).padding(10.dp),
             )
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { if (pos >= nRounds) { pos = 0f; playing = true } else playing = !playing }) { Text(if (pos >= nRounds) "Replay" else if (playing) "Pause" else "Play", color = Ui.accent) }
             for (sp in listOf(1f, 2f, 4f, 8f)) TextButton(onClick = { speed = sp }) { Text("${sp.toInt()}x", color = if (speed == sp) Ui.accent else Ui.muted, fontSize = 12.sp) }
-            TextButton(onClick = { pos = (r + 1).toFloat().coerceAtMost(nRounds.toFloat()) }) { Text("Next round", color = Ui.muted, fontSize = 12.sp) }
+            TextButton(onClick = { pos = (r - 1).coerceAtLeast(0).toFloat(); playing = false }) { Text("◀ round", color = Ui.muted, fontSize = 12.sp) }
+            TextButton(onClick = { pos = (r + 1).toFloat().coerceAtMost(nRounds.toFloat()) }) { Text("round ▶", color = Ui.accent, fontSize = 12.sp) }
+            TextButton(onClick = {
+                // Next round with a clutch, an ace or a defuse.
+                val next = (r + 1 until nRounds).firstOrNull { ri -> rounds[ri].any { it.kind == "defuse" } || rounds[ri].filter { it.kind == "kill" }.groupBy { it.a }.any { it.value.size >= 4 } }
+                if (next != null) { pos = next.toFloat(); playing = false }
+            }) { Text("highlight ▶", color = Ui.accent, fontSize = 12.sp) }
             TextButton(onClick = { pos = nRounds.toFloat() }) { Text("Instant finish", color = Ui.muted, fontSize = 12.sp) }
             TextButton(onClick = { cam.reset() }) { Text("Fit map", color = Ui.muted, fontSize = 12.sp) }
         }
         Row(Modifier.padding(horizontal = 8.dp)) { Toggle("names", names) { names = it } }
         Slider(value = pos, onValueChange = { pos = it }, valueRange = 0f..nRounds.toFloat(), modifier = Modifier.padding(horizontal = 12.dp))
-        if (pos >= nRounds) WatchDone(live)
+        if (pos >= nRounds) after?.invoke()
         Card("Scoreboard", right = { Muted("tap a player to follow") }) {
             for (sd in 0..1) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)) {
                     Box(Modifier.size(10.dp).background(teamCol[sd], CircleShape)); HGap(6)
-                    Text("${s.teams[sd].name} · ${sideName(sd)}", color = teamCol[sd], fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                    Muted("K / D", 10); Spacer(Modifier.width(50.dp))
+                    Text("${teams[sd].name} · ${sideName(sd)}", color = teamCol[sd], fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    Muted("K / D / A", 10); Spacer(Modifier.width(44.dp))
                 }
                 for (l in roster[sd]) {
-                    val p = s.w.players[l.playerId]
+                    val p = w.players[l.playerId]
                     val dead = l.playerId in deadIds
                     Row(
                         Modifier.fillMaxWidth().background(if (cam.follow == l.playerId) Ui.card2 else Color.Transparent, RoundedCornerShape(6.dp))
@@ -617,7 +711,7 @@ fun TacticalViewer(w: World, live: LiveMatch) {
                             Text(p.handle, color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Muted(listOfNotNull(t.role(l.roleId).short, t.charIndex[l.charId]?.name).joinToString(" · "), 10)
                         }
-                        Text("${kMap[l.playerId] ?: 0} / ${dMap[l.playerId] ?: 0}", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(50.dp), textAlign = TextAlign.Center)
+                        Text("${kMap[l.playerId] ?: 0}/${dMap[l.playerId] ?: 0}/${aMap[l.playerId] ?: 0}", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
                         Text(if (dead) "dead" else "${(hpOf(l.playerId) * 100).toInt()} hp", color = if (dead) Ui.loss else Ui.win, fontSize = 11.sp, modifier = Modifier.width(48.dp), textAlign = TextAlign.End)
                     }
                 }
@@ -630,11 +724,11 @@ fun TacticalViewer(w: World, live: LiveMatch) {
                     "kill" -> {
                         val ka = g.lines.firstOrNull { it.playerId == e.a }
                         val kb = g.lines.firstOrNull { it.playerId == e.b }
-                        Pic(ka?.charId?.takeIf { it.isNotEmpty() }?.let { Pics.char(it) } ?: Pics.player(s.w.players[e.a]), s.w.players[e.a].handle, 20.dp, round = true); HGap(4)
-                        Text(s.w.players[e.a].handle, color = teamCol[e.team], fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Pic(ka?.charId?.takeIf { it.isNotEmpty() }?.let { Pics.char(it) } ?: Pics.player(w.players[e.a]), w.players[e.a].handle, 20.dp, round = true); HGap(4)
+                        Text(w.players[e.a].handle, color = teamCol[e.team], fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Text("  ▸  ", color = Ui.muted, fontSize = 11.sp)
-                        Pic(kb?.charId?.takeIf { it.isNotEmpty() }?.let { Pics.char(it) } ?: Pics.player(s.w.players[e.b]), s.w.players[e.b].handle, 20.dp, round = true); HGap(4)
-                        Text(s.w.players[e.b].handle, color = teamCol[1 - e.team], fontSize = 12.sp)
+                        Pic(kb?.charId?.takeIf { it.isNotEmpty() }?.let { Pics.char(it) } ?: Pics.player(w.players[e.b]), w.players[e.b].handle, 20.dp, round = true); HGap(4)
+                        Text(w.players[e.b].handle, color = teamCol[1 - e.team], fontSize = 12.sp)
                     }
                     "plant" -> Text("${t.tactical!!.objectiveName} planted on ${site?.id ?: ""}", color = teamCol[e.team], fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     else -> Text("${t.tactical!!.objectiveName} defused", color = teamCol[e.team], fontSize = 12.sp, fontWeight = FontWeight.SemiBold)

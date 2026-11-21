@@ -50,7 +50,27 @@ object Advance {
     /** The user's next unplayed series due today or tomorrow. */
     fun userFixtureDue(w: World) = w.fixtures.asReversed().firstOrNull { !it.done && it.day <= w.day + 1 && (w.isUserTeam(it.a) || w.isUserTeam(it.b)) }
 
-    fun userPlaysOn(w: World, day: Int): Boolean = w.userOrg >= 0 && (w.schedule[day] ?: emptyList<Int>()).any { fid -> w.fixtures[fid].let { w.isUserTeam(it.a) || w.isUserTeam(it.b) } }
+    fun userPlaysOn(w: World, day: Int): Boolean {
+        val ids = w.schedule[day] ?: return false
+        if (w.userOrg >= 0) return ids.any { fid -> w.fixtures[fid].let { w.isUserTeam(it.a) || w.isUserTeam(it.b) } }
+        // Spectator career: stop before a followed team plays.
+        return w.stopForFollowed && w.followed.isNotEmpty() && ids.any { fid -> w.fixtures[fid].let { !it.done && (it.a in w.followed || it.b in w.followed) } }
+    }
+
+    /** Whether a background series keeps its 2D replay (Settings → Replays). */
+    fun shouldRecord(w: World, f: Fixture): Boolean {
+        val mine = w.isUserTeam(f.a) || w.isUserTeam(f.b) || f.a in w.followed || f.b in w.followed
+        return when (w.replays) {
+            "off" -> false
+            "all" -> true
+            "mine" -> mine
+            else -> {
+                val c = w.comps[f.compId]
+                val final = f.nodeId.isNotEmpty() && c.stages.getOrNull(f.stageIdx)?.bracket?.firstOrNull { it.id == f.nodeId }?.isFinal == true
+                mine || c.tier == dev.uem.em.model.CompTier.WORLDS || c.tier == dev.uem.em.model.CompTier.INTERNATIONAL || (final && c.tier == dev.uem.em.model.CompTier.LEAGUE)
+            }
+        }
+    }
 
     /** Time spent per part of the day (nanoseconds), for profiling. */
     val timing = LongArray(6)
@@ -95,9 +115,13 @@ object Advance {
                 val c = w.comps[f.compId]
                 f.id to arrayOf(dev.uem.em.mgmt.Supporters.lineupFor(w, c, w.teams[f.a], Lineups.ensure(w, w.teams[f.a]).toList()), dev.uem.em.mgmt.Supporters.lineupFor(w, c, w.teams[f.b], Lineups.ensure(w, w.teams[f.b]).toList()))
             }
-            val outcomes: List<SeriesOutcome> = if (fixtures.size == 1 || cores == 1) fixtures.map { SeriesSim.run(w, it, lineups[it.id]!!) }
-            else pool.invokeAll(fixtures.map { f -> Callable { SeriesSim.run(w, f, lineups[f.id]!!) } }).map { it.get() }
+            // A series the user started live and left unfinished continues from its saved games.
+            val resume = w.live?.takeIf { lv -> fixtures.any { it.id == lv.fixtureId } }
+            fun sim(f: Fixture) = SeriesSim.run(w, f, lineups[f.id]!!, record = shouldRecord(w, f), resume = resume?.takeIf { it.fixtureId == f.id })
+            val outcomes: List<SeriesOutcome> = if (fixtures.size == 1 || cores == 1) fixtures.map { sim(it) }
+            else pool.invokeAll(fixtures.map { f -> Callable { sim(f) } }).map { it.get() }
             for (o in outcomes) apply(w, o)
+            if (resume != null) w.live = null
         }
     }
 
@@ -105,6 +129,8 @@ object Advance {
     /** Apply a series result (also used for a series you played live). */
     fun apply(w: World, o: SeriesOutcome) {
         val f = o.fixture
+        // A result is applied once: stats, prize money, Elo and progress are never counted twice.
+        if (f.done) return
         val t = Catalogue.get(f.titleId)
         val c = w.comps[f.compId]
         val teamIds = intArrayOf(f.a, f.b)
@@ -179,6 +205,7 @@ object Advance {
         dev.uem.em.mgmt.Extras.seasonReview(w)
         dev.uem.em.mgmt.Career.seasonEnd(w)
         for (p in w.players) if (!p.retired) p.caHistory.add(p.ca.toFloat())
+        BoxStore.pruneReplays(w, w.day - 700)
         w.season++
         dev.uem.em.mgmt.Deals.returnLoans(w)
         dev.uem.em.mgmt.Deals.executePreContracts(w)

@@ -46,6 +46,14 @@ class World(
     var delegateRenewals: Boolean = false,
     /** Players the user has shortlisted. */
     val shortlist: MutableList<Int> = ArrayList(),
+    /** Which background matches keep a 2D replay: important, mine, all, off. */
+    var replays: String = "important",
+    /** Box-score pages already stripped of old replays. */
+    var replayPrunedPage: Int = 0,
+    /** A series being played or watched live, kept so it can be resumed after the app closes. */
+    var live: LiveState? = null,
+    /** Spectator career: stop advancing before followed teams play. */
+    var stopForFollowed: Boolean = true,
 ) {
     /** Fixture ids by day (rebuilt after loading; not saved). */
     @kotlinx.serialization.Transient
@@ -330,6 +338,22 @@ class GameRecord(
     val picks: List<String> = emptyList(),
     @ProtoPacked val score: IntArray = IntArray(2),
     val lines: List<Line>,
+    /** The game's authoritative event stream and state snapshots (null when not recorded). */
+    var replay: Replay? = null,
+)
+
+/**
+ * A recorded game, exactly as the engine played it: events (9 ints each: time, kind, team, a, b,
+ * x, m, n, 0; see sim/Replay.kt for the codes) and state snapshots for every player in `pids`
+ * order (MOBA: gold, CS, level, dead-until second; shooters: credits, loadout, 0, 0 per round).
+ */
+@Serializable
+class Replay(
+    val v: Int = 1,
+    @ProtoPacked val ev: IntArray = IntArray(0),
+    @ProtoPacked val pids: IntArray = IntArray(0),
+    @ProtoPacked val snapT: IntArray = IntArray(0),
+    @ProtoPacked val snap: IntArray = IntArray(0),
 )
 
 @Serializable
@@ -414,3 +438,13 @@ class PatchRec(
 
 @Serializable
 class Registration(val players: MutableList<Int> = ArrayList(), var amendments: Int = 0)
+
+/** An unfinished live series: the games already played and the draft history (for Fearless). */
+@Serializable
+class LiveState(
+    val fixtureId: Int,
+    val games: MutableList<GameRecord> = ArrayList(),
+    val maps: List<String> = emptyList(),
+    val fearless: List<String> = emptyList(),
+    val spectator: Boolean = false,
+)

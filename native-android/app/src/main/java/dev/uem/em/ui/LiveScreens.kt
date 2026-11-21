@@ -62,18 +62,35 @@ object LiveDefaults {
 fun LiveScreen(vm: GameVm, w: World, live: LiveMatch) {
     @Suppress("UNUSED_EXPRESSION") live.rev
     val s = live.series
+    // Spectating: the veto and draft play out one step at a time.
+    var auto by remember(live) { mutableStateOf(LiveDefaults.autoplay) }
+    LaunchedEffect(live, live.stage, auto, live.rev) {
+        if (live.spectator && auto && (live.stage == "veto" || live.stage == "draft")) {
+            delay(650)
+            live.aiTick()
+        }
+    }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().background(Ui.card).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("${s.teams[0].short} ${s.wins[0]} - ${s.wins[1]} ${s.teams[1].short}", color = Ui.text, fontWeight = FontWeight.Black, fontSize = 18.sp)
-                Muted("${s.comp.name} · Bo${s.f.bestOf}${if (s.comp.fearless) " · hard Fearless" else ""}")
+                Muted("${s.comp.name} · Bo${s.f.bestOf}${if (s.comp.fearless) " · hard Fearless" else ""}${if (live.spectator) " · watching" else ""}${if (live.resumed) " · resumed" else ""}")
             }
-            if (live.stage != "result") TextButton(onClick = { live.simRest(); vm.edit() }) { Text("Sim rest", color = Ui.muted) }
+            if (live.stage != "result") TextButton(onClick = { live.simRest(); vm.edit() }) { Text(if (live.spectator) "Skip to result" else "Sim rest", color = Ui.muted) }
+        }
+        if (live.spectator && (live.stage == "veto" || live.stage == "draft")) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { auto = !auto }) { Text(if (auto) "Pause" else "Play", color = Ui.accent) }
+            TextButton(onClick = { live.aiTick() }) { Text("Next step", color = Ui.accent) }
+            TextButton(onClick = { live.aiFinish() }) { Text("Skip ${if (live.stage == "veto") "veto" else "draft"}", color = Ui.muted) }
         }
         when (live.stage) {
             "veto" -> VetoView(live)
             "draft" -> DraftView(live)
-            "watch" -> if (s.t.isMoba) MobaViewer(w, live) else TacticalViewer(w, live)
+            "watch" -> {
+                val g = live.game
+                val done: @Composable () -> Unit = { WatchDone(live) }
+                if (g != null) { if (s.t.isMoba) MobaViewer(w, s.f, g, done) else TacticalViewer(w, s.f, g, done) }
+            }
             else -> ResultView(vm, w, live)
         }
     }
@@ -85,14 +102,15 @@ private fun VetoView(live: LiveMatch) {
     val s = live.series
     val cur = v.current()
     LazyColumn(Modifier.fillMaxSize()) {
-        item { Card("Map veto") { Muted(if (cur?.first == live.me) "Your turn: ${if (cur.second) "BAN" else "PICK"} a map" else "Waiting…"); for (l in v.log) Muted(l, 12) } }
+        item { Card("Map veto") { Muted(if (live.spectator) (cur?.let { "${s.teams[it.first].short} to ${if (it.second) "ban" else "pick"}…" } ?: "Veto complete") else if (cur?.first == live.me) "Your turn: ${if (cur.second) "BAN" else "PICK"} a map" else "Waiting…"); for (l in v.log) Muted(l, 12) } }
         items(v.pool.size) { i ->
             val m = v.pool[i]
             val name = s.t.maps.first { it.id == m }.name
-            val prof = s.lineups[live.me].filter { it >= 0 }.map { s.w.players[it].profMap[m] ?: 40.0 }.average()
+            val prof = s.lineups[if (live.me >= 0) live.me else 0].filter { it >= 0 }.map { s.w.players[it].profMap[m] ?: 40.0 }.average()
+            val prof2 = s.lineups[if (live.me >= 0) 1 - live.me else 1].filter { it >= 0 }.map { s.w.players[it].profMap[m] ?: 40.0 }.average()
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp).background(Ui.card, RoundedCornerShape(10.dp)).clickable(enabled = cur?.first == live.me) { live.vetoAct(m) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(name, color = Ui.text, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                Muted("your map comfort ${prof.toInt()}")
+                Muted(if (live.spectator) "${s.teams[0].short} ${prof.toInt()} · ${s.teams[1].short} ${prof2.toInt()}" else "your map comfort ${prof.toInt()} · theirs ${prof2.toInt()}")
             }
         }
     }
@@ -122,14 +140,15 @@ private fun DraftView(live: LiveMatch) {
             Text(when {
                 d.done || !d.sequential -> "Draft complete"
                 myTurn -> "Your turn: ${if (cur!!.second) "BAN" else "PICK"}"
+                live.spectator && cur != null -> "${s.teams[cur.first].short} ${if (cur.second) "ban" else "pick"}…"
                 else -> "Opponent…"
             }, color = if (myTurn) Ui.accent else Ui.muted, fontWeight = FontWeight.Bold)
             Row {
-                if (!d.done && d.sequential) TextButton(onClick = { live.autoDraft() }) { Text("Coach finishes the draft", color = Ui.accent) }
+                if (!d.done && d.sequential && !live.spectator) TextButton(onClick = { live.autoDraft() }) { Text("Coach finishes the draft", color = Ui.accent) }
                 if (d.done || !d.sequential) Button(onClick = { live.startGame() }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Start game ${s.gi + 1}") }
             }
         }
-        if (d.sequential && !d.done) {
+        if (d.sequential && !d.done && !live.spectator) {
             Tabs(listOf("All") + t.lineupRoles.map { it.short }, role + 1) { role = it - 1 }
             val chars = t.characters.filter { role < 0 || it.fits(t.lineupRoles[role]) }.sortedByDescending { s.patch.charMeta[it.id] ?: 0.0 }
             LazyVerticalGrid(columns = GridCells.Adaptive(68.dp), modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
