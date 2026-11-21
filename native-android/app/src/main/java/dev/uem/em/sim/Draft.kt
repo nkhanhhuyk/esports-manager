@@ -159,7 +159,7 @@ class DraftSession(val t: TitleDef, val patch: Patch, val lineups: Array<List<Pl
             val enemy = 1 - team
             var first: CharDef? = null
             var second: CharDef? = null
-            for (i in open[enemy].ifEmpty { lineups[enemy].indices.toList() }) for (c in prefs[enemy][i].take(4)) {
+            for (i in open[enemy].ifEmpty { lineups[enemy].indices.toList() }) for (c in prefs[enemy][i].filter { it.id !in locked[enemy] }.take(4)) {
                 if (!legal(team, true, c.id) || c === first || c === second) continue
                 val v = patch.charMeta[c.id] ?: 0.0
                 if (first == null || v > (patch.charMeta[first.id] ?: 0.0)) { second = first; first = c } else if (second == null || v > (patch.charMeta[second.id] ?: 0.0)) second = c

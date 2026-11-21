@@ -165,6 +165,17 @@ object Advance {
             p.form = clamp(p.form * 0.85 + (l.rating - 1) * 6, -10.0, 10.0)
             p.fatigue = clamp(p.fatigue + (4 - p.attrs[Attrs.STAMINA] / 50) * (if (g.duration > 2400) 1.4 else 1.0), 0.0, 100.0)
         }
+        // Character usage this season (tier lists): games, wins, bans; per map for shooters.
+        for (g in o.record.games) {
+            for (l in g.lines) if (l.charId.isNotEmpty()) {
+                for (key in listOfNotNull("${w.season}|${l.charId}", if (!t.isMoba) "${w.season}|${g.mapId}|${l.charId}" else null)) {
+                    val a = w.charStats.getOrPut(key) { IntArray(3) }
+                    a[0]++
+                    if (l.team == g.winner) a[1]++
+                }
+            }
+            for (b in g.bans) w.charStats.getOrPut("${w.season}|$b") { IntArray(3) }[2]++
+        }
         if (o.mvp >= 0) {
             w.players[o.mvp].stats.lastOrNull { it.season == w.season && it.titleId == t.id }?.let { it.mvps++ }
             c.pstats[o.mvp]?.let { it.m++ }
@@ -227,10 +238,13 @@ object Advance {
             if (!team.active || w.isUserTeam(team.id) || team.nationalOf.isNotEmpty()) continue
             val t = Catalogue.get(team.titleId)
             val pool = free[team.titleId] ?: continue
-            while (team.roster.size < t.teamSize + 1 && pool.isNotEmpty()) {
+            // Every position covered by a player whose main role it is, and at least one substitute.
+            while (pool.isNotEmpty()) {
                 val have = team.roster.map { w.players[it].roles[0] }.toSet()
                 val need = t.lineup.firstOrNull { it !in have }
-                val pick = pool.firstOrNull { need == null || it.roles[0] == need } ?: pool[0]
+                if (need == null && team.roster.size >= t.teamSize + 1) break
+                if (need != null && team.roster.size >= t.teamSize + 4) break
+                val pick = (if (need != null) pool.firstOrNull { it.roles[0] == need } ?: pool.firstOrNull { it.roles.getOrNull(1) == need } else null) ?: pool[0]
                 pool.remove(pick)
                 pick.teamId = team.id
                 pick.contractEnd = w.season + 1

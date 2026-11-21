@@ -55,6 +55,21 @@ object Patches {
         } else {
             for (wc in rng.sample(t.weaponClasses, if (kind == "minor") 1 else 2)) notes.add("$wc: ${if (rng.chance(0.5)) "price lowered, damage falloff reduced" else "recoil increased, price raised"}")
         }
+        // Weapon balance in shooters (the tier lists and gun picks read these).
+        if (!t.isMoba) {
+            val guns = Release.weaponsOf(w, t.id)
+            if (guns.isNotEmpty()) for (g in rng.sample(guns, minOf(guns.size, if (kind == "minor") 1 else rng.int(2, 4)))) {
+                val d = (if (rng.chance(0.5)) 1 else -1) * size * rng.float(0.3, 0.8)
+                delta["w:${g.id}"] = d
+                notes.add("${g.name}: ${if (d > 0) "buffed — " + rng.pick(listOf("damage falloff reduced", "price lowered", "recoil reduced", "fire rate up")) else "nerfed — " + rng.pick(listOf("price raised", "recoil increased", "damage reduced at range", "movement accuracy reduced"))}")
+            }
+        }
+        // New fictional releases: characters (medium and major patches) and weapons (shooters).
+        if (kind != "minor") {
+            val newChars = if (kind == "major") 1 + (if (rng.chance(0.4)) 1 else 0) else if (rng.chance(0.3)) 1 else 0
+            repeat(newChars) { Release.character(w, t, rng, delta)?.let { notes.add(0, it) } }
+            if (!t.isMoba && rng.chance(if (kind == "major") 0.6 else 0.25)) Release.weapon(w, t, rng)?.let { notes.add(0, it) }
+        }
         if (kind != "minor") for (s in rng.sample(t.styles, if (kind == "major") 3 else 2)) {
             val d = rng.float(0.03, 0.12) * (if (rng.chance(0.5)) 1 else -1)
             style[s] = d
@@ -77,6 +92,7 @@ object Patches {
                 notes.add("Economy: full buy costs ${if (b > 1) "rise" else "fall"} ${(abs(b - 1) * 100).roundToInt()}%")
             }
         }
+        if (kind == "major") notes.addAll(dev.uem.em.comp.Fearless.evolve(w, t, rng))
         w.patches.add(PatchRec(t.id, "${t.short} $version", w.day, kind, notes, delta, style, obj))
         val label = when (kind) { "major" -> "Major patch"; "medium" -> "Patch"; else -> "Minor patch" }
         w.news.add(News(w.day, "$label ${t.short} $version", notes.take(3).joinToString("; ") + if (notes.size > 3) "; …" else ""))

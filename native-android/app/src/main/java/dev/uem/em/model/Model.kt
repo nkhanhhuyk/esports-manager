@@ -54,6 +54,21 @@ class World(
     var live: LiveState? = null,
     /** Spectator career: stop advancing before followed teams play. */
     var stopForFollowed: Boolean = true,
+    /** Active players per game the youth intake keeps the world near (set at creation). */
+    val poolTarget: MutableMap<String, Int> = HashMap(),
+    /** Fearless rules per game and event type ("lol:msi" → "insane"); changed by major patches. */
+    val fearlessRules: MutableMap<String, String> = HashMap(),
+    /** Spectator career (no club). */
+    var spectator: Boolean = false,
+    /** Character usage per season: "season|charId" (and "season|map|charId" for shooters) → games, wins, bans. */
+    val charStats: MutableMap<String, IntArray> = HashMap(),
+    /** Fictional characters and weapons released by patches. */
+    val customChars: MutableList<CustomChar> = ArrayList(),
+    val customWeapons: MutableList<CustomWeapon> = ArrayList(),
+    /** Your job: coach-gm, head-coach, gm, director, owner or commissioner. */
+    var role: String = "coach-gm",
+    /** A fully fictional world (no real teams or players). */
+    var fictional: Boolean = false,
 ) {
     /** Fixture ids by day (rebuilt after loading; not saved). */
     @kotlinx.serialization.Transient
@@ -168,6 +183,8 @@ class Team(
     var nationalOf: String = "",
     /** Scrims per week (0-6): sharpness and chemistry, at the cost of fatigue. */
     var scrims: Int = 3,
+    /** Where this team's data comes from (real snapshot, historical snapshot, fictional). */
+    var dataNote: String = "",
 )
 
 @Serializable
@@ -245,6 +262,8 @@ class Competition(
     var mvp: Int = -1,
     /** Registered players per team (locked when the competition starts) and amendments used. */
     val registrations: MutableMap<Int, Registration> = HashMap(),
+    /** Draft rule across a series: none, soft, hard or insane Fearless (blank: from `fearless`). */
+    var fearlessMode: String = "",
 ) {
     val done get() = status == 2
 }
@@ -448,3 +467,11 @@ class LiveState(
     val fearless: List<String> = emptyList(),
     val spectator: Boolean = false,
 )
+
+/** A fictional champion / hero / agent released by a patch (drawn with generated art). */
+@Serializable
+class CustomChar(val titleId: String, val id: String, val name: String, val cls: String, val classes: List<String>, val lanes: List<String>, val season: Int, val epithet: String = "", @ProtoPacked val kit: IntArray = IntArray(0), val skills: List<String> = emptyList())
+
+/** A fictional weapon released by a patch. */
+@Serializable
+class CustomWeapon(val titleId: String, val id: String, val name: String, val category: String, val cost: Int, val damage: Int, val fireRate: Int, val magazine: Int, val season: Int)

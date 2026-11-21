@@ -1,0 +1,120 @@
+{
+ "about": "Curated traversal for the shooter map graphs in maps.json: node levels (0 = ground) and typed links. Types: walk, stairs, ladder, door, vent, breakable, drop (one-way down), teleport (one-way). 'retype' changes an existing edge; 'add' adds a link. Facts from the Valorant and Counter-Strike Fandom wikis (CC BY-SA), checked 21 Nov 2026. The graphs are simplified 2D callout networks, not official geometry.",
+ "maps": {
+  "valorant:bind": {
+   "source": "https://valorant.fandom.com/wiki/Bind — 'two one-way teleporters. One takes players from A Short to B Short and the other takes players from B Long to A Lobby.'",
+   "add": [
+    [
+     5,
+     12,
+     "teleport"
+    ],
+    [
+     14,
+     2,
+     "teleport"
+    ]
+   ]
+  },
+  "valorant:lotus": {
+   "source": "https://valorant.fandom.com/wiki/Lotus — rotating doors toggled from either side (10 s rotation); a destructible wall (400 HP) between A Main and A Link; a silenced drop from A Top to A Drop.",
+   "retype": [
+    [
+     0,
+     1,
+     "drop"
+    ],
+    [
+     4,
+     5,
+     "door"
+    ],
+    [
+     5,
+     6,
+     "door"
+    ],
+    [
+     12,
+     13,
+     "door"
+    ],
+    [
+     13,
+     20,
+     "door"
+    ],
+    [
+     13,
+     21,
+     "door"
+    ]
+   ],
+   "add": [
+    [
+     1,
+     2,
+     "walk"
+    ],
+    [
+     6,
+     15,
+     "breakable"
+    ]
+   ]
+  },
+  "valorant:haven": {
+   "source": "https://valorant.fandom.com/wiki/Haven — three bomb sites (A, B, C).",
+   "levels": {}
+  },
+  "cs2:nuke": {
+   "source": "https://counterstrike.fandom.com/wiki/Nuke — two levels: Upper A and Lower B joined by Ramp, Secret stairs and the vents between the sites (vent covers can be opened and closed); Heaven above A.",
+   "levels": {
+    "0": 1,
+    "1": 1,
+    "2": 1,
+    "3": 1,
+    "4": 1,
+    "5": 2,
+    "6": 0.5,
+    "7": 0.5,
+    "8": 0,
+    "9": 1,
+    "10": 0.5,
+    "11": 1
+   },
+   "retype": [
+    [
+     4,
+     5,
+     "stairs"
+    ],
+    [
+     4,
+     6,
+     "vent"
+    ],
+    [
+     6,
+     8,
+     "vent"
+    ],
+    [
+     1,
+     7,
+     "stairs"
+    ],
+    [
+     9,
+     10,
+     "stairs"
+    ],
+    [
+     8,
+     11,
+     "stairs"
+    ]
+   ]
+  }
+ }
+}

@@ -115,12 +115,12 @@ private fun CompRow(vm: GameVm, w: World, c: Competition) {
                 TitleTag(c.titleId)
                 Muted("${Dates.short(c.startDay)} · ${c.teamIds.size.takeIf { it > 0 }?.let { "$it teams · " } ?: ""}${when (c.status) { 0 -> "upcoming"; 1 -> c.stages.getOrNull(c.current)?.name ?: "live"; else -> "finished" }}", 11)
             }
-            if (c.prizePool > 0) Muted("Prize pool ${formatMoney(c.prizePool)}${if (c.fearless) " · Fearless" else ""}", 11)
+            if (c.prizePool > 0) Muted("Prize pool ${formatMoney(c.prizePool)}${dev.uem.em.comp.Fearless.modeOf(c).takeIf { it != "none" }?.let { " · " + dev.uem.em.comp.Fearless.LABEL[it] } ?: ""}", 11)
             if (mine != null) Text("${w.teams[mine].short}: ${c.placements.indexOf(mine).takeIf { it >= 0 }?.let { ordinal(it + 1) } ?: if (c.done) "—" else "competing"}", color = Ui.accent, fontSize = 11.sp)
         }
         if (c.done && c.placements.isNotEmpty()) Column(horizontalAlignment = Alignment.End) {
             Muted("Champion", 10)
-            Pic(Pics.team(w.teams[c.placements[0]]), w.teams[c.placements[0]].short, 24.dp)
+            TeamPic(w.teams[c.placements[0]], 24.dp)
             Text(w.teams[c.placements[0]].short, color = Ui.gold, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
     }
@@ -156,7 +156,7 @@ fun CompScreen(vm: GameVm, w: World, id: Int) {
             Tiles(listOfNotNull(
                 Tile("Prize pool", formatMoney(c.prizePool)),
                 Tile("Teams", "${c.teamIds.size}", c.entrants.joinToString { it.substringBefore(':') }),
-                Tile("Format", c.stages.joinToString(" / ") { "Bo${it.bestOf}" }, if (c.fearless) "hard Fearless" else c.stages.joinToString(" → ") { stageType(it.type) }),
+                Tile("Format", c.stages.joinToString(" / ") { "Bo${it.bestOf}" }, dev.uem.em.comp.Fearless.modeOf(c).takeIf { it != "none" }?.let { dev.uem.em.comp.Fearless.LABEL[it] } ?: c.stages.joinToString(" → ") { stageType(it.type) }),
                 if (champ != null) Tile("Champion", w.teams[champ].short, w.teams[champ].name, Ui.gold) else Tile("Stage", c.stages.getOrNull(c.current)?.name ?: "—", statusLabel(c.status)),
                 if (c.mvp >= 0) Tile("MVP", w.players[c.mvp].handle, w.teams.getOrNull(w.players[c.mvp].teamId)?.short, Ui.gold) else null,
                 Tile("Matches", "${c.stages.sumOf { s -> s.fixtureIds.count { w.fixtures[it].done } }} / ${c.stages.sumOf { it.fixtureIds.size }}", "played"),
@@ -255,7 +255,7 @@ private fun BracketView(vm: GameVm, w: World, st: Stage) {
                         for ((tid, score) in listOf(nd.teamA to f?.takeIf { it.done }?.scoreA, nd.teamB to f?.takeIf { it.done }?.scoreB)) {
                             Row(Modifier.fillMaxWidth().padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                                 if (tid >= 0) {
-                                    Pic(Pics.team(w.teams[tid]), w.teams[tid].short, 16.dp); HGap(4)
+                                    TeamPic(w.teams[tid], 16.dp); HGap(4)
                                     Text(w.teams[tid].short, color = if (nd.winner == tid) Ui.text else if (nd.winner >= 0) Ui.muted else Ui.text, fontWeight = if (nd.winner == tid) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1)
                                 } else Text(if (tid == -1) "bye" else "TBD", color = Ui.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
                                 if (score != null) Text("$score", color = if (nd.winner == tid) Ui.win else Ui.muted, fontWeight = FontWeight.Bold, fontSize = 12.sp)

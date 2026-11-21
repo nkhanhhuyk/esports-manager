@@ -67,7 +67,7 @@ fun TeamChip(w: World, teamId: Int, vm: GameVm, size: Dp = 22.dp, bold: Boolean 
     if (teamId < 0) { Muted("—"); return }
     val t = w.teams[teamId]
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { vm.go(Screen.Team(teamId)) }) {
-        Pic(Pics.team(t), t.short, size)
+        TeamPic(t, size)
         Spacer(Modifier.width(6.dp))
         Text(t.name, color = if (w.isUserTeam(teamId)) Ui.gold else Ui.text, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
@@ -76,7 +76,7 @@ fun TeamChip(w: World, teamId: Int, vm: GameVm, size: Dp = 22.dp, bold: Boolean 
 @Composable
 fun PlayerChip(p: Player, vm: GameVm, size: Dp = 26.dp) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { vm.go(Screen.Player(p.id)) }) {
-        Pic(Pics.player(p), p.handle, size, round = true)
+        PlayerPic(p, size, round = true)
         Spacer(Modifier.width(6.dp))
         Text(p.handle, color = Ui.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }

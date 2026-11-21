@@ -46,13 +46,34 @@ object Maps {
     class Pit(val name: String, val pos: Offset, val objectives: List<String>)
     class Moba(val name: String, val lanes: Map<String, Line>, val cores: List<Offset>, val fountains: List<Offset>, val structures: List<Structure>, val camps: List<Camp>, val pits: List<Pit>, val river: List<Offset>, val walls: List<FloatArray>)
 
-    class Node(val name: String, val sup: String, val pos: Offset, val kind: String)
+    class Node(val name: String, val sup: String, val pos: Offset, val kind: String, var level: Float = 0f)
     class Site(val id: String, val node: Int, val pos: Offset, val r: Float)
-    class Shooter(val name: String, val nodes: List<Node>, val edges: List<Pair<Int, Int>>, val sites: List<Site>, val atk: Int, val def: Int, val walls: List<FloatArray>) {
-        private val adj = Array(nodes.size) { ArrayList<Int>() }.also { a -> for ((x, y) in edges) { a[x].add(y); a[y].add(x) } }
 
-        /** Shortest route between two nodes (by distance). */
-        fun route(from: Int, to: Int): List<Offset> {
+    /** A traversal link: walk, stairs, ladder, door, vent, breakable (two-way); drop, teleport (one-way). */
+    class Link(val from: Int, val to: Int, var type: String) {
+        val oneWay get() = type == "drop" || type == "teleport"
+    }
+
+    class Shooter(val name: String, val nodes: List<Node>, val links: List<Link>, val sites: List<Site>, val atk: Int, val def: Int, val walls: List<FloatArray>, val source: String = "") {
+        val edges get() = links.map { it.from to it.to }
+        private val adj = Array(nodes.size) { ArrayList<Pair<Int, Link>>() }.also { a -> for (l in links) { a[l.from].add(l.to to l); if (!l.oneWay) a[l.to].add(l.from to l) } }
+
+        /** Travel cost of a link (map units; a teleport is instant, doors and vents are slow). */
+        fun cost(u: Int, v: Int, l: Link): Float {
+            val d = (nodes[u].pos - nodes[v].pos).getDistance()
+            return when (l.type) {
+                "teleport" -> 0.02f
+                "drop" -> d * 0.6f
+                "stairs" -> d * 1.25f + 0.01f
+                "ladder" -> d * 1.6f + 0.03f
+                "vent" -> d * 1.6f + 0.03f
+                "door", "breakable" -> d + 0.06f
+                else -> d
+            }
+        }
+
+        /** Shortest directed path (node indexes), respecting one-way drops and teleporters; empty if unreachable. */
+        fun path(from: Int, to: Int): List<Int> {
             val n = nodes.size
             val dist = FloatArray(n) { Float.MAX_VALUE }
             val prev = IntArray(n) { -1 }
@@ -63,12 +84,24 @@ object Maps {
                 for (i in 0 until n) if (!done[i] && (u < 0 || dist[i] < dist[u])) u = i
                 if (u < 0 || dist[u] == Float.MAX_VALUE) return@repeat
                 done[u] = true
-                for (v in adj[u]) { val nd = dist[u] + (nodes[u].pos - nodes[v].pos).getDistance(); if (nd < dist[v]) { dist[v] = nd; prev[v] = u } }
+                for ((v, l) in adj[u]) { val nd = dist[u] + cost(u, v, l); if (nd < dist[v]) { dist[v] = nd; prev[v] = u } }
             }
-            val path = ArrayList<Offset>()
+            if (dist[to] == Float.MAX_VALUE) return emptyList()
+            val path = ArrayList<Int>()
             var c = to
-            while (c >= 0) { path.add(0, nodes[c].pos); if (c == from) break; c = prev[c] }
-            return if (path.size >= 2) path else listOf(nodes[from].pos, nodes[to].pos)
+            while (c >= 0) { path.add(0, c); if (c == from) break; c = prev[c] }
+            return path
+        }
+
+        fun linkBetween(a: Int, b: Int) = links.firstOrNull { (it.from == a && it.to == b) || (!it.oneWay && it.from == b && it.to == a) }
+
+        /**
+         * Shortest route between two nodes as points. A teleport is drawn as a jump: the route jumps
+         * from the entrance to the exit (the line between them is not walked).
+         */
+        fun route(from: Int, to: Int): List<Offset> {
+            val p = path(from, to)
+            return if (p.size >= 2) p.map { nodes[it].pos } else listOf(nodes[from].pos, nodes[to].pos)
         }
     }
 
@@ -101,16 +134,38 @@ object Maps {
             Shooter(
                 o.s("name"),
                 o["nodes"]!!.jsonArray.map { it.jsonObject }.map { n -> Node(n.s("name"), n.s("sup"), Offset(n["x"]!!.jsonPrimitive.int / 1000f, n["y"]!!.jsonPrimitive.int / 1000f), n.s("kind")) },
-                o["edges"]!!.jsonArray.map { e -> e.jsonArray[0].jsonPrimitive.int to e.jsonArray[1].jsonPrimitive.int },
+                o["edges"]!!.jsonArray.map { e -> Link(e.jsonArray[0].jsonPrimitive.int, e.jsonArray[1].jsonPrimitive.int, "walk") }.toMutableList(),
                 o["sites"]!!.jsonArray.map { it.jsonObject }.map { s -> Site(s.s("id"), s["node"]!!.jsonPrimitive.int, Offset(s["x"]!!.jsonPrimitive.int / 1000f, s["y"]!!.jsonPrimitive.int / 1000f), s["r"]!!.jsonPrimitive.int / 1000f) },
                 o["atk"]!!.jsonPrimitive.int,
                 o["def"]!!.jsonPrimitive.int,
                 o["walls"]!!.jsonArray.map { rect(it.jsonArray) },
             )
         }
+        applyTopology(src)
     }
 
     private fun JsonObject.s(k: String) = this[k]?.jsonPrimitive?.contentOrNull ?: ""
+
+    /** Apply the curated topology (assets/maps_topology.json): levels, retyped and added links. */
+    private fun applyTopology(src: DataSource) {
+        val text = runCatching { src.read("maps_topology.json") }.getOrNull() ?: return
+        val maps = Json.parseToJsonElement(text).jsonObject["maps"]?.jsonObject ?: return
+        val out = HashMap(shooter)
+        for ((id, v) in maps) {
+            val m = shooter[id] ?: continue
+            val o = v.jsonObject
+            o["levels"]?.jsonObject?.forEach { (k, lv) -> m.nodes.getOrNull(k.toInt())?.level = lv.jsonPrimitive.content.toFloat() }
+            val links = m.links.toMutableList()
+            o["retype"]?.jsonArray?.forEach { e ->
+                val a = e.jsonArray[0].jsonPrimitive.int; val b = e.jsonArray[1].jsonPrimitive.int; val type = e.jsonArray[2].jsonPrimitive.content
+                val l = links.firstOrNull { (it.from == a && it.to == b) || (it.from == b && it.to == a) }
+                if (l != null) { links.remove(l); links.add(Link(a, b, type)) }
+            }
+            o["add"]?.jsonArray?.forEach { e -> links.add(Link(e.jsonArray[0].jsonPrimitive.int, e.jsonArray[1].jsonPrimitive.int, e.jsonArray[2].jsonPrimitive.content)) }
+            out[id] = Shooter(m.name, m.nodes, links, m.sites, m.atk, m.def, m.walls, o.s("source"))
+        }
+        shooter = out
+    }
 
     fun moba(titleId: String): Moba? = moba[titleId]
     fun shooter(mapId: String): Shooter? = shooter[mapId]

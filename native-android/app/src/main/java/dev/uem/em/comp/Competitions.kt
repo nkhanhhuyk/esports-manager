@@ -77,6 +77,7 @@ object Season {
         val c = Competition(w.comps.size, name, short, t.id, season, tier, league?.id ?: -1, split, league?.region ?: "", entrants, stages.toMutableList(),
             startDay = stages[0].startDay, circuitPoints = points, prizePool = (prize / 1000).toInt() * 1000.0, prestige = prestige)
         w.comps.add(c)
+        Fearless.assign(w, t, c)
         return c
     }
 
@@ -147,7 +148,7 @@ object Season {
             val fsN = name("fs", "First Stand", "FST")
             val fs = mk(w, t, season, fsN.first, fsN.second, CompTier.INTERNATIONAL, null, fsE, international(t, minOf(8, count(fsE)), D(3, 6)), t.prizeScale * 250_000, 60, FS_POINTS)
             fs.realName = fsN.third
-            fs.fearless = t.draft.mode == "sequential"
+            Fearless.assign(w, t, fs)
             val msiE = topOf(2) { i -> tier1.size <= 2 || i < 2 || tier1.size <= 4 }
             val msiN = name("msi", "Mid-Season Invitational", "MSI")
             val n = count(msiE)

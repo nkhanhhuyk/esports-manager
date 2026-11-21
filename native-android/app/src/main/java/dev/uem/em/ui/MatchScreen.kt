@@ -70,7 +70,8 @@ fun MatchScreen(vm: GameVm, w: World, id: Int) {
                     TitleTag(t.id)
                     Text(c.name, color = Ui.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
-                Muted("${fixtureLabel(w, f)} · ${Dates.format(f.day, true)} · Bo${f.bestOf}${if (c.fearless) " · hard Fearless" else ""}", 12)
+                val fm = if (dev.uem.em.comp.Fearless.applies(t)) dev.uem.em.comp.Fearless.modeOf(c) else "none"
+                Muted("${fixtureLabel(w, f)} · ${Dates.format(f.day, true)} · Bo${f.bestOf}${if (fm != "none") " · " + dev.uem.em.comp.Fearless.LABEL[fm] else ""}", 12)
                 Gap(10)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     for (side in 0..1) {
@@ -83,7 +84,7 @@ fun MatchScreen(vm: GameVm, w: World, id: Int) {
                         Column(Modifier.weight(1f).clickable(enabled = tid >= 0) { vm.go(Screen.Team(tid)) }, horizontalAlignment = Alignment.CenterHorizontally) {
                             if (tid >= 0) {
                                 val tm = w.teams[tid]
-                                Pic(Pics.team(tm), tm.short, 48.dp)
+                                TeamPic(tm, 48.dp)
                                 Text(tm.name, color = if (f.done && f.winner == tid) Ui.gold else if (w.isUserTeam(tid)) Ui.accent else Ui.text, fontWeight = FontWeight.Bold, fontSize = 14.sp, textAlign = TextAlign.Center, maxLines = 2)
                                 Muted("str %.1f · Elo ${tm.elo.toInt()}".format(Lineups.strength(w, tm)), 10)
                             } else Muted("TBD")
@@ -146,7 +147,7 @@ private fun MatchPreview(vm: GameVm, w: World, f: Fixture, t: TitleDef) {
                     val p = w.players[pid]
                     Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Player(pid)) }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(t.lineupRoles.getOrNull(i)?.short ?: "", color = Ui.muted, fontSize = 10.sp, modifier = Modifier.width(30.dp))
-                        Pic(Pics.player(p), p.handle, 20.dp, round = true); HGap(4)
+                        PlayerPic(p, 20.dp, round = true); HGap(4)
                         Text(p.handle, color = Ui.text, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Rating(p.ca, size = 11)
                     }
@@ -174,26 +175,41 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
         )
         if (mvp != null) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
             Text("Game MVP  ", color = Ui.gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            if (mvp.charId.isNotEmpty()) { Pic(Pics.char(mvp.charId), mvp.charId, 20.dp, round = true); HGap(4) }
+            if (mvp.charId.isNotEmpty()) { CharPic(mvp.charId, mvp.charId, 20.dp, round = true); HGap(4) }
             Text("${w.players[mvp.playerId].handle}${t.charIndex[mvp.charId]?.let { " (${it.name})" } ?: ""} · %.2f".format(mvp.rating), color = Ui.text, fontSize = 12.sp)
         }
         Gap(4)
         if (g.replay != null) Button(onClick = { vm.go(Screen.Replay(f.id, gi)) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Watch 2D replay") }
         else Muted("No 2D replay was kept for this game (Settings → Replays chooses which matches keep one).", 11)
-        if (t.isMoba && g.sel.size == 3) {
-            val chooser = w.teams[teams[g.sel[0]]].short
-            val how = if (g.sel[2] == 0) "won the coin toss" else "lost the previous game"
-            val choice = if (g.sel[1] == 0) "chose ${sideNames.first} side" else "chose pick order"
+        if (t.isMoba && g.sel.size >= 3) {
+            val firstPick = g.sel.getOrElse(3) { if (t.id in dev.uem.em.sim.LiveSeries.SPLIT_SELECTION) -1 else g.blue }
             Gap(4)
-            Muted("$chooser ($how) $choice · ${w.teams[teams[g.blue]].short} on ${sideNames.first}", 12)
+            Muted(selectionText(t, listOf(w.teams[f.a].short, w.teams[f.b].short), g.sel[0], g.sel[1], g.sel[2] == 1, g.blue, firstPick), 12)
         }
     }
     if (t.characters.isNotEmpty() && (g.bans.isNotEmpty() || g.lines.any { it.charId.isNotEmpty() })) Card("Draft") {
+        val fm = if (dev.uem.em.comp.Fearless.applies(t)) dev.uem.em.comp.Fearless.modeOf(w.comps[f.compId]) else "none"
+        val earlier = BoxStore.get(w, f.id)?.games?.take(gi) ?: emptyList()
+        if (fm != "none" && earlier.isNotEmpty()) {
+            val played = Array(2) { side -> earlier.flatMap { e -> e.lines.filter { it.team == side }.map { it.charId } }.filter { it.isNotEmpty() }.toSet() }
+            val banned = earlier.flatMap { it.bans }.toSet()
+            val rows = when (fm) {
+                "soft" -> listOf(w.teams[f.a].short to played[0], w.teams[f.b].short to played[1])
+                "insane" -> listOf("Both" to (played[0] + played[1] + banned))
+                else -> listOf("Both" to (played[0] + played[1]))
+            }
+            Text("${dev.uem.em.comp.Fearless.LABEL[fm]} — unavailable in this game", color = Ui.gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            for ((label, set) in rows) Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(label, color = Ui.muted, fontSize = 10.sp, modifier = Modifier.width(40.dp))
+                for (id in set) { Box(Modifier.alpha(0.55f)) { CharPic(id, t.charIndex[id]?.name ?: id, 22.dp) }; HGap(2) }
+            }
+            Gap(4)
+        }
         if (g.bans.isNotEmpty()) {
             Muted("Bans", 11)
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
                 for (b in g.bans) Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(44.dp).alpha(0.75f)) {
-                    Box { Pic(Pics.char(b), t.charIndex[b]?.name ?: b, 32.dp); Text("✕", color = Ui.loss, fontWeight = FontWeight.Black, fontSize = 14.sp, modifier = Modifier.align(Alignment.Center)) }
+                    Box { CharPic(b, t.charIndex[b]?.name ?: b, 32.dp); Text("✕", color = Ui.loss, fontWeight = FontWeight.Black, fontSize = 14.sp, modifier = Modifier.align(Alignment.Center)) }
                     Text(t.charIndex[b]?.name ?: b, color = Ui.muted, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
@@ -204,7 +220,7 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
                 for (l in g.lines.filter { it.team == side }.sortedBy { t.lineup.indexOf(it.roleId).let { i -> if (i < 0) 9 else i } }) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(64.dp).clickable { vm.go(Screen.Player(l.playerId)) }) {
-                        Pic(Pics.char(l.charId), t.charIndex[l.charId]?.name ?: l.charId, 44.dp, round = true)
+                        CharPic(l.charId, t.charIndex[l.charId]?.name ?: l.charId, 44.dp, round = true)
                         Text(t.charIndex[l.charId]?.name ?: "—", color = Ui.text, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(w.players[l.playerId].handle, color = Ui.muted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
@@ -235,8 +251,8 @@ private fun FullBoxScore(vm: GameVm, w: World, t: TitleDef, lines: List<Line>, m
         val l = lines[r]
         when {
             c == 0 -> Row(verticalAlignment = Alignment.CenterVertically) {
-                if (l.charId.isNotEmpty()) { Pic(Pics.char(l.charId), t.charIndex[l.charId]?.name ?: l.charId, 24.dp, round = true); HGap(4) }
-                else { Pic(Pics.player(w.players[l.playerId]), w.players[l.playerId].handle, 24.dp, round = true); HGap(4) }
+                if (l.charId.isNotEmpty()) { CharPic(l.charId, t.charIndex[l.charId]?.name ?: l.charId, 24.dp, round = true); HGap(4) }
+                else { PlayerPic(w.players[l.playerId], 24.dp, round = true); HGap(4) }
                 Column {
                     Text(w.players[l.playerId].handle + if (l.playerId == mvp) " ★" else "", color = if (l.playerId == mvp) Ui.gold else Ui.text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     t.charIndex[l.charId]?.let { Muted(it.name, 10) }
@@ -298,7 +314,7 @@ private fun SeriesTotals(vm: GameVm, w: World, f: Fixture, t: TitleDef, games: L
             },
             SCol("Rating", 54.dp, key = { e -> e.value.map { it.rating }.average() }) { e -> Num("%.2f".format(e.value.map { it.rating }.average()), bold = true) },
             SCol(t.charLabel + "s", 140.dp, false) { e ->
-                Row { for (l in e.value) if (l.charId.isNotEmpty()) { Pic(Pics.char(l.charId), l.charId, 20.dp, round = true); HGap(2) } }
+                Row { for (l in e.value) if (l.charId.isNotEmpty()) { CharPic(l.charId, l.charId, 20.dp, round = true); HGap(2) } }
             },
         ), initialSort = 4, onRow = { vm.go(Screen.Player(it.key)) }, highlight = { it.key == f.mvp })
     }

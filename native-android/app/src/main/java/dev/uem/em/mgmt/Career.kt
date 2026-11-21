@@ -148,7 +148,11 @@ object Career {
             val t = Catalogue.get(id)
             val pop = Catalogue.POPULARITY[id]!!
             val regs = w.leagues.filter { it.titleId == id }.flatMap { GameData.expand(it.region) }.ifEmpty { listOf("NA") }
-            val n = w.leagues.count { it.titleId == id } * 4
+            // Enough prospects to replace retirements: the pool stays near its size at the start.
+            val active = w.players.count { !it.retired && it.titleId == id }
+            val target = w.poolTarget.getOrPut(id) { active }
+            val base = w.leagues.count { it.titleId == id } * 4
+            val n = maxOf(base, ((target - active) * 0.6).roundToInt()).coerceAtMost(base * 6)
             val made = (0 until n).map { PlayerGen.generate(ctx, id, null, GameData.pickNationality(rng, regs, t.isMoba, pop), rng.int(15, 17), clamp(rng.normal(47.0, 6.0), 30.0, 66.0), rng.normal(4.0 + academy * 0.5, 3.0)) }
             if (id in userTitles) found.addAll(made.sortedByDescending { it.pa }.take(2).map { "${it.handle} (${t.short} ${t.role(it.mainRole).short}, ${it.nat}, age ${Dates.ageAt(it.birth, w.day)}, potential ${it.pa.roundToInt()})" })
         }

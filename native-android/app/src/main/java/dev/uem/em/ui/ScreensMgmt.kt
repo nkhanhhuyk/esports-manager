@@ -105,7 +105,7 @@ fun SquadScreen(vm: GameVm, w: World) {
                     pickSlot = -1
                     vm.edit()
                 }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Pic(Pics.player(p), p.handle, 28.dp, round = true); HGap(8)
+                    PlayerPic(p, 28.dp, round = true); HGap(8)
                     Column(Modifier.weight(1f)) { Text(p.handle, color = Ui.text); Muted("${t.role(p.mainRole).short} · fit here %.1f · CA %.1f · fatigue %.0f${if (p.injuryUntil > w.day) " · injured" else ""}".format(dev.uem.em.sim.Ratings.effectiveness(p, t, role), p.ca, p.fatigue)) }
                     if (p.id == team.lineup.getOrNull(pickSlot)) Text("✓", color = Ui.win)
                 }
@@ -190,7 +190,7 @@ private fun SquadTactics(vm: GameVm, w: World, team: Team, t: dev.uem.em.titles.
                     Column(Modifier.width(70.dp)) { Text(p.handle, color = Ui.text, fontSize = 12.sp, maxLines = 1); Muted(role.short, 10) }
                     Row(Modifier.horizontalScroll(rememberScrollState())) {
                         for (c in pool) Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(48.dp)) {
-                            Pic(Pics.char(c.id), c.name, 32.dp, round = true)
+                            CharPic(c.id, c.name, 32.dp, round = true)
                             Text("${(p.profChar[c.id] ?: 0.0).toInt()}", color = Rate.color(p.profChar[c.id] ?: 0.0), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
                     }
@@ -200,7 +200,7 @@ private fun SquadTactics(vm: GameVm, w: World, team: Team, t: dev.uem.em.titles.
             Muted("Ban priorities (strongest in the meta)", 11)
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 4.dp)) {
                 for (c in t.characters.sortedByDescending { patch.charMeta[it.id] ?: 0.0 }.take(10)) Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(52.dp)) {
-                    Pic(Pics.char(c.id), c.name, 34.dp)
+                    CharPic(c.id, c.name, 34.dp)
                     Text(c.name, color = Ui.text, fontSize = 8.sp, maxLines = 1)
                     Text("%+.1f".format(patch.charMeta[c.id] ?: 0.0), color = Ui.win, fontSize = 9.sp)
                 }
@@ -330,6 +330,7 @@ fun MarketScreen(vm: GameVm, w: World) {
         }.sortedByDescending { it.ca }.take(300).toList()
     }
     val pendingIn = w.offers.count { it.status == "pending" && w.isUserTeam(it.toTeam) && !w.isUserTeam(it.fromTeam) }
+    val table = rememberTableState(4)
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
@@ -359,9 +360,10 @@ fun MarketScreen(vm: GameVm, w: World) {
             }
         }
         item {
-            Card("${MARKET_TABS[tab]} · ${list.size} players") {
-                if (list.isEmpty()) Muted(if (tab == 2) "Shortlist players from their pages (☆ Shortlist)." else "Nobody matches.")
-                else SortTable(list, listOf(
+            Text("${MARKET_TABS[tab]} · ${list.size} players", color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+            if (list.isEmpty()) Card { Muted(if (tab == 2) "Shortlist players from their pages (☆ Shortlist)." else "Nobody matches.") }
+        }
+        lazySortTable(table, list, listOf(
                     SCol<Player>("Player", 130.dp, false) { p -> Row(verticalAlignment = Alignment.CenterVertically) { flag(p.nat).takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp); HGap(3) }; PlayerChip(p, vm, 20.dp) } },
                     SCol("Role", 40.dp, false) { p -> Muted(Catalogue.get(p.titleId).role(p.mainRole).short, 11) },
                     SCol("Age", 34.dp, key = { Dates.ageAt(it.birth, w.day).toDouble() }) { p -> Num("${Dates.ageAt(p.birth, w.day)}") },
@@ -375,9 +377,7 @@ fun MarketScreen(vm: GameVm, w: World) {
                         val bid = w.offers.lastOrNull { it.playerId == p.id && w.isUserTeam(it.fromTeam) }
                         Text(when { bid != null -> "bid ${bid.status}"; p.listed -> "listed"; p.teamId < 0 -> "free agent"; p.contractEnd <= w.season -> "expiring"; else -> "" }, color = if (bid != null) Ui.accent else Ui.muted, fontSize = 11.sp)
                     },
-                ), initialSort = 4, limit = 300, onRow = { vm.go(Screen.Player(it.id)) })
-            }
-        }
+                ), key = { it.id }, onRow = { vm.go(Screen.Player(it.id)) })
     }
 }
 
@@ -408,7 +408,7 @@ private fun OffersList(vm: GameVm, w: World) {
                 val p = w.players[o.playerId]
                 val incoming = w.isUserTeam(o.toTeam) && !w.isUserTeam(o.fromTeam)
                 Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Pic(Pics.player(p), p.handle, 30.dp, round = true); HGap(8)
+                    PlayerPic(p, 30.dp, round = true); HGap(8)
                     Column(Modifier.weight(1f).clickable { vm.go(Screen.Player(p.id)) }) {
                         Text("${if (incoming) "${w.teams[o.fromTeam].name} want " else "You → "}${p.handle}", color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         Muted("${Dates.short(o.day)} · fee ${formatMoney(o.fee)} · value ${formatMoney(Economy.marketValue(w, p))} · ${o.status}", 11)
@@ -790,7 +790,7 @@ fun PatchesScreen(vm: GameVm, w: World) {
                         Muted(label, 11)
                         Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
                             for (c in group) Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(54.dp)) {
-                                Pic(Pics.char(c.id), c.name, 36.dp, round = true)
+                                CharPic(c.id, c.name, 36.dp, round = true)
                                 Text(c.name, color = Ui.text, fontSize = 8.sp, maxLines = 1)
                                 val m = patch.charMeta[c.id] ?: 0.0
                                 Text("%+.1f".format(m), color = if (m >= 0) Ui.win else Ui.loss, fontSize = 9.sp, fontWeight = FontWeight.Bold)

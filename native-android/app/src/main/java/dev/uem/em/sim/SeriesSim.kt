@@ -35,6 +35,10 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
     val wins = IntArray(2)
     val games = ArrayList<GameRecord>()
     val fearless = HashSet<String>()
+    /** Fearless rule of this series and what each team played / what was banned in earlier games. */
+    val fearlessMode = if (dev.uem.em.comp.Fearless.applies(t)) dev.uem.em.comp.Fearless.modeOf(comp) else "none"
+    val playedBy = arrayOf(HashSet<String>(), HashSet<String>())
+    val bannedBefore = HashSet<String>()
     val players = Array(2) { s -> lineups[s].filter { it >= 0 }.map { w.players[it] } }
     var maps: List<String> = emptyList()
     var lastLoser = -1
@@ -64,7 +68,18 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
         return Setup(chooser, blue, firstPick, choice, byLoser, mapId, rng)
     }
 
-    fun locked(): Array<Set<String>> = if (comp.fearless) arrayOf(fearless, fearless) else arrayOf(emptySet(), emptySet())
+    /** Champions each team may not pick in the next game under the series' Fearless rule. */
+    fun locked(): Array<Set<String>> = when (fearlessMode) {
+        "soft" -> arrayOf(HashSet(playedBy[0]), HashSet(playedBy[1]))
+        "hard" -> (playedBy[0] + playedBy[1]).let { arrayOf(it, it) }
+        "insane" -> (playedBy[0] + playedBy[1] + bannedBefore).let { arrayOf(it, it) }
+        else -> arrayOf(emptySet(), emptySet())
+    }
+
+    private fun remember(g: GameRecord) {
+        for (l in g.lines) if (l.charId.isNotEmpty()) { playedBy[l.team].add(l.charId); fearless.add(l.charId) }
+        bannedBefore.addAll(g.bans)
+    }
 
     fun draftSession(s: Setup) = DraftSession(t, patch, players, arrayOf(teams[0].style, teams[1].style), s.firstPick, locked(), s.rng)
 
@@ -97,7 +112,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
             }
             val lines = out.book.lines.map { l -> Line(l.playerId, order[l.team], l.roleId, l.charId, l.rating, l.s) }
             val score = if (s.blue == 0) out.score else intArrayOf(out.score[1], out.score[0])
-            g = GameRecord(winnerSeries, out.duration, s.mapId, s.blue, intArrayOf(s.chooser, s.choice, if (s.byLoser) 1 else 0), draft.bans, draft.picks[0] + draft.picks[1], score, lines)
+            g = GameRecord(winnerSeries, out.duration, s.mapId, s.blue, intArrayOf(s.chooser, s.choice, if (s.byLoser) 1 else 0, s.firstPick), draft.bans, draft.picks[0] + draft.picks[1], score, lines)
         } else {
             val firstAttack = if (s.rng.chance(0.5)) 0 else 1
             val out = TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, s.rng, patch, rec)
@@ -107,8 +122,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
         if (rec != null) g.replay = ReplayCodec.encode(rec)
         lastEvents = rec?.events ?: emptyList()
         games.add(g)
-        fearless.addAll(draft.picks[0])
-        fearless.addAll(draft.picks[1])
+        remember(g)
         wins[winnerSeries]++
         lastLoser = 1 - winnerSeries
         gi++
@@ -121,6 +135,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
         fearless.addAll(st.fearless)
         for (g in st.games) {
             games.add(g)
+            remember(g)
             wins[g.winner]++
             lastLoser = 1 - g.winner
             gi++

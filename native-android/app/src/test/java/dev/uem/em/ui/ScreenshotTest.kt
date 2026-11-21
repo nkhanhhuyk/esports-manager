@@ -77,10 +77,24 @@ class ScreenshotTest {
             ?: w.fixtures.first { !it.done && it.titleId == "valorant" }
         rule.runOnIdle { vm.startLive(valFx.id) }
         shot(out, "live-veto")
-        rule.runOnIdle { val l = vm.live!!; while (l.stage == "veto") l.vetoAct(l.veto!!.pool.first()); l.startGame() }
+        rule.runOnIdle { val l = vm.live!!; var guard = 0; while (l.stage == "veto" && guard++ < 50) { if (l.spectator) l.aiFinish() else l.vetoAct(l.veto!!.pool.first()) }; if (l.stage == "draft") { l.aiFinish(); l.startGame() } }
         shot(out, "live-shooter")
         println("shooter events: " + vm.live!!.game!!.replay!!.ev.size / 9 + " score " + vm.live!!.game!!.score.joinToString("-"))
         rule.runOnIdle { vm.live!!.simRest(); vm.endLive() }
+        // Spectating another team's series: the draft plays out step by step.
+        val other = w.fixtures.first { !it.done && it.titleId == "lol" && it.a >= 0 && it.b >= 0 && !w.isUserTeam(it.a) && !w.isUserTeam(it.b) && it.day <= w.day + 1 }
+        rule.runOnIdle { vm.startLive(other.id, spectate = true); repeat(7) { vm.live!!.aiTick() } }
+        shot(out, "spectate-draft")
+        rule.runOnIdle { vm.live!!.aiFinish(); vm.live!!.startGame() }
+        shot(out, "spectate-game")
+        rule.runOnIdle { vm.live!!.simRest(); vm.endLive() }
+        // A stored replay from the match report.
+        rule.runOnIdle { vm.tab(Screen.Home) }; rule.waitForIdle(); rule.runOnIdle { vm.go(Screen.Replay(lolFx.id, 0)) }
+        shot(out, "replay")
+        rule.runOnIdle { vm.tab(Screen.Home) }; rule.waitForIdle(); rule.runOnIdle { vm.go(Screen.Match(lolFx.id)) }
+        shot(out, "lol-match")
+        rule.runOnIdle { vm.tab(Screen.Watch) }
+        shot(out, "watch")
         // Every tab of the player and team pages.
         for (i in 0..8) {
             UiDefaults.tab = i

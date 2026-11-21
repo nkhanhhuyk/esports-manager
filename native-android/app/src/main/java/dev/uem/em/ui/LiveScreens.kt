@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -74,7 +76,7 @@ fun LiveScreen(vm: GameVm, w: World, live: LiveMatch) {
         Row(Modifier.fillMaxWidth().background(Ui.card).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("${s.teams[0].short} ${s.wins[0]} - ${s.wins[1]} ${s.teams[1].short}", color = Ui.text, fontWeight = FontWeight.Black, fontSize = 18.sp)
-                Muted("${s.comp.name} · Bo${s.f.bestOf}${if (s.comp.fearless) " · hard Fearless" else ""}${if (live.spectator) " · watching" else ""}${if (live.resumed) " · resumed" else ""}")
+                Muted("${s.comp.name} · Bo${s.f.bestOf}${if (s.fearlessMode != "none") " · " + dev.uem.em.comp.Fearless.LABEL[s.fearlessMode] else ""}${if (live.spectator) " · watching" else ""}${if (live.resumed) " · resumed" else ""}")
             }
             if (live.stage != "result") TextButton(onClick = { live.simRest(); vm.edit() }) { Text(if (live.spectator) "Skip to result" else "Sim rest", color = Ui.muted) }
         }
@@ -128,14 +130,23 @@ private fun DraftView(live: LiveMatch) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
             val st = live.setup
             if (st != null && t.isMoba) {
-                val sideA = if (t.id == "dota2") "Radiant" else "Blue"
-                Muted("${s.teams[st.blue].short} on $sideA · ${s.teams[st.firstPick].short} first pick · ${s.teams[st.chooser].short} ${if (st.byLoser) "lost the last game" else "won the coin toss"} and chose ${if (st.choice == 0) "the side" else "the pick order"}", 12)
+                Muted("Game ${s.gi + 1}: " + selectionText(t, s.teams.map { it.short }, st.chooser, st.choice, st.byLoser, st.blue, st.firstPick), 12)
+            }
+            // Fearless: champions that cannot be played this game (from the earlier games of the series).
+            val locked = s.locked()
+            if (s.fearlessMode != "none" && (locked[0].isNotEmpty() || locked[1].isNotEmpty())) {
+                Text("${dev.uem.em.comp.Fearless.LABEL[s.fearlessMode]} — unavailable this game", color = Ui.gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                val rows = if (s.fearlessMode == "soft") listOf(s.teams[0].short to locked[0], s.teams[1].short to locked[1]) else listOf("Both" to locked[0])
+                for ((label, set) in rows) Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, color = Ui.muted, fontSize = 10.sp, modifier = Modifier.width(40.dp))
+                    for (id in set.sortedBy { t.charIndex[it]?.name ?: it }) { Box(Modifier.alpha(0.55f)) { CharPic(id, t.charIndex[id]?.name ?: id, 22.dp) }; HGap(2) }
+                }
             }
             for (side in 0..1) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
                 Text(s.teams[side].short, color = if (side == live.me) Ui.gold else Ui.text, fontSize = 12.sp, modifier = Modifier.width(48.dp))
-                for (id in d.picks[side]) { Pic(Pics.char(id), t.charIndex[id]?.name ?: id, 26.dp); HGap(2) }
+                for (id in d.picks[side]) { CharPic(id, t.charIndex[id]?.name ?: id, 26.dp); HGap(2) }
             }
-            if (d.bans.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically) { Muted("Bans ", 11); for (b in d.bans) { Box(Modifier.alpha(0.5f)) { Pic(Pics.char(b), t.charIndex[b]?.name ?: b, 20.dp) }; HGap(2) } }
+            if (d.bans.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically) { Muted("Bans ", 11); for (b in d.bans) { Box(Modifier.alpha(0.5f)) { CharPic(b, t.charIndex[b]?.name ?: b, 20.dp) }; HGap(2) } }
             Gap(4)
             Text(when {
                 d.done || !d.sequential -> "Draft complete"
@@ -155,7 +166,7 @@ private fun DraftView(live: LiveMatch) {
                 items(chars, key = { it.id }) { c ->
                     val ok = myTurn && d.legal(live.me, cur!!.second, c.id)
                     Column(Modifier.padding(3.dp).alpha(if (ok || !myTurn) 1f else 0.3f).clickable(enabled = ok) { live.draftAct(c.id) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                        Pic(Pics.char(c.id), c.name, 48.dp)
+                        CharPic(c.id, c.name, 48.dp, tap = false)
                         Text(c.name, color = Ui.text, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         val m = s.patch.charMeta[c.id] ?: 0.0
                         Text(if (m >= 0) "▲%.1f".format(m) else "▼%.1f".format(-m), color = if (m >= 0) Ui.win else Ui.loss, fontSize = 9.sp)

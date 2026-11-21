@@ -53,12 +53,18 @@ fun StartScreen(vm: GameVm) {
             Card("New career") {
                 OutlinedTextField(value = name, onValueChange = { name = it.take(24) }, label = { Text("Save name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Gap()
-                Muted("Real leagues, teams and players from the November 2026 snapshot (LoL, Valorant, CS2, Dota 2, MLBB, Wild Rift; Honor of Kings teams are fictional).")
+                Muted("Real leagues, teams and players from the 20 November 2026 snapshot for LoL, Valorant, CS2, Dota 2 and MLBB. Wild Rift uses the last available roster snapshot (early 2021, marked historical). Honor of Kings teams and players are fictional: no current verified source could be used. Team and player pages show what is verified, estimated or generated.")
                 Gap()
                 Button(onClick = { vm.newGame(name) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) { Text("Generate world") }
             }
         }
-        if (saves.isNotEmpty()) item { Card("Continue") { Muted("Saves on this phone") } }
+        item {
+            val importer = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.importSave(uri) { saves = vm.saves() } }
+            Card("Saves") {
+                Muted("Saves on this phone are below. You can also import a save exported from this or another phone (checked before it is added; nothing is overwritten).", 12)
+                TextButton(onClick = { importer.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }) { Text("Import a save…", color = Ui.accent) }
+            }
+        }
         items(saves) { s ->
             Card {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -267,7 +273,8 @@ fun MoreScreen(vm: GameVm, w: World) {
         Triple("Finances", "Balance, income and expenses, sponsors, facilities", Screen.Finances),
         Triple("Board", "Objectives and confidence", Screen.Board),
         Triple("History & awards", "Champions, GOAT rankings, Hall of Fame, dynasties", Screen.History),
-        Triple("Patch notes", "Every balance patch of every game", Screen.Patches),
+        Triple("Tier lists", "S–D tiers per game: champions / heroes / agents by role and map, guns and loadouts", Screen.Tiers),
+        Triple("Patch notes", "Every balance patch of every game, new releases and draft rules", Screen.Patches),
         Triple("Schedule", "Your and followed teams' matches", Screen.Schedule),
         Triple("Stats hub", "Leaderboards, records, head-to-head, season preview & review", Screen.Stats),
         Triple("Teams", "All leagues and teams, team directory", Screen.Teams),

@@ -119,6 +119,13 @@ fun SettingsScreen(vm: GameVm, w: World) {
             }
         }
         item {
+            val exporter = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip")) { uri -> if (uri != null) vm.exportSave(uri) }
+            Card("Back up this career") {
+                Muted("Exports the save and its box scores / replays as one file (with checksums) that you can keep or move to another phone; import it from the title screen. Useful before reinstalling or updating the app.", 11)
+                TextButton(onClick = { exporter.launch("${w.name.replace(Regex("[^A-Za-z0-9_-]"), "_")}-S${w.season}.uemsave.zip") }) { Text("Export save…", color = Ui.accent) }
+            }
+        }
+        item {
             Card("Replays") {
                 val opts = listOf("important" to "Important (recommended)", "mine" to "My and followed teams", "all" to "Every match", "off" to "Off")
                 Tabs(opts.map { it.second }, opts.indexOfFirst { it.first == w.replays }.coerceAtLeast(0)) { w.replays = opts[it].first; vm.edit() }
@@ -147,6 +154,16 @@ fun SettingsScreen(vm: GameVm, w: World) {
                 Tabs(listOf("You answer bids", "Director answers bids"), if (w.delegateBids) 1 else 0) { w.delegateBids = it == 1; vm.edit() }
                 Tabs(listOf("You handle renewals", "Director renews key players"), if (w.delegateRenewals) 1 else 0) { w.delegateRenewals = it == 1; vm.edit() }
                 Muted("The director accepts bids well above a player's value and renews players of 60+ ability in October.")
+            }
+        }
+        item {
+            Card("Pictures offline") {
+                Muted("Pictures you have seen stay on the phone (up to 400 MB). Download them all now to see them without internet:", 11)
+                val mine = w.orgs.getOrNull(w.userOrg)?.teams?.map { w.teams[it].titleId }?.toSet() ?: w.followed.mapNotNull { w.teams.getOrNull(it)?.titleId }.toSet()
+                Row {
+                    if (mine.isNotEmpty()) androidx.compose.material3.TextButton(onClick = { vm.downloadPictures(mine) }) { Text("My games", color = Ui.accent) }
+                    androidx.compose.material3.TextButton(onClick = { vm.downloadPictures(w.titles.toSet()) }) { Text("All seven games", color = Ui.accent) }
+                }
             }
         }
         item {

@@ -90,7 +90,23 @@ object Catalogue {
             t.characters = raw.map { realChar(t, it.jsonObject) }
         }
         BY_ID = ALL.associateBy { it.id }
+        for (t in ALL) base[t.id] = t.characters
         loaded = true
+    }
+
+    private val base = HashMap<String, List<CharDef>>()
+
+    /** The real roster of each game plus the fictional characters this world's patches released. */
+    fun applyCustom(w: dev.uem.em.model.World) {
+        for (t in ALL) {
+            val custom = w.customChars.filter { it.titleId == t.id }.map { c ->
+                val rng = Rng.of("custom|${c.id}")
+                val aff = CLASS_STYLE.filter { (k, _) -> c.classes.any { it.lowercase().contains(k) } }.map { it.second }
+                val styles = t.styles.associateWith { st -> var b = 3 + rng.float(0.0, 2.5); for (a in aff) a[st]?.let { b = maxOf(b, it + rng.float(-1.0, 1.0)) }; b }
+                CharDef(c.id, c.name, c.cls, c.classes, c.lanes, styles, c.kit.getOrElse(0) { 5 })
+            }
+            t.characters = (base[t.id] ?: t.characters) + custom
+        }
     }
 
     private val CLASS_STYLE: List<Pair<String, Map<String, Double>>> = listOf(

@@ -52,7 +52,7 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Pic(Pics.team(team), team.short, 60.dp)
+                TeamPic(team, 60.dp)
                 HGap(12)
                 Column(Modifier.weight(1f)) {
                     Text(team.name, color = if (w.isUserTeam(id)) Ui.gold else Ui.text, fontWeight = FontWeight.Bold, fontSize = 20.sp)
@@ -65,6 +65,7 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
                         if (team.nationalOf.isNotEmpty()) "national team of ${GameData.countries[team.nationalOf]?.name ?: team.nationalOf}" else null,
                         if (team.real) "real team" else null,
                     ).joinToString(" · "), 12)
+                    if (team.dataNote.isNotBlank()) Text(team.dataNote, color = if (team.dataNote.startsWith("Fictional") || team.dataNote.contains("historical")) Ui.gold else Ui.muted, fontSize = 11.sp)
                 }
             }
             var editing by remember { mutableStateOf(false) }

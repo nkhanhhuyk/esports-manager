@@ -43,11 +43,12 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
         BackHandler { if (!vm.back()) exit() }
         Box(Modifier.fillMaxSize().background(Ui.bg)) {
             val w = vm.world
+            Sheets.world = w
             val busy = vm.busy
             // While the simulation runs on other threads the world is not read by any screen.
             if (busy != null) BusyScreen(vm, busy)
             else if (w == null || vm.screen == Screen.Start) StartScreen(vm)
-            else if (vm.screen == Screen.PickOrg || w.userOrg < 0) PickOrgScreen(vm, w)
+            else if (vm.screen == Screen.PickOrg || (w.userOrg < 0 && !w.spectator)) PickOrgScreen(vm, w)
             else if (w.sacked) Column(Modifier.fillMaxSize().statusBarsPadding()) { JobOffersScreen(vm, w) }
             else if (vm.live != null) Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) { LiveScreen(vm, w, vm.live!!) }
             else Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
@@ -77,12 +78,15 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                         is Screen.Compare -> CompareScreen(vm, w, s.a, s.b)
                         Screen.World -> WorldScreen(vm, w)
                         Screen.Watch -> WatchScreen(vm, w)
+                        Screen.Tiers -> TierScreen(vm, w)
                         is Screen.Replay -> ReplayScreen(vm, w, s.fixtureId, s.game)
                         else -> HomeScreen(vm, w)
                     }
                 }
                 BottomBar(vm)
             }
+            val sheet = Sheets.open
+            if (sheet != null && w != null && busy == null) InfoSheet(w, sheet.first, sheet.second) { Sheets.open = null }
             vm.toast?.let { msg ->
                 LaunchedEffect(msg) { delay(3500); if (vm.toast == msg) vm.toast = null }
                 Text(msg, color = Color.White, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 90.dp, start = 24.dp, end = 24.dp).background(Color(0xEE222B40), RoundedCornerShape(10.dp)).padding(horizontal = 16.dp, vertical = 10.dp))

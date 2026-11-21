@@ -1,6 +1,7 @@
 package dev.uem.em.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -40,6 +41,7 @@ object Pics {
     private var players: Map<String, String> = emptyMap()
     private var teams: Map<String, String> = emptyMap()
     private var leagues: Map<String, String> = emptyMap()
+    private var weapons: Map<String, String> = emptyMap()
     /** Hotlink-protected hosts, and hosts whose pictures are very large (Valorant agent icons are ~450 KB). */
     private val PROXIED = setOf("owcdn.net", "media.valorant-api.com")
 
@@ -50,26 +52,40 @@ object Pics {
         if (chars.isNotEmpty()) return
         val j = Json.parseToJsonElement(src.read("images.json")).jsonObject
         fun m(k: String) = j[k]!!.jsonObject.mapValues { it.value.jsonPrimitive.content }
-        chars = m("characters"); players = m("players"); teams = m("teams"); leagues = m("leagues")
+        chars = m("characters"); players = m("players"); teams = m("teams"); leagues = m("leagues"); weapons = m("weapons")
     }
 
     private fun norm(s: String) = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFKD).replace(Regex("[^a-z0-9]"), "")
     fun char(id: String?) = id?.let { chars[it] }
+    fun weapon(id: String) = weapons[id]
     fun player(p: Player) = if (p.real) players["${p.titleId}|${norm(p.handle)}"] else null
-    fun team(t: Team) = if (t.real) teams["${t.titleId}|${norm(t.name)}"] else null
+    /** Team logo; national teams show their country's flag (flagcdn.com). */
+    fun team(t: Team) = if (t.nationalOf.isNotEmpty()) flagUrl(t.nationalOf) else if (t.real) teams["${t.titleId}|${norm(t.name)}"] else null
+    fun flagUrl(cc: String) = "https://flagcdn.com/w160/${cc.lowercase().let { if (it == "uk") "gb" else it }}.png"
     fun league(l: League) = if (l.real) leagues["${l.titleId}|${norm(l.name)}"] ?: leagues["${l.titleId}|${norm(l.short)}"] else null
+
+    /** Every picture URL for the given games (characters, team and league logos, real players). */
+    fun allFor(w: dev.uem.em.model.World, titles: Set<String>): List<String> {
+        val out = LinkedHashSet<String>()
+        for ((k, v) in chars) if (k.substringBefore('-') in titles) out.add(display(v))
+        for (l in w.leagues) if (l.titleId in titles) league(l)?.let { out.add(display(it)) }
+        for (t in w.teams) if (t.titleId in titles) team(t)?.let { out.add(display(it)) }
+        for (p in w.players) if (!p.retired && p.titleId in titles) player(p)?.let { out.add(display(it)) }
+        return out.toList()
+    }
 
     fun proxied(url: String) = "https://wsrv.nl/?url=${URLEncoder.encode(url, "UTF-8")}&w=128&h=128&fit=contain&output=webp"
     fun display(url: String) = if (PROXIED.any { url.contains(it) }) proxied(url) else url
 }
 
-/** A picture with the game's own badge (initials on a colour) as fallback. */
+/** A picture with generated art (or the game's own badge: initials on a colour) as fallback. */
 @Composable
-fun Pic(url: String?, label: String, size: Dp = 28.dp, round: Boolean = false, color: Color = Color(0xFF2B3550)) {
+fun Pic(url: String?, label: String, size: Dp = 28.dp, round: Boolean = false, color: Color = Color(0xFF2B3550), fallback: (@Composable () -> Unit)? = null) {
     val shape = if (round) CircleShape else RoundedCornerShape(6.dp)
     var attempt by remember(url) { mutableStateOf(0) }
     Box(Modifier.size(size).clip(shape).background(color), contentAlignment = Alignment.Center) {
         if (url == null || attempt > 1 || !Pics.online) {
+            if (fallback != null) fallback() else
             Text(label.filter { it.isLetterOrDigit() }.take(2).uppercase(), color = Color(0xFFDDE3F0), fontSize = (size.value * 0.38).sp)
         } else {
             // First try: the usual address (the proxy for hotlink-protected or very large pictures); second: the other one.
@@ -77,5 +93,29 @@ fun Pic(url: String?, label: String, size: Dp = 28.dp, round: Boolean = false, c
             val shown = if (attempt == 0) first else if (first == url) Pics.proxied(url) else url
             AsyncImage(model = shown, contentDescription = label, contentScale = ContentScale.Crop, modifier = Modifier.size(size), onError = { attempt++ })
         }
+    }
+}
+
+/** A player's photo, or a generated portrait in his team's colours. */
+@Composable
+fun PlayerPic(p: Player, size: Dp = 28.dp, round: Boolean = true) {
+    val team = Sheets.world?.teams?.getOrNull(p.teamId)
+    val jersey = team?.let { Sheets.world?.orgs?.getOrNull(it.orgId)?.colors?.firstOrNull() }?.let { GenArt.parse(it) } ?: GenArt.hue(p.id)
+    Pic(Pics.player(p), p.handle, size, round, fallback = { GenFace(p.id * 31 + p.handle.hashCode(), size, jersey) })
+}
+
+/** A team's logo (a flag for national teams), or a generated crest in the organisation's colours. */
+@Composable
+fun TeamPic(t: Team, size: Dp = 28.dp, round: Boolean = false) {
+    val org = Sheets.world?.orgs?.getOrNull(t.orgId)
+    Pic(Pics.team(t), t.short, size, round, fallback = { GenCrest(t.orgId * 17 + t.name.hashCode(), size, t.short, org?.colors?.getOrNull(0)?.let { GenArt.parse(it) }, org?.colors?.getOrNull(1)?.let { GenArt.parse(it) }) })
+}
+
+/** A champion / hero / agent portrait (generated emblem when there is no official art); tap for its sheet. */
+@Composable
+fun CharPic(id: String?, label: String, size: Dp = 28.dp, round: Boolean = false, color: Color = Color(0xFF2B3550), tap: Boolean = true) {
+    val cls = id?.let { Sheets.charClass(it) } ?: ""
+    Box(if (tap && id != null) Modifier.clickable { Sheets.openChar(id) } else Modifier) {
+        Pic(Pics.char(id), label, size, round, color, fallback = { GenEmblem((id ?: label).hashCode(), size, cls, label) })
     }
 }

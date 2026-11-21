@@ -113,6 +113,7 @@ fun PlayersScreen(vm: GameVm, w: World) {
     var role by remember { mutableIntStateOf(-1) }
     var maxAge by remember { mutableIntStateOf(0) }
     val sel = remember { mutableStateListOf<Int>() }
+    val table = rememberTableState(6)
     val ages = listOf(99, 19, 21, 23, 26, 30)
     val t = title?.let { Catalogue.get(it) }
     val list = remember(q, title, status, role, maxAge, vm.version) {
@@ -142,9 +143,7 @@ fun PlayersScreen(vm: GameVm, w: World) {
                 Select("Age", listOf("any", "≤19", "≤21", "≤23", "≤26", "≤30"), maxAge) { maxAge = it }
             }
         }
-        item {
-            Card {
-                SortTable(list, listOf(
+        lazySortTable(table, list, listOf(
                     SCol<Player>("✓", 30.dp, false) { p -> Text(if (p.id in sel) "☑" else "☐", color = if (p.id in sel) Ui.accent else Ui.muted, fontSize = 15.sp, modifier = Modifier.clickable { if (p.id in sel) sel.remove(p.id) else { sel.add(p.id); if (sel.size > 2) sel.removeAt(0) } }) },
                     SCol("Player", 130.dp, false) { p -> Row(verticalAlignment = Alignment.CenterVertically) { flag(p.nat).takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp); HGap(3) }; PlayerChip(p, vm, 20.dp) } },
                     SCol("Age", 34.dp, key = { Dates.ageAt(it.birth, w.day).toDouble() }) { p -> Num("${Dates.ageAt(p.birth, w.day)}") },
@@ -161,9 +160,7 @@ fun PlayersScreen(vm: GameVm, w: World) {
                         val l = p.stats.filter { it.season == w.season }
                         Num(if (l.sumOf { it.gp } > 0) "%.2f".format(l.sumOf { it.ratingSum } / l.sumOf { it.gp }) else "—")
                     },
-                ), initialSort = 6, limit = 400, onRow = { vm.go(Screen.Player(it.id)) }, highlight = { it.id in sel })
-            }
-        }
+                ), key = { it.id }, onRow = { vm.go(Screen.Player(it.id)) }, highlight = { it.id in sel })
     }
 }
 
@@ -175,7 +172,7 @@ fun CompareScreen(vm: GameVm, w: World, a: Int, b: Int) {
         item {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 for ((i, p) in ps.withIndex()) Column(Modifier.weight(1f).clickable { vm.go(Screen.Player(p.id)) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                    Pic(Pics.player(p), p.handle, 60.dp, round = true)
+                    PlayerPic(p, 60.dp, round = true)
                     Text(p.handle, color = cols[i], fontWeight = FontWeight.Bold, fontSize = 16.sp)
                     Muted("${Catalogue.get(p.titleId).short} ${Catalogue.get(p.titleId).role(p.mainRole).short} · ${p.teamId.takeIf { it >= 0 }?.let { w.teams[it].short } ?: "FA"} · ${Dates.ageAt(p.birth, w.day)}", 11)
                 }

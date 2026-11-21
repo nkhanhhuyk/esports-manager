@@ -340,11 +340,11 @@ fun MobaViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -> Un
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Pic(Pics.team(teams[blue]), teams[blue].short, 26.dp)
+            TeamPic(teams[blue], 26.dp)
             Text(" ${teams[blue].short}", color = Ui.blue, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Text("${kills[0]} – ${kills[1]}", color = Ui.text, fontWeight = FontWeight.Black, fontSize = 22.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             Text("${teams[1 - blue].short} ", color = Ui.red, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Pic(Pics.team(teams[1 - blue]), teams[1 - blue].short, 26.dp)
+            TeamPic(teams[1 - blue], 26.dp)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(k1(teamGold[0]), color = Ui.gold, fontSize = 12.sp)
@@ -474,7 +474,7 @@ fun MobaViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -> Un
                             .clickable { cam.toggleFollow(l.playerId) }.padding(vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(Modifier.alpha(if (left != null) 0.4f else 1f)) { Pic(Pics.char(l.charId), t.charIndex[l.charId]?.name ?: l.charId, 30.dp, round = true, color = teamCol[ms].copy(alpha = 0.5f)) }
+                        Box(Modifier.alpha(if (left != null) 0.4f else 1f)) { CharPic(l.charId, t.charIndex[l.charId]?.name ?: l.charId, 30.dp, round = true, color = teamCol[ms].copy(alpha = 0.5f)) }
                         HGap(6)
                         Column(Modifier.weight(1f)) {
                             Text(p.handle, color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -501,10 +501,10 @@ fun MobaViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -> Un
                         "kill" -> {
                             val ka = g.lines.firstOrNull { it.playerId == e.a }
                             val kb = g.lines.firstOrNull { it.playerId == e.b }
-                            Pic(Pics.char(ka?.charId), ka?.charId ?: "", 20.dp, round = true); HGap(4)
+                            CharPic(ka?.charId, ka?.charId ?: "", 20.dp, round = true); HGap(4)
                             Text(w.players[e.a].handle, color = teamCol[ms], fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             Text("  killed  ", color = Ui.muted, fontSize = 11.sp)
-                            Pic(Pics.char(kb?.charId), kb?.charId ?: "", 20.dp, round = true); HGap(4)
+                            CharPic(kb?.charId, kb?.charId ?: "", 20.dp, round = true); HGap(4)
                             Text(w.players[e.b].handle, color = teamCol[1 - ms], fontSize = 12.sp)
                         }
                         "obj" -> Text("${teams[e.team].short} take ${e.text}", color = teamCol[ms], fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
@@ -583,9 +583,11 @@ fun TacticalViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -
             (atkRoute?.at(k) ?: Offset(0.5f, 0.5f)) + ring(i, 5, 0.03f + 0.03f * k)
         } else {
             val n = map.sites.size
-            val home = if (n == 0) map.nodes[map.def].pos else map.sites[i % n].pos + ring(i / n, (5 + n - 1 - i % n) / n, 0.045f)
+            val anchor = if (n == 0) null else map.sites[i % n]
+            val home = if (anchor == null) map.nodes[map.def].pos else anchor.pos + ring(i / n, (5 + n - 1 - i % n) / n, 0.045f)
             val k = if (site != null && ph > plantPhase) ((ph - plantPhase) / 0.3f).coerceIn(0f, 1f) else 0f
-            home + ((site?.pos ?: home) - home) * k
+            if (k <= 0f || anchor == null || site == null || anchor === site) home + ((site?.pos ?: home) - home) * k
+            else Maps.Line(map.route(anchor.node, site.node)).at(k) + ring(i, 5, 0.03f)
         }
     }
     fun deathPos(e: Ev, i: Int): Offset {
@@ -608,11 +610,11 @@ fun TacticalViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Pic(Pics.team(teams[0]), teams[0].short, 26.dp)
+            TeamPic(teams[0], 26.dp)
             Text(" ${teams[0].short}", color = Ui.blue, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             Text("${score[0]} – ${score[1]}", color = Ui.text, fontWeight = FontWeight.Black, fontSize = 22.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             Text("${teams[1].short} ", color = Ui.red, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Pic(Pics.team(teams[1]), teams[1].short, 26.dp)
+            TeamPic(teams[1], 26.dp)
         }
         Text("Round ${r + 1} · ${map?.name ?: t.maps.firstOrNull { it.id == g.mapId }?.name ?: ""}", color = Ui.text, fontSize = 13.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         val buys = start?.text?.split("|") ?: emptyList()
@@ -636,9 +638,34 @@ fun TacticalViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -
             fun p(o: Offset) = Offset(o.x * W, o.y * W)
             drawRect(Color(0xFF1E2230), Offset.Zero, Size(W, W))
             if (map != null) {
-                for (e in map.edges) drawLine(Color(0xFF3A4258), p(map.nodes[e.first].pos), p(map.nodes[e.second].pos), strokeWidth = W * 0.05f)
+                // Corridors (walkable links), shaded by level; drops and teleporters drawn as arrows.
+                for (l in map.links) if (l.type != "teleport") {
+                    val lv = (map.nodes[l.from].level + map.nodes[l.to].level) / 2
+                    drawLine(Color(0xFF3A4258).copy(alpha = (0.55f + lv * 0.2f).coerceIn(0.4f, 1f)), p(map.nodes[l.from].pos), p(map.nodes[l.to].pos), strokeWidth = W * 0.05f)
+                }
                 for (rw in map.walls) drawRect(Color(0xFF151822), Offset(rw[0] * W, rw[1] * W), Size(rw[2] * W, rw[3] * W))
-                for (e in map.edges) drawLine(Color(0xFF4A5470), p(map.nodes[e.first].pos), p(map.nodes[e.second].pos), strokeWidth = W * 0.012f)
+                for (l in map.links) {
+                    val a = p(map.nodes[l.from].pos)
+                    val b = p(map.nodes[l.to].pos)
+                    val dash = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
+                    when (l.type) {
+                        "teleport" -> drawLine(Color(0xFFB06CFF), a, b, strokeWidth = 3f, pathEffect = dash)
+                        "vent" -> drawLine(Color(0xFF9AA3B8), a, b, strokeWidth = W * 0.008f, pathEffect = dash)
+                        "stairs", "ladder" -> drawLine(Color(0xFF7C8AA8), a, b, strokeWidth = W * 0.012f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 4f)))
+                        "breakable" -> drawLine(Color(0xFFE0A050), a, b, strokeWidth = W * 0.01f, pathEffect = dash)
+                        else -> drawLine(Color(0xFF4A5470), a, b, strokeWidth = W * 0.012f)
+                    }
+                    if (l.oneWay || l.type == "door") {
+                        // Arrow head (one-way) or a bar (door) at the middle of the link.
+                        val mid = (a + b) / 2f
+                        val dir = (b - a).let { v -> v / maxOf(1f, v.getDistance()) }
+                        val nrm = Offset(-dir.y, dir.x)
+                        val c = if (l.type == "teleport") Color(0xFFB06CFF) else if (l.type == "door") Color(0xFFE0C070) else Color(0xFFDDE3F0)
+                        if (l.type == "door") drawLine(c, mid - nrm * W * 0.02f, mid + nrm * W * 0.02f, strokeWidth = 5f)
+                        else { drawLine(c, mid, mid - dir * W * 0.025f + nrm * W * 0.015f, strokeWidth = 4f); drawLine(c, mid, mid - dir * W * 0.025f - nrm * W * 0.015f, strokeWidth = 4f) }
+                    }
+                }
+                for (nd in map.nodes) if (nd.level != 0f) drawCircle(if (nd.level > 0.75f) Color(0x553DDC97) else Color(0x55FF9F43), W * 0.012f, p(nd.pos))
                 for (st in map.sites) drawCircle(if (planted && st === site) Color(0x88FF5A6E) else Color(0x553B82F6), st.r * W, p(st.pos))
                 drawCircle(Color(0x66FF5A6E), W * 0.025f, p(map.nodes[map.atk].pos))
                 drawCircle(Color(0x664F8CFF), W * 0.025f, p(map.nodes[map.def].pos))

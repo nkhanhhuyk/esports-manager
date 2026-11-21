@@ -92,6 +92,7 @@ object WorldGen {
         val y = Dates.year(startDay)
         val season = if (Dates.month(startDay) >= 11) y + 1 else y
         val world = World(seed = seed, name = name, day = startDay, season = season, titles = titles)
+        Catalogue.applyCustom(world)
         val ctx = GenCtx(world, Rng.of("$seed|world"))
         val b = Build(ctx, src)
         loadFacts(src)
@@ -119,6 +120,7 @@ object WorldGen {
             team.elo = (1500 + (Lineups.strength(world, team) - 65) * 18).roundToInt().toDouble()
         }
         dev.uem.em.mgmt.Economy.ensureSetup(world)
+        for (id in titles) world.poolTarget[id] = world.players.count { !it.retired && it.titleId == id }
         Season.plan(world, season)
         world.rebuildSchedule()
         return world
@@ -276,6 +278,7 @@ object WorldGen {
             val org = createOrg(b, orgRegion)
             val team = createTeam(b, org, titleId, region, league)
             populate(b, team, mean + b.rng.normal(0.0, 2.4) + (org.rep - 40) * 0.04, region, importRate)
+            team.dataNote = fictionalNote(titleId)
         }
         if (allowTier2 && single && strength0 >= 70) {
             val l2 = League(b.world.leagues.size, titleId, region, 2, "${t.short} $rs Challengers", "${rs}C", upperId = league.id)
@@ -285,9 +288,12 @@ object WorldGen {
                 val org = createOrg(b, b.rng.weighted(members) { (pop[it] ?: 10) + 5.0 })
                 val team = createTeam(b, org, titleId, region, l2)
                 populate(b, team, mean - 7 + b.rng.normal(0.0, 3.0), region, importRate * 0.5)
+                team.dataNote = fictionalNote(titleId)
             }
         }
     }
+
+    private fun fictionalNote(titleId: String) = if (titleId == "hok") "Fictional team: no verified current Honor of Kings roster source could be used, so the league, teams and players are generated" else "Fictional team (generated league, players and staff)"
 
     private fun signal(st: JsonObject): Double {
         st["vrs_points"]?.jsonPrimitive?.doubleOrNull?.let { return it }
@@ -354,6 +360,7 @@ object WorldGen {
                     val org = createOrg(b, members[league.teamIds.size % members.size])
                     val team = createTeam(b, org, titleId, g.region, league)
                     populate(b, team, leagueMean - 3 + b.rng.normal(0.0, 2.0), g.region, 0.1)
+                    team.dataNote = "Fictional team added to complete a real league (generated players)"
                 }
                 upper = league
             }
@@ -430,10 +437,19 @@ object WorldGen {
         }
         val have = team.roster.map { b.world.players[it].roles[0] }.toSet()
         val open = t.lineup.filter { it !in have }.toMutableList()
+        val listed = team.roster.size
+        var generated = 0
         while (team.roster.size < t.teamSize + 1 || open.isNotEmpty()) {
             val roleId = open.removeFirstOrNull() ?: b.rng.pick(t.lineup)
-            sign(b, PlayerGen.generate(b.ctx, titleId, roleId, org.country, clamp(b.rng.normal(20.0, 2.0), 17.0, 27.0).roundToInt(), clamp(teamMean - 8 + b.rng.normal(0.0, 2.0), 35.0, 90.0)), team)
+            val gp = PlayerGen.generate(b.ctx, titleId, roleId, org.country, clamp(b.rng.normal(20.0, 2.0), 17.0, 27.0).roundToInt(), clamp(teamMean - 8 + b.rng.normal(0.0, 2.0), 35.0, 90.0))
+            gp.realEst = listOf("generated: the source listed only $listed player(s) for ${team.name}")
+            sign(b, gp, team)
+            generated++
         }
+        val src = team.realSrc
+        val host = Regex("https?://([^/]+)").find(src)?.groupValues?.get(1) ?: "the snapshot"
+        team.dataNote = if (src.contains("wildrift-esports.fandom")) "Real team, roster from the Wild Rift Esports Wiki as of early 2021 — a historical roster: no current Wild Rift source could be used"
+        else "Real team, roster snapshot of 20 Nov 2026 ($host): $listed player(s) listed" + if (generated > 0) ", $generated generated to complete the roster" else ""
         team.coach = clamp(b.rng.normal(55 + (teamMean - 64) * 1.2, 7.0), 30.0, 92.0)
     }
 
@@ -475,6 +491,7 @@ object WorldGen {
             team.real = true
             team.realSrc = ht.str("source_url") ?: ""
             team.elo = 1450.0
+            team.dataNote = if (titleId == "wildrift") "Real team from the Wild Rift Esports Wiki (early 2021), without a league place now" else "Real team without a current league place (historical record); its former players are free agents"
             dormant["$titleId|${name.lowercase()}"] = team
         }
         val live = HashMap<String, HashSet<String>>()

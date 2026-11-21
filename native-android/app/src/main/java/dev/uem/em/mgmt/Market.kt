@@ -165,6 +165,19 @@ object Market {
     }
 
     /** Daily: answers to the user's bids, AI clubs' market activity, expiring offers. */
+    /** Positions nobody on the roster plays as his main role (filled before anything else). */
+    fun missingRoles(w: World, team: Team): List<String> {
+        val t = Catalogue.get(team.titleId)
+        val mains = team.roster.map { w.players[it] }.filter { !it.retired }.map { it.mainRole }
+        return t.lineup.filter { it !in mains }
+    }
+
+    /** Best available free agent for a position: main role first, then players who list it second. */
+    fun bestForRole(w: World, titleId: String, role: String, exclude: Set<Int> = emptySet()): Player? {
+        val pool = w.players.asSequence().filter { it.teamId < 0 && !it.retired && it.titleId == titleId && it.id !in exclude }
+        return pool.filter { it.mainRole == role }.maxByOrNull { it.ca } ?: pool.filter { it.roles.getOrNull(1) == role }.maxByOrNull { it.ca }
+    }
+
     fun daily(w: World) {
         val rng = Rng.derive(w.seed, "market", w.day)
         for (o in w.offers) {
@@ -192,17 +205,17 @@ object Market {
             if (!team.active || w.isUserTeam(team.id) || team.nationalOf.isNotEmpty()) continue
             val t = Catalogue.get(team.titleId)
             val short = team.roster.count { !w.players[it].retired } < t.teamSize + 1
-            if (!short && !(window && rng.chance(1.0 / 40))) continue
-            aiTeamMarket(w, team, rng, short)
+            val missing = missingRoles(w, team).isNotEmpty()
+            if (!short && !missing && !(window && rng.chance(1.0 / 40))) continue
+            aiTeamMarket(w, team, rng, short || missing)
         }
         // The user's coach covers an unplayable roster with emergency signings.
         for (team in w.teams) {
             if (!team.active || !w.isUserTeam(team.id)) continue
             val t = Catalogue.get(team.titleId)
             while (team.roster.count { !w.players[it].retired } < t.teamSize) {
-                val have = team.roster.map { w.players[it].mainRole }.toSet()
-                val need = t.lineup.firstOrNull { it !in have }
-                val p = w.players.asSequence().filter { it.teamId < 0 && !it.retired && it.titleId == team.titleId }.maxByOrNull { it.ca + if (it.mainRole == need) 8 else 0 } ?: break
+                val need = missingRoles(w, team).firstOrNull()
+                val p = (need?.let { bestForRole(w, team.titleId, it) }) ?: w.players.asSequence().filter { it.teamId < 0 && !it.retired && it.titleId == team.titleId }.maxByOrNull { it.ca } ?: break
                 sign(w, p, team, asking(w, team, p), 1, 0.0, "signed")
                 w.inbox.add(Message(w.day, "Coaching staff", "Emergency signing: ${p.handle}", "${team.name} could not field a full lineup, so the coaching staff signed ${p.handle} on a one-season deal."))
             }
@@ -222,7 +235,10 @@ object Market {
             val ca = if (pid >= 0) w.players[pid].ca else 0.0
             if (ca < weakCa) { weakCa = ca; weakSlot = i }
         }
-        val role = if (weakSlot >= 0) t.lineup[weakSlot] else rng.pick(t.lineup)
+        // A position nobody plays as his main role comes first; otherwise the weakest starter's.
+        val missing = missingRoles(w, team)
+        val role = missing.firstOrNull() ?: if (weakSlot >= 0) t.lineup[weakSlot] else rng.pick(t.lineup)
+        if (missing.isNotEmpty()) weakCa = 0.0
         val budget = org.balance * 0.35
         // Free agents first.
         val fa = w.players.asSequence().filter { it.teamId < 0 && !it.retired && it.titleId == team.titleId && it.mainRole == role && it.ca > weakCa + (if (short) -15.0 else 3.5) }
@@ -236,9 +252,10 @@ object Market {
             return
         }
         if (short) {
-            // Anyone of the title to reach a playable roster.
-            val any = w.players.asSequence().filter { it.teamId < 0 && !it.retired && it.titleId == team.titleId }.maxByOrNull { it.ca + if (it.mainRole == role) 5 else 0 } ?: return
+            // A player of the needed position (main role, else second role); only then anyone.
+            val any = bestForRole(w, team.titleId, role) ?: w.players.asSequence().filter { it.teamId < 0 && !it.retired && it.titleId == team.titleId }.maxByOrNull { it.ca } ?: return
             sign(w, any, team, asking(w, team, any), 1, 0.0, "signed")
+            if (team.roster.size > t.teamSize + 3) releaseWorst(w, team)
             return
         }
         if (!inWindow(w)) return
@@ -266,7 +283,9 @@ object Market {
     }
 
     private fun releaseWorst(w: World, team: Team) {
-        val worst = team.roster.map { w.players[it] }.filter { it.id !in team.lineup && it.loanFrom < 0 }.minByOrNull { it.ca } ?: return
+        // Never the only player of a position.
+        val mains = team.roster.map { w.players[it].mainRole }
+        val worst = team.roster.map { w.players[it] }.filter { it.id !in team.lineup && it.loanFrom < 0 && mains.count { r -> r == it.mainRole } > 1 }.minByOrNull { it.ca } ?: return
         leave(w, worst, "released")
     }
 

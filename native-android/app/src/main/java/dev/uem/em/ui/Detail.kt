@@ -206,3 +206,73 @@ fun <T> SortTable(rows: List<T>, cols: List<SCol<T>>, initialSort: Int = -1, lim
         }
     }
 }
+
+/**
+ * Who chose what before a MOBA game: in LoL / Dota 2 the chooser takes a side or the pick order
+ * and the other team gets the other choice; elsewhere the chooser takes a side (blue picks first).
+ */
+internal fun selectionText(t: dev.uem.em.titles.TitleDef, names: List<String>, chooser: Int, choice: Int, byLoser: Boolean, blue: Int, firstPick: Int): String {
+    val sides = if (t.id == "dota2") "Radiant" to "Dire" else "Blue" to "Red"
+    val other = 1 - chooser
+    val how = if (byLoser) "lost the previous game" else "won the coin toss"
+    fun side(team: Int) = if (team == blue) sides.first else sides.second
+    fun order(team: Int) = if (firstPick < 0) "the other choice" else if (team == firstPick) "first pick" else "second pick"
+    return if (t.id in dev.uem.em.sim.LiveSeries.SPLIT_SELECTION) {
+        if (choice == 0) "${names[chooser]} ($how) chose the ${side(chooser)} side; ${names[other]} then took ${order(other)}"
+        else "${names[chooser]} ($how) chose ${order(chooser)}; ${names[other]} then took the ${side(other)} side"
+    } else "${names[chooser]} ($how) chose the ${side(chooser)} side (${order(chooser)})"
+}
+
+/** Sort state and shared sideways scroll of a [lazySortTable]. */
+class TableState(sort: Int, desc: Boolean) {
+    var sort by mutableStateOf(sort)
+    var desc by mutableStateOf(desc)
+    val scroll = androidx.compose.foundation.ScrollState(0)
+    internal var cacheKey: Any? = null
+    internal var cache: List<Any?> = emptyList()
+}
+
+@Composable
+fun rememberTableState(sort: Int = -1, desc: Boolean = true) = remember { TableState(sort, desc) }
+
+/**
+ * A sortable table inside a LazyColumn: only the rows on screen are composed (big lists stay
+ * smooth); every row scrolls sideways together with the header.
+ */
+@Suppress("UNCHECKED_CAST")
+fun <T> androidx.compose.foundation.lazy.LazyListScope.lazySortTable(state: TableState, rows: List<T>, cols: List<SCol<T>>, key: ((T) -> Any)? = null, onRow: ((T) -> Unit)? = null, highlight: (T) -> Boolean = { false }) {
+    val ck = Triple(System.identityHashCode(rows), state.sort, state.desc)
+    if (state.cacheKey != ck) {
+        val k = cols.getOrNull(state.sort)?.key
+        state.cache = if (k == null) rows else {
+            val withVal = rows.map { it to k(it) }
+            val (has, none) = withVal.partition { it.second != null }
+            (if (state.desc) has.sortedByDescending { it.second!! } else has.sortedBy { it.second!! }).map { it.first } + none.map { it.first }
+        }
+        state.cacheKey = ck
+    }
+    val sorted = state.cache as List<T>
+    item(key = "table-header") {
+        Row(Modifier.fillMaxWidth().background(Ui.card).horizontalScroll(state.scroll).padding(horizontal = 8.dp, vertical = 6.dp)) {
+            cols.forEachIndexed { i, c ->
+                Text(
+                    c.title + if (i == state.sort) (if (state.desc) " ▾" else " ▴") else "", color = if (i == state.sort) Ui.accent else Ui.muted, fontSize = 11.sp, maxLines = 1,
+                    textAlign = if (c.alignEnd) TextAlign.End else TextAlign.Start,
+                    modifier = Modifier.width(c.width).padding(horizontal = 4.dp).let { m -> if (c.key != null) m.clickable { if (state.sort == i) state.desc = !state.desc else { state.sort = i; state.desc = true } } else m },
+                )
+            }
+        }
+    }
+    if (key != null) items(sorted.size, key = { key(sorted[it]) }) { i -> TableRow(state, sorted[i], cols, onRow, highlight) }
+    else items(sorted.size) { i -> TableRow(state, sorted[i], cols, onRow, highlight) }
+}
+
+@Composable
+private fun <T> TableRow(state: TableState, r: T, cols: List<SCol<T>>, onRow: ((T) -> Unit)?, highlight: (T) -> Boolean) {
+    Row(
+        Modifier.fillMaxWidth().background(if (highlight(r)) Ui.card2 else Color.Transparent).let { if (onRow != null) it.clickable { onRow(r) } else it }.horizontalScroll(state.scroll).padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        for (c in cols) Box(Modifier.width(c.width).padding(horizontal = 4.dp), contentAlignment = if (c.alignEnd) Alignment.CenterEnd else Alignment.CenterStart) { c.cell(r) }
+    }
+}

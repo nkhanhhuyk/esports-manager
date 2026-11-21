@@ -20,6 +20,7 @@ import dev.uem.em.persist.SaveStore
 import dev.uem.em.titles.Catalogue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -53,6 +54,7 @@ sealed class Screen {
     data class Compare(val a: Int, val b: Int) : Screen()
     data object World : Screen()
     data object Watch : Screen()
+    data object Tiers : Screen()
     data class Replay(val fixtureId: Int, val game: Int) : Screen()
 }
 
@@ -93,6 +95,7 @@ class GameVm(app: Application) : AndroidViewModel(app) {
             Catalogue.init(src)
             Pics.init(src)
             Maps.init(src)
+            GameInfo.init(src)
         }
     }
 
@@ -126,16 +129,76 @@ class GameVm(app: Application) : AndroidViewModel(app) {
     fun chooseOrg(orgId: Int) {
         val w = world ?: return
         w.userOrg = orgId
+        w.spectator = false
         dev.uem.em.mgmt.Career.setupBoard(w)
         touch()
         tab(Screen.Home)
         save(silent = true)
     }
 
+    /** Save, then write this career to a file the user picked (zip with checksums). */
+    fun exportSave(uri: android.net.Uri) {
+        val w = world ?: return
+        viewModelScope.launch {
+            saveLock.withLock {
+                try {
+                    withContext(Dispatchers.IO) {
+                        store.save(slot, w)
+                        getApplication<Application>().contentResolver.openOutputStream(uri)?.use { store.export(slot, it) } ?: error("Cannot write the file")
+                    }
+                    unsaved = false
+                    toast = "Exported ${w.name}"
+                } catch (e: Exception) {
+                    toast = "Export failed: ${e.message}"
+                }
+            }
+        }
+    }
+
+    /** Import an exported career into a new save slot (checked before anything is written). */
+    fun importSave(uri: android.net.Uri, done: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val r = withContext(Dispatchers.IO) { getApplication<Application>().contentResolver.openInputStream(uri)?.use { store.import(it) } ?: error("Cannot read the file") }
+                toast = "Imported as \"${r.name}\"" + if (r.renamed) " (renamed: a save with that name exists)" else ""
+            } catch (e: Exception) {
+                toast = "Import failed: ${e.message}"
+            }
+            done()
+        }
+    }
+
+    /** Download pictures into the phone's picture cache so they show offline. */
+    fun downloadPictures(titles: Set<String>) {
+        val w = world ?: return
+        if (busy != null) return
+        val urls = Pics.allFor(w, titles)
+        if (urls.isEmpty()) { toast = "No pictures to download"; return }
+        busy = Busy("Downloading pictures…", 0, urls.size)
+        cancel.set(false)
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            val loader = coil.Coil.imageLoader(app)
+            var ok = 0
+            var done = 0
+            withContext(Dispatchers.IO) {
+                for (chunk in urls.chunked(8)) {
+                    if (cancel.get()) break
+                    val jobs = chunk.map { u -> async { loader.execute(coil.request.ImageRequest.Builder(app).data(u).size(160).build()) } }
+                    for (j in jobs) { if (j.await() is coil.request.SuccessResult) ok++; done++ }
+                    busy = Busy("Downloading pictures…", done, urls.size)
+                }
+            }
+            busy = null
+            toast = "Pictures saved for offline use: $ok of ${urls.size}" + if (ok < urls.size) " (some hosts refused or were unreachable; the game's badges are shown instead)" else ""
+        }
+    }
+
     /** Spectator career: no club; follow teams and watch any match. */
     fun chooseSpectator() {
         val w = world ?: return
         w.userOrg = -1
+        w.spectator = true
         w.board = null
         // Start by following the strongest team of each game.
         if (w.followed.isEmpty()) for (id in w.titles) w.teams.filter { it.titleId == id && it.active && it.leagueId >= 0 }.maxByOrNull { it.elo }?.let { w.followed.add(it.id) }
@@ -152,6 +215,7 @@ class GameVm(app: Application) : AndroidViewModel(app) {
                 val w = withContext(Dispatchers.IO) {
                     store.load(slotName).also { lw ->
                         // Saves from the first native version: add staff, sponsors, salaries and a board.
+                        Catalogue.applyCustom(lw)
                         dev.uem.em.mgmt.Economy.ensureSetup(lw)
                         if (lw.userOrg >= 0 && lw.board == null) dev.uem.em.mgmt.Career.setupBoard(lw)
                     }
@@ -161,7 +225,7 @@ class GameVm(app: Application) : AndroidViewModel(app) {
                 lastAutosaveDay = w.day
                 unsaved = false
                 touch()
-                tab(if (w.userOrg >= 0 || w.board == null && w.followed.isNotEmpty()) Screen.Home else Screen.PickOrg)
+                tab(if (w.userOrg >= 0 || w.spectator) Screen.Home else Screen.PickOrg)
             } catch (e: Exception) {
                 toast = "Could not load: ${e.message}"
             } finally {
@@ -265,5 +329,5 @@ class GameVm(app: Application) : AndroidViewModel(app) {
     }
 
     /** Tests only: show an already built world. */
-    fun setWorldForTest(w: World) { world = w; touch() }
+    fun setWorldForTest(w: World) { Catalogue.applyCustom(w); world = w; touch() }
 }

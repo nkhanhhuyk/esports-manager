@@ -140,7 +140,14 @@ class TitleDef(
     val isMoba get() = engine == Engine.MOBA
     fun role(id: String): RoleDef = roles.firstOrNull { it.id == id } ?: roles[0]
     val lineupRoles: List<RoleDef> by lazy { lineup.map { role(it) } }
-    val charIndex: Map<String, CharDef> by lazy { characters.associateBy { it.id } }
+    @Volatile private var indexed: List<CharDef>? = null
+    @Volatile private var index: Map<String, CharDef> = emptyMap()
+    /** Characters by id (rebuilt when patches add new characters to the list). */
+    val charIndex: Map<String, CharDef> get() {
+        val list = characters
+        if (indexed !== list) { index = list.associateBy { it.id }; indexed = list }
+        return index
+    }
     val statIndex: Map<String, Int> by lazy { stats.withIndex().associate { it.value.key to it.index } }
     val roleWeights: Map<String, RoleWeights> by lazy { roles.associate { it.id to RoleWeights.build(this, it) } }
 }
