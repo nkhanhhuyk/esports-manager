@@ -146,12 +146,14 @@ object Economy {
     private val COMPANY_A = listOf("Nexa", "Volta", "Orion", "Helix", "Kairo", "Vanta", "Lumen", "Strata", "Quanta", "Zentra", "Arcus", "Polaris", "Meridian", "Atlas", "Cobalt", "Vertex", "Northwind", "Pinnacle", "Summit", "Bluewave")
     private val COMPANY_B = listOf("Energy", "Telecom", "Bank", "Motors", "Mobile", "Cloud", "Foods", "Drinks", "Apparel", "Hardware", "Peripherals", "Airlines", "Insurance", "Labs", "Games", "Media", "Pay")
 
+    /** Share of the prize pool by final placing. */
+    val PRIZE_SPLIT = listOf(0.35, 0.2, 0.12, 0.08, 0.06, 0.05, 0.04, 0.03, 0.02, 0.02, 0.015, 0.015)
+
     /** Prize money and reputation when a competition ends. */
     fun onCompetitionFinished(w: World, c: Competition) {
         if (c.prizePool <= 0) return
-        val split = listOf(0.35, 0.2, 0.12, 0.08, 0.06, 0.05, 0.04, 0.03, 0.02, 0.02, 0.015, 0.015)
         c.placements.forEachIndexed { i, tid ->
-            val share = split.getOrNull(i) ?: return@forEachIndexed
+            val share = PRIZE_SPLIT.getOrNull(i) ?: return@forEachIndexed
             val team = w.teams[tid]
             val org = w.orgs[team.orgId]
             ledger(w, org, "prize", c.prizePool * share, "${c.short}: ${dev.uem.em.core.ordinal(i + 1)} place")

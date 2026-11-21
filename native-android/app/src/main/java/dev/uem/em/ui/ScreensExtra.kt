@@ -52,56 +52,6 @@ fun ScheduleScreen(vm: GameVm, w: World) {
 }
 
 @Composable
-fun StatsScreen(vm: GameVm, w: World) {
-    var title by remember { mutableStateOf(w.orgs.getOrNull(w.userOrg)?.teams?.firstOrNull()?.let { w.teams[it].titleId } ?: "lol") }
-    var stat by remember { mutableIntStateOf(0) }
-    val t = Catalogue.get(title)
-    val idx: (String) -> Int = { t.statIndex[it] ?: -1 }
-    class Row3(val p: Player, val gp: Int, val rating: Double, val s: DoubleArray)
-    val rows = remember(title, vm.version) {
-        w.players.mapNotNull { p ->
-            val lines = p.stats.filter { it.season == w.season && it.titleId == title }
-            val gp = lines.sumOf { it.gp }
-            if (gp < 4) return@mapNotNull null
-            val s = DoubleArray(t.stats.size)
-            for (l in lines) for (i in s.indices) s[i] += l.s.getOrElse(i) { 0.0 }
-            Row3(p, gp, lines.sumOf { it.ratingSum } / gp, s)
-        }
-    }
-    val boards = listOf<Pair<String, (Row3) -> Double>>(
-        "Rating" to { it.rating },
-        "KDA" to { r -> (r.s[idx("k")] + r.s[idx("a")]) / maxOf(1.0, r.s[idx("d")]) },
-        "Kills / game" to { r -> r.s[idx("k")] / r.gp },
-        "Assists / game" to { r -> r.s[idx("a")] / r.gp },
-        "Damage / game" to { r -> r.s[idx("dmg")] / r.gp },
-        "Games" to { r -> r.gp.toDouble() },
-    )
-    val sorted = rows.sortedByDescending { boards[stat].second(it) }.take(50)
-    val teams = w.teams.filter { it.active && it.titleId == title && it.leagueId >= 0 }.sortedByDescending { it.elo }.take(20)
-    LazyColumn(Modifier.fillMaxSize()) {
-        item { Tabs(Catalogue.IDS.map { Catalogue.get(it).short }, Catalogue.IDS.indexOf(title)) { title = Catalogue.IDS[it] } }
-        item { Tabs(boards.map { it.first }, stat) { stat = it } }
-        item {
-            Card("Season ${w.season} leaders (4+ games)") {
-                if (sorted.isEmpty()) Muted("Not enough games yet.")
-                sorted.forEachIndexed { i, r ->
-                    Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Player(r.p.id)) }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("${i + 1}", color = Ui.muted, fontSize = 12.sp, modifier = Modifier.width(26.dp))
-                        Column(Modifier.weight(1f)) { PlayerChip(r.p, vm, 20.dp); Muted("${r.p.teamId.takeIf { it >= 0 }?.let { w.teams[it].short } ?: "—"} · ${r.gp} games", 10) }
-                        Num("%.2f".format(boards[stat].second(r)), bold = true)
-                    }
-                }
-            }
-        }
-        item {
-            Card("Power ranking (Elo)") {
-                teams.forEachIndexed { i, team -> Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) { Text("${i + 1}", color = Ui.muted, fontSize = 12.sp, modifier = Modifier.width(26.dp)); Column(Modifier.weight(1f)) { TeamChip(w, team.id, vm, 18.dp) }; Num("${team.elo.roundToInt()}") } }
-            }
-        }
-    }
-}
-
-@Composable
 fun SettingsScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {

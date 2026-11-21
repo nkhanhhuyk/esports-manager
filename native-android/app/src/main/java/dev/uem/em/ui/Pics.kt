@@ -40,7 +40,8 @@ object Pics {
     private var players: Map<String, String> = emptyMap()
     private var teams: Map<String, String> = emptyMap()
     private var leagues: Map<String, String> = emptyMap()
-    private val PROXIED = setOf("owcdn.net")
+    /** Hotlink-protected hosts, and hosts whose pictures are very large (Valorant agent icons are ~450 KB). */
+    private val PROXIED = setOf("owcdn.net", "media.valorant-api.com")
 
     /** Online pictures on/off (off: the game's own badges only). */
     @Volatile var online = true
@@ -71,8 +72,10 @@ fun Pic(url: String?, label: String, size: Dp = 28.dp, round: Boolean = false, c
         if (url == null || attempt > 1 || !Pics.online) {
             Text(label.filter { it.isLetterOrDigit() }.take(2).uppercase(), color = Color(0xFFDDE3F0), fontSize = (size.value * 0.38).sp)
         } else {
-            val shown = if (attempt == 0) Pics.display(url) else Pics.proxied(url)
-            AsyncImage(model = shown, contentDescription = label, contentScale = ContentScale.Crop, modifier = Modifier.size(size), onError = { attempt = if (shown == Pics.proxied(url)) 2 else attempt + 1 })
+            // First try: the usual address (the proxy for hotlink-protected or very large pictures); second: the other one.
+            val first = Pics.display(url)
+            val shown = if (attempt == 0) first else if (first == url) Pics.proxied(url) else url
+            AsyncImage(model = shown, contentDescription = label, contentScale = ContentScale.Crop, modifier = Modifier.size(size), onError = { attempt++ })
         }
     }
 }

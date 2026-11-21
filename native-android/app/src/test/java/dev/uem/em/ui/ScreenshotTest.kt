@@ -21,7 +21,7 @@ import java.io.File
 /** Renders the real screens on the JVM (no device) and writes PNGs to build/screens for review. */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35], qualifiers = "w400dp-h860dp-xhdpi")
+@Config(sdk = [35], qualifiers = "w400dp-h1300dp-xhdpi")
 class ScreenshotTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
 
@@ -79,6 +79,18 @@ class ScreenshotTest {
         shot(out, "live-shooter")
         println("shooter events: " + vm.live!!.events.groupBy { it.kind }.mapValues { it.value.size } + " score " + vm.live!!.game!!.score.joinToString("-"))
         rule.runOnIdle { vm.live!!.simRest(); vm.endLive() }
+        // Every tab of the player and team pages.
+        for (i in 0..8) {
+            UiDefaults.tab = i
+            rule.runOnIdle { vm.tab(Screen.Home) }; rule.waitForIdle(); rule.runOnIdle { vm.go(Screen.Player(faker.id)) }
+            shot(out, "player-tab$i")
+        }
+        for (i in 0..6) {
+            UiDefaults.tab = i
+            rule.runOnIdle { vm.tab(Screen.Home) }; rule.waitForIdle(); rule.runOnIdle { vm.go(Screen.Team(t1.id)) }
+            shot(out, "team-tab$i")
+        }
+        UiDefaults.tab = 0
         for ((name, s) in shots) {
             rule.runOnIdle { vm.tab(s) }
             rule.waitForIdle()

@@ -1,0 +1,347 @@
+package dev.uem.em.ui
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.uem.em.core.Dates
+import dev.uem.em.core.formatMoney
+import dev.uem.em.data.GameData
+import dev.uem.em.mgmt.Economy
+import dev.uem.em.mgmt.Extras
+import dev.uem.em.model.CompTier
+import dev.uem.em.model.Player
+import dev.uem.em.model.Team
+import dev.uem.em.model.World
+import dev.uem.em.sim.Lineups
+import dev.uem.em.sim.Ratings
+import dev.uem.em.titles.Catalogue
+import dev.uem.em.titles.TitleDef
+
+private val TEAM_TABS = listOf("Roster", "Schedule & Results", "Statistics", "Staff", "History", "Organisation", "Registration")
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun TeamScreen(vm: GameVm, w: World, id: Int) {
+    val team = w.teams[id]
+    val t = Catalogue.get(team.titleId)
+    val org = w.orgs[team.orgId]
+    var tab by remember(id) { mutableIntStateOf(UiDefaults.tab) }
+    val staff = team.staffIds.map { w.staff[it] }
+    val playerPay = team.roster.sumOf { w.players[it].salary }
+    val staffPay = staff.sumOf { it.salary }
+    LazyColumn(Modifier.fillMaxSize()) {
+        item {
+            Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Pic(Pics.team(team), team.short, 60.dp)
+                HGap(12)
+                Column(Modifier.weight(1f)) {
+                    Text(team.name, color = if (w.isUserTeam(id)) Ui.gold else Ui.text, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    FlowRow {
+                        TitleTag(t.id)
+                        Text("${org.name} · ${GameData.regionName(team.region)}", color = Ui.muted, fontSize = 12.sp)
+                    }
+                    Muted(listOfNotNull(
+                        team.leagueId.takeIf { it >= 0 }?.let { w.leagues[it].name } ?: if (team.active) "no league" else "dormant (no league place)",
+                        if (team.nationalOf.isNotEmpty()) "national team of ${GameData.countries[team.nationalOf]?.name ?: team.nationalOf}" else null,
+                        if (team.real) "real team" else null,
+                    ).joinToString(" · "), 12)
+                }
+            }
+            var editing by remember { mutableStateOf(false) }
+            FlowRow(Modifier.padding(horizontal = 12.dp)) {
+                FollowButton(vm, w, team)
+                Pill("Edit") { editing = true }
+                if (w.isUserTeam(id)) Pill("Squad & tactics") { vm.tab(Screen.Squad) }
+                team.leagueId.takeIf { it >= 0 }?.let { lid -> w.comps.lastOrNull { it.leagueId == lid && it.season == w.season && it.status > 0 }?.let { c -> Pill("League table") { vm.go(Screen.Comp(c.id)) } } }
+            }
+            if (editing) EditTeamDialog(vm, w, team) { editing = false }
+        }
+        item {
+            Tiles(listOf(
+                Tile("Strength", "%.1f".format(Lineups.strength(w, team)), color = Rate.color(Lineups.strength(w, team))),
+                Tile("Elo", "${team.elo.toInt()}", "rank ${w.teams.filter { it.titleId == team.titleId && it.active }.sortedByDescending { it.elo }.indexOf(team) + 1} in ${t.short}"),
+                Tile("Chemistry", "%.0f".format(team.chemistry), color = Rate.color(team.chemistry)),
+                Tile("Meta adaptation", "%.0f".format(team.metaAdapt), color = Rate.color(team.metaAdapt)),
+                Tile("Payroll", formatMoney(playerPay), "${team.roster.size} players"),
+                Tile("Staff cost", formatMoney(staffPay), "${staff.size} staff"),
+                Tile("Style", team.style.ifBlank { "balanced" }, "aggression ${team.aggression.toInt()}"),
+                Tile("Coaching", "%.0f".format(Economy.coachQuality(w, team)), "training ${team.focus}"),
+                Tile("Trophies", "${team.trophies.size}", team.trophies.lastOrNull()?.let { "last: ${it.season}" }),
+            ))
+        }
+        item { Tabs(TEAM_TABS, tab) { tab = it } }
+        item {
+            when (tab) {
+                0 -> TeamRoster(vm, w, team, t)
+                1 -> TeamSchedule(vm, w, team)
+                2 -> TeamStats(vm, w, team, t)
+                3 -> TeamStaff(vm, w, team)
+                4 -> TeamHistory(vm, w, team)
+                5 -> TeamOrg(vm, w, team)
+                else -> TeamRegistration(vm, w, team, t)
+            }
+            Gap(16)
+        }
+    }
+}
+
+@Composable
+private fun TeamRoster(vm: GameVm, w: World, team: Team, t: TitleDef) {
+    val roster = team.roster.map { w.players[it] }
+    fun slot(p: Player) = team.lineup.indexOf(p.id)
+    val ip = inputOf(t)
+    Card("Roster (${roster.size}) — ${t.teamSize} starters", right = { Muted("tap a column to sort", 10) }) {
+        SortTable(roster, listOf(
+            SCol("Pos", 46.dp, false, { p -> slot(p).let { if (it < 0) 99.0 else it.toDouble() } }) { p -> val s = slot(p); if (s >= 0) Text(t.lineupRoles[s].short, color = Ui.accent, fontWeight = FontWeight.Bold, fontSize = 12.sp) else Muted("sub", 11) },
+            SCol("Player", 140.dp, false) { p ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    flag(p.nat).takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp); HGap(3) }
+                    PlayerChip(p, vm, 20.dp)
+                }
+            },
+            SCol("Role", 44.dp, false) { p -> Muted(t.role(p.roles[0]).short, 12) },
+            SCol("Age", 36.dp, key = { p -> Dates.ageAt(p.birth, w.day).toDouble() }) { p -> Num("${Dates.ageAt(p.birth, w.day)}") },
+            SCol("E (pos)", 52.dp, key = { p -> Ratings.effectiveness(p, t, if (slot(p) >= 0) t.lineupRoles[slot(p)] else t.role(p.roles[0])) }) { p ->
+                Rating(Ratings.effectiveness(p, t, if (slot(p) >= 0) t.lineupRoles[slot(p)] else t.role(p.roles[0])), 1)
+            },
+            SCol("CA", 40.dp, key = { it.ca }) { p -> Rating(p.ca) },
+            SCol("PA", 56.dp, key = { it.pa }) { p -> Num(if (w.userOrg >= 0) Extras.potentialText(w, p) else "%.0f".format(p.pa), Ui.muted) },
+            SCol("Input", 42.dp, key = { it.input[ip] }) { p -> Rating(p.input[ip], bold = false) },
+            SCol("Form", 42.dp, key = { it.form }) { p -> Num("%+.1f".format(p.form), if (p.form >= 0) Ui.win else Ui.loss) },
+            SCol("Morale", 50.dp, key = { it.morale }) { p -> Rating(p.morale, bold = false) },
+            SCol("Fatigue", 54.dp, key = { it.fatigue }) { p -> Num("%.0f".format(p.fatigue) + if (p.injuryUntil > w.day) " ✚" else "", if (p.fatigue > 60 || p.injuryUntil > w.day) Ui.loss else Ui.text) },
+            SCol("Salary", 66.dp, key = { it.salary }) { p -> Num(formatMoney(p.salary)) },
+            SCol("Until", 52.dp, key = { it.contractEnd.toDouble() }) { p -> Num("${p.contractEnd}${if (p.loanFrom >= 0) " L" else ""}") },
+            SCol("Value", 66.dp, key = { Economy.marketValue(w, it) }) { p -> Num(formatMoney(Economy.marketValue(w, p)), Ui.muted) },
+        ), initialSort = 0, initialDesc = false, onRow = { vm.go(Screen.Player(it.id)) }, highlight = { it.id in team.lineup })
+        Gap(4)
+        Muted("✚ injured · L on loan · E = effectiveness in the position the player fills (or their main role).", 10)
+    }
+    val avgAge = roster.map { Dates.ageAt(it.birth, w.day) }.average()
+    Card("Squad profile") {
+        KV("Average age", if (roster.isEmpty()) "—" else "%.1f".format(avgAge))
+        KV("Nationalities", roster.map { it.nat }.distinct().joinToString(" ") { flag(it).ifEmpty { it } })
+        KV("Starting five average CA", team.lineup.filter { it >= 0 }.map { w.players[it].ca }.average().takeIf { !it.isNaN() }?.let { "%.1f".format(it) } ?: "—")
+        KV("Bench", "${roster.count { it.id !in team.lineup }} players")
+        KV("Injured", "${roster.count { it.injuryUntil > w.day }}")
+        KV("Contracts ending this season", "${roster.count { it.contractEnd <= w.season }}")
+        KV("Scrims per week", "${team.scrims}")
+        KV("Training", "${team.focus} · intensity ${team.intensity}")
+    }
+}
+
+@Composable
+private fun TeamSchedule(vm: GameVm, w: World, team: Team) {
+    var season by remember { mutableIntStateOf(w.season) }
+    val seasons = w.comps.filter { team.id in it.teamIds }.map { it.season }.distinct().sortedDescending().ifEmpty { listOf(w.season) }
+    val fx = w.fixtures.filter { (it.a == team.id || it.b == team.id) && w.comps[it.compId].season == season }.sortedBy { it.day }
+    val done = fx.filter { it.done }
+    val sw = done.count { it.winner == team.id }
+    val gw = done.sumOf { if (it.a == team.id) it.scoreA else it.scoreB }
+    val gl = done.sumOf { if (it.a == team.id) it.scoreB else it.scoreA }
+    Card("Fixtures", right = { Select("", seasons.map { "$it" }, seasons.indexOf(season).coerceAtLeast(0)) { season = seasons[it] } }) {
+        Muted("Series ${sw}-${done.size - sw} · games $gw-$gl · ${fx.size - done.size} to play", 12)
+        Gap(4)
+        if (fx.isEmpty()) Muted("No fixtures this season.")
+        for (f in fx) {
+            val opp = if (f.a == team.id) f.b else f.a
+            val won = f.winner == team.id
+            Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Match(f.id)) }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.width(62.dp)) { Text(Dates.short(f.day), color = Ui.text, fontSize = 12.sp); Muted(w.comps[f.compId].short, 9) }
+                Column(Modifier.weight(1f)) { if (opp >= 0) TeamChip(w, opp, vm, 18.dp) else Muted("TBD") }
+                if (f.done) {
+                    Text(if (won) "W" else "L", color = if (won) Ui.win else Ui.loss, fontWeight = FontWeight.Bold, modifier = Modifier.width(18.dp))
+                    Text(if (f.a == team.id) "${f.scoreA}-${f.scoreB}" else "${f.scoreB}-${f.scoreA}", color = Ui.text, fontSize = 13.sp)
+                } else Muted("Bo${f.bestOf}", 12)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeamStats(vm: GameVm, w: World, team: Team, t: TitleDef) {
+    var season by remember { mutableIntStateOf(w.season) }
+    val lines = w.players.flatMap { p -> p.stats.filter { it.teamId == team.id && it.season == season }.map { p to it } }
+    val seasons = (w.players.flatMap { p -> p.stats.filter { it.teamId == team.id }.map { it.season } } + w.season).distinct().sortedDescending()
+    val k = t.statIndex["k"] ?: 0
+    val d = t.statIndex["d"] ?: 1
+    val a = t.statIndex["a"] ?: 2
+    Card("$season season statistics", right = { Select("", seasons.map { "$it" }, seasons.indexOf(season).coerceAtLeast(0)) { season = seasons[it] } }) {
+        if (lines.isEmpty()) Muted("No games this season.")
+        else SortTable(lines, listOf<SCol<Pair<Player, dev.uem.em.model.SeasonLine>>>(
+            SCol("Player", 120.dp, false) { (p, _) -> PlayerChip(p, vm, 18.dp) },
+            SCol("GP", 34.dp, key = { it.second.gp.toDouble() }) { Num("${it.second.gp}") },
+            SCol("Win%", 44.dp, key = { it.second.w.toDouble() / maxOf(1, it.second.gp) }) { Num("${100 * it.second.w / maxOf(1, it.second.gp)}%") },
+            SCol("Rating", 50.dp, key = { it.second.ratingSum / maxOf(1, it.second.gp) }) { Num("%.2f".format(it.second.ratingSum / maxOf(1, it.second.gp)), bold = true) },
+            SCol("KDA", 44.dp, key = { (it.second.s[k] + it.second.s[a]) / maxOf(1.0, it.second.s[d]) }) { Num("%.2f".format((it.second.s[k] + it.second.s[a]) / maxOf(1.0, it.second.s[d]))) },
+        ) + t.stats.mapIndexed { i, st -> SCol<Pair<Player, dev.uem.em.model.SeasonLine>>(st.label + "/g", 56.dp, key = { it.second.s.getOrElse(i) { 0.0 } / maxOf(1, it.second.gp) }) { Num("%.1f".format(it.second.s.getOrElse(i) { 0.0 } / maxOf(1, it.second.gp))) } } +
+            SCol("MVP", 38.dp, key = { it.second.mvps.toDouble() }) { Num("${it.second.mvps}") },
+            initialSort = 3, onRow = { vm.go(Screen.Player(it.first.id)) })
+    }
+    val comps = w.comps.filter { it.season == season && team.id in it.teamIds }.sortedBy { it.startDay }
+    if (comps.isNotEmpty()) Card("By competition") {
+        for (c in comps) {
+            val fx = c.stages.flatMap { it.fixtureIds }.map { w.fixtures[it] }.filter { it.done && (it.a == team.id || it.b == team.id) }
+            val sw = fx.count { it.winner == team.id }
+            val place = c.placements.indexOf(team.id).takeIf { it >= 0 }?.let { "#${it + 1}" } ?: if (c.done) "—" else c.stages.getOrNull(c.current)?.name ?: "upcoming"
+            Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Comp(c.id)) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(c.name, color = if (c.tier == CompTier.WORLDS) Ui.gold else Ui.text, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Muted("$sw-${fx.size - sw}  ", 12)
+                Text(place, color = if (place == "#1") Ui.gold else Ui.text, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TeamStaff(vm: GameVm, w: World, team: Team) {
+    val staff = team.staffIds.map { w.staff[it] }
+    Card("Staff") {
+        if (staff.isEmpty()) Muted("No staff recorded (coaching quality ${team.coach.toInt()}).")
+        for (s in staff.sortedBy { Economy.STAFF_ROLES.indexOf(it.role) }) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(flag(s.nat).ifEmpty { "·" }, fontSize = 14.sp, modifier = Modifier.width(24.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(s.name(), color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Muted("${Economy.ROLE_LABEL[s.role] ?: s.role} · age ${Dates.ageAt(s.birth, w.day)} · until ${s.contractEnd}", 11)
+                }
+                Column(horizontalAlignment = Alignment.End) { Rating(s.quality); Muted(formatMoney(s.salary), 10) }
+            }
+        }
+        Gap(4)
+        KV("Coaching quality", "%.0f".format(Economy.coachQuality(w, team)))
+        KV("Match preparation", "×%.2f".format(Economy.prepFactor(w, team)))
+        KV("Staff payroll", formatMoney(staff.sumOf { it.salary }))
+    }
+}
+
+@Composable
+private fun TeamHistory(vm: GameVm, w: World, team: Team) {
+    val rivals = dev.uem.em.mgmt.Deals.rivalsOf(w, team.id)
+    if (rivals.isNotEmpty()) Card("Rivalries") {
+        for ((rid, v) in rivals) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 3.dp)) {
+            Column(Modifier.weight(1f)) { TeamChip(w, rid, vm, 18.dp) }
+            val h2h = w.fixtures.filter { it.done && ((it.a == team.id && it.b == rid) || (it.b == team.id && it.a == rid)) }
+            Muted("${h2h.count { it.winner == team.id }}-${h2h.count { it.winner == rid }} h2h · ", 11)
+            Bar(v, modifier = Modifier.width(50.dp), color = Ui.loss)
+            Muted(" ${v.toInt()}", 11)
+        }
+    }
+    Card("Season records") {
+        if (team.history.isEmpty()) Muted("First season in progress.")
+        else Table(listOf(Col("Season", 52.dp, false), Col("League", 110.dp, false), Col("W-L", 50.dp), Col("Rank", 40.dp), Col("Elo", 46.dp), Col("Best results", 220.dp, false)), team.history.size) { r, c ->
+            val h = team.history.reversed()[r]
+            when (c) {
+                0 -> Num("${h.season}")
+                1 -> Text(w.leagues.getOrNull(h.leagueId)?.short ?: "—", color = Ui.text, fontSize = 12.sp, maxLines = 1)
+                2 -> Num("${h.w}-${h.l}")
+                3 -> Num(if (h.position > 0) "#${h.position}" else "—", bold = true)
+                4 -> Num("${h.elo.toInt()}", Ui.muted)
+                else -> {
+                    val best = w.comps.filter { it.season == h.season && it.done && team.id in it.placements.take(4) }.sortedByDescending { it.tier.ordinal }
+                    Text(best.joinToString(", ") { "${it.short}: #${it.placements.indexOf(team.id) + 1}" }.ifEmpty { "—" }, color = Ui.muted, fontSize = 11.sp, maxLines = 2)
+                }
+            }
+        }
+    }
+    Card("Trophies") {
+        if (team.trophies.isEmpty()) Muted("No trophies yet.")
+        for (tr in team.trophies.reversed()) Row(Modifier.fillMaxWidth().clickable(enabled = tr.compId >= 0 && tr.compId < w.comps.size) { vm.go(Screen.Comp(tr.compId)) }.padding(vertical = 3.dp)) {
+            Text("🏆 ", fontSize = 13.sp); Text("${tr.season}", color = Ui.muted, fontSize = 12.sp, modifier = Modifier.width(40.dp)); Text(tr.name, color = Ui.gold, fontSize = 13.sp)
+        }
+    }
+    val alumni = w.players.filter { p -> p.teamId != team.id && p.stats.any { it.teamId == team.id } }.sortedByDescending { p -> p.stats.filter { it.teamId == team.id }.sumOf { it.gp } }.take(12)
+    if (alumni.isNotEmpty()) Card("Former players") {
+        for (p in alumni) Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) { PlayerChip(p, vm, 18.dp) }
+            Muted("${p.stats.filter { it.teamId == team.id }.sumOf { it.gp }} games · now ${p.teamId.takeIf { it >= 0 }?.let { w.teams[it].short } ?: if (p.retired) "retired" else "free agent"}", 11)
+        }
+    }
+}
+
+@Composable
+private fun TeamOrg(vm: GameVm, w: World, team: Team) {
+    val org = w.orgs[team.orgId]
+    val mine = team.orgId == w.userOrg
+    Card(org.name) {
+        KV("Country", "${flag(org.country)} ${GameData.countries[org.country]?.name ?: org.country}")
+        KV("Region", GameData.regionName(org.region))
+        KV("Reputation") { Rating(org.rep) }
+        KV("Fans", "%,.0f".format(org.fans))
+        if (mine) KV("Balance", formatMoney(org.balance), if (org.balance >= 0) Ui.win else Ui.loss)
+        KV("Facilities", "training ${org.facilities.getOrElse(0) { 0 }} · performance ${org.facilities.getOrElse(1) { 0 }} · academy ${org.facilities.getOrElse(2) { 0 }}")
+        if (org.sponsors.isNotEmpty()) KV("Sponsors", org.sponsors.joinToString { it.name })
+        KV("Data", if (org.real) "Real organisation" else "Generated")
+    }
+    Card("Divisions") {
+        for (tid in org.teams) {
+            val x = w.teams[tid]
+            Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Team(tid)) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                TitleTag(x.titleId)
+                Column(Modifier.weight(1f)) {
+                    Text(x.name, color = if (tid == team.id) Ui.accent else Ui.text, fontSize = 13.sp)
+                    Muted("${x.leagueId.takeIf { it >= 0 }?.let { w.leagues[it].short } ?: if (x.active) "no league" else "dormant"} · Elo ${x.elo.toInt()} · ${x.roster.size} players", 10)
+                }
+                Rating(Lineups.strength(w, x), 1)
+            }
+        }
+    }
+    if (org.fanSeg.size == 4) Card("Supporters") {
+        val labels = listOf("Core", "Casual", "Local", "International")
+        val total = org.fanSeg.sum().coerceAtLeast(1.0)
+        for (i in 0..3) Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(labels[i], color = Ui.muted, fontSize = 12.sp, modifier = Modifier.width(96.dp))
+            Bar(org.fanSeg[i], total, Ui.accent, Modifier.weight(1f))
+            Text("%,.0f".format(org.fanSeg[i]), color = Ui.text, fontSize = 12.sp, modifier = Modifier.width(70.dp).padding(start = 6.dp))
+        }
+    }
+    val trophies = org.teams.flatMap { tid -> w.teams[tid].trophies.map { tid to it } }.sortedByDescending { it.second.season }
+    if (trophies.isNotEmpty()) Card("Organisation trophy cabinet (${trophies.size})") {
+        for ((tid, tr) in trophies.take(20)) Row(Modifier.padding(vertical = 2.dp)) { TitleTag(w.teams[tid].titleId); Text("${tr.season} · ${tr.name}", color = Ui.gold, fontSize = 12.sp) }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TeamRegistration(vm: GameVm, w: World, team: Team, t: TitleDef) {
+    val comps = w.comps.filter { it.season == w.season && team.id in it.teamIds && !it.done }.sortedBy { it.startDay }
+    Card("Competition registration", right = { Muted("${t.teamSize + 4} players · 2 changes", 10) }) {
+        Muted("Rosters are registered when a competition starts; only registered players can play. Up to two amendments per competition.", 11)
+        if (comps.isEmpty()) Muted("No current or upcoming competitions.")
+        for (c in comps) {
+            Gap(6)
+            Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Comp(c.id)) }, verticalAlignment = Alignment.CenterVertically) {
+                Text(c.name, color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                Muted(if (c.status == 0) "starts ${Dates.short(c.startDay)}" else "in progress", 11)
+            }
+            val reg = c.registrations[team.id]
+            if (reg == null) Muted("Not registered yet (registers at the start: the ${t.teamSize + 4} best players).", 11)
+            else {
+                Muted("Amendments used: ${reg.amendments} of 2", 11)
+                FlowRow { for (pid in reg.players) Pill(w.players[pid].handle + if (pid !in team.roster) " (left)" else "") { vm.go(Screen.Player(pid)) } }
+                val missing = team.roster.filter { it !in reg.players }
+                if (missing.isNotEmpty()) Muted("Not registered: ${missing.joinToString { w.players[it].handle }}", 11)
+            }
+        }
+    }
+}

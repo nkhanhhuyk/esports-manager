@@ -136,11 +136,27 @@ object WorldGen {
     }
 
     private val EASTERN = setOf("KR", "CN", "TW", "HK", "VN", "JP", "MO")
+    /** Romanisation variants of common Korean and Chinese surnames. */
+    private val SURNAME_ALIAS = mapOf(
+        "jung" to "jeong", "chung" to "jeong", "yi" to "lee", "rhee" to "lee", "ri" to "lee", "bak" to "park", "pak" to "park", "gim" to "kim",
+        "choe" to "choi", "kang" to "gang", "cho" to "jo", "yoon" to "yun", "lim" to "im", "suh" to "seo", "sin" to "shin", "hwang" to "hwang",
+        "noh" to "no", "roh" to "no", "ahn" to "an", "koo" to "gu", "ku" to "gu", "kwon" to "gwon", "ko" to "go", "goh" to "go", "woo" to "u",
+    )
     private val LOL_ROLE = mapOf("top" to "top", "jungle" to "jungle", "mid" to "mid", "bot" to "bot", "adc" to "bot", "support" to "support")
 
     /** Real birthdays, nationalities, names and (LoL) positions from the facts snapshot. */
     private fun applyFacts(p: Player) {
         val f = facts["${p.titleId}|${norm(p.handle)}"] ?: return
+        // Same handle, different person (e.g. two players called "Peyz"): the real names must share a part.
+        if (f.name != null && (p.first.isNotBlank() || p.last.isNotBlank())) {
+            fun parts(s: String) = s.lowercase().replace("-", "").split(Regex("[^\\p{L}0-9]+")).filter { it.length >= 2 }.map { norm(it).let { x -> SURNAME_ALIAS[x] ?: x } }.toSet()
+            val mine = parts("${p.first} ${p.last}")
+            val theirs = parts(f.name)
+            val sameName = mine.any { a -> theirs.any { b -> a == b || (a.length >= 3 && b.startsWith(a)) || (b.length >= 3 && a.startsWith(b)) } }
+            // Different spelling of the same person is fine when country and position agree.
+            val roleOk = p.titleId != "lol" || f.role == null || LOL_ROLE[f.role.lowercase()] == p.roles[0]
+            if (mine.isNotEmpty() && theirs.isNotEmpty() && !sameName && !(valid(f.cc) == p.nat && roleOk)) return
+        }
         val est = p.realEst.toMutableSet()
         if (f.birth != null && Regex("\\d{4}-\\d{2}-\\d{2}").matches(f.birth)) {
             val (yy, mm, dd) = f.birth.split('-').map { it.toInt() }

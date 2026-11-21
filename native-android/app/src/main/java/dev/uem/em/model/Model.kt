@@ -44,6 +44,8 @@ class World(
     val rivalries: MutableMap<String, Double> = HashMap(),
     var delegateBids: Boolean = false,
     var delegateRenewals: Boolean = false,
+    /** Players the user has shortlisted. */
+    val shortlist: MutableList<Int> = ArrayList(),
 ) {
     /** Fixture ids by day (rebuilt after loading; not saved). */
     @kotlinx.serialization.Transient

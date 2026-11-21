@@ -178,6 +178,7 @@ object Advance {
         dev.uem.em.mgmt.Career.awards(w)
         dev.uem.em.mgmt.Extras.seasonReview(w)
         dev.uem.em.mgmt.Career.seasonEnd(w)
+        for (p in w.players) if (!p.retired) p.caHistory.add(p.ca.toFloat())
         w.season++
         dev.uem.em.mgmt.Deals.returnLoans(w)
         dev.uem.em.mgmt.Deals.executePreContracts(w)
