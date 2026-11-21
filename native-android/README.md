@@ -49,9 +49,13 @@ Phones are slower per core but have 6–8 cores, which the native app uses.
   patch notes, schedule, stats hub, teams, players, settings (difficulty, autosave, pictures),
   database editor (players and teams), follow teams.
 
-Still only in the previous (web-based) app: fan segments and rivalries, loans and
-player-for-player trades, pre-contracts, competition registration rules, delegation settings,
-department budgets, training sessions and scrims.
+* **Deals and team life**: loans for young players, player-for-player trades with cash,
+  pre-contracts from September, roster limits, delegated bids and renewals, rivalries and fans
+  that follow results, weekly scrims (sharpness and chemistry against fatigue).
+
+Still only in the previous (web-based) app: fan segments by type, competition registration
+deadlines, department budgets and the full spatial match engines (the native live view is
+built from the fast engines' events).
 
 ## Build
 

@@ -118,6 +118,13 @@ fun SettingsScreen(vm: GameVm, w: World) {
             }
         }
         item {
+            Card("Delegation") {
+                Tabs(listOf("You answer bids", "Director answers bids"), if (w.delegateBids) 1 else 0) { w.delegateBids = it == 1; vm.edit() }
+                Tabs(listOf("You handle renewals", "Director renews key players"), if (w.delegateRenewals) 1 else 0) { w.delegateRenewals = it == 1; vm.edit() }
+                Muted("The director accepts bids well above a player's value and renews players of 60+ ability in October.")
+            }
+        }
+        item {
             Card("Pictures") {
                 Tabs(listOf("Online pictures on", "Off (badges only)"), if (Pics.online) 0 else 1) { Pics.online = it == 0; vm.setPicturesOnline(it == 0); vm.touch() }
                 Muted("Pictures load from their owners' servers; without a connection the game shows its own badges.")

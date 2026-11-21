@@ -99,6 +99,8 @@ fun SquadScreen(vm: GameVm, w: World) {
                 Tabs(Development.FOCUS.map { Development.FOCUS_LABEL[it]!! }, Development.FOCUS.indexOf(team.focus).coerceAtLeast(0)) { team.focus = Development.FOCUS[it]; vm.edit() }
                 Muted("Intensity ${team.intensity} — higher grows players faster but tires them")
                 Slider(value = team.intensity.toFloat(), onValueChange = { team.intensity = it.roundToInt(); vm.edit() }, valueRange = 30f..95f)
+                Muted("Scrims per week: ${team.scrims} — sharper and better drilled, but more tired")
+                Slider(value = team.scrims.toFloat(), onValueChange = { team.scrims = it.roundToInt(); vm.edit() }, valueRange = 0f..6f, steps = 5)
                 Muted("Facilities: training level ${w.orgs[team.orgId].facilities[0]} (Finances)")
             }
         }
@@ -252,6 +254,7 @@ fun PlayerActions(vm: GameVm, w: World, p: Player) {
         if (own) {
             Muted("Contract: ${formatMoney(p.salary)} per season until ${p.contractEnd} · value ${formatMoney(Economy.marketValue(w, p))}${if (p.listed) " · transfer listed" else ""}")
             Row { Btn("Renew") { dialog = "renew" }; Ghost(if (p.listed) "Unlist" else "Transfer list") { p.listed = !p.listed; vm.edit() }; Ghost("Release", Ui.loss) { dialog = "release" } }
+            if (Dates.ageAt(p.birth, w.day) <= 22) Ghost("Loan out until season end") { vm.toast = dev.uem.em.mgmt.Deals.loanOut(w, p.id).text; vm.edit() }
         } else if (p.teamId < 0) {
             Muted("Free agent · asks about ${formatMoney(Market.asking(w, myTeam, p))} per season from ${myTeam.name}")
             Btn("Offer contract") { dialog = "sign" }
@@ -259,8 +262,12 @@ fun PlayerActions(vm: GameVm, w: World, p: Player) {
             Muted("${w.teams[p.teamId].name} accepted ${formatMoney(accepted.fee)}. Agree personal terms (asks about ${formatMoney(Market.asking(w, myTeam, p))}).")
             Btn("Agree terms") { dialog = "terms" }
         } else {
-            Muted("${w.teams[p.teamId].name} · value ${formatMoney(Economy.marketValue(w, p))} · ${Market.windowLabel(w)}")
-            Btn("Make a bid") { dialog = "bid" }
+            Muted("${w.teams[p.teamId].name} · value ${formatMoney(Economy.marketValue(w, p))} · ${Market.windowLabel(w)}${if (p.loanFrom >= 0) " · on loan from ${w.teams[p.loanFrom].short}" else ""}")
+            Row {
+                Btn("Make a bid") { dialog = "bid" }
+                Ghost("Propose trade") { dialog = "trade" }
+                if (p.contractEnd == w.season && Dates.month(w.day) >= 9) Ghost("Pre-contract") { dialog = "pre" }
+            }
         }
     }
     when (dialog) {
@@ -281,6 +288,27 @@ fun PlayerActions(vm: GameVm, w: World, p: Player) {
             vm.toast = Market.bid(w, p.id, myTeam.id, money).text
             dialog = null
             vm.edit()
+        }
+        "pre" -> MoneyDialog("Pre-contract: ${p.handle}", "Salary from next season", Market.asking(w, myTeam, p) * 1.05, false, { dialog = null }) { money, _ ->
+            vm.toast = dev.uem.em.mgmt.Deals.preContract(w, p.id, myTeam.id, money).text
+            dialog = null
+            vm.edit()
+        }
+        "trade" -> {
+            val mine = myTeam.roster.map { w.players[it] }.filter { it.loanFrom < 0 }
+            var pick by remember { mutableIntStateOf(mine.firstOrNull()?.id ?: -1) }
+            var cash by remember { mutableDoubleStateOf(0.0) }
+            AlertDialog(onDismissRequest = { dialog = null }, title = { Text("Trade for ${p.handle}") }, text = {
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                    Muted("Offer one of your players (value) plus cash:")
+                    for (m in mine) Row(Modifier.fillMaxWidth().clickable { pick = m.id }.padding(vertical = 4.dp)) {
+                        Text((if (pick == m.id) "● " else "○ ") + m.handle, color = Ui.text)
+                        Muted("  ${Catalogue.get(m.titleId).role(m.mainRole).short} · %.0f · ${formatMoney(Economy.marketValue(w, m))}".format(m.ca))
+                    }
+                    Text("Cash: ${formatMoney(cash)}", color = Ui.text)
+                    Slider(value = cash.toFloat(), onValueChange = { cash = (it / 10000).roundToInt() * 10000.0 }, valueRange = 0f..(Economy.marketValue(w, p) * 1.5).toFloat().coerceAtLeast(10000f))
+                }
+            }, confirmButton = { Ghost("Propose") { if (pick >= 0) vm.toast = dev.uem.em.mgmt.Deals.trade(w, pick, p.id, cash).text; dialog = null; vm.edit() } }, dismissButton = { Ghost("Cancel") { dialog = null } })
         }
         "release" -> AlertDialog(onDismissRequest = { dialog = null }, title = { Text("Release ${p.handle}?") },
             text = { Text("You pay half of the remaining contract (${formatMoney(p.salary * (maxOf(0, p.contractEnd - w.season) + 0.5) * 0.5)}).") },

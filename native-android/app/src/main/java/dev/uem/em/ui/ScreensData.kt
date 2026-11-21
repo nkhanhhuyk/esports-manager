@@ -266,6 +266,8 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
                 }
             }
         }
+        val rivals = dev.uem.em.mgmt.Deals.rivalsOf(w, id)
+        if (rivals.isNotEmpty()) item { Card("Rivals") { for ((rid, v) in rivals) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) { Column(Modifier.weight(1f)) { TeamChip(w, rid, vm, 18.dp) }; Muted("intensity ${v.toInt()}") } } }
         if (team.trophies.isNotEmpty()) item { Card("Trophies") { for (tr in team.trophies.reversed()) Text("🏆 ${tr.name}", color = Ui.gold, fontSize = 13.sp) } }
         if (team.history.isNotEmpty()) item { Card("Seasons") { for (h in team.history.reversed()) Muted("${h.season}: ${h.w}-${h.l}, final split ${if (h.position > 0) "#${h.position}" else "—"}, Elo ${h.elo.toInt()}", 13) } }
     }

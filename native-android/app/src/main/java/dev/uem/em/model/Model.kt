@@ -40,6 +40,10 @@ class World(
     val followed: MutableList<Int> = ArrayList(),
     var difficulty: String = "normal",
     var autosave: String = "week",
+    /** Rivalry intensity by team pair ("a|b", a < b). */
+    val rivalries: MutableMap<String, Double> = HashMap(),
+    var delegateBids: Boolean = false,
+    var delegateRenewals: Boolean = false,
 ) {
     /** Fixture ids by day (rebuilt after loading; not saved). */
     @kotlinx.serialization.Transient
@@ -100,6 +104,12 @@ class Player(
     var listed: Boolean = false,
     var unhappy: Double = 0.0,
     var awards: MutableList<String> = ArrayList(),
+    /** On loan: the parent team and the season the loan ends. */
+    var loanFrom: Int = -1,
+    var loanUntil: Int = 0,
+    /** Pre-contract: joins this team when the season ends. */
+    var preContractTeam: Int = -1,
+    var preContractSalary: Double = 0.0,
 ) {
     val retired get() = retiredSeason != 0
     val mainRole get() = roles[0]
@@ -146,6 +156,8 @@ class Team(
     var manualLineup: Boolean = false,
     /** Country code for a national team (Nations Cup), empty for clubs. */
     var nationalOf: String = "",
+    /** Scrims per week (0-6): sharpness and chemistry, at the cost of fatigue. */
+    var scrims: Int = 3,
 )
 
 @Serializable

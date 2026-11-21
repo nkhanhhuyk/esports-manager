@@ -97,7 +97,8 @@ object Economy {
             if (!team.active) continue
             val v = divisionValue(w, team)
             media += v * 0.75 * (0.5 + org.rep / 100) / 12
-            for (pid in team.roster) salaries += w.players[pid].salary / 12
+            for (pid in team.roster) salaries += w.players[pid].salary / 12 * (if (w.players[pid].loanFrom >= 0) 0.5 else 1.0)
+            for (p in w.players) if (p.loanFrom == tid) salaries += p.salary / 12 * 0.5
             for (sid in team.staffIds) staff += w.staff[sid].salary / 12
             ops += v * 0.06 / 12 + 1500 * (0.4 + GameData.economy(team.region))
         }

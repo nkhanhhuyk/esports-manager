@@ -60,6 +60,7 @@ object Market {
         if (p.teamId >= 0 && p.teamId != teamId) return Reply(false, "${p.handle} is under contract with ${w.teams[p.teamId].name}: make a bid to their club first.")
         if (p.titleId != team.titleId) return Reply(false, "${p.handle} plays ${Catalogue.get(p.titleId).short}.")
         val renewal = p.teamId == teamId
+        if (!renewal && team.roster.size >= Deals.maxRoster(team.titleId)) return Reply(false, "${team.name} already have ${team.roster.size} players (maximum ${Deals.maxRoster(team.titleId)}).")
         if (!renewal && !inWindow(w) && team.roster.size >= Catalogue.get(team.titleId).teamSize + 2) return Reply(false, "Outside a transfer window you can only sign free agents when your roster is short.")
         if (!renewal && org.balance < salary * 0.25) return Reply(false, "Not enough money for the signing.")
         val ask = asking(w, team, p) * (if (renewal) (1.0 + p.unhappy / 300) else 1.0)
@@ -243,7 +244,7 @@ object Market {
         if (!inWindow(w)) return
         // Bid for a better player at a weaker club.
         val myElo = team.elo
-        val targets = w.players.asSequence().filter { p -> p.teamId >= 0 && p.teamId != team.id && p.titleId == team.titleId && p.mainRole == role && p.ca > weakCa + 4.5 && w.teams[p.teamId].elo < myElo + 40 }
+        val targets = w.players.asSequence().filter { p -> p.teamId >= 0 && p.loanFrom < 0 && p.teamId != team.id && p.titleId == team.titleId && p.mainRole == role && p.ca > weakCa + 4.5 && w.teams[p.teamId].elo < myElo + 40 }
             .sortedByDescending { it.ca }.take(4).toList()
         for (p in targets) {
             val value = Economy.marketValue(w, p)
@@ -265,14 +266,14 @@ object Market {
     }
 
     private fun releaseWorst(w: World, team: Team) {
-        val worst = team.roster.map { w.players[it] }.filter { it.id !in team.lineup }.minByOrNull { it.ca } ?: return
+        val worst = team.roster.map { w.players[it] }.filter { it.id !in team.lineup && it.loanFrom < 0 }.minByOrNull { it.ca } ?: return
         leave(w, worst, "released")
     }
 
     private fun aiBidForUserPlayer(w: World, rng: Rng) {
         val userTeams = w.teams.filter { it.active && w.isUserTeam(it.id) }
         if (userTeams.isEmpty()) return
-        val mine = userTeams.flatMap { t -> t.roster.map { w.players[it] } }.filter { it.ca >= 60 }
+        val mine = userTeams.flatMap { t -> t.roster.map { w.players[it] } }.filter { it.ca >= 60 && it.loanFrom < 0 }
         if (mine.isEmpty()) return
         val p = rng.weighted(mine) { it.ca - 50 + (if (it.listed) 30.0 else 0.0) }
         val buyers = w.teams.filter { it.active && !w.isUserTeam(it.id) && it.titleId == p.titleId && w.orgs[it.orgId].balance > Economy.marketValue(w, p) }

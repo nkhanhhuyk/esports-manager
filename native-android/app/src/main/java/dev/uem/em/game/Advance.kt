@@ -68,15 +68,17 @@ object Advance {
                 dev.uem.em.mgmt.Development.monthly(w)
                 dev.uem.em.mgmt.Economy.monthTick(w)
                 if (Dates.month(d) == 9) dev.uem.em.mgmt.Market.contractReminders(w)
+            dev.uem.em.mgmt.Deals.monthly(w)
             }
             if (Dates.dow(d) == 1) {
                 BoxStore.pageOut(w)
                 dev.uem.em.mgmt.Development.weekly(w)
                 dev.uem.em.mgmt.Extras.weeklyBreaks(w)
                 dev.uem.em.mgmt.Extras.weeklyScouting(w)
+                dev.uem.em.mgmt.Deals.weeklyScrims(w)
             }
         }
-        timed(4) { dev.uem.em.mgmt.Market.daily(w) }
+        timed(4) { dev.uem.em.mgmt.Market.daily(w); dev.uem.em.mgmt.Deals.delegated(w) }
         timed(5) { if (d == Season.endDay(w.season)) rollover(w) }
     }
 
@@ -147,6 +149,7 @@ object Advance {
         tb.elo = (tb.elo - dlt).roundToInt().toDouble()
         BoxStore.put(w, o.record)
         dev.uem.em.mgmt.Extras.afterSeries(w, f.id, o.record.games.flatMap { g -> g.lines.map { it.playerId } }.toSet())
+        dev.uem.em.mgmt.Deals.afterSeries(w, f)
         Progress.onFixtureDone(w, f)
     }
 
@@ -172,6 +175,8 @@ object Advance {
         dev.uem.em.mgmt.Extras.seasonReview(w)
         dev.uem.em.mgmt.Career.seasonEnd(w)
         w.season++
+        dev.uem.em.mgmt.Deals.returnLoans(w)
+        dev.uem.em.mgmt.Deals.executePreContracts(w)
         dev.uem.em.mgmt.Market.seasonEnd(w, rng)
         for (p in w.players) if (!p.retired && p.teamId < 0 && Dates.ageAt(p.birth, w.day) >= 33 && rng.chance(0.4)) p.retiredSeason = w.season
         dev.uem.em.mgmt.Career.youthIntake(w)
