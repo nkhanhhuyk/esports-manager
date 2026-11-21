@@ -1,0 +1,4 @@
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.**
+-keepclassmembers class dev.uem.em.** { *** Companion; }
+-keepclasseswithmembers class dev.uem.em.** { kotlinx.serialization.KSerializer serializer(...); }
