@@ -83,7 +83,7 @@ object Development {
             if (f.winner == f.a) { wins[f.a]++; losses[f.b]++ } else { wins[f.b]++; losses[f.a]++ }
         }
         for (team in w.teams) {
-            if (!team.active) continue
+            if (!team.active || team.nationalOf.isNotEmpty()) continue
             val wn = wins[team.id]
             val ls = losses[team.id]
             val psych = Economy.staffOf(w, team, "psychologist").maxOfOrNull { it.quality } ?: 30.0

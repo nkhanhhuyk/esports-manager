@@ -228,6 +228,9 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
                     Text(team.name, color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                     Muted("${t.name} · ${team.leagueId.takeIf { it >= 0 }?.let { w.leagues[it].name } ?: if (team.active) "no league" else "inactive (no league place)"}")
                     Muted("${org.name} · Elo ${team.elo.toInt()} · strength ${"%.1f".format(Lineups.strength(w, team))}${if (team.real) " · real team" else ""}")
+                    var editing by remember { mutableStateOf(false) }
+                    Row { FollowButton(vm, w, team); androidx.compose.material3.TextButton(onClick = { editing = true }) { Text("Edit", color = Ui.muted) } }
+                    if (editing) EditTeamDialog(vm, w, team) { editing = false }
                 }
             }
         }
@@ -314,10 +317,15 @@ fun PlayerScreen(vm: GameVm, w: World, id: Int) {
                 }
             }
         }
+        item {
+            var editing by remember { mutableStateOf(false) }
+            Row(Modifier.padding(horizontal = 12.dp)) { Column(Modifier.weight(1f)) { ScoutLine(vm, w, p) }; androidx.compose.material3.TextButton(onClick = { editing = true }) { Text("Edit", color = Ui.muted) } }
+            if (editing) EditPlayerDialog(vm, w, p) { editing = false }
+        }
         item { PlayerActions(vm, w, p) }
         item {
             Card("Ability") {
-                Row { Text("CA %.1f".format(p.ca), color = Ui.text, fontWeight = FontWeight.Bold); HGap(16); Muted("potential up to %.0f".format(p.pa), 13); HGap(16); Muted("form %+.1f".format(p.form), 13) }
+                Row { Text("CA %.1f".format(p.ca), color = Ui.text, fontWeight = FontWeight.Bold); HGap(16); Muted("potential ${if (w.userOrg >= 0) dev.uem.em.mgmt.Extras.potentialText(w, p) else "%.0f".format(p.pa)}${if (p.injuryUntil > w.day) " · ${p.injury} until ${Dates.short(p.injuryUntil)}" else ""}", 13); HGap(16); Muted("form %+.1f".format(p.form), 13) }
                 Gap()
                 for ((label, v) in dev.uem.em.model.Attrs.summaries(p.attrs).filter { (k, _) -> if (t.isMoba) k != "Shooter" else k != "MOBA" }) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {

@@ -43,6 +43,9 @@ sealed class Screen {
     data object Board : Screen()
     data object History : Screen()
     data object Patches : Screen()
+    data object Schedule : Screen()
+    data object Stats : Screen()
+    data object Settings : Screen()
     data class Comp(val id: Int) : Screen()
     data class Team(val id: Int) : Screen()
     data class Player(val id: Int) : Screen()
@@ -75,7 +78,11 @@ class GameVm(app: Application) : AndroidViewModel(app) {
     private var simJob: Job? = null
     private var lastAutosaveDay = 0
 
+    private val prefs = app.getSharedPreferences("uem", android.content.Context.MODE_PRIVATE)
+    fun setPicturesOnline(on: Boolean) { prefs.edit().putBoolean("pictures", on).apply() }
+
     init {
+        Pics.online = prefs.getBoolean("pictures", true)
         BoxStore.store = store.pages()
         viewModelScope.launch(Dispatchers.Default) {
             GameData.init(src)
@@ -186,7 +193,8 @@ class GameVm(app: Application) : AndroidViewModel(app) {
             unsaved = true
             touch()
             if (res.stoppedForUser) toast = "Match day: your team plays tomorrow"
-            if (w.day - lastAutosaveDay >= 7) save(silent = true)
+            val every = when (w.autosave) { "advance" -> 0; "month" -> 30; "off" -> Int.MAX_VALUE; else -> 7 }
+            if (w.day - lastAutosaveDay >= every) save(silent = true)
         }
     }
 

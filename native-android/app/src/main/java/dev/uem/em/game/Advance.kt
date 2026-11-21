@@ -69,7 +69,12 @@ object Advance {
                 dev.uem.em.mgmt.Economy.monthTick(w)
                 if (Dates.month(d) == 9) dev.uem.em.mgmt.Market.contractReminders(w)
             }
-            if (Dates.dow(d) == 1) { BoxStore.pageOut(w); dev.uem.em.mgmt.Development.weekly(w) }
+            if (Dates.dow(d) == 1) {
+                BoxStore.pageOut(w)
+                dev.uem.em.mgmt.Development.weekly(w)
+                dev.uem.em.mgmt.Extras.weeklyBreaks(w)
+                dev.uem.em.mgmt.Extras.weeklyScouting(w)
+            }
         }
         timed(4) { dev.uem.em.mgmt.Market.daily(w) }
         timed(5) { if (d == Season.endDay(w.season)) rollover(w) }
@@ -141,6 +146,7 @@ object Advance {
         ta.elo = (ta.elo + dlt).roundToInt().toDouble()
         tb.elo = (tb.elo - dlt).roundToInt().toDouble()
         BoxStore.put(w, o.record)
+        dev.uem.em.mgmt.Extras.afterSeries(w, f.id, o.record.games.flatMap { g -> g.lines.map { it.playerId } }.toSet())
         Progress.onFixtureDone(w, f)
     }
 
@@ -163,6 +169,7 @@ object Advance {
         }
         val rng = dev.uem.em.core.Rng.derive(w.seed, "rollover", w.season)
         dev.uem.em.mgmt.Career.awards(w)
+        dev.uem.em.mgmt.Extras.seasonReview(w)
         dev.uem.em.mgmt.Career.seasonEnd(w)
         w.season++
         dev.uem.em.mgmt.Market.seasonEnd(w, rng)
@@ -171,6 +178,7 @@ object Advance {
         fillRosters(w)
         Season.plan(w, w.season)
         if (!w.sacked) dev.uem.em.mgmt.Career.setupBoard(w)
+        dev.uem.em.mgmt.Extras.seasonPreview(w)
         w.news.add(News(w.day, "Season ${w.season} begins", "The ${w.season} calendar is out: three splits, First Stand, MSI and Worlds."))
         w.rebuildSchedule()
     }
@@ -179,7 +187,7 @@ object Advance {
     fun fillRosters(w: World) {
         val free = w.players.filter { !it.retired && it.teamId < 0 }.groupBy { it.titleId }.mapValues { (_, v) -> v.sortedByDescending { it.ca }.toMutableList() }
         for (team in w.teams) {
-            if (!team.active || w.isUserTeam(team.id)) continue
+            if (!team.active || w.isUserTeam(team.id) || team.nationalOf.isNotEmpty()) continue
             val t = Catalogue.get(team.titleId)
             val pool = free[team.titleId] ?: continue
             while (team.roster.size < t.teamSize + 1 && pool.isNotEmpty()) {

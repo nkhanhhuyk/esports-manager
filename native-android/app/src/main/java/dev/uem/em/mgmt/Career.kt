@@ -44,7 +44,7 @@ object Career {
 
     private fun conf(w: World, delta: Double, note: String) {
         val b = w.board ?: return
-        b.confidence = clamp(b.confidence + delta, 0.0, 100.0)
+        b.confidence = clamp(b.confidence + (if (delta < 0) delta * Extras.boardPenaltyFactor(w) else delta), 0.0, 100.0)
         b.notes.add("${Dates.short(w.day)}: $note (${if (delta >= 0) "+" else ""}${delta.roundToInt()})")
         if (b.notes.size > 30) b.notes.removeAt(0)
     }

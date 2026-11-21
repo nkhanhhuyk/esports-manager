@@ -37,6 +37,11 @@ class MgmtTest {
         println("patches $byKind; sample: ${w.patches.firstOrNull { it.kind == "major" }?.notes?.take(3)}")
         println("awards ${w.awards.size}: ${w.awards.filter { it.titleId == "lol" }.joinToString { it.name + "=" + w.players[it.playerId].handle }}")
         println("board season ${w.board?.season} confidence ${w.board?.confidence?.toInt()} sacked ${w.sacked}; objectives ${w.board?.objectives?.map { it.text }}")
+        val nc = w.comps.filter { it.entrants.any { e -> e.startsWith("nations:") } }
+        println("nations cups ${nc.size}: " + nc.joinToString { "${it.short}=${it.placements.firstOrNull()?.let { tid -> w.teams[tid].name } ?: "?"}" })
+        println("injured now ${w.players.count { it.injuryUntil > w.day && !it.injury.startsWith("Break") }}, on break ${w.players.count { it.injuryUntil > w.day && it.injury.startsWith("Break") }}, injuries in the season (career) n/a")
+        assertTrue(nc.size == 6 && nc.all { it.done })
+        assertTrue(w.teams.none { it.nationalOf.isNotEmpty() && it.active })
         assertTrue(org.months.size >= 12)
         assertTrue(w.transfers.isNotEmpty())
         assertTrue(byKind["minor"] ?: 0 > 3)

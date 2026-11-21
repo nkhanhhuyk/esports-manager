@@ -176,6 +176,7 @@ fun HomeScreen(vm: GameVm, w: World) {
                 }
             }
         }
+        item { FollowedCard(vm, w) }
         item {
             Card("News") {
                 for (n in w.news.takeLast(8).reversed()) {
@@ -198,8 +199,11 @@ fun MoreScreen(vm: GameVm, w: World) {
         Triple("Board", "Objectives and confidence", Screen.Board),
         Triple("History & awards", "Champions and season awards", Screen.History),
         Triple("Patch notes", "Every balance patch of every game", Screen.Patches),
+        Triple("Schedule", "Your and followed teams' matches", Screen.Schedule),
+        Triple("Stats hub", "Season leaders and power ranking", Screen.Stats),
         Triple("Teams", "All leagues and teams", Screen.Teams),
         Triple("Players", "Search every player", Screen.Players),
+        Triple("Settings", "Difficulty, autosave, pictures, your name", Screen.Settings),
     )
     LazyColumn(Modifier.fillMaxSize()) {
         items(menu) { (title, sub, screen) ->

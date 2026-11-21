@@ -188,7 +188,7 @@ object Market {
         if (w.offers.size > 3000) w.offers.removeAll { it.status != "pending" && it.status != "accepted" && it.day < w.day - 120 }
         val window = inWindow(w)
         for (team in w.teams) {
-            if (!team.active || w.isUserTeam(team.id)) continue
+            if (!team.active || w.isUserTeam(team.id) || team.nationalOf.isNotEmpty()) continue
             val t = Catalogue.get(team.titleId)
             val short = team.roster.count { !w.players[it].retired } < t.teamSize + 1
             if (!short && !(window && rng.chance(1.0 / 40))) continue

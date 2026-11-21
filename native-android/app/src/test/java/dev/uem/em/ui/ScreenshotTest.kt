@@ -48,16 +48,16 @@ class ScreenshotTest {
         vm.setWorldForTest(w)
         val out = File("build/screens").apply { mkdirs() }
         val comp = w.comps.first { it.leagueId == t1.leagueId && it.season == w.season }
-        val match = w.fixtures.last { it.done && (it.a == t1.id || it.b == t1.id) }
+        val match = w.fixtures.last { it.done && it.titleId == "lol" }
         val faker = w.players.first { it.handle == "Faker" }
-        val shots = listOf("home" to Screen.Home, "comp" to Screen.Comp(comp.id), "team" to Screen.Team(t1.id), "player" to Screen.Player(faker.id), "match" to Screen.Match(match.id), "comps" to Screen.Comps, "squad" to Screen.Squad, "market" to Screen.Market, "finances" to Screen.Finances, "inbox" to Screen.Inbox, "board" to Screen.Board, "patches" to Screen.Patches, "more" to Screen.More)
+        val shots = listOf("home" to Screen.Home, "comp" to Screen.Comp(comp.id), "team" to Screen.Team(t1.id), "player" to Screen.Player(faker.id), "match" to Screen.Match(match.id), "comps" to Screen.Comps, "squad" to Screen.Squad, "market" to Screen.Market, "finances" to Screen.Finances, "inbox" to Screen.Inbox, "board" to Screen.Board, "patches" to Screen.Patches, "more" to Screen.More, "stats" to Screen.Stats, "schedule" to Screen.Schedule, "settings" to Screen.Settings)
         vm.tab(Screen.Home)
         rule.setContent { AppRoot(vm) {} }
         rule.waitForIdle()
         // Live match: draft, then the 2D view part-way through game 1 (MOBA and shooter).
         LiveDefaults.autoplay = false
         LiveDefaults.startFraction = 0.45f
-        val lolFx = w.fixtures.first { !it.done && it.titleId == "lol" && (it.a == t1.id || it.b == t1.id) }
+        val lolFx = w.fixtures.firstOrNull { !it.done && it.titleId == "lol" && (it.a == t1.id || it.b == t1.id) } ?: w.fixtures.first { !it.done && it.titleId == "lol" }
         rule.runOnIdle { vm.startLive(lolFx.id) }
         shot(out, "live-draft")
         rule.runOnIdle { vm.live!!.draftAct(vm.live!!.draft!!.t.characters.first { vm.live!!.draft!!.legal(vm.live!!.me, vm.live!!.draft!!.current()?.second ?: true, it.id) }.id); vm.live!!.autoDraft() }

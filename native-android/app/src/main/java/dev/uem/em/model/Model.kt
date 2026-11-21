@@ -34,6 +34,12 @@ class World(
     var lastMonth: Int = 0,
     var sacked: Boolean = false,
     var managerName: String = "Manager",
+    /** Scouting knowledge of players (0-100) beyond your own squad. */
+    val scouting: MutableMap<Int, Int> = HashMap(),
+    val scoutQueue: MutableList<Int> = ArrayList(),
+    val followed: MutableList<Int> = ArrayList(),
+    var difficulty: String = "normal",
+    var autosave: String = "week",
 ) {
     /** Fixture ids by day (rebuilt after loading; not saved). */
     @kotlinx.serialization.Transient
@@ -138,6 +144,8 @@ class Team(
     var focus: String = "balanced",
     var intensity: Int = 60,
     var manualLineup: Boolean = false,
+    /** Country code for a national team (Nations Cup), empty for clubs. */
+    var nationalOf: String = "",
 )
 
 @Serializable

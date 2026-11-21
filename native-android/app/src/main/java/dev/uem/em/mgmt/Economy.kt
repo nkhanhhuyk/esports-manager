@@ -114,12 +114,13 @@ object Economy {
         w.lastMonth = mk
         val rng = Rng.derive(w.seed, "finance", mk)
         for (org in w.orgs) {
-            if (org.teams.none { w.teams[it].active }) continue
+            if (org.teams.none { w.teams[it].active && w.teams[it].nationalOf.isEmpty() }) continue
             renewSponsors(w, org, rng)
             val b = monthly(w, org)
             val user = org.id == w.userOrg
             if (user) {
-                for ((k, v) in b.revenue) if (v > 0) ledger(w, org, k.lowercase(), v, k)
+                val inc = Extras.incomeFactor(w)
+                for ((k, v) in b.revenue) if (v > 0) ledger(w, org, k.lowercase(), v * inc, k)
                 for ((k, v) in b.expenses) if (v > 0) ledger(w, org, k.lowercase(), -v, k)
                 org.months.add(MonthFin(mk, b.income, b.costs, org.balance, b.revenue + b.expenses.mapValues { -it.value }))
                 if (org.months.size > 36) org.months.removeAt(0)

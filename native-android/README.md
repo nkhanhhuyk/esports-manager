@@ -25,20 +25,33 @@ Measured on the 4-core build machine (JVM unit tests, same code as the app):
 
 Phones are slower per core but have 6–8 cores, which the native app uses.
 
-## Stages
+## Features (native)
 
-1. **Stage 1 (this build)** — real-data world generation (leagues, teams, players with real
-   birthdays / nationalities / positions, dormant teams, free agents), the full season calendar
-   (three splits, First Stand with hard Fearless in MOBAs, MSI double elimination, Worlds by circuit
-   points), the fast MOBA and shooter engines with drafts, side / pick-order choice and map veto,
-   standings, brackets, per-competition player stats (KDA and stat groups), match reports with the
-   blue side on top and character icons, team and player pages, pictures, monthly development,
-   season rollover with contracts and roster upkeep, saves and weekly autosave.
-2. **Stage 2** — transfers and negotiations, contracts, finances, staff, training, scouting, board.
-3. **Stage 3** — the live 2D match viewer, playing your matches live (lineups, drafts, veto),
-   patches with detailed notes, history and records, awards.
+* **World**: real leagues, teams and players (real birthdays, nationalities, positions), fictional
+  leagues where no real data exists, dormant real teams and their former players as free agents,
+  prospects; pictures for players, teams, leagues and characters.
+* **Season**: three splits per league, First Stand (hard Fearless in MOBAs), MSI (double
+  elimination), Worlds by circuit points; Nations Cup with national teams every other December.
+* **Matches**: fast MOBA and shooter engines on all CPU cores; drafts with bans and Fearless,
+  side / pick-order choice, map veto, MVPs; **play your matches live** (your draft or veto, every
+  game on a 2D map with kills, fights, objectives, towers, or round by round for shooters).
+* **Management**: lineups and tactics, training focus and intensity, staff (hire / release),
+  contracts and renewals, transfer market (windows, free agents, bids then personal terms,
+  transfer list, AI clubs buying and selling, AI bids for your players), finances (sponsors,
+  media, merchandise, salaries, facilities, prize money), board objectives and confidence,
+  dismissal and job offers, scouting (potential is a range until scouted), injuries and breaks,
+  morale and chemistry, monthly development.
+* **Game life**: minor / medium / major patches with written notes that change the meta and, after
+  Worlds, the game itself; season awards (MVP, Rookie, All-Pro, Worlds MVP); youth intake; season
+  preview and review; news and inbox.
+* **Screens**: home, events (standings, groups, brackets, matches, player stats with KDA and stat
+  groups), squad, market, team, player, match report, inbox, finances, board, history & awards,
+  patch notes, schedule, stats hub, teams, players, settings (difficulty, autosave, pictures),
+  database editor (players and teams), follow teams.
 
-The previous app keeps the stage 2–3 features until they are ported.
+Still only in the previous (web-based) app: fan segments and rivalries, loans and
+player-for-player trades, pre-contracts, competition registration rules, delegation settings,
+department budgets, training sessions and scrims.
 
 ## Build
 

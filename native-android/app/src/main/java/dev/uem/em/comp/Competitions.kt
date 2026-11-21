@@ -100,6 +100,14 @@ object Season {
     }
 
     fun plan(w: World, season: Int) {
+        // Nations Cup (odd seasons): national teams in early December, before the season starts.
+        if (season % 2 == 1) w.titles.sortedByDescending { id -> Catalogue.POPULARITY[id]!!.values.average() }.take(6).forEachIndexed { i, id ->
+            val t = Catalogue.get(id)
+            val start = Dates.day(season - 1, 12, 3) + i % 3
+            if (start > w.day) mk(w, t, season, "${t.short} Nations Cup $season", "${t.short} NC", CompTier.INTERNATIONAL, null, listOf("nations:$id:8"),
+                listOf(stage("Group Stage", StageType.GROUPS, start, t.formats.first.n, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 2), stage("Knockout Stage", StageType.SINGLE_ELIM, start + 5, t.formats.second.n, daysBetween = 2)),
+                t.prizeScale * 150_000, 55, emptyList())
+        }
         w.titles.forEachIndexed { ti, titleId ->
             val t = Catalogue.get(titleId)
             val off = ti % 3
@@ -400,6 +408,7 @@ object Progress {
             val p = rule.split(':')
             when (p[0]) {
                 "league" -> w.leagues[p[1].toInt()].teamIds.forEach(::add)
+                "nations" -> dev.uem.em.mgmt.Extras.nationalTeams(w, p[1], p[2].toInt()).forEach(::add)
                 "top" -> {
                     val src = w.comps[p[1].toInt()]
                     if (!src.done) return null
@@ -481,5 +490,6 @@ object Progress {
         c.pstats.entries.filter { it.value.gp * 2 >= maxGp && it.value.gp > 0 }.maxByOrNull { it.value.r / it.value.gp }?.let { c.mvp = it.key }
         dev.uem.em.mgmt.Economy.onCompetitionFinished(w, c)
         dev.uem.em.mgmt.Career.onCompetitionFinished(w, c)
+        dev.uem.em.mgmt.Extras.onCompetitionFinished(w, c)
     }
 }
