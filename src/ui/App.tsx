@@ -310,11 +310,36 @@ function Page({ route }: { route: Route }) {
   }
 }
 
+/**
+ * Simulation progress. Its own component so progress updates (several a second while simulating)
+ * redraw only this box, never the page underneath (re-rendering large pages slowed phones down).
+ */
+function BusyOverlay() {
+  const busy = useGame((s) => s.busy);
+  if (!busy) return null;
+  return (
+    <div className="busy" role="status" aria-live="polite">
+      <div className="busy-box">
+        <div>{busy.label}</div>
+        {busy.total > 0 && (
+          <>
+            <div className="progress">
+              <span style={{ width: `${(busy.done / busy.total) * 100}%` }} />
+            </div>
+            <div className="muted small" style={{ marginTop: 6 }}>
+              {busy.done} / {busy.total} days
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function App() {
   const world = useGame((s) => s.world);
   useGame((s) => s.version);
   const theme = useGame((s) => s.theme);
-  const busy = useGame((s) => s.busy);
   const toast = useGame((s) => s.toast);
   const quickSave = useGame((s) => s.quickSave);
   const notify = useGame((s) => s.notify);
@@ -362,23 +387,7 @@ export function App() {
 
   const overlay = (
     <>
-      {busy && (
-        <div className="busy" role="status" aria-live="polite">
-          <div className="busy-box">
-            <div>{busy.label}</div>
-            {busy.total > 0 && (
-              <>
-                <div className="progress">
-                  <span style={{ width: `${(busy.done / busy.total) * 100}%` }} />
-                </div>
-                <div className="muted small" style={{ marginTop: 6 }}>
-                  {busy.done} / {busy.total} days
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      <BusyOverlay />
       {toast && <div className={`toast ${toast.kind}`}>{toast.text}</div>}
     </>
   );

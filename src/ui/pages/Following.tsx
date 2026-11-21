@@ -23,7 +23,7 @@ function mainTeams(world: World): Team[] {
 
 /** Card on the organisation picker: start watching instead of managing. */
 export function SpectateCard() {
-  const { act, save } = useGame();
+  const { act, save } = useGame.getState();
   const world = useWorld();
   const go = async (ids: string[]) => {
     act((w) => becomeSpectator(w, ids));
@@ -49,7 +49,7 @@ export function SpectateCard() {
 
 export function FollowingPage() {
   const world = useWorld();
-  const { act } = useGame();
+  const { act } = useGame.getState();
   const [title, setTitle] = useState('');
   const [tier, setTier] = useState<'main' | 'all'>('main');
   const rows = useMemo(

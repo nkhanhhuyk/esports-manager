@@ -12,7 +12,7 @@ const FOCI = Object.keys(FOCUS_LABEL) as TrainingFocus[];
 
 export function TrainingPage({ route }: { route: Route }) {
   const world = useWorld();
-  const { act } = useGame();
+  const { act } = useGame.getState();
   const mine = userTeams(world);
   const team = world.teams[route.query.team ?? mine[0]?.id];
   if (!team) return <div>No team.</div>;

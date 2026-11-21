@@ -163,22 +163,28 @@ Objective timings were updated in `src/data/titles/catalogue.ts` with the same r
 
 ## Pictures — `src/data/real/images.json`
 
-`node scripts/data/images.mjs <cache dir>` collects **links only** (no image files are copied into the
-repository or the APK). Pictures load from the owners' own servers when the device is online; offline,
+`node scripts/data/images.mjs <cache dir>` and then `node scripts/data/player_pictures.mjs <cache dir>`
+collect **links only** (no image files are copied into the repository or the APK). Pictures load from the owners' own servers when the device is online; offline,
 when switched off (Settings → Display → Online pictures) or when a picture fails, the game shows its own
 badges. Riot's fan-content policy covers Riot game art (LoL, Wild Rift, Valorant); other art is shown
 from its owners' servers for this personal, non-commercial game and is not redistributed.
 
+vlr.gg's image host (owcdn.net) refuses pictures shown inside other apps, so those load through
+**wsrv.nl**, a free public image proxy that also shrinks them to 128 px. Any other picture that fails to
+load directly is retried once through the same proxy before the game falls back to its own badge.
+Checked 20 Nov 2026 from a headless browser: every link loads (directly or through the proxy) except the
+dead ones that were removed (6 Dota 2 team logos, 1 LoL photo).
+
 | Pictures | Source | Count |
 | --- | --- | --- |
-| LoL & Wild Rift champions | Riot Data Dragon (Wild Rift by champion name); Norra from the League of Legends Wiki | 173 + 143 |
+| LoL & Wild Rift champions | Riot Data Dragon (Wild Rift by champion name); Norra: Riot's official Wild Rift site (the League of Legends Wiki blocks pictures shown elsewhere) | 173 + 143 |
 | Valorant agents and weapons | valorant-api.com | 30 agents, 21 weapons |
 | Dota 2 heroes | OpenDota hero list → Valve's Dota 2 CDN | 127 |
-| Honor of Kings heroes | Tencent's official CDN by official hero id (12 global-only heroes have none) | 106 |
+| Honor of Kings heroes | Tencent's official CDN by official hero id (106); the 12 global-only heroes: the official global site's icons (camp.honorofkings.com) as linked by hokstats.gg (6), else hokstats.gg's own icons (6) | 118 |
 | MLBB heroes | mlbbhub.com hero pages → Moonton's official CDN | 131 |
 | CS2 weapons | ByMykel/CSGO-API (Steam images) | 66 |
-| Team logos | LoL Esports gateway (177), vlr.gg (32), OpenDota (67), MPL Indonesia (9), bo3.gg (150), Wild Rift Esports Wiki (31) | 466 |
-| Player photos | LoL Esports gateway (533), vlr.gg (188), bo3.gg (743); MPL photos are expiring signed links — not used | 1,464 |
+| Team logos | LoL Esports gateway (177), vlr.gg (32), OpenDota (61 working), MPL Indonesia (9), bo3.gg (150), Wild Rift Esports Wiki (31) | 460 |
+| Player photos | LoL Esports gateway (533); Leaguepedia PlayerImages, newest team photo, for past LoL players (176); vlr.gg team pages (188) and player pages (244); bo3.gg (743). Not available: MLBB (MPL photos are signed links that expire after 6 hours), Dota 2 (no photo source reachable without Liquipedia), Wild Rift (the wiki has no player pages), HoK (fictional teams) | 1,884 |
 | League & event logos | LoL Esports gateway (incl. First Stand, MSI, Worlds), vlr.gg VCT events, MPL Indonesia | 59 |
 
 ## Licences and attribution

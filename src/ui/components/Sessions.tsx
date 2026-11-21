@@ -94,7 +94,7 @@ export function WeekTimetable({ world, team }: { world: World; team: Team }) {
 }
 
 export function TemplateEditor({ world, team }: { world: World; team: Team }) {
-  const { act } = useGame();
+  const { act } = useGame.getState();
   const self = !team.prefs.delegateTraining && !!team.training.template;
   const tpl = team.training.template;
   const rooms = practiceRooms(world.orgs[team.orgId]);

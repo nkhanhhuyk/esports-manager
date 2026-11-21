@@ -107,33 +107,58 @@ export function p2(diffLogit: number): number {
   return logistic(diffLogit);
 }
 
-/** Damage-dealer weighting of a player from functional class and character class. */
-export function dmgWeight(g: GameContext, pc: PlayerCtx): number {
-  let w = 1;
+/**
+ * Damage / tank / heal weightings of a player from functional class and character class. They depend
+ * only on the player's position and character, so they are worked out once per player per game
+ * (they are read on every kill and fight).
+ */
+interface Weights {
+  charId: string | undefined;
+  dmg: number;
+  tank: number;
+  heal: number;
+}
+const weightCache = new WeakMap<PlayerCtx, Weights>();
+function weightsOf(g: GameContext, pc: PlayerCtx): Weights {
+  const hit = weightCache.get(pc);
+  if (hit && hit.charId === pc.charId) return hit;
   const fc = pc.role.fclass;
-  if (fc.includes('Carry/Fragger')) w *= 1.45;
-  if (fc.includes('Support/Utility')) w *= 0.6;
-  if (fc.includes('Controller/Anchor')) w *= 0.95;
-  const cls = (g.title.characters.find((c) => c.id === pc.charId)?.cls ?? '').toLowerCase();
-  if (/marksman|mage|sniper|hunter|sharpshooter|damage|duelist|attacker|carry|assassin|nuker/.test(cls)) w *= 1.2;
-  if (/tank|guardian|vanguard|front|defender/.test(cls)) w *= 0.7;
+  const cls = ((pc.charId ? charMapOf(g.title).get(pc.charId)?.cls : undefined) ?? '').toLowerCase();
+  let dmg = 1;
+  if (fc.includes('Carry/Fragger')) dmg *= 1.45;
+  if (fc.includes('Support/Utility')) dmg *= 0.6;
+  if (fc.includes('Controller/Anchor')) dmg *= 0.95;
+  if (/marksman|mage|sniper|hunter|sharpshooter|damage|duelist|attacker|carry|assassin|nuker/.test(cls)) dmg *= 1.2;
+  if (/tank|guardian|vanguard|front|defender/.test(cls)) dmg *= 0.7;
+  let tank = 1;
+  if (fc.includes('Controller/Anchor') || fc.includes('Entry/Initiator')) tank *= 1.35;
+  if (fc.includes('Carry/Fragger')) tank *= 0.85;
+  if (/tank|guardian|vanguard|front|defender|warrior|fighter|bruiser|captain/.test(cls)) tank *= 1.6;
+  const heal = /support|enchanter|healer|supporter|strategist|captain/.test(cls) ? 1 : fc.includes('Support/Utility') ? 0.35 : 0.03;
+  const w = { charId: pc.charId, dmg, tank, heal };
+  weightCache.set(pc, w);
   return w;
+}
+const charMaps = new WeakMap<GameContext['title'], Map<string, GameContext['title']['characters'][number]>>();
+function charMapOf(t: GameContext['title']) {
+  let m = charMaps.get(t);
+  if (!m) {
+    m = new Map(t.characters.map((c) => [c.id, c]));
+    charMaps.set(t, m);
+  }
+  return m;
+}
+
+export function dmgWeight(g: GameContext, pc: PlayerCtx): number {
+  return weightsOf(g, pc).dmg;
 }
 
 export function tankWeight(g: GameContext, pc: PlayerCtx): number {
-  let w = 1;
-  if (pc.role.fclass.includes('Controller/Anchor') || pc.role.fclass.includes('Entry/Initiator')) w *= 1.35;
-  if (pc.role.fclass.includes('Carry/Fragger')) w *= 0.85;
-  const cls = (g.title.characters.find((c) => c.id === pc.charId)?.cls ?? '').toLowerCase();
-  if (/tank|guardian|vanguard|front|defender|warrior|fighter|bruiser|captain/.test(cls)) w *= 1.6;
-  return w;
+  return weightsOf(g, pc).tank;
 }
 
 export function healWeight(g: GameContext, pc: PlayerCtx): number {
-  const cls = (g.title.characters.find((c) => c.id === pc.charId)?.cls ?? '').toLowerCase();
-  if (/support|enchanter|healer|supporter|strategist|captain/.test(cls)) return 1;
-  if (pc.role.fclass.includes('Support/Utility')) return 0.35;
-  return 0.03;
+  return weightsOf(g, pc).heal;
 }
 
 export function fmtTime(sec: number): string {

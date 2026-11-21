@@ -16,7 +16,7 @@ import type { Offer, Player } from '../../model/types';
 
 export function MarketPage({ route }: { route: Route }) {
   const world = useWorld();
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const tab = route.query.tab ?? 'fa';
   const mine = userTeams(world);
   const [title, setTitle] = useState(mine[0]?.titleId ?? '');
@@ -194,7 +194,7 @@ export function MarketPage({ route }: { route: Route }) {
 
 function TradeBuilder() {
   const world = useWorld();
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const mine = userTeams(world);
   const [teamId, setTeamId] = useState(mine[0]?.id ?? '');
   const team = world.teams[teamId];
@@ -286,7 +286,7 @@ const STAGE_LABEL: Record<string, string> = { club: 'Fee talks', terms: 'Persona
 
 /** Accept / reject / counter an incoming bid for one of your players. */
 function OfferActions({ o }: { o: Offer }) {
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const [ask, setAsk] = useState(Math.round((o.fee * 1.2) / 1000) * 1000);
   const go = (fn: Parameters<typeof act>[0], save = true) => {
     const r = act(fn, { save }) as { ok: boolean; status?: string; message: string } | undefined;

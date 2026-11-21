@@ -24,7 +24,7 @@ import { ShooterViewer } from '../components/ShooterViewer';
 
 export function LiveMatchPage({ id }: { id: string }) {
   const world = useWorld();
-  const { act, notify, save, advance: advanceGame } = useGame();
+  const { act, notify, save, advance: advanceGame } = useGame.getState();
   const f = world.fixtures[id];
   const [st, setSt] = useState<SeriesState | null>(null);
   const [ds, setDs] = useState<DraftState | null>(null);

@@ -20,7 +20,7 @@ function abilityLabel(world: World, p: Player): string {
 
 /** Trial controls for a free agent or prospect (used here and on player pages). */
 export function TrialButtons({ world, p, team }: { world: World; p: Player; team: Team }) {
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const onTrial = p.trial && p.trial.untilDay > world.day;
   if (p.teamId || p.retired) return null;
   if (onTrial) return <span className="tag">on trial {p.trial!.teamId === team.id ? 'with you' : `at ${world.teams[p.trial!.teamId]?.short}`} until {formatDate(p.trial!.untilDay)}</span>;
@@ -45,7 +45,7 @@ export function TrialButtons({ world, p, team }: { world: World; p: Player; team
 
 export function YouthPage() {
   const world = useWorld();
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const classes = [...(world.youth?.classes ?? [])].reverse();
   const myTeams = new Set(world.meta.userOrgId ? world.orgs[world.meta.userOrgId].teams : []);
   const trials = Object.values(world.players).filter((p) => p.trial && p.trial.untilDay > world.day && myTeams.has(p.trial.teamId));

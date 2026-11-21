@@ -663,6 +663,8 @@ export interface Fixture {
    */
   spatial?: boolean;
   mvp?: ID;
+  /** Box-score page holding this fixture's match record (background matches, see src/game/boxPages.ts). */
+  pg?: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -789,6 +791,8 @@ export interface GameResult {
   sides?: string[];
   /** MOBAs: series index of the team on Blue / Radiant (map side 0). Absent in older results (= 0). */
   blue?: 0 | 1;
+  /** MOBAs: side / draft-order selection [chooser, what they took (0 side, 1 draft order), why (0 coin toss, 1 lost the previous game)]. */
+  sel?: [0 | 1, 0 | 1, 0 | 1];
 }
 
 export interface MatchRecord {
@@ -1121,6 +1125,8 @@ export interface WorldMeta {
   realHistoryFree?: boolean;
   /** Real birth dates / nationalities / names applied (playerFacts.json). */
   playerFacts?: boolean;
+  /** Finished seasons stored separately from the main save value (reattached on load). */
+  pastSeasons?: number[];
   realMaps?: boolean;
   /** 'real' = started from the real-world team/player snapshot; 'fictional' (default) = generated. */
   dataMode?: 'real' | 'fictional';
@@ -1137,6 +1143,8 @@ export type DelegationArea = 'signings' | 'sales' | 'contracts' | 'staff' | 'fin
 
 export interface World {
   /** Index of archived competition editions (their data lives in the season archive). */
+  /** Number of box-score pages written per season. */
+  boxPages?: Record<number, number>;
   /** Finished seasons' competitions and fixtures (results); box scores live in the match store. */
   past?: Record<number, { comps: Competition[]; fixtures: Fixture[] }>;
   compIndex?: Array<{ id: string; season: number; titleId: string; tier: CompTier; name: string; short: string; region: string | null; leagueId: string | null; split?: number; startDay: number; champion: string | null; runnerUp: string | null; teams: number; prizePool: number }>;

@@ -154,6 +154,8 @@ export interface DraftState {
   done: boolean;
   /** Runtime cache of per-player comfort lookups (not persisted). */
   comfortCache?: Map<string, (c: CharDef) => number>;
+  /** Runtime memo of quick-draft preference lists per lineup slot (not persisted). */
+  prefMemo?: Map<LineupSlot, CharDef[]>;
 }
 
 export function newDraft(world: World, t: TitleDef, patch: Patch, sides: [DraftSide, DraftSide], fearless: [Set<string>, Set<string>], firstPick: 0 | 1 = 0): DraftState {
@@ -234,7 +236,9 @@ export function applyDraftAction(ds: DraftState, charId: string, playerId?: stri
 }
 
 function roleOf(ds: DraftState, team: 0 | 1, slot: LineupSlot) {
-  return ds.title.roles.find((r) => r.id === slot.roleId) ?? ds.title.roles[0];
+  const roles = ds.title.roles;
+  for (let i = 0; i < roles.length; i++) if (roles[i].id === slot.roleId) return roles[i];
+  return roles[0];
 }
 
 function bestSlotFor(ds: DraftState, team: 0 | 1, charId: string, slots: LineupSlot[]): LineupSlot {
@@ -367,6 +371,14 @@ export function aiDraftAction(world: World, ds: DraftState, rng: RNG): { charId:
  */
 const quickCache = new WeakMap<object, Map<string, CharDef[]>>();
 function preferred(ds: DraftState, team: 0 | 1, slot: LineupSlot): CharDef[] {
+  const memo = (ds.prefMemo ||= new Map());
+  const known = memo.get(slot);
+  if (known) return known;
+  const list = preferredList(ds, team, slot);
+  memo.set(slot, list);
+  return list;
+}
+function preferredList(ds: DraftState, team: 0 | 1, slot: LineupSlot): CharDef[] {
   let m = quickCache.get(ds.patch);
   if (!m) {
     m = new Map();

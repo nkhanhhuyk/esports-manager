@@ -3,6 +3,7 @@ import { makeWorld, withUser } from './helpers';
 import { advance } from '../src/game/advance';
 import { editionsOf, loadArchive, seriesKey } from '../src/game/archive';
 import { boxLines } from '../src/sim/boxscore';
+import { loadMatchRecord } from '../src/game/boxPages';
 
 describe('history is kept: season archive, competition editions, box scores', () => {
   it('archives old seasons with every box score and groups editions per competition', async () => {
@@ -17,9 +18,18 @@ describe('history is kept: season archive, competition editions, box scores', ()
     const a = await loadArchive(w, first);
     expect(a).toBeTruthy();
     expect(a!.comps.length).toBe(idx.length);
-    expect(a!.matches.length).toBeGreaterThan(50);
-    // Every archived game still has its box score (background games in compact form).
-    for (const m of a!.matches.slice(0, 200)) for (const g of m.games) if (g.duration > 0) expect(boxLines(g).length, m.fixtureId).toBeGreaterThan(0);
+    // Every played fixture of the old season still has its box scores: in the season record or in a
+    // weekly box-score page (background matches are paged out of the save during the season).
+    const played = a!.fixtures.filter((f) => f.status === 'done');
+    expect(played.length).toBeGreaterThan(50);
+    expect(played.some((f) => f.pg !== undefined)).toBe(true);
+    for (const f of played.slice(0, 200)) {
+      const m = a!.matches.find((x) => x.fixtureId === f.id) ?? (await loadMatchRecord(w, f.id, first, f.pg));
+      expect(m, f.id).toBeTruthy();
+      for (const g of m!.games) if (g.duration > 0) expect(boxLines(g).length, f.id).toBeGreaterThan(0);
+    }
+    // The save itself no longer carries background box scores of the live season.
+    expect(Object.values(w.matches).every((m) => m.detail || m.day > w.day - 9)).toBe(true);
     // One competition, several editions: the league's splits of all seasons.
     const live = Object.values(w.comps).find((c) => c.tier === 'league')!;
     const eds = editionsOf(w, live);

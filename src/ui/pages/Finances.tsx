@@ -16,7 +16,7 @@ import { can } from '../../systems/career';
 
 export function FinancesPage({ route }: { route: Route }) {
   const world = useWorld();
-  const { act } = useGame();
+  const { act } = useGame.getState();
   const org = world.orgs[world.meta.userOrgId!];
   const mb = monthlyBreakdown(world, org);
   const rev = Object.values(mb.revenue).reduce((a, b) => a + b, 0);
@@ -74,7 +74,7 @@ const EFFECT: Record<FacilityKey, string> = {
 
 export function FacilitiesPage() {
   const world = useWorld();
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const org = world.orgs[world.meta.userOrgId!];
   return (
     <div>
@@ -107,7 +107,7 @@ export function FacilitiesPage() {
 /** Treasury: cash vs spending authority vs commitments, department budgets and the cash forecast. */
 function TreasuryPanel() {
   const world = useWorld();
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const org = world.orgs[world.meta.userOrgId!];
   const t = treasurySummary(world, org);
   const forecast = cashForecast(world, org, 12);

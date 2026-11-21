@@ -8,7 +8,7 @@ import { userTeams, roleName } from '../helpers';
 
 export function ScoutingPage() {
   const world = useWorld();
-  const { act } = useGame();
+  const { act } = useGame.getState();
   const scouts = userScouts(world);
   const titles = new Set(userTeams(world).map((t) => t.titleId));
   const prospects = useMemo(

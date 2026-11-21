@@ -13,12 +13,14 @@ import { useArchivedView } from './Competitions';
 import { useEffect } from 'react';
 import { boxLines } from '../../sim/boxscore';
 import { MobaViewer } from '../components/MobaViewer';
+import { selectionText } from '../../sim/series';
+import { cachedMatchRecord, loadMatchRecord } from '../../game/boxPages';
 import { sideOrder } from '../helpers';
 import { formatDate } from '../../core/date';
 import { navigate, type Route } from '../router';
 import { isUserTeamId, kda, roleName } from '../helpers';
 import { computeTeamStrength } from '../../sim/common/team';
-import type { Fixture, GameResult, MatchRecord } from '../../model/types';
+import type { Fixture, GameResult, MatchRecord, World } from '../../model/types';
 import { userFixturesOn } from '../../game/advance';
 import { fmtTime } from '../../sim/common/engine';
 import { can, denyReason } from '../../systems/career';
@@ -144,7 +146,7 @@ export function GameView({ g, f }: { g: GameResult; f: Fixture }) {
           </b>
         </div>
         {g.draft && <DraftPanel g={g} f={f} />}
-        {g.sides && g.sides.length > 0 && <div className="muted small" style={{ marginBottom: 6 }}>{g.sides.join(' · ')}</div>}
+        {selectionText(world, f, g) && <div className="muted small" style={{ marginBottom: 6 }}>{selectionText(world, f, g)}</div>}
         <Scoreboard g={g} f={f} />
         {g.engine === 'fast' && <div className="muted small">Background fixture simulated with the fast engine — no battlefield replay. Open a match before it is played (Watch live / Follow in full detail) to get the 2D simulation.</div>}
         {g.engine === 'spatial' && !replay && !sreplay && <div className="muted small">Replay no longer stored on this device (the 40 most recent battlefield games per career are kept).</div>}
@@ -203,15 +205,16 @@ export function SeriesView({ f, rec }: { f: Fixture; rec: MatchRecord }) {
 
 export function MatchPage({ id, route }: { id: string; route: Route }) {
   const live = useWorld();
-  const { act, advance } = useGame();
+  const { act, advance } = useGame.getState();
   const season = live.fixtures[id] ? null : route.query.season ? Number(route.query.season) : null;
   const { world, loading } = useArchivedView(live, season, true);
   const f = world.fixtures[id];
+  const paged = usePagedRecord(world, f);
   if (!f) return <div>{loading ? 'Loading the match from the season archive…' : 'Match not found. Open it from its competition page (seasons are browsed with the dropdown there).'}</div>;
   const watchable = f.status === 'scheduled' && !!world.teams[f.teams[0]] && !!world.teams[f.teams[1]];
   const daysAway = f.day - world.day;
   const comp = world.comps[f.compId];
-  const rec = world.matches[f.id];
+  const rec = paged ?? world.matches[f.id];
   const t = getTitle(f.titleId);
   const isMine = f.teams.some((x) => isUserTeamId(world, x));
   const two = true;
@@ -331,6 +334,7 @@ export function MatchPage({ id, route }: { id: string; route: Route }) {
         </Card>
       )}
       {rec && <SeriesView f={f} rec={rec} />}
+      {!rec && f.status === 'done' && f.pg !== undefined && <div className="muted">Loading box scores…</div>}
     </div>
   );
 }
@@ -380,4 +384,20 @@ export function MatchDayPage() {
       </Card>
     </div>
   );
+}
+
+/** A background match whose box scores were paged out of the save: load its page on demand. */
+function usePagedRecord(world: World, f: Fixture | undefined): MatchRecord | undefined {
+  const comp = f ? world.comps[f.compId] : undefined;
+  const season = comp?.season ?? world.season;
+  const [rec, setRec] = useState<MatchRecord | undefined>(() => (f ? cachedMatchRecord(world, f.id, season, f.pg) : undefined));
+  useEffect(() => {
+    if (!f || f.pg === undefined || world.matches[f.id]) return;
+    let on = true;
+    void loadMatchRecord(world, f.id, season, f.pg).then((r) => on && setRec(r));
+    return () => {
+      on = false;
+    };
+  }, [world, f, season]);
+  return f && !world.matches[f.id] ? rec : undefined;
 }

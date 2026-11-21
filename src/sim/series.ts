@@ -17,7 +17,7 @@ import { isUserTeam } from '../systems/news';
 import { isFollowed } from '../systems/follow';
 import { ensureLineup, validateLineup } from '../systems/lineup';
 import { registeredLineup } from '../systems/registration';
-import { evaluateComp, newDraft, runAiDraft, runQuickDraft, toRecord, validateDraft, type CompEval, type DraftState } from './common/draft';
+import { charMap, evaluateComp, newDraft, runAiDraft, runQuickDraft, toRecord, validateDraft, type CompEval, type DraftState } from './common/draft';
 import type { GameContext } from './common/engine';
 import { buildTeamCtx, type TeamCtx } from './common/team';
 import { simulateMoba } from './moba/moba';
@@ -307,8 +307,9 @@ function compsFor(world: World, t: TitleDef, f: Fixture, st: SeriesState, draft:
   return [0, 1].map((i) => {
     const players = st.lineups[i].map((s) => world.players[s.playerId]).filter(Boolean);
     if (!draft || !t.characters.length) return evaluateComp(t, patch, [], [], players, teams[i].prefs.style);
-    const chars = st.lineups[i].map((s) => t.characters.find((c) => c.id === draft.assign[i][s.playerId])).filter(Boolean) as never[];
-    const enemy = draft.picks[1 - i].map((id) => t.characters.find((c) => c.id === id)).filter(Boolean) as never[];
+    const cm = charMap(t);
+    const chars = st.lineups[i].map((s) => cm.get(draft.assign[i][s.playerId])).filter(Boolean) as never[];
+    const enemy = draft.picks[1 - i].map((id) => cm.get(id)).filter(Boolean) as never[];
     return evaluateComp(t, patch, chars, enemy, players, teams[i].prefs.style);
   }) as [CompEval, CompEval];
 }
@@ -407,6 +408,7 @@ export function playNextGame(world: World, f: Fixture, st: SeriesState, userDraf
   if (sel) {
     // Record the side and draft order so the match report can show who was on which side and why.
     res.blue = sel.blue;
+    res.sel = [sel.chooser, sel.choice === 'side' ? 0 : 1, sel.by === 'coin' ? 0 : 1];
     res.sides = [describeSelection(world, f, sel, (t.id === 'dota2' ? ['Radiant', 'Dire'] : ['Blue', 'Red']) as [string, string])];
   }
   st.games.push(res);
@@ -460,4 +462,12 @@ export function runSeries(world: World, f: Fixture, forceDetail = false): Series
 
 export function formatKeyLabel(k: FormatKey): string {
   return k === 'final' ? 'Final' : k === 'playoff' ? 'Playoff' : 'Standard';
+}
+
+/** The side-selection sentence of a recorded game (works for compact background records too). */
+export function selectionText(world: World, f: Fixture, g: GameResult): string | null {
+  if (g.sides?.length) return g.sides.join(' · ');
+  if (!g.sel) return null;
+  const sel: SideSel = { chooser: g.sel[0], choice: g.sel[1] === 0 ? 'side' : 'pick', blue: (g.blue ?? 0) as 0 | 1, firstPick: (g.draft?.firstPick ?? g.blue ?? 0) as 0 | 1, by: g.sel[2] === 0 ? 'coin' : 'loser' };
+  return describeSelection(world, f, sel, (f.titleId === 'dota2' ? ['Radiant', 'Dire'] : ['Blue', 'Red']) as [string, string]);
 }

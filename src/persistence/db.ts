@@ -20,6 +20,7 @@ import { convertToSevenTitles, removedTitlesIn, ScopeConversionError } from '../
 import { formatDate } from '../core/date';
 import { absorbLegacyArchives, setArchiveBackend, type SeasonArchive } from '../game/archive';
 import { pack, unpack } from './codec';
+import { setBoxPageBackend, type BoxPage } from '../game/boxPages';
 import { setReplayBackend } from '../sim/moba/replayCache';
 
 export interface SaveMeta {
@@ -93,6 +94,21 @@ if (typeof indexedDB !== 'undefined') {
       }
     },
   );
+  setBoxPageBackend(
+    (key, page) => {
+      pack(page)
+        .then(async (pk) => (await db()).put('archive', pk, key))
+        .catch(() => undefined);
+    },
+    async (key) => {
+      try {
+        const raw = await (await db()).get('archive', key);
+        return raw ? await unpack<BoxPage>(raw) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+  );
   setReplayBackend(
     (career, key, data) => {
       db()
@@ -161,12 +177,30 @@ export function saveToSlot(world: World, n: number): Promise<SaveMeta> {
   return saveWorld(world, slotSaveId(n), { manualSlot: n, careerId: world.meta.saveId });
 }
 
+/** Past seasons already stored for a save id, per world object (they never change once finished). */
+const pastWritten = new WeakMap<World, Set<string>>();
+const pastKey = (id: string, season: number) => `${id}|past|${season}`;
+
 async function writeWorld(world: World, id: string, extra: Partial<SaveMeta>): Promise<SaveMeta> {
   world.meta.updated = Date.now();
+  roundForSave(world);
+  const d = await db();
+  // Finished seasons (results, standings, brackets, stats) are stored once, separately, and
+  // reattached on load — every later save only writes the live season, so saves stay fast however
+  // long the career gets.
+  const seasons = Object.keys(world.past ?? {}).map(Number);
+  let done = pastWritten.get(world);
+  if (!done) pastWritten.set(world, (done = new Set()));
+  for (const season of seasons) {
+    const k = pastKey(id, season);
+    if (done.has(k)) continue;
+    await d.put('archive', await pack(world.past![season]), k);
+    done.add(k);
+  }
+  world.meta.pastSeasons = seasons;
   // One compressed binary value instead of a deep object graph: far faster on Android WebViews.
   // Packed before the transaction opens (an IndexedDB transaction closes on unrelated awaits).
-  const packed = await pack(world);
-  const d = await db();
+  const packed = await pack({ ...world, past: undefined });
   const tx = d.transaction(['saves', 'worlds', 'backups', 'session'], 'readwrite');
   const prev = (await tx.objectStore('saves').get(id)) as SaveMeta | undefined;
   const slot: Slot = prev?.slot ? otherSlot(prev.slot) : 'a';
@@ -254,8 +288,19 @@ export async function loadWorld(id: string): Promise<{ world: World; recovered: 
       await d.put('backups', structuredClone(raw), legacyKey(id));
       if (meta) await d.put('saves', { ...meta, legacyBackup: true });
     }
+    // Finished seasons stored separately (see writeWorld) are reattached first.
+    if (!raw.past && Array.isArray(raw.meta?.pastSeasons) && raw.meta.pastSeasons.length) {
+      const past: Record<number, unknown> = {};
+      for (const season of raw.meta.pastSeasons as number[]) {
+        const v = await d.get('archive', pastKey(id, season));
+        if (v) past[season] = await unpack(v);
+      }
+      raw.past = past;
+    }
     try {
       const { world, converted } = migrateAndConvert(raw);
+      // This copy's past seasons are already stored under this id.
+      pastWritten.set(world, new Set((world.meta.pastSeasons ?? []).map((s2: number) => pastKey(id, s2))));
       // Older saves kept whole past seasons in the archive store: their results move into the save.
       await absorbLegacyArchives(world).catch(() => 0);
       return { world, recovered: i > 0, converted };
@@ -281,6 +326,9 @@ export async function deleteSave(id: string): Promise<void> {
   await tx.objectStore('backups').delete(id);
   await tx.objectStore('backups').delete(legacyKey(id));
   await tx.done;
+  // Separately stored finished seasons of this save.
+  const keys = await d.getAllKeys('archive', IDBKeyRange.bound(`${id}|past|`, `${id}|past|\uffff`));
+  for (const k of keys) await d.delete('archive', k);
 }
 
 
@@ -312,4 +360,17 @@ export async function importSave(text: string): Promise<World> {
   if (existing.some((s) => s.id === world.meta.saveId)) world.meta.saveId = `${world.meta.saveId}-import-${Date.now().toString(36)}`;
   await saveWorld(world);
   return world;
+}
+
+/** Shorten long decimals before saving (proficiencies, attributes, rating sums): ~25% smaller players. */
+function roundForSave(world: World): void {
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  for (const p of Object.values(world.players)) {
+    for (let i = 0; i < p.attrs.length; i++) if (!Number.isInteger(p.attrs[i])) p.attrs[i] = r2(p.attrs[i]);
+    const pr = p.prof;
+    for (const k in pr.titles) pr.titles[k] = r2(pr.titles[k]);
+    for (const k in pr.roles) pr.roles[k] = r2(pr.roles[k]);
+    for (const group of [pr.chars, pr.maps, pr.weapons] as Array<Record<string, Record<string, number>> | undefined>) if (group) for (const t in group) for (const k in group[t]) group[t][k] = r2(group[t][k]);
+    for (const st of p.stats) st.ratingSum = r2(st.ratingSum);
+  }
 }

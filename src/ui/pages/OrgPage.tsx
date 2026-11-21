@@ -19,7 +19,7 @@ import { overallMood } from '../../systems/fans';
 export function OrgPage({ id }: { id?: string }) {
   const world = useWorld();
   const org = world.orgs[id ?? world.meta.userOrgId!];
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const [expand, setExpand] = useState('');
   const [rename, setRename] = useState('');
   if (!org) return <div>Organisation not found.</div>;

@@ -178,7 +178,7 @@ function HelpCard() {
 /** Board objectives, ultimatum, recent reactions, manager contract and open job approaches. */
 function BoardPanel() {
   const world = useWorld();
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const board = world.meta.board!;
   const mc = world.meta.managerContract;
   const notes = (board.notes ?? []).filter((n) => n.season === world.season).slice(-5).reverse();

@@ -5,6 +5,7 @@
  * world.processed.lastDay), so repeated or interrupted advance commands never duplicate
  * fixtures, awards, transfers or money.
  */
+import { pageOutMatches } from './boxPages';
 import { previewDaily } from '../systems/seasonReport';
 import { youthDaily } from '../systems/youth';
 import { breaksDaily, breaksWeekly } from '../systems/breaks';
@@ -104,6 +105,7 @@ export function processDay(world: World): void {
       weeklyScouting(world);
       processLoans(world);
       compactMatches(world);
+      pageOutMatches(world);
     }
   }
   if (isFirstOfMonth(day) && world.processed.lastMonth !== monthKey(day)) {

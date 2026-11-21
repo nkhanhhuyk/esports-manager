@@ -508,8 +508,16 @@ export function getTitle(id: string): TitleDef {
   return (archivedCache[id] ||= { ...base, id, sourceId: 'archived', name: `${a.name} (archived)`, short: a.short, archived: true, characters: [], maps: [], notes: 'No longer part of this game; shown for historical records only.' });
 }
 
+const charIndex = new WeakMap<TitleDef, Map<string, TitleDef['characters'][number]>>();
 export function charById(titleId: string, charId: string) {
-  return TITLE_BY_ID[titleId]?.characters.find((c) => c.id === charId);
+  const t = TITLE_BY_ID[titleId];
+  if (!t) return undefined;
+  let m = charIndex.get(t);
+  if (!m || m.size !== t.characters.length) {
+    m = new Map(t.characters.map((c) => [c.id, c]));
+    charIndex.set(t, m);
+  }
+  return m.get(charId);
 }
 
 export function roleById(titleId: string, roleId: string) {

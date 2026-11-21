@@ -246,7 +246,8 @@ export function bestRole(p: Player, t: TitleDef): { roleId: string; E: number } 
 /** E without computing (or caching) phase ratings — cheap path for CA and AI scans. */
 let lightCache = new WeakMap<Player, { v: number; m: Map<string, [number, number]> }>();
 
-export function effectivenessLight(p: Player, t: TitleDef, role: RoleDef, charId?: string, ipOverride?: number): number {
+/** `pOverride`: a precomputed character proficiency (callers scoring one player in several roles). */
+export function effectivenessLight(p: Player, t: TitleDef, role: RoleDef, charId?: string, ipOverride?: number, pOverride?: number): number {
   const ip = ipOverride ?? inputProf(p, t);
   let entry = lightCache.get(p);
   if (!entry || entry.v !== p.attrVersion) {
@@ -262,8 +263,9 @@ export function effectivenessLight(p: Player, t: TitleDef, role: RoleDef, charId
     entry.m.set(key, cs);
   }
   const [C, S] = cs;
-  const { T, R } = familiarity(p, t.id, role.id);
-  const P = charProf(p, t, role, charId);
+  const T = p.prof.titles[t.id] ?? 0;
+  const R = p.prof.roles[`${t.id}:${role.id}`] ?? 0;
+  const P = pOverride ?? charProf(p, t, role, charId);
   return E_WEIGHTS.C * C + E_WEIGHTS.S * S + E_WEIGHTS.T * T + E_WEIGHTS.R * R + E_WEIGHTS.P * P;
 }
 

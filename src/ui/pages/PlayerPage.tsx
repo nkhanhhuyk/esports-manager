@@ -29,7 +29,7 @@ import { StatControls, statColumns, statGroups } from '../components/StatGroups'
 
 function OfferPanel({ p }: { p: Player }) {
   const world = useWorld();
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const mine = userTeams(world);
   const sameTitle = mine.filter((t) => t.titleId === p.titleId);
   const [teamId, setTeamId] = useState((sameTitle[0] ?? mine[0])?.id ?? '');
@@ -337,7 +337,7 @@ function ProficiencyTab({ p }: { p: Player }) {
 
 export function PlayerPage({ id, route }: { id: string; route: Route }) {
   const world = useWorld();
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const p = world.players[id];
   const tab = route.query.tab ?? 'overview';
   if (!p) {

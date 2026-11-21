@@ -156,7 +156,7 @@ export function SavesPanel({ inGame }: { inGame: boolean }) {
 }
 
 export function SavesPage() {
-  const { world } = useGame();
+  const world = useGame((s) => s.world);
   return (
     <div>
       <PageHeader title="Save / Load" sub={world ? `${world.meta.name} · ${world.meta.autosave ? 'autosave on' : 'autosave off'}` : undefined} />

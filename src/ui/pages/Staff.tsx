@@ -61,7 +61,7 @@ export function StaffDirectory() {
 
 export function StaffPage({ id }: { id: string }) {
   const world = useWorld();
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const s = world.staff[id];
   const mine = userTeams(world);
   const [teamId, setTeamId] = useState(mine[0]?.id ?? '');

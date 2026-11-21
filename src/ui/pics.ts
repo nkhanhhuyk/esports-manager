@@ -96,3 +96,19 @@ export function compPic(world: World, comp: Pick<Competition, 'leagueId' | 'tier
 
 /** URLs that failed to load this session (not retried). */
 export const failedPics = new Set<string>();
+
+/**
+ * Hosts that refuse images shown inside other apps/sites (hotlink protection): their pictures go
+ * through wsrv.nl, a free public image proxy, which also resizes them (lighter on phones).
+ */
+const PROXIED = new Set(['owcdn.net']);
+export function proxied(url: string, size = 128): string {
+  return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=${size}&h=${size}&fit=contain&output=webp`;
+}
+export function displayUrl(url: string): string {
+  try {
+    return PROXIED.has(new URL(url).host) ? proxied(url) : url;
+  } catch {
+    return url;
+  }
+}

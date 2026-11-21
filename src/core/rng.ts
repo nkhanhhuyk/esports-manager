@@ -37,6 +37,10 @@ export function hash32(str: string): number {
 export type RngState = [number, number, number, number];
 
 /** sfc32 generator: fast, good quality, 128-bit state, trivially serialisable. */
+/** Reused weight buffer for small weighted choices (no allocation per call). */
+const SCRATCH = new Float64Array(16);
+let scratchBusy = false;
+
 export class RNG {
   private a: number;
   private b: number;
@@ -119,11 +123,21 @@ export class RNG {
   /** Weighted choice. Weights <= 0 are never chosen (unless all are <= 0). */
   weighted<T>(items: readonly T[], weight: (t: T, i: number) => number): T {
     let total = 0;
-    const ws = items.map((it, i) => {
-      const w = Math.max(0, weight(it, i));
-      total += w;
-      return w;
-    });
+    const n = items.length;
+    // The shared buffer is only used when no other weighted choice is in progress (a weight
+    // function could itself make one).
+    const shared = n <= 16 && !scratchBusy;
+    const ws = shared ? SCRATCH : new Float64Array(n);
+    if (shared) scratchBusy = true;
+    try {
+      for (let i = 0; i < n; i++) {
+        const w = Math.max(0, weight(items[i], i));
+        ws[i] = w;
+        total += w;
+      }
+    } finally {
+      if (shared) scratchBusy = false;
+    }
     if (total <= 0) return this.pick(items);
     let r = this.next() * total;
     for (let i = 0; i < items.length; i++) {

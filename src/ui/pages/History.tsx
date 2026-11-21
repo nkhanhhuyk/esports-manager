@@ -12,7 +12,7 @@ import type { Player, RetiredSummary } from '../../model/types';
 /** Ask a real retired pro to come back: they become a free agent anyone can sign. */
 export function ComebackButton({ r }: { r: RetiredSummary }) {
   const world = useWorld();
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   if (r.cameBackAs && world.players[r.cameBackAs]) return <PlayerLink p={world.players[r.cameBackAs]} />;
   if (!world.meta.userOrgId || !canComeBack(world, r)) return null;
   return (

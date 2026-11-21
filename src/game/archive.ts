@@ -45,10 +45,8 @@ let source: Source = async (c, s) => memory.get(key(c, s));
 const loadedMatches = new Map<string, MatchRecord[]>();
 
 export function setArchiveBackend(s: Sink, src: Source): void {
-  sink = (c, a) => {
-    memory.set(key(c, a.season), a); // also readable at once in this thread
-    s(c, a);
-  };
+  // Written to the store and not kept in memory (phones): loaded back when an old match is opened.
+  sink = (c, a) => s(c, a);
   source = async (c, season) => memory.get(key(c, season)) ?? (await src(c, season));
 }
 

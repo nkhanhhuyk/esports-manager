@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { onlinePictures, setOnlinePictures } from '../pics';
 import { navigate } from '../router';
 import { saveFile } from '../fileExport';
-import { useGame, useWorld } from '../store';
+import { autosaveEvery, setAutosaveEvery, useGame, useWorld, type AutosaveEvery } from '../store';
 import { Card, PageHeader } from '../components/common';
 import { exportSave, importSave } from '../../persistence/db';
 import { getTitle } from '../../data/titles/catalogue';
@@ -17,7 +17,7 @@ import type { DelegationArea, World } from '../../model/types';
 const AREAS = Object.keys(DELEGATION_INFO) as DelegationArea[];
 
 function DifficultyCard({ world }: { world: World }) {
-  const { act } = useGame();
+  const { act } = useGame.getState();
   const d = difficulty(world);
   const keys = Object.keys(DIFFICULTY_LABEL) as Array<keyof typeof DIFFICULTY_LABEL>;
   return (
@@ -53,7 +53,7 @@ function DifficultyCard({ world }: { world: World }) {
 }
 
 function GameModeCard({ world }: { world: World }) {
-  const { act } = useGame();
+  const { act } = useGame.getState();
   const spectating = world.meta.mode === 'spectator';
   return (
     <Card title="Game mode">
@@ -101,7 +101,7 @@ function GameModeCard({ world }: { world: World }) {
 }
 
 function DelegationCard({ world }: { world: World }) {
-  const { act } = useGame();
+  const { act } = useGame.getState();
   const teams = userTeams(world);
   if (world.meta.mode === 'spectator' || !world.meta.userOrgId) return null;
   const setAll = (on: boolean) =>
@@ -188,7 +188,8 @@ function DelegationCard({ world }: { world: World }) {
 
 export function SettingsPage() {
   const world = useWorld();
-  const { theme, setTheme, save, act, closeGame, notify, refreshSaves } = useGame();
+  const theme = useGame((s) => s.theme);
+  const { setTheme, save, act, closeGame, notify, refreshSaves } = useGame.getState();
   const fileRef = useRef<HTMLInputElement>(null);
   const d = world.meta.detail;
   return (
@@ -209,8 +210,9 @@ export function SettingsPage() {
         </Card>
         <Card title="Saving">
           <label style={{ display: 'block' }}>
-            <input type="checkbox" checked={world.meta.autosave} onChange={(e) => act((w) => (w.meta.autosave = e.target.checked))} /> Autosave after every advance (previous state kept as a backup)
+            <input type="checkbox" checked={world.meta.autosave} onChange={(e) => act((w) => (w.meta.autosave = e.target.checked))} /> Autosave (previous state kept as a backup)
           </label>
+          <AutosaveCadence />
           <div className="row" style={{ marginTop: 8 }}>
             <button className="btn" onClick={() => navigate('/saves')}>
               Save / Load (5 slots)…
@@ -300,6 +302,30 @@ function OnlinePicturesToggle() {
         Online pictures (characters, weapons, team &amp; competition logos, player photos)
       </label>
       <div className="muted small">Loaded from the official / source websites when this device is online; never stored in the game or the save. Offline or switched off, the game shows its own badges. Applies when a page is reopened.</div>
+    </div>
+  );
+}
+
+/** How often autosave runs (device setting). */
+function AutosaveCadence() {
+  const [v, setV] = useState(autosaveEvery());
+  return (
+    <div style={{ marginTop: 6 }}>
+      <label className="field">
+        <span>Autosave every</span>
+        <select
+          value={v}
+          onChange={(e) => {
+            setAutosaveEvery(e.target.value as AutosaveEvery);
+            setV(e.target.value as AutosaveEvery);
+          }}
+        >
+          <option value="advance">Advance (slowest)</option>
+          <option value="week">Week of game time (recommended)</option>
+          <option value="month">Month of game time (fastest)</option>
+        </select>
+      </label>
+      <div className="muted small">The game also saves at each new season and whenever Android puts the app in the background. Use Save to save at any moment.</div>
     </div>
   );
 }

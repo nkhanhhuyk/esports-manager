@@ -217,7 +217,8 @@ out.sources.mlbb = 'mlbbhub.com hero pages → Moonton official CDN (akmweb.youn
 
 // ---------------------------------------------------------------- Wild Rift: Norra and team logos
 // Norra (Wild Rift-exclusive, not in Data Dragon): the League of Legends Wiki's square icon.
-out.characters['wildrift-norra'] ??= 'https://wiki.leagueoflegends.com/en-us/images/Norra_OriginalSquare_WR.png';
+// Riot's official Wild Rift site (the League of Legends Wiki blocks images shown on other sites).
+out.characters['wildrift-norra'] = 'https://cmsassets.rgpub.io/sanity/images/dsfx7636/content_organization/20aeb6046d11ff197c4eeb93150853ddf2ff14c0-128x128.png';
 {
   const wr = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/data/real/wildrift.json'), 'utf8'));
   const n2 = (x) => String(x).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '');

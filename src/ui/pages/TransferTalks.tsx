@@ -26,7 +26,7 @@ import type { Negotiation, Player, Team, World } from '../../model/types';
 type Res = { ok: boolean; status?: string; message: string; counterFee?: number; counterSalary?: number } | undefined;
 
 function useRun() {
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   return (fn: (w: World) => Res, after?: (r: NonNullable<Res>) => void) => {
     const r = act(fn, { save: true });
     if (!r) return;

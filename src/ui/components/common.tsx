@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { charPic, failedPics, onlinePictures, orgPic, teamPic } from '../pics';
+import { charPic, displayUrl, failedPics, onlinePictures, orgPic, proxied, teamPic } from '../pics';
 import { useGame } from '../store';
 import { can, denyReason, type Permission } from '../../systems/career';
 import { Link } from '../router';
@@ -34,12 +34,16 @@ export function PlayerLink({ p, showName }: { p: Player | undefined; showName?: 
  * is shown instead.
  */
 export function Pic({ src, size = 18, round, alt = '', fallback, title }: { src: string | undefined; size?: number; round?: boolean; alt?: string; fallback?: ReactNode; title?: string }) {
-  const [bad, setBad] = useState(false);
-  if (!src || bad || failedPics.has(src) || !onlinePictures()) return <>{fallback ?? null}</>;
+  // First the picture's own address (hotlink-protected hosts via the proxy), then once via the proxy.
+  const [attempt, setAttempt] = useState(0);
+  if (!src || !onlinePictures()) return <>{fallback ?? null}</>;
+  const first = displayUrl(src);
+  const url = attempt === 0 ? first : proxied(src);
+  if (failedPics.has(src) || attempt > 1 || (attempt === 1 && url === first)) return <>{fallback ?? null}</>;
   return (
     <img
       className={`pic${round ? ' round' : ''}`}
-      src={src}
+      src={url}
       width={size}
       height={size}
       alt={alt}
@@ -48,8 +52,8 @@ export function Pic({ src, size = 18, round, alt = '', fallback, title }: { src:
       decoding="async"
       referrerPolicy="no-referrer"
       onError={() => {
-        failedPics.add(src);
-        setBad(true);
+        if (attempt >= 1 || url !== first) failedPics.add(src);
+        setAttempt((a) => a + 1);
       }}
     />
   );

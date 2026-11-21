@@ -42,7 +42,7 @@ export function EditorPage({ route }: { route: Route }) {
 
 function PlayerEditor() {
   const world = useWorld();
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const [q, setQ] = useState('');
   const [id, setId] = useState('');
   const p = world.players[id];
@@ -153,7 +153,7 @@ function PlayerEditor() {
 
 function OrgEditor() {
   const world = useWorld();
-  const { act } = useGame();
+  const { act } = useGame.getState();
   const [id, setId] = useState(world.meta.userOrgId ?? '');
   const org = world.orgs[id];
   return (
@@ -212,7 +212,7 @@ function OrgEditor() {
 
 function LeagueEditor() {
   const world = useWorld();
-  const { act } = useGame();
+  const { act } = useGame.getState();
   const leagues = Object.values(world.leagues);
   const [id, setId] = useState(leagues[0]?.id ?? '');
   const l = world.leagues[id];
@@ -283,7 +283,7 @@ function LeagueEditor() {
 
 function FormatEditor() {
   const world = useWorld();
-  const { act } = useGame();
+  const { act } = useGame.getState();
   const [tid, setTid] = useState(world.meta.titlesEnabled[0]);
   const t = getTitle(tid);
   const cur = (k: FormatKey): SeriesFormat => world.customFormats[tid]?.[k] ?? t.formats[k];
@@ -331,7 +331,7 @@ function FormatEditor() {
 
 function PopularityEditor() {
   const world = useWorld();
-  const { act } = useGame();
+  const { act } = useGame.getState();
   const [tid, setTid] = useState(world.meta.titlesEnabled[0]);
   const ts = world.titles[tid];
   return (

@@ -307,7 +307,7 @@ export function TeamPage({ id, route }: { id: string; route: Route }) {
 /** Optional national-team coaching job held alongside the club role. */
 function NationalJobCard() {
   const world = useWorld();
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const job = world.meta.nationalJob;
   const titles = world.meta.titlesEnabled;
   const [title, setTitle] = useState(titles[0] ?? '');
@@ -385,7 +385,7 @@ function NationalJobCard() {
 /** Rookie-draft picks owned by a team, and the restricted-free-agency tender policy for user teams. */
 function TeamPicks({ team }: { team: Team }) {
   const world = useWorld();
-  const { act } = useGame();
+  const { act } = useGame.getState();
   const league = team.leagueId ? world.leagues[team.leagueId] : null;
   const picks = picksOwnedBy(world, team.id);
   const mine = isUserTeamId(world, team.id);
@@ -419,7 +419,7 @@ function TeamPicks({ team }: { team: Team }) {
 /** Competition registration: the standing plan (user teams) and live registrations with changes. */
 function RegistrationCard({ team }: { team: Team }) {
   const world = useWorld();
-  const { act, notify } = useGame();
+  const { act, notify } = useGame.getState();
   const mine = isUserTeamId(world, team.id);
   const comps = activeRegistrations(world, team.id);
   const max = maxRegistered(world, team);

@@ -60,6 +60,37 @@ function initialTheme(): 'dark' | 'light' {
   return 'dark';
 }
 
+/**
+ * Autosave cadence (device setting): after every advance, or once a week / month of game time, and
+ * always at a new season and when Android puts the app in the background (src/ui/native.ts).
+ */
+export type AutosaveEvery = 'advance' | 'week' | 'month';
+export function autosaveEvery(): AutosaveEvery {
+  try {
+    const v = localStorage.getItem('uem-autosave-every');
+    return v === 'advance' || v === 'month' ? v : 'week';
+  } catch {
+    return 'week';
+  }
+}
+export function setAutosaveEvery(v: AutosaveEvery): void {
+  try {
+    localStorage.setItem('uem-autosave-every', v);
+  } catch {
+    /* default */
+  }
+}
+const lastAuto = new WeakMap<World, { day: number; season: number }>();
+function autosaveDue(w: World): boolean {
+  const last = lastAuto.get(w);
+  if (!last || last.season !== w.season) return true;
+  const every = autosaveEvery();
+  return every === 'advance' || w.day - last.day >= (every === 'week' ? 7 : 30);
+}
+function markAutosaved(w: World): void {
+  lastAuto.set(w, { day: w.day, season: w.season });
+}
+
 export const useGame = create<GameStore>((set, get) => ({
   world: null,
   version: 0,
@@ -170,10 +201,10 @@ export const useGame = create<GameStore>((set, get) => ({
       // phones with large real-data worlds, and faster because nothing is cloned.
       const result = await advanceInSlices(w, mode, stopForUserMatch, (done, total) => set({ busy: { label: 'Simulating…', done, total } }));
       set({ world: w, version: get().version + 1, busy: null, lastAdvance: result, unsaved: true });
-      if (w.meta.autosave) {
+      if (w.meta.autosave && autosaveDue(w)) {
         // After the screen has updated; compressed, and never twice at the same time.
         setTimeout(() => {
-          if (get().world === w) void get().save(true);
+          if (get().world === w) void get().save(true).then(() => markAutosaved(w));
         }, 50);
       }
       return result;

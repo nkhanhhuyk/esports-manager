@@ -7,7 +7,7 @@ import { expandRegion } from '../data/countries';
 import { COUNTRY_BY_CODE } from '../data/countries';
 import { ageAt } from '../core/date';
 import type { LineupSlot, Player, Team, World } from '../model/types';
-import { effectivenessLight as effectiveness } from '../sim/common/ratings';
+import { charProf, effectivenessLight as effectiveness } from '../sim/common/ratings';
 
 export function isLocal(p: Player, region: string): boolean {
   const regs = expandRegion(region);
@@ -33,13 +33,16 @@ export function autoLineup(world: World, team: Team, eligible?: Set<string>): Li
   // Short-handed: injured players can play hurt; players away on a break never do.
   if (players.length < t.teamSize) players = team.roster.map((id) => world.players[id]).filter((p) => p && !p.retired && !onLeave(p, world.day) && ok(p)) as Player[];
   const roles = t.lineup;
+  const roleDefs = roles.map((id) => t.roles.find((r) => r.id === id)!);
   const pairs: Array<{ p: Player; roleIdx: number; e: number }> = [];
   for (const p of players) {
+    // Character proficiency does not depend on the position (computed once per player).
+    const P = t.characters.length > 0 ? charProf(p, t, roleDefs[0]) : undefined;
     for (let i = 0; i < roles.length; i++) {
-      const role = t.roles.find((r) => r.id === roles[i])!;
+      const role = roleDefs[i];
       // Slight preference for a player's natural role keeps assignments stable.
       const natural = p.roles[0] === role.id ? 1.5 : p.roles[1] === role.id ? 0.5 : 0;
-      pairs.push({ p, roleIdx: i, e: effectiveness(p, t, role) + natural - p.fatigue * 0.03 });
+      pairs.push({ p, roleIdx: i, e: effectiveness(p, t, role, undefined, undefined, P) + natural - p.fatigue * 0.03 });
     }
   }
   pairs.sort((a, b) => b.e - a.e);

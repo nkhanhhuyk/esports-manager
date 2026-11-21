@@ -27,6 +27,9 @@ function statLine(p: Player, season: number, titleId: string, teamId: string | n
 
 function applyGame(world: World, f: Fixture, game: GameResult, teamIds: string[], winnerTeam: string | null, mvp: string | undefined) {
   const comp = world.comps[f.compId];
+  const title = getTitle(f.titleId);
+  const keys = title.stats;
+  const multiMap = title.maps.length > 1;
   for (const line of game.players) {
     const p = world.players[line.playerId];
     if (!p) continue;
@@ -38,9 +41,8 @@ function applyGame(world: World, f: Fixture, game: GameResult, teamIds: string[]
     else sl.l++;
     sl.ratingSum += line.rating;
     if (mvp === p.id) sl.mvps++;
-    for (const [k, v] of Object.entries(line.s)) sl.s[k] = (sl.s[k] ?? 0) + v;
+    for (const k in line.s) sl.s[k] = (sl.s[k] ?? 0) + line.s[k];
     if (comp) {
-      const keys = getTitle(f.titleId).stats;
       const cs = (comp.pstats[p.id] ||= { gp: 0, r: 0, m: 0, teamId: tid, w: 0, v: keys.map(() => 0) });
       cs.gp++;
       cs.r = Math.round((cs.r + line.rating) * 100) / 100;
@@ -61,7 +63,7 @@ function applyGame(world: World, f: Fixture, game: GameResult, teamIds: string[]
     }
     if (game.mapId) {
       const mm = (p.prof.maps[f.titleId] ||= {});
-      if (getTitle(f.titleId).maps.length > 1) mm[game.mapId] = clamp((mm[game.mapId] ?? 20) + 0.4 * learn * (1 - (mm[game.mapId] ?? 20) / 105), 0, 100);
+      if (multiMap) mm[game.mapId] = clamp((mm[game.mapId] ?? 20) + 0.4 * learn * (1 - (mm[game.mapId] ?? 20) / 105), 0, 100);
     }
     // Form: performance relative to expectation drifts quickly.
     p.form = clamp(p.form * 0.85 + (line.rating - 1) * 6, -10, 10);

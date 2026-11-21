@@ -451,3 +451,22 @@ Chosen on the new-career form; Settings → Difficulty & sandbox offers the pres
   doubling on large worlds was what made phones drop progress). Errors keep progress up to the last day.
 * **Background drafts**: fast-engine games use a quick draft from cached per-player preference lists
   (same rules); games you play or watch use the full draft AI. About 2× faster simulation.
+* **Weekly box-score pages** (`src/game/boxPages.ts`): once a week the per-game box scores of background
+  matches played at least two days earlier leave the live world and are written as one compressed page per
+  season-week (grouped by the match's own season, so late-season matches paged after the rollover land in
+  the right season). Each fixture remembers its page (`Fixture.pg`); results, standings, player and
+  competition stats stay in the world. A match report loads its page on demand. Small batches wait for more
+  matches but never longer than a week (off-season leftovers). The save is about half as large mid-season.
+* **Finished seasons are written once** (`<id>|past|<season>` in the archive store) instead of with every
+  save; the save itself carries only the live season.
+* **Autosave cadence** (Settings): after every advance, weekly (default) or monthly, so a long run of short
+  advances is not slowed by a save each time. The Save button always saves at once.
+* **Screen updates while simulating**: progress updates redraw only the progress box (`BusyOverlay`), not
+  the page underneath; components that only call store actions no longer subscribe to the whole store.
+  Re-rendering a large page several times a second was slowing phones down as much as the simulation.
+* **Per-game work trimmed**: character lookups by id map, quick-draft lists memoised per lineup slot,
+  per-player fight weightings cached per game, lineup scoring computes character proficiency once per
+  player, allocation-free weighted choices. About 25% less CPU per simulated day (same results: these
+  change no numbers).
+* **Side and pick-order choice** is stored compactly on every MOBA game (`GameResult.sel`: chooser, side or
+  order, coin toss or loser's choice) so it shows on every match report, not only on detailed records.
