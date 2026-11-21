@@ -67,7 +67,11 @@ export function OrgPicker() {
           { key: 'str', label: 'Avg strength', value: (r) => r.avgStr, align: 'right', render: (r) => r.avgStr.toFixed(1) },
           { key: 'bal', label: 'Balance', value: (r) => r.o.balance, align: 'right', render: (r) => formatMoney(r.o.balance) },
           { key: 'strat', label: 'Board strategy', value: (r) => r.o.strategy },
-          { key: 'go', label: '', render: (r) => <button className="btn sm" onClick={() => void chooseOrg(r.o.id).then(() => navigate('/'))}>Manage</button> },
+          { key: 'go', label: '', render: (r) => <button className="btn sm" onClick={() => {
+                // Home at once (the organisation is set before the first save starts); the save finishes in the background and never navigates afterwards.
+                void chooseOrg(r.o.id);
+                navigate('/');
+              }}>Manage</button> },
         ]}
       />
     </Card>
