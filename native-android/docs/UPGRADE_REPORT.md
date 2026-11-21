@@ -55,6 +55,16 @@ Performance (desktop JVM, 4 cores): a MOBA game ≈ 6–25 ms, a shooter map ≈
 the full seven-title calendar (≈ 4,900 games) in 6.8 s. Phones are slower per core (not measured
 here: no device or emulator in this environment).
 
+20-season soak (`UEM_SOAK=1`, all seven titles, user career, a recurring custom event): passed. Each
+season ≈ 44–59 s on 4 desktop cores (the previous abstract engine needed ≈ 8 s), heap after each
+season 109–227 MB, save 3.3 → 19.3 MB, box-score / replay pages 66 → 238 MB (replays older than
+about two seasons are pruned; box scores are kept). The custom event was played exactly once every
+season; fixture ids stayed unique; every league team could field a lineup in every season.
+
+Expect a simulated season on a phone to take a few minutes (it is several times slower per core than
+a desktop); long "simulate 10 seasons" runs save after every season and can be stopped. Settings →
+Replays → "Important" (default) or "Off" keeps the page storage down.
+
 ## Approximations (and where numbers come from)
 
 * Ability effects are classified from official / community descriptions; damage magnitude is a
