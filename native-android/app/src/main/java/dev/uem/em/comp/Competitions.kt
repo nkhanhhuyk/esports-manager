@@ -450,6 +450,7 @@ object Progress {
             }
             c.teamIds = teams.toMutableList()
             c.status = 1
+            dev.uem.em.mgmt.Supporters.register(w, c)
             c.current = 0
             Stages.start(w, c, 0, teams)
         }
@@ -491,5 +492,6 @@ object Progress {
         dev.uem.em.mgmt.Economy.onCompetitionFinished(w, c)
         dev.uem.em.mgmt.Career.onCompetitionFinished(w, c)
         dev.uem.em.mgmt.Extras.onCompetitionFinished(w, c)
+        dev.uem.em.mgmt.Supporters.onCompetitionFinished(w, c)
     }
 }

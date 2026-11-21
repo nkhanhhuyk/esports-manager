@@ -53,9 +53,14 @@ Phones are slower per core but have 6–8 cores, which the native app uses.
   pre-contracts from September, roster limits, delegated bids and renewals, rivalries and fans
   that follow results, weekly scrims (sharpness and chemistry against fatigue).
 
-Still only in the previous (web-based) app: fan segments by type, competition registration
-deadlines, department budgets and the full spatial match engines (the native live view is
-built from the fast engines' events).
+* **Supporters and registration**: fans by segment (core, casual, local, international) that
+  drive merchandise; rosters registered when a competition starts, two amendments per competition.
+* **Live 2D view on the real maps**: lanes, river, terrain, towers, pits and camps of each MOBA,
+  and the real Valorant / CS2 layouts (callouts, sites, spawns).
+
+Not ported: department budgets (facilities cover their effect) and the web version's full
+movement-by-movement spatial engines (the native view replays the fast engines' events on the
+real maps).
 
 ## Build
 

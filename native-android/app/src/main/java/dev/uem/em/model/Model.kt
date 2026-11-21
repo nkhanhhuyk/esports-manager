@@ -184,6 +184,8 @@ class Org(
     val ledger: MutableList<LedgerLine> = ArrayList(),
     val months: MutableList<MonthFin> = ArrayList(),
     var facilities: IntArray = intArrayOf(3, 3, 3),
+    /** Supporters by segment: core, casual, local, international. */
+    @ProtoPacked var fanSeg: DoubleArray = DoubleArray(0),
 )
 
 @Serializable
@@ -231,6 +233,8 @@ class Competition(
     /** Per-player stats in this competition. */
     val pstats: MutableMap<Int, CompStats> = HashMap(),
     var mvp: Int = -1,
+    /** Registered players per team (locked when the competition starts) and amendments used. */
+    val registrations: MutableMap<Int, Registration> = HashMap(),
 ) {
     val done get() = status == 2
 }
@@ -405,3 +409,6 @@ class PatchRec(
     val styleDelta: Map<String, Double> = emptyMap(),
     val objMods: Map<String, Double> = emptyMap(),
 )
+
+@Serializable
+class Registration(val players: MutableList<Int> = ArrayList(), var amendments: Int = 0)

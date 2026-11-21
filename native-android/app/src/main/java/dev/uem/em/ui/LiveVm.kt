@@ -18,7 +18,10 @@ import dev.uem.em.sim.VetoSession
  */
 class LiveMatch(val w: World, fixtureId: Int) {
     val f = w.fixtures[fixtureId]
-    val series = LiveSeries(w, f, arrayOf(Lineups.ensure(w, w.teams[f.a]).toList(), Lineups.ensure(w, w.teams[f.b]).toList()))
+    val series = LiveSeries(w, f, arrayOf(
+        dev.uem.em.mgmt.Supporters.lineupFor(w, w.comps[f.compId], w.teams[f.a], Lineups.ensure(w, w.teams[f.a]).toList()),
+        dev.uem.em.mgmt.Supporters.lineupFor(w, w.comps[f.compId], w.teams[f.b], Lineups.ensure(w, w.teams[f.b]).toList()),
+    ))
     /** The user's series team (0 or 1). */
     val me = if (w.isUserTeam(f.a)) 0 else 1
     var stage = if (series.t.isMoba) "draft" else "veto"

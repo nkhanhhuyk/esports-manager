@@ -103,7 +103,7 @@ object Economy {
             ops += v * 0.06 / 12 + 1500 * (0.4 + GameData.economy(team.region))
         }
         val sponsor = org.sponsors.filter { it.untilSeason >= w.season }.sumOf { it.perMonth }
-        val merch = org.fans * 0.012 * (0.4 + econ) * (0.6 + org.rep / 250)
+        val merch = Supporters.merchandise(org, econ)
         val facilities = org.facilities.sumOf { Math.pow(it.toDouble(), 1.5) * 350 } * (0.4 + econ)
         return Breakdown(mapOf("Sponsorship" to sponsor, "Media" to media, "Merchandise" to merch), mapOf("Player salaries" to salaries, "Staff salaries" to staff, "Facilities" to facilities, "Operations" to ops))
     }

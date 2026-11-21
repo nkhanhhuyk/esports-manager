@@ -376,6 +376,14 @@ fun FinancesScreen(vm: GameVm, w: World) {
             }
         }
         item {
+            Card("Supporters") {
+                dev.uem.em.mgmt.Supporters.ensure(org)
+                Text("${(org.fans / 1000).roundToInt()}K fans", color = Ui.text, fontWeight = FontWeight.Bold)
+                dev.uem.em.mgmt.Supporters.SEGMENTS.forEachIndexed { i, n -> Muted("$n: ${(org.fanSeg[i] / 1000).roundToInt()}K", 13) }
+                Muted("Core fans buy merchandise; casual fans follow results; local fans follow the league; international fans follow internationals.", 11)
+            }
+        }
+        item {
             Card("Sponsors") {
                 for (s in org.sponsors) Muted("${s.name}: ${formatMoney(s.perMonth)}/month until ${s.untilSeason}", 13)
                 if (org.sponsors.isEmpty()) Muted("Sponsors sign at the start of each month.")

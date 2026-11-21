@@ -69,6 +69,7 @@ object Advance {
                 dev.uem.em.mgmt.Economy.monthTick(w)
                 if (Dates.month(d) == 9) dev.uem.em.mgmt.Market.contractReminders(w)
             dev.uem.em.mgmt.Deals.monthly(w)
+            dev.uem.em.mgmt.Supporters.monthly(w)
             }
             if (Dates.dow(d) == 1) {
                 BoxStore.pageOut(w)
@@ -90,7 +91,10 @@ object Advance {
             if (ids.isEmpty()) return
             val fixtures = ids.map { w.fixtures[it] }
             // Lineups are settled first (this writes to teams), then series run in parallel read-only.
-            val lineups = fixtures.associate { f -> f.id to arrayOf(Lineups.ensure(w, w.teams[f.a]).toList(), Lineups.ensure(w, w.teams[f.b]).toList()) }
+            val lineups = fixtures.associate { f ->
+                val c = w.comps[f.compId]
+                f.id to arrayOf(dev.uem.em.mgmt.Supporters.lineupFor(w, c, w.teams[f.a], Lineups.ensure(w, w.teams[f.a]).toList()), dev.uem.em.mgmt.Supporters.lineupFor(w, c, w.teams[f.b], Lineups.ensure(w, w.teams[f.b]).toList()))
+            }
             val outcomes: List<SeriesOutcome> = if (fixtures.size == 1 || cores == 1) fixtures.map { SeriesSim.run(w, it, lineups[it.id]!!) }
             else pool.invokeAll(fixtures.map { f -> Callable { SeriesSim.run(w, f, lineups[f.id]!!) } }).map { it.get() }
             for (o in outcomes) apply(w, o)
