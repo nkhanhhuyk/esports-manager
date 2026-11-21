@@ -99,7 +99,7 @@ object Advance {
                 dev.uem.em.mgmt.Deals.weeklyScrims(w)
             }
         }
-        timed(4) { dev.uem.em.mgmt.Market.daily(w); dev.uem.em.mgmt.Deals.delegated(w) }
+        timed(4) { dev.uem.em.mgmt.Market.daily(w); dev.uem.em.mgmt.Roles.daily(w) }
         timed(5) { if (d == Season.endDay(w.season)) rollover(w) }
     }
 
@@ -223,6 +223,7 @@ object Advance {
         dev.uem.em.mgmt.Market.seasonEnd(w, rng)
         for (p in w.players) if (!p.retired && p.teamId < 0 && Dates.ageAt(p.birth, w.day) >= 33 && rng.chance(0.4)) p.retiredSeason = w.season
         dev.uem.em.mgmt.Career.youthIntake(w)
+        dev.uem.em.mgmt.Academies.aiFound(w)
         fillRosters(w)
         Season.plan(w, w.season)
         if (!w.sacked) dev.uem.em.mgmt.Career.setupBoard(w)
@@ -244,6 +245,7 @@ object Advance {
                 val need = t.lineup.firstOrNull { it !in have }
                 if (need == null && team.roster.size >= t.teamSize + 1) break
                 if (need != null && team.roster.size >= t.teamSize + 4) break
+                if (need != null && dev.uem.em.mgmt.Academies.aiPromote(w, team)) continue
                 val pick = (if (need != null) pool.firstOrNull { it.roles[0] == need } ?: pool.firstOrNull { it.roles.getOrNull(1) == need } else null) ?: pool[0]
                 pool.remove(pick)
                 pick.teamId = team.id

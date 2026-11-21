@@ -109,13 +109,13 @@ class GameVm(app: Application) : AndroidViewModel(app) {
     fun edit() { unsaved = true; version++ }
     fun saves() = store.list()
 
-    fun newGame(name: String) {
+    fun newGame(name: String, fictional: Boolean = false) {
         if (busy != null) return
         busy = Busy("Building the world…", 0, 0)
         viewModelScope.launch {
             val w = withContext(Dispatchers.Default) {
                 BoxStore.clear()
-                WorldGen.create(src, "${System.currentTimeMillis()}", name.ifBlank { "Career" }, Dates.today())
+                WorldGen.create(src, "${System.currentTimeMillis()}", name.ifBlank { "Career" }, Dates.today(), fictional = fictional)
             }
             slot = name.ifBlank { "career" }.replace(Regex("[^A-Za-z0-9_-]"), "_")
             world = w
@@ -126,9 +126,10 @@ class GameVm(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun chooseOrg(orgId: Int) {
+    fun chooseOrg(orgId: Int, role: String = "coach-gm") {
         val w = world ?: return
         w.userOrg = orgId
+        w.role = role
         w.spectator = false
         dev.uem.em.mgmt.Career.setupBoard(w)
         touch()
@@ -252,17 +253,55 @@ class GameVm(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    enum class Span { DAY, NEXT_MATCH, WEEK, MONTH, SEASON_END }
+    enum class Span(val years: Int = 0) { DAY, NEXT_MATCH, WEEK, MONTH, SEASON_END, YEARS_2(2), YEARS_5(5), YEARS_10(10) }
+
+    /**
+     * Simulate several seasons. Your staff run every area meanwhile (lineups, signings, renewals…) and
+     * the game is saved at the end of each season, so a long run can be stopped without losing it.
+     */
+    private fun advanceYears(w: World, years: Int) {
+        val endDay = Season.endDay(w.season + years - 1)
+        val total = maxOf(1, endDay - w.day)
+        val start = w.day
+        val startSeason = w.season
+        cancel.set(false)
+        busy = Busy("Simulating $years seasons…", 0, total)
+        simJob = viewModelScope.launch {
+            w.autopilot = true
+            try {
+                while (w.day < endDay && !cancel.get()) {
+                    val chunk = maxOf(1, minOf(endDay, Season.endDay(w.season)) - w.day)
+                    val label = "Simulating season ${w.season} (${w.season - startSeason + 1} of $years)…"
+                    withContext(Dispatchers.Default) {
+                        Advance.run(w, chunk, stopForUser = false, onDay = { d -> if (d % 3 == 0) busy = Busy(label, w.day - start, total) }, cancelled = { cancel.get() })
+                    }
+                    busy = Busy("Saving…", w.day - start, total)
+                    saveLock.withLock { withContext(Dispatchers.IO) { store.save(slot, w) } }
+                    lastAutosaveDay = w.day
+                }
+            } catch (e: Exception) {
+                toast = "Simulation stopped: ${e.message}"
+            } finally {
+                w.autopilot = false
+            }
+            busy = null
+            unsaved = false
+            touch()
+            toast = if (cancel.get()) "Stopped in season ${w.season}" else "Simulated to the end of season ${w.season - 1} — welcome to ${w.season}"
+        }
+    }
 
     fun advance(span: Span) {
         val w = world ?: return
         if (busy != null) return
+        if (span.years > 0) { advanceYears(w, span.years); return }
         val days = when (span) {
             Span.DAY -> 1
             Span.WEEK -> 7
             Span.MONTH -> 30
             Span.NEXT_MATCH -> 60
             Span.SEASON_END -> maxOf(1, Season.endDay(w.season) - w.day)
+            else -> 1
         }
         cancel.set(false)
         busy = Busy("Simulating…", 0, days)
@@ -298,7 +337,8 @@ class GameVm(app: Application) : AndroidViewModel(app) {
             LiveMatch(w, pending.fixtureId).simRest()
             toast = "${w.teams[old.a].short} vs ${w.teams[old.b].short} was finished by the coaches"
         }
-        live = LiveMatch(w, fixtureId, spectate) { unsaved = true; save(silent = true) }
+        // Without control of tactics the head coach drafts and plays; you watch.
+        live = LiveMatch(w, fixtureId, spectate || !dev.uem.em.mgmt.Roles.can(w, "tactics")) { unsaved = true; save(silent = true) }
     }
 
     /** Simulate up to the day before a fixture, then watch (or play) it live. */

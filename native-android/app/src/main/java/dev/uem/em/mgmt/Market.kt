@@ -207,6 +207,7 @@ object Market {
             val short = team.roster.count { !w.players[it].retired } < t.teamSize + 1
             val missing = missingRoles(w, team).isNotEmpty()
             if (!short && !missing && !(window && rng.chance(1.0 / 40))) continue
+            if (missing && Academies.aiPromote(w, team)) continue
             aiTeamMarket(w, team, rng, short || missing)
         }
         // The user's coach covers an unplayable roster with emergency signings.
@@ -215,6 +216,10 @@ object Market {
             val t = Catalogue.get(team.titleId)
             while (team.roster.count { !w.players[it].retired } < t.teamSize) {
                 val need = missingRoles(w, team).firstOrNull()
+                if (need != null && Academies.aiPromote(w, team)) {
+                    w.inbox.add(Message(w.day, "Coaching staff", "Academy call-up", "${team.name} were missing a ${t.role(need).name}, so the coaching staff promoted one from the academy."))
+                    continue
+                }
                 val p = (need?.let { bestForRole(w, team.titleId, it) }) ?: w.players.asSequence().filter { it.teamId < 0 && !it.retired && it.titleId == team.titleId }.maxByOrNull { it.ca } ?: break
                 sign(w, p, team, asking(w, team, p), 1, 0.0, "signed")
                 w.inbox.add(Message(w.day, "Coaching staff", "Emergency signing: ${p.handle}", "${team.name} could not field a full lineup, so the coaching staff signed ${p.handle} on a one-season deal."))
@@ -223,7 +228,7 @@ object Market {
         if (window && w.userOrg >= 0 && rng.chance(0.06)) aiBidForUserPlayer(w, rng)
     }
 
-    private fun aiTeamMarket(w: World, team: Team, rng: Rng, short: Boolean) {
+    fun aiTeamMarket(w: World, team: Team, rng: Rng, short: Boolean) {
         val t = Catalogue.get(team.titleId)
         val org = w.orgs[team.orgId]
         val lineup = team.lineup.ifEmpty { Lineups.auto(w, team) }
@@ -241,7 +246,8 @@ object Market {
         if (missing.isNotEmpty()) weakCa = 0.0
         val budget = org.balance * 0.35
         // Free agents first.
-        val fa = w.players.asSequence().filter { it.teamId < 0 && !it.retired && it.titleId == team.titleId && it.mainRole == role && it.ca > weakCa + (if (short) -15.0 else 3.5) }
+        val academy = Academies.isAcademy(team)
+        val fa = w.players.asSequence().filter { it.teamId < 0 && !it.retired && it.titleId == team.titleId && it.mainRole == role && it.ca > weakCa + (if (short) -15.0 else 3.5) && (!academy || dev.uem.em.core.Dates.ageAt(it.birth, w.day) <= 21) }
             .sortedByDescending { it.ca }.take(5).toList()
         for (p in fa) {
             val sal = asking(w, team, p)
@@ -258,10 +264,10 @@ object Market {
             if (team.roster.size > t.teamSize + 3) releaseWorst(w, team)
             return
         }
-        if (!inWindow(w)) return
-        // Bid for a better player at a weaker club.
+        if (!inWindow(w) || academy) return
+        // Bid for a better player at a weaker club (never a club of the same organisation).
         val myElo = team.elo
-        val targets = w.players.asSequence().filter { p -> p.teamId >= 0 && p.loanFrom < 0 && p.teamId != team.id && p.titleId == team.titleId && p.mainRole == role && p.ca > weakCa + 4.5 && w.teams[p.teamId].elo < myElo + 40 }
+        val targets = w.players.asSequence().filter { p -> p.teamId >= 0 && p.loanFrom < 0 && w.teams[p.teamId].orgId != team.orgId && !(w.isUserTeam(team.id) && w.isUserTeam(p.teamId)) && p.titleId == team.titleId && p.mainRole == role && p.ca > weakCa + 4.5 && w.teams[p.teamId].elo < myElo + 40 }
             .sortedByDescending { it.ca }.take(4).toList()
         for (p in targets) {
             val value = Economy.marketValue(w, p)

@@ -40,8 +40,10 @@ object Development {
             val intensity = team?.intensity ?: 45
             val coachQ = team?.let { Economy.coachQuality(w, it) } ?: 35.0
             val assist = team?.let { Economy.staffOf(w, it, "assistant-coach").maxOfOrNull { s -> s.quality } } ?: 30.0
-            val facility = team?.let { w.orgs[it.orgId].facilities[0] } ?: 2
-            val trainMult = (0.75 + intensity / 200.0) * (0.85 + coachQ / 300 + assist / 600 + facility / 50.0) * (if (team != null) 1.0 else 0.6)
+            // Academy players train with the academy facility and develop a little faster.
+            val academy = team != null && team.parentId >= 0
+            val facility = team?.let { w.orgs[it.orgId].facilities[if (academy) 2 else 0] } ?: 2
+            val trainMult = (0.75 + intensity / 200.0) * (0.85 + coachQ / 300 + assist / 600 + facility / 50.0) * (if (team != null) 1.0 else 0.6) * (if (academy) 1.1 else 1.0)
             var delta = 0.0
             if (age < p.dev.peakAge) delta = max(0.0, p.pa - p.ca) * 0.05 * p.dev.growthRate * (0.6 + p.attrs[Attrs.LEARNING] / 125) * trainMult
             else if (age > p.dev.declineAge) delta = -0.22 * p.dev.declineRate * (1 + (age - p.dev.declineAge) * 0.25) * (1.15 - min1(trainMult) * 0.15)

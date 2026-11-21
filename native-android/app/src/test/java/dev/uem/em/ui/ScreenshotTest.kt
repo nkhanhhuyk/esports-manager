@@ -53,7 +53,8 @@ class ScreenshotTest {
         val faker = w.players.first { it.handle == "Faker" }
         val shots = listOf("home" to Screen.Home, "comp" to Screen.Comp(comp.id), "team" to Screen.Team(t1.id), "player" to Screen.Player(faker.id), "match" to Screen.Match(match.id), "comps" to Screen.Comps, "squad" to Screen.Squad, "market" to Screen.Market, "finances" to Screen.Finances, "inbox" to Screen.Inbox, "board" to Screen.Board, "patches" to Screen.Patches, "more" to Screen.More, "stats" to Screen.Stats, "schedule" to Screen.Schedule, "settings" to Screen.Settings,
             "history" to Screen.History, "world" to Screen.World, "teams" to Screen.Teams, "players" to Screen.Players,
-            "compare" to Screen.Compare(faker.id, w.players.first { it.handle == "Chovy" }.id))
+            "compare" to Screen.Compare(faker.id, w.players.first { it.handle == "Chovy" }.id),
+            "academy" to Screen.Team(dev.uem.em.mgmt.Academies.of(w, t1)!!.id))
         vm.tab(Screen.Home)
         rule.setContent { AppRoot(vm) {} }
         rule.waitForIdle()
@@ -112,6 +113,14 @@ class ScreenshotTest {
             shot(out, "squad-tab$i")
         }
         UiDefaults.tab = 0
+        rule.runOnIdle { vm.tab(Screen.Start) }
+        shot(out, "start")
+        rule.runOnIdle { w.userOrg = -1; vm.tab(Screen.PickOrg) }
+        shot(out, "pickorg")
+        rule.runOnIdle { w.userOrg = t1.orgId; w.role = "gm" }
+        rule.runOnIdle { vm.tab(Screen.Settings) }
+        shot(out, "settings-gm")
+        rule.runOnIdle { w.role = "coach-gm" }
         for ((name, s) in shots) {
             rule.runOnIdle { vm.tab(s) }
             rule.waitForIdle()

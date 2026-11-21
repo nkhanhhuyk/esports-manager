@@ -156,7 +156,7 @@ object Economy {
             val share = PRIZE_SPLIT.getOrNull(i) ?: return@forEachIndexed
             val team = w.teams[tid]
             val org = w.orgs[team.orgId]
-            ledger(w, org, "prize", c.prizePool * share, "${c.short}: ${dev.uem.em.core.ordinal(i + 1)} place")
+            ledger(w, org, "prize", c.prizePool * share, "${dev.uem.em.titles.Catalogue.get(c.titleId).short} ${c.short}: ${dev.uem.em.core.ordinal(i + 1)} place (${team.short})")
             val repGain = when (c.tier) { CompTier.WORLDS -> 6.0; CompTier.INTERNATIONAL -> 3.5; CompTier.LEAGUE -> 1.5; else -> 0.5 } * (if (i == 0) 1.0 else if (i < 4) 0.4 else 0.1)
             org.rep = clamp(org.rep + repGain, 1.0, 99.0)
             org.fans *= 1 + repGain / 60

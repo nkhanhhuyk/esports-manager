@@ -122,24 +122,6 @@ object Deals {
     // ------------------------------------------------------------------ delegation
 
     /** Staff decisions the user delegated: answering bids and renewing key players. */
-    fun delegated(w: World) {
-        if (w.delegateBids) for (o in w.offers) {
-            if (o.status != "pending" || !w.isUserTeam(o.toTeam) || w.isUserTeam(o.fromTeam)) continue
-            val p = w.players[o.playerId]
-            val accept = o.fee >= Economy.marketValue(w, p) * (if (p.id in w.teams[o.toTeam].lineup) 1.4 else 1.1)
-            val r = Market.answerBid(w, o.id, accept)
-            w.inbox.add(Message(w.day, "Director", "Bid ${if (accept) "accepted" else "declined"}: ${p.handle}", r.text))
-        }
-        if (w.delegateRenewals && Dates.month(w.day) == 10 && Dates.dom(w.day) == 1) {
-            for (team in w.teams) if (team.active && w.isUserTeam(team.id)) for (pid in team.roster.toList()) {
-                val p = w.players[pid]
-                if (p.contractEnd != w.season || p.ca < 60 || p.loanFrom >= 0) continue
-                val r = Market.offerContract(w, pid, team.id, Market.asking(w, team, p) * 1.05, 2)
-                w.inbox.add(Message(w.day, "Director", "Renewal: ${p.handle}", r.text))
-            }
-        }
-    }
-
     // ------------------------------------------------------------------ fans and rivalries
 
     private fun key(a: Int, b: Int) = if (a < b) "$a|$b" else "$b|$a"

@@ -17,6 +17,17 @@ After: 13 suites (adds ReplayTest, IntegrityTest, MapTest, DataReportTest; soak 
 | `ui/MapGeo.kt` `Maps.Shooter` | Untyped two-way edges | No one-way links, levels, teleporters | Typed directed links (walk, stairs, ladder, door, vent, breakable, drop, teleport) and levels from `assets/maps_topology.json` (Bind teleporters, Lotus drop / doors / wall, Nuke levels / vents); directed pathfinding; drawn in the viewer |
 | `ui/Watch.kt` (new) | — | No way to watch other matches or replays | Match centre, replay screen, spectator home, resume card |
 
+## Follow-up requests (same day)
+
+| Request | Where | What was done | Test |
+|---|---|---|---|
+| Choose your job like the web version | `mgmt/Roles.kt`, PickOrg, Settings | Six jobs with the web permissions (tactics, transfers, contracts, staff, finance, facilities, expansion); staff run every area you do not control; owner / commissioner have no board; without tactics your matches are watched, not played | `CareerModesTest.jobsAndDelegation` |
+| More delegations | `Roles.AREAS`, Settings → Delegation | Lineups, training plan, signings, offers for your players, renewals, staff hiring, scouting list, facility upgrades | same |
+| Real or fictional world | `WorldGen.create(fictional)`, start screen | Fictional: no snapshot, no historical teams, generated everything, a second Challengers league | `fictionalWorldHasNoRealTeams` |
+| Academies | `mgmt/Academies.kt`, `Team.parentId` | LCK CL and MDL ID / PH academy leagues, academies in Challengers leagues, user / AI founding, intake, promotion / demotion, AI promotes before signing, faster development | `academiesExistAndWork` |
+| Simulate 2 / 5 / 10 seasons | `GameVm.advanceYears`, Continue menu | Staff autopilot while it runs, save after each season, stoppable | `multiSeasonAutopilotKeepsTheClubRunning` |
+| Generated pictures, tier lists, stat sheets, patch releases, flags, Fearless variants, pick / side display, role-need rosters, faster tables | `ui/GenArt.kt`, `ui/TierScreen.kt`, `ui/Sheets.kt`, `mgmt/Meta.kt`, `comp/Fearless.kt`, `mgmt/Market.kt`, `ui/Detail.kt` | See README | screenshot test, `ReplayTest`, `SeasonTest` |
+
 ## Not done / limits
 
 * Movement between recorded events is drawn by the viewer (lanes, routes, rotations); the engines

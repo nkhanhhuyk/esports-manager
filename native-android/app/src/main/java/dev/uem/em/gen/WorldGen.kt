@@ -86,12 +86,12 @@ object WorldGen {
         val nameRank = HashMap<Int, Int>()
     }
 
-    fun create(src: DataSource, seed: String, name: String, startDay: Int = Dates.today(), titles: List<String> = Catalogue.IDS): World {
+    fun create(src: DataSource, seed: String, name: String, startDay: Int = Dates.today(), titles: List<String> = Catalogue.IDS, fictional: Boolean = false): World {
         Catalogue.init(src)
         GameData.init(src)
         val y = Dates.year(startDay)
         val season = if (Dates.month(startDay) >= 11) y + 1 else y
-        val world = World(seed = seed, name = name, day = startDay, season = season, titles = titles)
+        val world = World(seed = seed, name = name, day = startDay, season = season, titles = titles, fictional = fictional)
         Catalogue.applyCustom(world)
         val ctx = GenCtx(world, Rng.of("$seed|world"))
         val b = Build(ctx, src)
@@ -105,21 +105,22 @@ object WorldGen {
             val t = Catalogue.get(id)
             val pop = Catalogue.POPULARITY[id]!!
             var regions = planLeagueRegions(pop)
-            val mine = snapTeams.filter { it.str("title_id") == id }
+            val mine = if (fictional) emptyList() else snapTeams.filter { it.str("title_id") == id }
             if (mine.isNotEmpty()) {
                 val covered = buildRealTitle(b, id, snapLeagues, mine)
                 regions = regions.filter { lr -> GameData.expand(lr.first).none { it in covered } }.take(2)
             }
-            regions.forEachIndexed { idx, (region, strength0) -> fictionalLeague(b, id, region, strength0, idx == 0) }
+            regions.forEachIndexed { idx, (region, strength0) -> fictionalLeague(b, id, region, strength0, idx == 0 || (fictional && idx == 1)) }
             if (t.characters.isEmpty() && !t.isMoba) Unit
         }
-        addHistory(b, wrTeams.filter { it.str("league_id") == null })
+        if (!fictional) addHistory(b, wrTeams.filter { it.str("league_id") == null })
         freeAgents(b)
         for (team in world.teams) {
             team.lineup = Lineups.auto(world, team)
             team.elo = (1500 + (Lineups.strength(world, team) - 65) * 18).roundToInt().toDouble()
         }
         dev.uem.em.mgmt.Economy.ensureSetup(world)
+        seedAcademies(world)
         for (id in titles) world.poolTarget[id] = world.players.count { !it.retired && it.titleId == id }
         Season.plan(world, season)
         world.rebuildSchedule()
@@ -289,6 +290,30 @@ object WorldGen {
                 val team = createTeam(b, org, titleId, region, l2)
                 populate(b, team, mean - 7 + b.rng.normal(0.0, 3.0), region, importRate * 0.5)
                 team.dataNote = fictionalNote(titleId)
+            }
+        }
+    }
+
+    /** Real academy leagues (rosters generated) under these tier-1 leagues: tier-1 short name → name, short. */
+    private val ACADEMY_LEAGUES = mapOf("lol|KR" to ("LCK Challengers League" to "LCK CL"), "mlbb|ID" to ("MDL Indonesia" to "MDL ID"), "mlbb|PH" to ("MDL Philippines" to "MDL PH"))
+
+    /**
+     * Academy teams: every LCK and MPL ID/PH team has one in its academy league (as in real life; the
+     * rosters are generated), and the strongest teams of leagues with a Challengers division field one there.
+     */
+    private fun seedAcademies(w: World) {
+        val rng = Rng.of("${w.seed}|academies")
+        for (league in w.leagues.toList()) {
+            if (league.tier != 1) continue
+            val names = ACADEMY_LEAGUES["${league.titleId}|${league.region}"]
+            if (names != null && league.lowerId < 0 && !w.fictional) {
+                val l2 = League(w.leagues.size, league.titleId, league.region, 2, names.first, names.second, upperId = league.id)
+                league.lowerId = l2.id
+                w.leagues.add(l2)
+                for (tid in league.teamIds.toList()) dev.uem.em.mgmt.Academies.found(w, w.teams[tid], false, rng)
+            } else if (league.lowerId >= 0) {
+                val parents = league.teamIds.map { w.teams[it] }.sortedByDescending { it.elo }.take(if (w.fictional) 4 else 3)
+                for (t in parents) dev.uem.em.mgmt.Academies.found(w, t, false, rng)
             }
         }
     }

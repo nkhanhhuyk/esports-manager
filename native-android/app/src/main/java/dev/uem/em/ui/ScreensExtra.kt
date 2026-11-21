@@ -118,6 +118,49 @@ fun SettingsScreen(vm: GameVm, w: World) {
                 KV("Games", w.titles.joinToString { Catalogue.get(it).short })
             }
         }
+        if (w.userOrg >= 0) item {
+            Card("Your job") {
+                val R = dev.uem.em.mgmt.Roles
+                Text(R.LABEL[w.role] ?: w.role, color = Ui.text, fontWeight = FontWeight.SemiBold)
+                Muted(R.DESC[w.role] ?: "", 12)
+                Gap(4)
+                for ((perm, label) in R.PERM_LABEL) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (R.can(w, perm)) "✓" else "—", color = if (R.can(w, perm)) Ui.win else Ui.muted, fontSize = 13.sp, modifier = Modifier.width(22.dp))
+                    Muted(label, 12)
+                }
+                Gap(6)
+                Muted("Change job (the club's staff take over what you no longer control):", 11)
+                Tabs(listOf("Coach & GM", "Head coach", "General manager", "Sporting director", "Owner", "Commissioner"), R.IDS.indexOf(w.role).coerceAtLeast(0)) {
+                    w.role = R.IDS[it]
+                    if (!R.hasBoard(w)) w.board = null else if (w.board == null) dev.uem.em.mgmt.Career.setupBoard(w)
+                    vm.edit()
+                }
+            }
+        }
+        if (w.userOrg >= 0) item {
+            Card("Delegation") {
+                val R = dev.uem.em.mgmt.Roles
+                Muted("Hand any area you control to your staff. Areas outside your job are always run by the staff.", 11)
+                Gap(4)
+                for (a in R.AREAS) {
+                    val allowed = R.can(w, a.perm)
+                    val on = !allowed || R.delegated(w, a.id)
+                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(a.label, color = Ui.text, fontSize = 13.sp)
+                            Muted(if (!allowed) "${a.staff} (not your job) · ${a.desc}" else if (on) "${a.staff}: ${a.desc}" else "You", 11)
+                        }
+                        androidx.compose.material3.Switch(checked = on, enabled = allowed, onCheckedChange = { v ->
+                            w.delegation[a.id] = v
+                            if (a.id == "sales") w.delegateBids = v
+                            if (a.id == "renewals") w.delegateRenewals = v
+                            vm.edit()
+                        })
+                    }
+                }
+                Muted("On = staff handle it. When you simulate several seasons at once the staff run every area until it ends.", 10)
+            }
+        }
         item {
             val exporter = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip")) { uri -> if (uri != null) vm.exportSave(uri) }
             Card("Back up this career") {
@@ -147,13 +190,6 @@ fun SettingsScreen(vm: GameVm, w: World) {
                 val opts = listOf("advance" to "After every advance", "week" to "Every week (recommended)", "month" to "Every month", "off" to "Off")
                 Tabs(opts.map { it.second }, opts.indexOfFirst { it.first == w.autosave }.coerceAtLeast(1)) { w.autosave = opts[it].first; vm.edit() }
                 Muted("The game also saves when you leave the app.")
-            }
-        }
-        item {
-            Card("Delegation") {
-                Tabs(listOf("You answer bids", "Director answers bids"), if (w.delegateBids) 1 else 0) { w.delegateBids = it == 1; vm.edit() }
-                Tabs(listOf("You handle renewals", "Director renews key players"), if (w.delegateRenewals) 1 else 0) { w.delegateRenewals = it == 1; vm.edit() }
-                Muted("The director accepts bids well above a player's value and renews players of 60+ ability in October.")
             }
         }
         item {

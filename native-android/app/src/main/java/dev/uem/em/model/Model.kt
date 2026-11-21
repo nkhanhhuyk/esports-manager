@@ -69,7 +69,13 @@ class World(
     var role: String = "coach-gm",
     /** A fully fictional world (no real teams or players). */
     var fictional: Boolean = false,
+    /** Areas handed to your staff (lineups, training, signings, sales, renewals, staff, scouting, facilities). */
+    val delegation: MutableMap<String, Boolean> = HashMap(),
 ) {
+    /** Multi-year simulation in progress: staff run every area (not saved). */
+    @kotlinx.serialization.Transient
+    var autopilot: Boolean = false
+
     /** Fixture ids by day (rebuilt after loading; not saved). */
     @kotlinx.serialization.Transient
     var schedule: HashMap<Int, MutableList<Int>> = HashMap()
@@ -185,6 +191,8 @@ class Team(
     var scrims: Int = 3,
     /** Where this team's data comes from (real snapshot, historical snapshot, fictional). */
     var dataNote: String = "",
+    /** Main team this academy develops players for (-1 = not an academy). */
+    var parentId: Int = -1,
 )
 
 @Serializable

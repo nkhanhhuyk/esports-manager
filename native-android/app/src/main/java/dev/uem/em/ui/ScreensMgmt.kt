@@ -3,6 +3,7 @@ package dev.uem.em.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -40,6 +42,8 @@ import dev.uem.em.mgmt.Career
 import dev.uem.em.mgmt.Development
 import dev.uem.em.mgmt.Economy
 import dev.uem.em.mgmt.Market
+import dev.uem.em.mgmt.Roles
+import dev.uem.em.mgmt.Academies
 import dev.uem.em.model.Player
 import dev.uem.em.model.Team
 import dev.uem.em.model.World
@@ -77,13 +81,17 @@ fun SquadScreen(vm: GameVm, w: World) {
                 Tile("Meta adaptation", "%.0f".format(team.metaAdapt), color = Rate.color(team.metaAdapt)),
             ))
         }
+        item { AcademyCard(vm, w, team) }
         item { Tabs(SQUAD_TABS, tab) { tab = it } }
         item {
+            val coach = Roles.can(w, "tactics")
+            if (!coach && (tab == 1 || tab == 2)) Card { Muted(Roles.denyReason(w, "tactics") + " You can see the plan but not change it.", 12) }
+            if (tab == 3 && !Roles.can(w, "staff")) Card { Muted(Roles.denyReason(w, "staff"), 12) }
             when (tab) {
-                0 -> SquadLineup(vm, w, team, t) { pickSlot = it }
-                1 -> SquadTactics(vm, w, team, t)
-                2 -> SquadTraining(vm, w, team, t)
-                3 -> SquadStaff(vm, w, team) { hireRole = it }
+                0 -> SquadLineup(vm, w, team, t) { if (coach && Roles.handles(w, "lineups")) pickSlot = it else vm.toast = if (!coach) Roles.denyReason(w, "tactics") else "Lineups are delegated to your head coach (Settings → Delegation)" }
+                1 -> Box(if (coach) Modifier else Modifier.alpha(0.6f)) { SquadTactics(vm, w, team, t); if (!coach) Box(Modifier.matchParentSize().clickable(enabled = true) {}) }
+                2 -> Box(if (coach) Modifier else Modifier.alpha(0.6f)) { SquadTraining(vm, w, team, t); if (!coach) Box(Modifier.matchParentSize().clickable(enabled = true) {}) }
+                3 -> SquadStaff(vm, w, team) { if (Roles.can(w, "staff")) hireRole = it else vm.toast = Roles.denyReason(w, "staff") }
                 else -> SquadContracts(vm, w, team)
             }
             Gap(16)
@@ -272,7 +280,7 @@ private fun SquadStaff(vm: GameVm, w: World, team: Team, hire: (String) -> Unit)
                     Muted("${Economy.ROLE_LABEL[s.role]} · age ${Dates.ageAt(s.birth, w.day)} · ${formatMoney(s.salary)}/season to ${s.contractEnd}", 11)
                 }
                 Rating(s.quality)
-                Ghost("Release", Ui.loss) { Economy.fire(w, s); vm.edit() }
+                if (Roles.can(w, "staff")) Ghost("Release", Ui.loss) { Economy.fire(w, s); vm.edit() }
             }
         }
         Gap(4)
@@ -413,7 +421,7 @@ private fun OffersList(vm: GameVm, w: World) {
                         Text("${if (incoming) "${w.teams[o.fromTeam].name} want " else "You → "}${p.handle}", color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         Muted("${Dates.short(o.day)} · fee ${formatMoney(o.fee)} · value ${formatMoney(Economy.marketValue(w, p))} · ${o.status}", 11)
                     }
-                    if (incoming && o.status == "pending") {
+                    if (incoming && o.status == "pending" && Roles.can(w, "transfers")) {
                         Ghost("Accept", Ui.win) { vm.toast = Market.answerBid(w, o.id, true).text; vm.edit() }
                         Ghost("Reject", Ui.loss) { vm.toast = Market.answerBid(w, o.id, false).text; vm.edit() }
                     }
@@ -428,15 +436,27 @@ private fun OffersList(vm: GameVm, w: World) {
 @Composable
 fun PlayerActions(vm: GameVm, w: World, p: Player) {
     if (w.userOrg < 0 || p.retired) return
-    val myTeam = userTeams(w).firstOrNull { it.titleId == p.titleId } ?: return
+    val ofTitle = userTeams(w).filter { it.titleId == p.titleId }
+    val own = w.isUserTeam(p.teamId)
+    val myTeam = (if (own) w.teams[p.teamId] else ofTitle.firstOrNull { it.parentId < 0 } ?: ofTitle.firstOrNull()) ?: return
     var dialog by remember { mutableStateOf<String?>(null) }
-    val own = p.teamId == myTeam.id
+    val canT = Roles.can(w, "transfers")
+    val canC = Roles.can(w, "contracts")
     val accepted = w.offers.lastOrNull { it.playerId == p.id && w.isUserTeam(it.fromTeam) && it.status == "accepted" }
     Card("Actions") {
         if (own) {
             Muted("Contract: ${formatMoney(p.salary)} per season until ${p.contractEnd} · value ${formatMoney(Economy.marketValue(w, p))}${if (p.listed) " · transfer listed" else ""}")
-            Row { Btn("Renew") { dialog = "renew" }; Ghost(if (p.listed) "Unlist" else "Transfer list") { p.listed = !p.listed; vm.edit() }; Ghost("Release", Ui.loss) { dialog = "release" } }
-            if (Dates.ageAt(p.birth, w.day) <= 22) Ghost("Loan out until season end") { vm.toast = dev.uem.em.mgmt.Deals.loanOut(w, p.id).text; vm.edit() }
+            Row {
+                if (canC) Btn("Renew") { dialog = "renew" }
+                if (canT) Ghost(if (p.listed) "Unlist" else "Transfer list") { p.listed = !p.listed; vm.edit() }
+                if (canC) Ghost("Release", Ui.loss) { dialog = "release" }
+            }
+            if (canT && Dates.ageAt(p.birth, w.day) <= 22) Ghost("Loan out until season end") { vm.toast = dev.uem.em.mgmt.Deals.loanOut(w, p.id).text; vm.edit() }
+            val other = if (Academies.isAcademy(myTeam)) Academies.parent(w, myTeam) else Academies.of(w, myTeam)
+            if (other != null && (canT || Roles.can(w, "tactics"))) Ghost(if (Academies.isAcademy(myTeam)) "Promote to ${other.short}" else "Move to ${other.short}") { vm.toast = Academies.move(w, p).text; vm.edit() }
+            if (!canT && !canC) Muted(Roles.denyReason(w, "transfers"), 11)
+        } else if (!canT) {
+            Muted(Roles.denyReason(w, "transfers"), 12)
         } else if (p.teamId < 0) {
             Muted("Free agent · asks about ${formatMoney(Market.asking(w, myTeam, p))} per season from ${myTeam.name}")
             Btn("Offer contract") { dialog = "sign" }
@@ -557,7 +577,7 @@ fun InboxScreen(vm: GameVm, w: World) {
                             PlayerChip(p, vm, 22.dp)
                             Muted("  fee ${formatMoney(o.fee)} · value ${formatMoney(Economy.marketValue(w, p))} · CA %.0f · ${o.status}".format(p.ca), 11)
                         }
-                        if (o.status == "pending" && w.isUserTeam(o.toTeam) && !w.isUserTeam(o.fromTeam)) Row {
+                        if (o.status == "pending" && w.isUserTeam(o.toTeam) && !w.isUserTeam(o.fromTeam) && Roles.handles(w, "sales")) Row {
                             Ghost("Accept", Ui.win) { vm.toast = Market.answerBid(w, o.id, true).text; vm.edit() }
                             Ghost("Reject", Ui.loss) { vm.toast = Market.answerBid(w, o.id, false).text; vm.edit() }
                         }
@@ -667,7 +687,7 @@ fun FinancesScreen(vm: GameVm, w: World) {
                     val cost = (40000 * Math.pow(lvl + 1.0, 1.7) * (0.4 + dev.uem.em.data.GameData.economy(org.region)) / 1000).roundToInt() * 1000.0
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text(n, color = Ui.text, fontSize = 13.sp); Muted("Level $lvl / 10") }
-                        if (lvl < 10) Ghost("Upgrade ${formatMoney(cost)}") {
+                        if (lvl < 10 && Roles.can(w, "facilities")) Ghost("Upgrade ${formatMoney(cost)}") {
                             if (org.balance < cost) vm.toast = "Not enough money" else { Economy.ledger(w, org, "facility", -cost, "$n level ${lvl + 1}"); org.facilities[i]++; vm.edit() }
                         }
                     }
@@ -821,3 +841,33 @@ fun PatchesScreen(vm: GameVm, w: World) {
 
 @Composable
 fun TeamTitleTabs(w: World, teams: List<Team>, selected: Int, onSelect: (Int) -> Unit) = Tabs(teams.map { Catalogue.get(it.titleId).short }, selected, onSelect)
+
+
+/** The team's academy (or its parent team): players, league, founding a new one. */
+@Composable
+private fun AcademyCard(vm: GameVm, w: World, team: Team) {
+    if (team.nationalOf.isNotEmpty()) return
+    val parent = Academies.parent(w, team)
+    val academy = Academies.of(w, team)
+    val league = { tm: Team -> w.leagues.getOrNull(tm.leagueId)?.name ?: "development squad (no league)" }
+    if (parent != null) {
+        Card("Academy of ${parent.name}") {
+            Muted("Plays in ${league(team)}. Players move up to ${parent.short} from their page (no fee, same contract). Academy players train with the academy facility (level ${w.orgs[team.orgId].facilities.getOrElse(2) { 3 }}) and develop faster.", 12)
+            Row { TextButton(onClick = { vm.go(Screen.Team(parent.id)) }) { Text("Open ${parent.short}", color = Ui.accent, fontSize = 13.sp) } }
+        }
+    } else if (academy != null) {
+        Card("Academy · ${academy.name}") {
+            val best = Academies.prospects(w, academy, null).take(3)
+            Muted("${league(academy)} · ${academy.roster.size} players · best prospects: " + best.joinToString { "${it.handle} (${Catalogue.get(it.titleId).role(it.mainRole).short}, %.0f, age ${Dates.ageAt(it.birth, w.day)})".format(it.ca) }, 12)
+            Row { TextButton(onClick = { vm.go(Screen.Team(academy.id)) }) { Text("Open academy", color = Ui.accent, fontSize = 13.sp) } }
+        }
+    } else {
+        Card("Academy") {
+            val cost = Academies.cost(w, team)
+            val where = Academies.leagueFor(w, team)?.let { "It would play in ${it.name}." } ?: "Your region has no Challengers league, so it would train and scrim as a development squad."
+            Muted("Found an academy team of young prospects for ${team.name}. $where Each year it signs the best of the region's youth intake.", 12)
+            if (Roles.can(w, "expansion")) TextButton(onClick = { val r = Academies.found(w, team); vm.toast = r.text; if (r.ok) vm.edit() }) { Text("Found academy · ${formatMoney(cost)}", color = Ui.accent, fontSize = 13.sp) }
+            else Muted("As ${Roles.LABEL[w.role]} you cannot found academies — the owner or sporting director decides.", 11)
+        }
+    }
+}

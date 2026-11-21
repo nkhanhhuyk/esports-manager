@@ -65,7 +65,9 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
                         if (team.nationalOf.isNotEmpty()) "national team of ${GameData.countries[team.nationalOf]?.name ?: team.nationalOf}" else null,
                         if (team.real) "real team" else null,
                     ).joinToString(" · "), 12)
-                    if (team.dataNote.isNotBlank()) Text(team.dataNote, color = if (team.dataNote.startsWith("Fictional") || team.dataNote.contains("historical")) Ui.gold else Ui.muted, fontSize = 11.sp)
+                    if (team.dataNote.isNotBlank()) Text(team.dataNote, color = if (team.dataNote.startsWith("Fictional") || team.dataNote.contains("historical") || team.dataNote.startsWith("Academy")) Ui.gold else Ui.muted, fontSize = 11.sp)
+                    dev.uem.em.mgmt.Academies.parent(w, team)?.let { par -> Row(verticalAlignment = Alignment.CenterVertically) { Muted("Academy of ", 12); TeamChip(w, par.id, vm, 16.dp) } }
+                    dev.uem.em.mgmt.Academies.of(w, team)?.let { ac -> Row(verticalAlignment = Alignment.CenterVertically) { Muted("Academy: ", 12); TeamChip(w, ac.id, vm, 16.dp) } }
                 }
             }
             var editing by remember { mutableStateOf(false) }

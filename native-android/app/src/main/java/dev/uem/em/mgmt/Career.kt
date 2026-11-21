@@ -23,6 +23,8 @@ import kotlin.math.roundToInt
 object Career {
     fun setupBoard(w: World) {
         if (w.userOrg < 0) return
+        // Owners and commissioners answer to nobody.
+        if (!Roles.hasBoard(w)) { w.board = null; return }
         val org = w.orgs[w.userOrg]
         val objectives = ArrayList<BoardObjective>()
         for (tid in org.teams) {
@@ -144,6 +146,7 @@ object Career {
         val userTitles = w.orgs.getOrNull(w.userOrg)?.teams?.map { w.teams[it].titleId }?.toSet() ?: emptySet()
         val academy = w.orgs.getOrNull(w.userOrg)?.facilities?.getOrElse(2) { 3 } ?: 3
         val found = ArrayList<String>()
+        val all = ArrayList<dev.uem.em.model.Player>()
         for (id in w.titles) {
             val t = Catalogue.get(id)
             val pop = Catalogue.POPULARITY[id]!!
@@ -154,8 +157,16 @@ object Career {
             val base = w.leagues.count { it.titleId == id } * 4
             val n = maxOf(base, ((target - active) * 0.6).roundToInt()).coerceAtMost(base * 6)
             val made = (0 until n).map { PlayerGen.generate(ctx, id, null, GameData.pickNationality(rng, regs, t.isMoba, pop), rng.int(15, 17), clamp(rng.normal(47.0, 6.0), 30.0, 66.0), rng.normal(4.0 + academy * 0.5, 3.0)) }
+            all.addAll(made)
+        }
+        Academies.intake(w, all)
+        for (id in w.titles) {
+            val t = Catalogue.get(id)
+            val made = all.filter { it.titleId == id && it.teamId < 0 }
             if (id in userTitles) found.addAll(made.sortedByDescending { it.pa }.take(2).map { "${it.handle} (${t.short} ${t.role(it.mainRole).short}, ${it.nat}, age ${Dates.ageAt(it.birth, w.day)}, potential ${it.pa.roundToInt()})" })
         }
+        val joined = all.filter { it.teamId >= 0 && w.isUserTeam(it.teamId) }
+        if (joined.isNotEmpty()) w.inbox.add(Message(w.day, "Academy", "New academy prospects", joined.joinToString("\n") { "• ${it.handle} joins ${w.teams[it.teamId].name} (age ${Dates.ageAt(it.birth, w.day)}, potential ${it.pa.roundToInt()})" }))
         if (found.isNotEmpty()) w.inbox.add(Message(w.day, "Academy", "Youth intake ${w.season}", "Your academy staff recommend:\n" + found.joinToString("\n") { "• $it" } + "\nThey are free agents: sign them from the Market."))
     }
 }

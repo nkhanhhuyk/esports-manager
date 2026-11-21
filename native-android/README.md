@@ -72,6 +72,25 @@ Phones are slower per core but have 6–8 cores, which the native app uses.
   rankings, Hall of Fame, dynasties, retired); world (games, national scenes, rankings,
   organisations); player comparison; schedule calendar; inbox filters; board objectives.
 
+* **Your job and your staff**: start as Head Coach & GM, Head Coach, General Manager, Sporting
+  Director, Owner (no board) or Commissioner (sandbox); the staff run whatever your job does not
+  cover. Delegate any area you do control (lineups, training plan, signings, offers for your
+  players, renewals, staff hiring, scouting list, facility upgrades) from Settings.
+* **Real or fictional world**: a new career starts from the real snapshot or a fully generated
+  world (leagues, organisations, teams, players, coaches, crests and faces all generated).
+* **Academies**: every LCK and MPL ID / PH team has an academy in LCK Challengers League / MDL
+  (rosters generated, labelled), top teams of other leagues with a Challengers division field one,
+  AI organisations found more over time, and you can found one (cost depends on the region).
+  Academies sign the best of the region's youth intake every year, develop players faster, and AI
+  clubs promote from them before signing anyone; move players up or down from their page.
+* **Simulate 2, 5 or 10 seasons** from the Continue menu: the staff run everything meanwhile and
+  the game is saved after every season (stop at any time).
+* **Tier lists and character / weapon sheets**: S–D tiers per role (MOBAs), per role / map /
+  weapon type (Valorant), weapons and loadouts per role (CS2); tap any champion, hero, agent or
+  weapon icon for base stats and skills. Patches can release new fictional characters and weapons
+  with generated art; Fearless rules (none / soft / hard / insane) per game and event, changed by
+  major patches.
+
 Not ported: department budgets (facilities cover their effect) and the web version's full
 movement-by-movement spatial engines (the native view replays the fast engines' events on the
 real maps).

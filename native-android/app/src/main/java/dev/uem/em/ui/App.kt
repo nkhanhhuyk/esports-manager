@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -113,6 +114,7 @@ private fun BusyScreen(vm: GameVm, b: Busy) {
 @Composable
 private fun TopBar(vm: GameVm, w: dev.uem.em.model.World) {
     var menu by remember { mutableStateOf(false) }
+    var years by remember { mutableStateOf<GameVm.Span?>(null) }
     Row(Modifier.fillMaxWidth().background(Ui.card).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         if (vm.stack.size > 1) TextButton(onClick = { vm.back() }) { Text("←", color = Ui.text, fontSize = 18.sp) }
         Column(Modifier.weight(1f)) {
@@ -126,9 +128,20 @@ private fun TopBar(vm: GameVm, w: dev.uem.em.model.World) {
                 for ((label, span) in listOf("1 day" to GameVm.Span.DAY, "1 week" to GameVm.Span.WEEK, "1 month" to GameVm.Span.MONTH, "To end of season" to GameVm.Span.SEASON_END)) {
                     DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; vm.advance(span) })
                 }
+                for (span in listOf(GameVm.Span.YEARS_2, GameVm.Span.YEARS_5, GameVm.Span.YEARS_10)) {
+                    DropdownMenuItem(text = { Text("${span.years} seasons") }, onClick = { menu = false; years = span })
+                }
                 DropdownMenuItem(text = { Text("Save now") }, onClick = { menu = false; vm.save() })
             }
         }
+    }
+    years?.let { span ->
+        val last = w.season + span.years - 1
+        AlertDialog(onDismissRequest = { years = null },
+            confirmButton = { TextButton(onClick = { years = null; vm.advance(span) }) { Text("Simulate") } },
+            dismissButton = { TextButton(onClick = { years = null }) { Text("Cancel") } },
+            title = { Text("Simulate ${span.years} seasons?") },
+            text = { Text("Plays every match to the end of season $last. " + (if (w.userOrg >= 0) "Your staff pick lineups, train the team, sign and renew players, hire staff and upgrade facilities meanwhile. " else "") + "The game is saved after each season and you can stop at any time.") })
     }
 }
 

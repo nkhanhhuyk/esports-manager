@@ -49,7 +49,7 @@ private fun weight(w: World, f: Fixture): Int {
 @Composable
 fun WatchButton(vm: GameVm, w: World, f: Fixture) {
     if (f.done || f.a < 0 || f.b < 0) return
-    val mine = w.isUserTeam(f.a) || w.isUserTeam(f.b)
+    val mine = (w.isUserTeam(f.a) || w.isUserTeam(f.b)) && dev.uem.em.mgmt.Roles.can(w, "tactics")
     if (f.day <= w.day + 1) Button(onClick = { vm.startLive(f.id, spectate = !mine) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text(if (mine) "Play live" else "Watch live", fontSize = 12.sp) }
     else TextButton(onClick = { vm.advanceAndWatch(f.id) }) { Text("Go to match day & ${if (mine) "play" else "watch"}", color = Ui.accent, fontSize = 12.sp) }
 }

@@ -41,6 +41,7 @@ import java.util.Date
 @Composable
 fun StartScreen(vm: GameVm) {
     var name by remember { mutableStateOf("Career") }
+    var fictional by remember { mutableStateOf(false) }
     var saves by remember { mutableStateOf(vm.saves()) }
     LazyColumn(Modifier.fillMaxSize().statusBarsPadding()) {
         item {
@@ -53,9 +54,12 @@ fun StartScreen(vm: GameVm) {
             Card("New career") {
                 OutlinedTextField(value = name, onValueChange = { name = it.take(24) }, label = { Text("Save name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Gap()
-                Muted("Real leagues, teams and players from the 20 November 2026 snapshot for LoL, Valorant, CS2, Dota 2 and MLBB. Wild Rift uses the last available roster snapshot (early 2021, marked historical). Honor of Kings teams and players are fictional: no current verified source could be used. Team and player pages show what is verified, estimated or generated.")
+                Tabs(listOf("Real world", "Fictional world"), if (fictional) 1 else 0) { fictional = it == 1 }
+                Gap(6)
+                if (!fictional) Muted("Real leagues, teams and players from the 20 November 2026 snapshot for LoL, Valorant, CS2, Dota 2 and MLBB, with academy teams in the LCK Challengers League and MDL. Wild Rift uses the last available roster snapshot (early 2021, marked historical). Honor of Kings teams and players are fictional: no current verified source could be used. Team and player pages show what is verified, estimated or generated.")
+                else Muted("Every league, organisation, team, player and coach is generated, with generated crests and faces. The seven games, their characters, maps, patches and the competition calendar stay the same.")
                 Gap()
-                Button(onClick = { vm.newGame(name) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) { Text("Generate world") }
+                Button(onClick = { vm.newGame(name, fictional) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent), shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) { Text("Generate world") }
             }
         }
         item {
@@ -83,14 +87,24 @@ fun StartScreen(vm: GameVm) {
 @Composable
 fun PickOrgScreen(vm: GameVm, w: World) {
     var title by remember { mutableStateOf<String?>("lol") }
+    var role by remember { mutableStateOf("coach-gm") }
     val orgs = remember(title) {
         w.orgs.filter { o -> o.teams.any { w.teams[it].active && (title == null || w.teams[it].titleId == title) } }
             .sortedWith(compareByDescending<dev.uem.em.model.Org> { it.real }.thenByDescending { it.rep })
     }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Column(Modifier.padding(16.dp)) {
+            Text("Choose your job", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Gap(4)
+        }
+        val ids = dev.uem.em.mgmt.Roles.IDS
+        Tabs(listOf("Coach & GM", "Head coach", "General manager", "Sporting director", "Owner", "Commissioner"), ids.indexOf(role)) { role = ids[it] }
+        Column(Modifier.padding(horizontal = 16.dp)) {
+            Text(dev.uem.em.mgmt.Roles.LABEL[role]!!, color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Muted(dev.uem.em.mgmt.Roles.DESC[role]!! + if (!dev.uem.em.mgmt.Roles.hasBoard(role)) "" else " The board judges your results.", 12)
+            Gap(10)
             Text("Choose your organisation", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            Muted("Real organisations first, by reputation")
+            Muted(if (w.fictional) "By reputation" else "Real organisations first, by reputation")
             Gap(8)
             Row(Modifier.fillMaxWidth().background(Ui.card2, RoundedCornerShape(12.dp)).clickable { vm.chooseSpectator() }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -106,14 +120,14 @@ fun PickOrgScreen(vm: GameVm, w: World) {
                 val teams = o.teams.map { w.teams[it] }.filter { it.active }
                 Card {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Pic(teams.firstNotNullOfOrNull { Pics.team(it) }, o.short, 40.dp)
+                        if (teams.isNotEmpty()) TeamPic(teams[0], 40.dp) else Pic(null, o.short, 40.dp)
                         HGap(10)
                         Column(Modifier.weight(1f)) {
                             Text(o.name, color = Ui.text, fontWeight = FontWeight.SemiBold)
-                            Muted(teams.joinToString(" · ") { t -> "${Catalogue.get(t.titleId).short} ${t.leagueId.takeIf { it >= 0 }?.let { w.leagues[it].short } ?: ""}".trim() })
+                            Muted(teams.joinToString(" · ") { t -> "${Catalogue.get(t.titleId).short} ${t.leagueId.takeIf { it >= 0 }?.let { w.leagues[it].short } ?: "development"}${if (t.parentId >= 0) " (academy)" else ""}".trim() })
                             Muted("Reputation ${o.rep.toInt()} · balance ${formatMoney(o.balance)}")
                         }
-                        Button(onClick = { vm.chooseOrg(o.id) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Manage") }
+                        Button(onClick = { vm.chooseOrg(o.id, role) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Manage") }
                     }
                 }
             }
@@ -176,11 +190,12 @@ fun HomeScreen(vm: GameVm, w: World) {
                     Row(verticalAlignment = Alignment.CenterVertically) { Muted("${w.comps[f.compId].short} · Bo${f.bestOf} vs ", 13); TeamChip(w, opp, vm, 20.dp) }
                     Gap()
                     Row {
-                        Button(onClick = { vm.startLive(f.id) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Play live") }
+                        val coach = dev.uem.em.mgmt.Roles.can(w, "tactics")
+                        Button(onClick = { vm.startLive(f.id) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text(if (coach) "Play live" else "Watch live") }
                         HGap()
                         TextButton(onClick = { vm.advance(GameVm.Span.DAY) }) { Text("Let the staff simulate it", color = Ui.accent) }
                     }
-                    Muted("Live: you draft (or veto maps) and watch each game on the 2D map.", 11)
+                    Muted(if (dev.uem.em.mgmt.Roles.can(w, "tactics")) "Live: you draft (or veto maps) and watch each game on the 2D map." else "Your head coach drafts and plays; you watch from the box on the 2D map.", 11)
                 }
             }
         }
