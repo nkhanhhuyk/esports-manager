@@ -193,7 +193,7 @@ object WorldGen {
 
     private fun createTeam(b: Build, org: Org, titleId: String, region: String, league: League?, name: String = org.name, short: String = org.short): Team {
         val t = Catalogue.get(titleId)
-        val team = Team(b.world.teams.size, org.id, titleId, name, short.take(6), region, leagueId = league?.id ?: -1, style = b.rng.pick(t.styles),
+        val team = Team(b.world.teams.size, org.id, titleId, name, short.take(6), region, leagueId = league?.id ?: -1, style = b.rng.pick(t.styles), aggression = clamp(b.rng.normal(50.0, 15.0), 10.0, 90.0).roundToInt().toDouble(),
             chemistry = clamp(b.rng.normal(62.0, 10.0), 30.0, 90.0).roundToInt().toDouble(), metaAdapt = clamp(b.rng.normal(72.0, 8.0), 45.0, 95.0).roundToInt().toDouble())
         b.world.teams.add(team)
         org.teams.add(team.id)

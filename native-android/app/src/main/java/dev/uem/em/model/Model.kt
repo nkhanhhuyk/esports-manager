@@ -1,6 +1,7 @@
 package dev.uem.em.model
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.protobuf.ProtoPacked
 
 /**
  * The game world. Entities are addressed by integer ids that are their index in the world's lists
@@ -47,9 +48,9 @@ class Player(
     var titleId: String,
     var roles: List<String>,
     /** 86 attributes, 1..99. */
-    var attrs: DoubleArray,
+    @ProtoPacked var attrs: DoubleArray,
     /** Input proficiency: touch, mouse & keyboard, controller. */
-    var input: DoubleArray,
+    @ProtoPacked var input: DoubleArray,
     var profTitle: MutableMap<String, Double> = HashMap(),
     var profRole: MutableMap<String, Double> = HashMap(),
     /** Character proficiency in the main title, by character id. */
@@ -66,7 +67,7 @@ class Player(
     var injury: String = "",
     var dev: Dev = Dev(),
     /** ambition, loyalty, temperament, ego, greed, controversy, pressure (1..99). */
-    var pers: IntArray = IntArray(7) { 50 },
+    @ProtoPacked var pers: IntArray = IntArray(7) { 50 },
     var salary: Double = 0.0,
     var contractEnd: Int = 0,
     var value: Double = 0.0,
@@ -76,7 +77,7 @@ class Player(
     var realEst: List<String> = emptyList(),
     var stats: MutableList<SeasonLine> = ArrayList(),
     var career: MutableList<CareerEntry> = ArrayList(),
-    var caHistory: MutableList<Float> = ArrayList(),
+    @ProtoPacked var caHistory: MutableList<Float> = ArrayList(),
     var retiredSeason: Int = 0,
     var attrVersion: Int = 0,
     var joinedDay: Int = 0,
@@ -91,7 +92,7 @@ class Dev(var trajectory: String = "steady", var peakAge: Int = 23, var declineA
 
 /** A player's season line in one title for one team (stats in the title's stat order). */
 @Serializable
-class SeasonLine(val season: Int, val titleId: String, val teamId: Int, var gp: Int = 0, var w: Int = 0, var l: Int = 0, var ratingSum: Double = 0.0, var mvps: Int = 0, var s: DoubleArray = DoubleArray(0))
+class SeasonLine(val season: Int, val titleId: String, val teamId: Int, var gp: Int = 0, var w: Int = 0, var l: Int = 0, var ratingSum: Double = 0.0, var mvps: Int = 0, @ProtoPacked var s: DoubleArray = DoubleArray(0))
 
 @Serializable
 class CareerEntry(val season: Int, val day: Int, val teamId: Int, val type: String)
@@ -109,6 +110,7 @@ class Team(
     /** Starting players in the title's lineup order (-1 = empty). */
     var lineup: MutableList<Int> = ArrayList(),
     var style: String = "",
+    var aggression: Double = 50.0,
     var chemistry: Double = 60.0,
     var elo: Double = 1500.0,
     var metaAdapt: Double = 70.0,
@@ -193,7 +195,7 @@ class Competition(
 }
 
 @Serializable
-class CompStats(var teamId: Int, var gp: Int = 0, var w: Int = 0, var r: Double = 0.0, var m: Int = 0, var v: DoubleArray = DoubleArray(0))
+class CompStats(var teamId: Int, var gp: Int = 0, var w: Int = 0, var r: Double = 0.0, var m: Int = 0, @ProtoPacked var v: DoubleArray = DoubleArray(0))
 
 @Serializable
 class Stage(
@@ -276,12 +278,12 @@ class GameRecord(
     /** Which series team played the first (blue / Radiant / attack-first) side. */
     val blue: Int = 0,
     /** Side choice: chooser, 0 side / 1 pick order, 0 coin / 1 previous loser. */
-    val sel: IntArray = IntArray(0),
+    @ProtoPacked val sel: IntArray = IntArray(0),
     val bans: List<String> = emptyList(),
     val picks: List<String> = emptyList(),
-    val score: IntArray = IntArray(2),
+    @ProtoPacked val score: IntArray = IntArray(2),
     val lines: List<Line>,
 )
 
 @Serializable
-class Line(val playerId: Int, val team: Int, val roleId: String, val charId: String = "", var rating: Double = 1.0, val s: DoubleArray)
+class Line(val playerId: Int, val team: Int, val roleId: String, val charId: String = "", var rating: Double = 1.0, @ProtoPacked val s: DoubleArray)

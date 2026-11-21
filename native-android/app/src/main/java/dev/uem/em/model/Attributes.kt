@@ -109,6 +109,7 @@ object Attrs {
     val COMPOSURE = idx("composure")
     val LEARNING = idx("learningSpeed")
     val STAMINA = idx("stamina")
+    val idxRecovery = idx("recovery")
 
     const val INPUT_SPAN = 0.35
 

@@ -1,0 +1,158 @@
+package dev.uem.em.sim
+
+import dev.uem.em.core.Rng
+import dev.uem.em.core.clamp
+import dev.uem.em.model.Player
+import dev.uem.em.titles.CharDef
+import dev.uem.em.titles.TitleDef
+
+/**
+ * Drafts (ported from the web version's quick draft): each player has a short preference list for
+ * the patch (comfort, meta, team style, role fit); teams ban the opponents' favourites and pick
+ * through the title's real step order. Same rules as a full draft: bans, uniqueness, Fearless.
+ * Valorant agents are chosen per team (no bans); CS2 has no characters.
+ */
+object Draft {
+    class Result(val picks: Array<ArrayList<String>>, val bans: List<String>, val assign: Array<HashMap<Int, String>>, val firstPick: Int)
+
+    private val COUNTERS = listOf(
+        Triple(Regex("assassin|flank|speedster|skirmisher"), Regex("marksman|mage|sniper|sharpshooter|hunter|carry|artillery|support|healer|strategist|enchanter"), 0.5),
+        Triple(Regex("tank|guardian|vanguard|front|defender|brawler"), Regex("assassin|flank|speedster|fighter|warrior"), 0.4),
+        Triple(Regex("marksman|hunter|sharpshooter|carry|damage|duelist"), Regex("tank|guardian|vanguard|front|defender"), 0.45),
+        Triple(Regex("mage|nuker|caster|controller|artillery"), Regex("fighter|warrior|bruiser|all-rounder|tank"), 0.35),
+        Triple(Regex("fighter|warrior|bruiser|all-rounder"), Regex("marksman|mage|support|enchanter"), 0.3),
+        Triple(Regex("initiator|intel|recon"), Regex("sentinel|anchor|trapper|controller"), 0.3),
+        Triple(Regex("sentinel|anchor|trapper"), Regex("duelist|entry"), 0.35),
+        Triple(Regex("duelist|entry"), Regex("initiator|controller|intel"), 0.25),
+    )
+    private val counterCache = java.util.concurrent.ConcurrentHashMap<String, Double>()
+
+    fun counter(a: CharDef, b: CharDef): Double = counterCache.getOrPut("${a.cls}|${b.cls}") {
+        val ca = a.cls.lowercase()
+        val cb = b.cls.lowercase()
+        var s = 0.0
+        for ((x, y, v) in COUNTERS) {
+            if (x.containsMatchIn(ca) && y.containsMatchIn(cb)) s += v
+            if (x.containsMatchIn(cb) && y.containsMatchIn(ca)) s -= v
+        }
+        s
+    }
+
+    private val FRONT = Regex("tank|guardian|vanguard|front|defender|fighter|warrior|bruiser|captain")
+    private val DAMAGE = Regex("marksman|mage|assassin|sniper|hunter|sharpshooter|damage|duelist|attacker|carry|nuker|caster|energy")
+    private val SUPPORT = Regex("support|enchanter|healer|supporter|strategist|captain")
+
+    fun evaluate(t: TitleDef, patch: Patch, chars: List<CharDef>, enemy: List<CharDef>, players: List<Player>, teamStyle: String): CompEval {
+        if (chars.isEmpty()) {
+            val profile = t.styles.associateWith { if (it == teamStyle) 7.0 else 5.0 }
+            val style = ((patch.styles[teamStyle] ?: 1.0) - 1) * 0.8
+            return CompEval(style * 0.4, 0.0, profile)
+        }
+        val meta = chars.sumOf { patch.charMeta[it.id] ?: 0.0 } / chars.size / 10
+        val profile = t.styles.associateWith { s -> chars.sumOf { it.styles[s] ?: 5.0 } / chars.size }
+        var ws = 0.0
+        var ss = 0.0
+        for (s in t.styles) { val w = patch.styles[s] ?: 1.0; ws += w; ss += profile[s]!! * w }
+        val style = clamp((ss / maxOf(0.01, ws) - 5) / 3, -1.0, 1.0) * 0.6 + clamp(((profile[teamStyle] ?: 5.0) - 5) / 5, -1.0, 1.0) * 0.4
+        val hasFront = chars.any { FRONT.containsMatchIn(it.cls.lowercase()) }
+        val dmg = chars.count { DAMAGE.containsMatchIn(it.cls.lowercase()) }
+        val sup = chars.any { SUPPORT.containsMatchIn(it.cls.lowercase()) }
+        val coverage = (if (hasFront) 0.25 else -0.35) + (if (dmg >= minOf(2, chars.size - 1)) 0.2 else -0.3) + (if (sup) 0.1 else -0.15)
+        var counter = 0.0
+        if (enemy.isNotEmpty()) {
+            for (c in chars) for (e in enemy) counter += counter(c, e)
+            counter = clamp(counter / (chars.size * enemy.size) * 3, -1.0, 1.0)
+        }
+        val comfort = if (players.isEmpty()) 0.5 else players.indices.sumOf { i -> chars.getOrNull(i)?.let { (players[i].profChar[it.id] ?: 25.0) / 100 } ?: 0.0 } / players.size
+        val total = 0.35 * meta + 0.22 * style + 0.18 * coverage + 0.13 * counter + 0.12 * (comfort - 0.6) * 2
+        return CompEval(total, counter, profile)
+    }
+
+    private fun comfort(t: TitleDef, p: Player): (CharDef) -> Double {
+        val byClass = HashMap<String, Double>()
+        for ((cid, v) in p.profChar) t.charIndex[cid]?.let { c -> if (v > (byClass[c.cls] ?: 0.0)) byClass[c.cls] = v }
+        return { c -> p.profChar[c.id] ?: (byClass[c.cls] ?: 0.0) * 0.45 }
+    }
+
+    /** A player's preferred characters for the patch (top 14). */
+    private fun preferred(t: TitleDef, patch: Patch, p: Player, roleIdx: Int, style: String): List<CharDef> {
+        val role = t.lineupRoles[roleIdx]
+        val cf = comfort(t, p)
+        val fitAny = t.characters.any { it.lanes.isNotEmpty() || it.classes.isNotEmpty() }
+        return t.characters.asSequence().filter { !fitAny || it.fits(role) }
+            .map { it to ((patch.charMeta[it.id] ?: 0.0) / 10 * 0.8 + cf(it) / 100 * 1.1 + ((it.styles[style] ?: 5.0) - 5) / 10) }
+            .sortedByDescending { it.second }.take(14).map { it.first }.toList()
+    }
+
+    /**
+     * Draft one game. `lineups[i]` are the series team's players in lineup order; `firstPick` is the
+     * series team picking first; `locked[i]` are characters a team may not pick (Fearless).
+     */
+    fun run(t: TitleDef, patch: Patch, lineups: Array<List<Player>>, styles: Array<String>, firstPick: Int, locked: Array<Set<String>>, rng: Rng): Result {
+        val picks = arrayOf(ArrayList<String>(), ArrayList<String>())
+        val assign = arrayOf(HashMap<Int, String>(), HashMap<Int, String>())
+        val bans = ArrayList<String>()
+        if (t.characters.isEmpty() || t.draft.mode == "none") return Result(picks, bans, assign, firstPick)
+        val prefs = Array(2) { s -> lineups[s].mapIndexed { i, p -> preferred(t, patch, p, i, styles[s]) } }
+        if (t.draft.mode == "simultaneous") {
+            // Each team: players pick their best available preferred agent (unique within the team).
+            for (s in 0..1) {
+                val taken = HashSet<String>()
+                lineups[s].indices.sortedBy { rng.next() }.forEach { i ->
+                    val c = prefs[s][i].firstOrNull { it.id !in taken && it.id !in locked[s] } ?: t.characters.first { it.id !in taken }
+                    taken.add(c.id)
+                    picks[s].add(c.id)
+                    assign[s][lineups[s][i].id] = c.id
+                }
+            }
+            return Result(picks, bans, assign, firstPick)
+        }
+        val banned = HashSet<String>()
+        val picked = HashSet<String>()
+        val open = arrayOf(lineups[0].indices.toMutableList(), lineups[1].indices.toMutableList())
+        fun legal(team: Int, ban: Boolean, id: String) = id !in banned && (if (ban) id !in picked else id !in picked && id !in locked[team])
+        for (step in t.draft.steps) {
+            val team = if (step.team == 0) firstPick else 1 - firstPick
+            if (step.ban) {
+                val enemy = 1 - team
+                var first: CharDef? = null
+                var second: CharDef? = null
+                for (i in open[enemy].ifEmpty { lineups[enemy].indices.toList() }) for (c in prefs[enemy][i].take(4)) {
+                    if (!legal(team, true, c.id) || c === first || c === second) continue
+                    val v = patch.charMeta[c.id] ?: 0.0
+                    if (first == null || v > (patch.charMeta[first.id] ?: 0.0)) { second = first; first = c } else if (second == null || v > (patch.charMeta[second.id] ?: 0.0)) second = c
+                }
+                val c = (if (rng.int(0, 1) == 1 && second != null) second else first) ?: t.characters.filter { legal(team, true, it.id) }.maxByOrNull { patch.charMeta[it.id] ?: 0.0 }
+                if (c != null) { banned.add(c.id); bans.add(c.id) }
+            } else {
+                if (open[team].isEmpty()) continue
+                var best = -1.0
+                var bc: CharDef? = null
+                var bi = -1
+                for (i in open[team]) {
+                    val list = prefs[team][i]
+                    val idx = list.indexOfFirst { legal(team, false, it.id) }
+                    if (idx < 0) continue
+                    val v = 14 - idx + rng.next() * 1.5
+                    if (v > best) { best = v; bc = list[idx]; bi = i }
+                }
+                if (bc == null) {
+                    bi = open[team][0]
+                    bc = t.characters.filter { legal(team, false, it.id) }.maxByOrNull { patch.charMeta[it.id] ?: 0.0 } ?: continue
+                }
+                picked.add(bc.id)
+                picks[team].add(bc.id)
+                assign[team][lineups[team][bi].id] = bc.id
+                open[team].remove(bi)
+            }
+        }
+        // Any player left without a pick (short drafts) takes the best legal option.
+        for (s in 0..1) for (i in open[s]) {
+            val c = prefs[s][i].firstOrNull { legal(s, false, it.id) } ?: t.characters.first { legal(s, false, it.id) }
+            picked.add(c.id)
+            picks[s].add(c.id)
+            assign[s][lineups[s][i].id] = c.id
+        }
+        return Result(picks, bans, assign, firstPick)
+    }
+}
