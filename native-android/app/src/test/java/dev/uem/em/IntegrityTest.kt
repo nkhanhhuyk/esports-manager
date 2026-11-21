@@ -115,7 +115,13 @@ class IntegrityTest {
         dev.uem.em.mgmt.Career.setupBoard(w)
         val start = w.season
         val rt = Runtime.getRuntime()
-        for (i in 1..20) {
+        // A recurring user competition must get one edition per season, every season.
+        val custom = dev.uem.em.model.CustomComp(0, "Soak Invitational", "SOAK", "lol", "se", startMonth = 8, startDom = 1, recurring = true)
+        custom.sources.add("league:${w.teams.first { it.name == "T1" }.leagueId}")
+        w.customComps.add(custom)
+        assertEquals(null, dev.uem.em.comp.CustomComps.publish(w, custom))
+        val seasons = (System.getenv("UEM_SOAK_SEASONS") ?: "20").toInt()
+        for (i in 1..seasons) {
             val t0 = System.currentTimeMillis()
             val s = w.season
             Advance.run(w, Season.endDay(s) - w.day + 1)
@@ -130,8 +136,12 @@ class IntegrityTest {
             println("season ${s}: ${ms} ms, heap ${mem} MB, save ${save} KB, pages ${pages} KB, players ${w.players.size} (${active} active), teams ${w.teams.count { it.active }}, transfers ${w.transfers.size}")
             // Every active league team can field a full lineup.
             for (tm in w.teams.filter { it.active && it.leagueId >= 0 }) assertTrue("${tm.name} short of players in $s", tm.roster.size >= Catalogue.get(tm.titleId).teamSize)
+            // The custom event was played this season, exactly once.
+            assertEquals(1, custom.editions.count { w.comps[it].season == s && w.comps[it].done && w.comps[it].placements.isNotEmpty() })
+            // Fixture ids are unique and every competition of the season finished once.
+            assertEquals(w.fixtures.size, w.fixtures.map { it.id }.distinct().size)
         }
-        assertEquals(start + 20, w.season)
+        assertEquals(start + seasons, w.season)
         assertFalse(w.comps.any { it.season < w.season && it.status != 2 && it.teamIds.isNotEmpty() })
         BoxStore.store = null
     }

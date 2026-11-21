@@ -91,6 +91,18 @@ Phones are slower per core but have 6–8 cores, which the native app uses.
   with generated art; Fearless rules (none / soft / hard / insane) per game and event, changed by
   major patches.
 
+* **Positional 2D simulation (Nov 2026 upgrade)**: MOBA games are simulated on the real maps with
+  every hero's own abilities (sourced kits for 723 of 724 characters), minion waves, structures with
+  health, jungle camps, the title's objectives, vision and wards; the game ends when a core falls.
+  Valorant and CS2 rounds are played on the map graphs with line of sight, weapons, utility, plants
+  and defuses. Replays store positions, casts and utility; the viewer plays them at 1×–32× with
+  event jumps, follow, auto camera and team vision views. Match reports add gold-lead charts, key
+  moments, teamfights, heatmaps and round analysis that open the replay at any moment. See
+  `docs/UPGRADE_REPORT.md`.
+* **Custom competitions**: create league / groups / single or double elimination / Swiss events for
+  any of the seven games, invite teams or take qualifiers, set match lengths, dates and prizes,
+  validate and preview, publish one-off or every season.
+
 Not ported: department budgets (facilities cover their effect) and the web version's full
 movement-by-movement spatial engines (the native view replays the fast engines' events on the
 real maps).
