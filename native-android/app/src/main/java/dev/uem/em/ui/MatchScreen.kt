@@ -242,6 +242,7 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
             Gap(6)
         }
     }
+    if (!t.isMoba) EconomyCard(vm, w, t, f, g)
     TeamCompare(w, t, f, g.lines, order)
     // Analysis from the recorded game comes after the draft and the box score.
     if (t.isMoba) MobaAnalysisCard(vm, w, f, t, g, gi) else ShooterAnalysisCard(vm, w, f, t, g, gi)

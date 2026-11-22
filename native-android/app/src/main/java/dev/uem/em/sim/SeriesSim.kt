@@ -141,7 +141,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
             val out = if (quick && rec == null) QuickSim.shooter(t, ctx.toList(), evals, firstAttack, grng)
                 else TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, grng, patch, rec, s.mapId, timeouts ?: TimeoutPlan(timeoutsAllowed, booleanArrayOf(true, true), emptyList(), doubleArrayOf(coachQ(0), coachQ(1))))
             winnerSeries = out.winner
-            g = GameRecord(winnerSeries, out.duration, s.mapId, firstAttack, IntArray(0), emptyList(), draft.picks[0] + draft.picks[1], out.score, out.book.lines)
+            g = GameRecord(winnerSeries, out.duration, s.mapId, firstAttack, IntArray(0), emptyList(), draft.picks[0] + draft.picks[1], out.score, out.book.lines, econ = out.econ)
         }
         if (rec != null) g.replay = ReplayCodec.encode(rec)
         lastEvents = rec?.events ?: emptyList()

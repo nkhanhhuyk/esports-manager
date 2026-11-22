@@ -11,7 +11,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /** One simulated game's outcome. Team index 0/1 is the series' team order. */
-class GameOutcome(val winner: Int, val duration: Int, val score: IntArray, val book: StatBook)
+class GameOutcome(val winner: Int, val duration: Int, val score: IntArray, val book: StatBook, val econ: IntArray = IntArray(0))
 
 /**
  * Positional, ability-aware MOBA simulation on the title's real map (1-second ticks).

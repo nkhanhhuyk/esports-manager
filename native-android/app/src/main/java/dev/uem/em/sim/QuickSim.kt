@@ -113,8 +113,14 @@ object QuickSim {
         var round = 0
         var ot = false
         val defEdge = if (t.id == "cs2") 0.08 else 0.0
+        // The same economy as the full engine: who bought what each round (for the box score).
+        val bank = ShooterEconomy.Bank(t, t.teamSize, "quick|${rng.next()}")
+        val ult = Array(2) { IntArray(t.teamSize) }
         while (true) {
             val def = 1 - attack
+            val pistol = (round == 0 || round == cfg.half) && !ot
+            val buys = Array(2) { s -> bank.teamBuy(s, pistol, teams[s].phase[Phase.ECONOMY.ordinal] / 100, teams[s].aggression / 100, cfg.fullBuy.toDouble(), rng, s == attack).second }
+            val purchases = bank.buyRound(round, attack, buys, teams, ult, rng)
             val pAtk = logistic((str[attack] - str[def]) / 6.0 - defEdge + rng.normal(0.0, 0.25))
             val rw = if (rng.chance(pAtk)) attack else def
             val rl = 1 - rw
@@ -130,6 +136,7 @@ object QuickSim {
                 val killer = rng.pickCtx(alive[ks]) { (it.phase[aim] / 70).let { a -> a * a } * (if (first && it.role.phaseArr[entry] > 0) 1.6 else 1.0) }
                 val victim = rng.pickCtx(alive[1 - ks]) { 1.0 }
                 alive[1 - ks].remove(victim)
+                teams[ks].players.indexOf(killer).let { ki -> if (ki >= 0) { bank.onKill(ks, ki, purchases[ks].getOrNull(ki)?.weapon?.id); ult[ks][ki]++ } }
                 book.add(killer.p.id, K, 1.0); book.add(victim.p.id, D, 1.0); book.add(killer.p.id, DMG, 100.0 + rng.int(0, 60))
                 if (rng.chance(0.45)) book.add(killer.p.id, HS, 1.0)
                 if (first) { book.add(killer.p.id, FK, 1.0); book.add(victim.p.id, FD, 1.0); first = false }
@@ -137,8 +144,11 @@ object QuickSim {
                 roundKills[killer.p.id] = (roundKills[killer.p.id] ?: 0) + 1
                 if (ks == rw) wk++ else lk++
             }
-            if (rw == attack && rng.chance(0.55)) book.add(rng.pickCtx(teams[attack].players) { 1.0 }.p.id, PLANT, 1.0)
-            if (rw == def && rng.chance(0.12)) book.add(rng.pickCtx(teams[def].players) { 1.0 }.p.id, DEFUSE, 1.0)
+            val planted = (rw == attack && rng.chance(0.55)) || (rw == def && rng.chance(0.25))
+            val defused = rw == def && planted
+            if (planted) { val pl = rng.pickCtx(teams[attack].players) { 1.0 }; book.add(pl.p.id, PLANT, 1.0); bank.onPlant(attack, teams[attack].players.indexOf(pl)) }
+            if (defused) book.add(rng.pickCtx(teams[def].players) { 1.0 }.p.id, DEFUSE, 1.0)
+            bank.endRound(rw, attack, Array(2) { s -> teams[s].players.indices.filter { teams[s].players[it] in alive[s] }.toSet() }, planted, (rw == attack && planted) || defused)
             if (alive[rw].size == 1 && loserKills >= 3) book.add(alive[rw][0].p.id, CLUTCH, 1.0)
             for (s in 0..1) for (pc in teams[s].players) {
                 val k = roundKills[pc.p.id] ?: 0
@@ -151,10 +161,11 @@ object QuickSim {
             val target = cfg.roundsToWin
             if (!ot) {
                 if (score[0] >= target || score[1] >= target) break
-                if (score[0] == target - 1 && score[1] == target - 1) ot = true
-                if (round == cfg.half) attack = 1 - attack
+                if (score[0] == target - 1 && score[1] == target - 1) { ot = true; bank.fill(if (t.id == "cs2") 12500.0 else 5000.0) }
+                if (round == cfg.half) { attack = 1 - attack; bank.resetHalf() }
             } else {
                 attack = 1 - attack
+                bank.fill(if (t.id == "cs2") 12500.0 else 5000.0)
                 if (abs(score[0] - score[1]) >= 2 || round > 80) break
             }
         }
@@ -164,6 +175,6 @@ object QuickSim {
         book.rate(winner) { l ->
             0.4 + book.get(l, K) - book.get(l, D) * 0.55 + book.get(l, A) * 0.3 + book.get(l, KAST) / maxOf(1, rounds) * 2.2 + book.get(l, FK) * 0.4 - book.get(l, FD) * 0.2 + book.get(l, CLUTCH) * 0.9 + book.get(l, MK) * 0.5 + book.get(l, DMG) / 1200
         }
-        return GameOutcome(winner, rounds * 105, score, book)
+        return GameOutcome(winner, rounds * 105, score, book, bank.econ())
     }
 }

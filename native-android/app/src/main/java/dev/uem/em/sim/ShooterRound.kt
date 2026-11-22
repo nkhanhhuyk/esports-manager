@@ -18,13 +18,30 @@ object Weapons {
         Weapon("sheriff", "Sheriff", 800, 4f, 55f, 159f, 0.36f, 1f, 0.55f), Weapon("spectre", "Spectre", 1600, 13.3f, 26f, 78f, 0.30f, 1f, 0.6f),
         Weapon("bulldog", "Bulldog", 2050, 10f, 35f, 116f, 0.40f, 1f, 0.62f), Weapon("vandal", "Vandal", 2900, 9.75f, 40f, 160f, 0.50f, 1f, 0.66f),
         Weapon("phantom", "Phantom", 2900, 11f, 39f, 156f, 0.42f, 1f, 0.68f), Weapon("operator", "Operator", 4700, 0.6f, 150f, 255f, 0.65f, 1f, 0.86f, true),
+        // The rest of the arsenal (real prices; appended so recorded games keep their indexes).
+        Weapon("shorty", "Shorty", 150, 3.33f, 60f, 110f, 0.10f, 1f, 0.42f), Weapon("frenzy", "Frenzy", 450, 10f, 26f, 78f, 0.22f, 1f, 0.5f),
+        Weapon("stinger", "Stinger", 1100, 16f, 27f, 67f, 0.25f, 1f, 0.55f), Weapon("bucky", "Bucky", 850, 1.1f, 100f, 180f, 0.14f, 1f, 0.45f),
+        Weapon("judge", "Judge", 1850, 3.5f, 70f, 120f, 0.15f, 1f, 0.48f), Weapon("guardian", "Guardian", 2250, 5.25f, 65f, 195f, 0.55f, 1f, 0.72f),
+        Weapon("marshal", "Marshal", 950, 1.5f, 101f, 202f, 0.60f, 1f, 0.8f, true), Weapon("outlaw", "Outlaw", 2400, 2.75f, 140f, 238f, 0.62f, 1f, 0.82f, true),
+        Weapon("ares", "Ares", 1600, 13f, 30f, 72f, 0.38f, 1f, 0.55f), Weapon("odin", "Odin", 3200, 15.6f, 38f, 95f, 0.42f, 1f, 0.58f),
     )
     val CS2 = listOf(
         Weapon("glock", "Glock-18", 200, 6.6f, 30f, 116f, 0.28f, 0.47f, 0.5f), Weapon("usp", "USP-S", 200, 5.9f, 35f, 140f, 0.30f, 0.505f, 0.58f),
         Weapon("deagle", "Desert Eagle", 700, 3.7f, 53f, 212f, 0.38f, 0.93f, 0.5f), Weapon("mp9", "MP9", 1250, 14.3f, 26f, 104f, 0.28f, 0.6f, 0.58f),
-        Weapon("galil", "Galil AR", 1800, 11.1f, 30f, 120f, 0.40f, 0.775f, 0.6f), Weapon("famas", "FAMAS", 1950, 11.1f, 30f, 120f, 0.40f, 0.7f, 0.6f),
+        Weapon("galil", "Galil AR", 1800, 11.1f, 30f, 120f, 0.40f, 0.775f, 0.6f), Weapon("famas", "FAMAS", 2050, 11.1f, 30f, 120f, 0.40f, 0.7f, 0.6f),
         Weapon("ak47", "AK-47", 2700, 10f, 36f, 143f, 0.52f, 0.775f, 0.65f), Weapon("m4a1s", "M4A1-S", 2900, 10f, 38f, 152f, 0.50f, 0.7f, 0.68f),
         Weapon("awp", "AWP", 4750, 0.68f, 115f, 459f, 0.70f, 0.975f, 0.88f, true),
+        // The rest of the arsenal (real prices; appended so recorded games keep their indexes).
+        Weapon("p250", "P250", 300, 4f, 38f, 152f, 0.30f, 0.64f, 0.55f), Weapon("fiveseven", "Five-SeveN", 500, 4f, 32f, 128f, 0.32f, 0.91f, 0.58f),
+        Weapon("tec9", "Tec-9", 500, 8f, 33f, 132f, 0.28f, 0.9f, 0.5f), Weapon("cz75", "CZ75-Auto", 500, 10f, 31f, 124f, 0.26f, 0.78f, 0.48f),
+        Weapon("mac10", "MAC-10", 1050, 13.3f, 29f, 116f, 0.25f, 0.57f, 0.52f), Weapon("mp7", "MP7", 1500, 11.7f, 29f, 116f, 0.30f, 0.625f, 0.58f),
+        Weapon("ump45", "UMP-45", 1200, 11.1f, 35f, 140f, 0.30f, 0.65f, 0.55f), Weapon("p90", "P90", 2350, 14.3f, 26f, 104f, 0.30f, 0.69f, 0.58f),
+        Weapon("mp5sd", "MP5-SD", 1500, 12.5f, 27f, 108f, 0.28f, 0.625f, 0.58f), Weapon("bizon", "PP-Bizon", 1400, 12.5f, 27f, 108f, 0.26f, 0.575f, 0.52f),
+        Weapon("nova", "Nova", 1050, 1.1f, 150f, 300f, 0.12f, 0.5f, 0.45f), Weapon("xm1014", "XM1014", 2000, 2.9f, 110f, 220f, 0.12f, 0.8f, 0.45f),
+        Weapon("mag7", "MAG-7", 1300, 1.2f, 170f, 340f, 0.12f, 0.75f, 0.45f), Weapon("sawedoff", "Sawed-Off", 1100, 1.1f, 170f, 340f, 0.10f, 0.75f, 0.42f),
+        Weapon("ssg08", "SSG 08", 1700, 0.8f, 88f, 352f, 0.68f, 0.85f, 0.86f, true), Weapon("sg553", "SG 553", 3000, 10f, 30f, 120f, 0.52f, 1f, 0.66f),
+        Weapon("aug", "AUG", 3300, 10f, 28f, 112f, 0.52f, 0.9f, 0.68f), Weapon("m4a4", "M4A4", 3100, 11.1f, 33f, 132f, 0.50f, 0.7f, 0.66f),
+        Weapon("negev", "Negev", 1700, 13.3f, 35f, 140f, 0.35f, 0.71f, 0.45f),
     )
     fun of(t: String) = if (t == "cs2") CS2 else VAL
     fun byId(t: String, id: String) = of(t).first { it.id == id }
@@ -45,7 +62,8 @@ class ShooterRound(
     val timeBase: Int, val rec: Recorder?, val host: Host,
 ) {
     /** First-shot edge of a defender holding an angle (Valorant's abilities give attackers more ways to clear angles). */
-    private val holdEdge = if (t.id == "valorant") 0.25f else 0.32f
+    // CS2 maps are CT-sided (pros win about 47 % of T rounds): the hold matters more there.
+    private val holdEdge = if (t.id == "valorant") 0.25f else 0.55f
     interface Host {
         fun kill(ks: Int, killer: PlayerCtx, victim: PlayerCtx, assister: PlayerCtx?, headshot: Boolean, where: Int, damage: Double)
         fun plant(p: PlayerCtx)

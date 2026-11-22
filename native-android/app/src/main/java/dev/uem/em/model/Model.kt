@@ -442,6 +442,8 @@ class GameRecord(
     var replay: Replay? = null,
     /** The draft step by step: "b|team|character" or "p|team|character|player" (team = series team). */
     val draftOrder: List<String> = emptyList(),
+    /** Shooters: every round's buys (see sim.ShooterEconomy.Bank.econ). */
+    @ProtoPacked val econ: IntArray = IntArray(0),
 )
 
 /**

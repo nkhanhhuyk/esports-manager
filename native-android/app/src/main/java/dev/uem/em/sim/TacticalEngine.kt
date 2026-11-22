@@ -91,8 +91,10 @@ object TacticalEngine {
         val CLUTCH = book.idx("clutch"); val PLANT = book.idx("plant"); val DEFUSE = book.idx("defuse"); val KAST = book.idx("kast"); val HS = book.idx("hs"); val MK = book.idx("mk"); val UTIL = book.idx("util")
         val AIM = Phase.AIM.ordinal; val ENTRY = Phase.ENTRY.ordinal; val CL = Phase.CLUTCH.ordinal; val MOV = Phase.MOVEMENT.ordinal; val UT = Phase.UTILITY.ordinal; val VI = Phase.VISION.ordinal
         val n = t.teamSize
-        val money = Array(2) { DoubleArray(n) { cfg.startMoney.toDouble() } }
-        val carried = Array(2) { DoubleArray(n) }
+        // Money and inventories player by player (real prices, rewards, kept guns): see ShooterEconomy.
+        val bank = ShooterEconomy.Bank(t, n, seedKey)
+        val money = bank.money
+        /** Consecutive rounds lost (coaches call timeouts on streaks). */
         val streak = IntArray(2)
         val score = IntArray(2)
         var attack = firstAttack
@@ -106,18 +108,7 @@ object TacticalEngine {
         val igl = DoubleArray(2) { teams[it].phase[Phase.IGL.ordinal] }
         val econ = DoubleArray(2) { teams[it].phase[Phase.ECONOMY.ordinal] }
 
-        fun buyFor(ti: Int, pistol: Boolean): Pair<Double, String> {
-            if (pistol) return 0.72 to "pistol"
-            val avg = money[ti].average()
-            if (avg + carried[ti].average() * 0.6 >= fullBuy) return 1.0 to "full"
-            val smart = econ[ti] / 100
-            val force = if (avg >= fullBuy * 0.55) 0.35 + (teams[ti].aggression / 100) * 0.3 - smart * 0.2 else 0.08 * (1 - smart)
-            return if (rng.chance(clamp(force, 0.02, 0.8))) 0.84 to "force" else 0.58 to "eco"
-        }
-        fun spend(ti: Int, buy: String) {
-            val cost = when (buy) { "full" -> fullBuy.toDouble(); "force" -> fullBuy * 0.6; "pistol" -> minOf(cfg.startMoney, 800).toDouble(); else -> 300.0 }
-            for (i in 0 until n) money[ti][i] = maxOf(0.0, money[ti][i] - maxOf(0.0, cost - carried[ti][i]))
-        }
+        fun buyFor(ti: Int, pistol: Boolean): Pair<Double, String> = bank.teamBuy(ti, pistol, econ[ti] / 100, teams[ti].aggression / 100, fullBuy, rng, ti == attack)
         rec?.pids = (teams[0].players + teams[1].players).map { it.p.id }.toIntArray()
         fun duel(pc: PlayerCtx, initiating: Boolean) = pc.phase[AIM] * 0.68 + (if (initiating) pc.phase[ENTRY] else pc.phase[CL]) * 0.2 + pc.phase[MOV] * 0.12
 
@@ -146,8 +137,9 @@ object TacticalEngine {
             val bD = buyFor(def, pistol)
             val qA = if (ot) 1.0 else bA.first
             val qD = if (ot) 1.0 else bD.first
-            spend(attack, bA.second)
-            spend(def, bD.second)
+            // Every player's purchases (weapon, armour, utility, kit), logged for the box score.
+            val purchases = bank.buyRound(round, attack, Array(2) { s -> if (s == attack) bA.second else bD.second }, teams, ultPts, rng)
+            var defusedNow = false
             val alive = arrayOf(teams[0].players.toMutableList(), teams[1].players.toMutableList())
             val roundKills = HashMap<Int, Int>()
             val assisted = HashSet<Int>()
@@ -159,10 +151,10 @@ object TacticalEngine {
             var rw: Int
             if (smap != null) {
                 // Positional round on the real map.
-                val loadout = Array(2) { s -> Array(teams[s].players.size) { i -> gear(t, teams[s].players[i], if (s == attack) bA.second else bD.second, s == attack, i, rng) } }
-                val utility = Array(2) { s -> Array(teams[s].players.size) { i -> utilityFor(t, teams[s].players[i], if (s == attack) bA.second else bD.second, s == attack, ultPts[s], i, rng) } }
+                val loadout = Array(2) { s -> Array(teams[s].players.size) { i -> purchases[s][i].weapon to ShooterEconomy.armorValue(t.id == "cs2", purchases[s][i].armor) } }
+                val utility = Array(2) { s -> Array(teams[s].players.size) { i -> purchases[s][i].util } }
                 val armor = Array(2) { s -> IntArray(teams[s].players.size) { i -> loadout[s][i].second } }
-                val kit = Array(2) { s -> BooleanArray(teams[s].players.size) { s != attack && (if (s == attack) bA.second else bD.second) == "full" && rng.chance(0.6) } }
+                val kit = Array(2) { s -> BooleanArray(teams[s].players.size) { i -> s != attack && (purchases[s][i].kit || (t.id != "cs2" && (if (s == attack) bA.second else bD.second) == "full")) } }
                 events?.add(Ev(clock, "round", attack, x = 0, a = score[0], b = score[1], text = bA.second + "|" + bD.second, m = ReplayCodec.BUYS.indexOf(bA.second) * 4 + ReplayCodec.BUYS.indexOf(bD.second), n = round))
                 if (rec != null) {
                     val v = IntArray(rec.pids.size * ReplayCodec.PER_PLAYER)
@@ -182,12 +174,12 @@ object TacticalEngine {
                         // A kill by a teammate of someone the victim just killed is a trade.
                         if ((roundKills[victim.p.id] ?: 0) > 0) for (pc in teams[ks].players) if (pc !in alive[ks]) traded.add(pc.p.id)
                         val ki = teams[ks].players.indexOf(killer)
-                        if (ki >= 0) { money[ks][ki] += cfg.killReward.toDouble(); ultPts[ks][ki]++ }
+                        if (ki >= 0) { bank.onKill(ks, ki, purchases[ks].getOrNull(ki)?.weapon?.id); ultPts[ks][ki]++ }
                         val vi = teams[vs].players.indexOf(victim)
                         if (vi >= 0) ultPts[vs][vi]++
                         for (s in 0..1) if (alive[s].size == 1 && alive[1 - s].size >= 2 && clutchSide < 0) { clutchSide = s; clutchPlayer = alive[s][0] }
                     }
-                    override fun plant(p: PlayerCtx) { book.add(p.p.id, PLANT, 1.0); for (i in 0 until n) money[attack][i] += cfg.plantReward / (if (t.id == "cs2") n.toDouble() else 1.0); teams[attack].players.indexOf(p).let { if (it >= 0) ultPts[attack][it]++ } }
+                    override fun plant(p: PlayerCtx) { book.add(p.p.id, PLANT, 1.0); val pi = teams[attack].players.indexOf(p); bank.onPlant(attack, pi); if (pi >= 0) ultPts[attack][pi]++ }
                     override fun defuse(p: PlayerCtx) { book.add(p.p.id, DEFUSE, 1.0); teams[def].players.indexOf(p).let { if (it >= 0) ultPts[def][it]++ } }
                     override fun utility(p: PlayerCtx) { book.add(p.p.id, UTIL, 1.0) }
                     override fun damage(p: PlayerCtx, d: Double) { if (d > 0) book.add(p.p.id, DMG, d) }
@@ -195,6 +187,7 @@ object TacticalEngine {
                 val r = ShooterRound(t, smap, teams, attack, rng, Array(2) { s -> Array(teams[s].players.size) { i -> loadout[s][i].first } }, armor, utility, kit, clock, rec, host).play()
                 planted = r.planted
                 rw = r.winner
+                defusedNow = r.defused
                 events?.let { e -> val k = e.indexOfLast { it.kind == "round" }; if (k >= 0) { val o = e[k]; e[k] = Ev(o.t, o.kind, o.team, o.a, o.b, r.site, o.text, o.m, o.n) } }
                 if (r.defused) events?.let { } // recorded by the round
                 clock += r.seconds + 6
@@ -237,7 +230,7 @@ object TacticalEngine {
                 }
                 events?.add(Ev(round, "kill", ks, killer.p.id, victim.p.id, if (planted) 1 else 0, m = where, n = assister))
                 val ki = teams[ks].players.indexOf(killer)
-                if (ki >= 0) money[ks][ki] += cfg.killReward.toDouble()
+                if (ki >= 0) bank.onKill(ks, ki, purchases[ks].getOrNull(ki)?.weapon?.id)
                 for (s in 0..1) if (alive[s].size == 1 && alive[1 - s].size >= 2 && clutchSide < 0) { clutchSide = s; clutchPlayer = alive[s][0] }
             }
             while (alive[0].isNotEmpty() && alive[1].isNotEmpty() && duels < 14) {
@@ -261,14 +254,15 @@ object TacticalEngine {
                 if (!planted && alive[attack].isNotEmpty() && alive[def].isNotEmpty() && (alive[attack].size >= alive[def].size || rng.chance(0.3)) && rng.chance(0.55)) {
                     planted = true
                     events?.add(Ev(round, "plant", attack, x = site))
-                    book.add(rng.pickCtx(alive[attack]) { if (it.role.isSupport) 2.0 else 1.0 }.p.id, PLANT, 1.0)
-                    for (i in 0 until n) money[attack][i] += cfg.plantReward / (if (t.id == "cs2") n.toDouble() else 1.0)
+                    val planter = rng.pickCtx(alive[attack]) { if (it.role.isSupport) 2.0 else 1.0 }
+                    book.add(planter.p.id, PLANT, 1.0)
+                    bank.onPlant(attack, teams[attack].players.indexOf(planter))
                 }
             }
             rw = when {
                 alive[def].isEmpty() -> attack
                 alive[attack].isEmpty() -> if (planted) {
-                    if (rng.chance(clamp(0.9 - (if (alive[def].size == 1) 0.12 else 0.0), 0.5, 0.97))) { book.add(rng.pickCtx(alive[def]) { it.phase[CL] }.p.id, DEFUSE, 1.0); events?.add(Ev(round, "defuse", def)); def } else attack
+                    if (rng.chance(clamp(0.9 - (if (alive[def].size == 1) 0.12 else 0.0), 0.5, 0.97))) { book.add(rng.pickCtx(alive[def]) { it.phase[CL] }.p.id, DEFUSE, 1.0); events?.add(Ev(round, "defuse", def)); defusedNow = true; def } else attack
                 } else def
                 else -> if (planted) attack else def
             }
@@ -282,17 +276,11 @@ object TacticalEngine {
                 if (k >= 3) book.add(pc.p.id, MK, 1.0)
             }
             val lr = 1 - rw
-            for (i in 0 until n) {
-                money[rw][i] += cfg.winReward
-                money[lr][i] += cfg.lossRewards[minOf(streak[lr], cfg.lossRewards.size - 1)]
-            }
-            streak[rw] = 0
-            streak[lr]++
+            // Rewards (win, bomb / defuse, loss streak, plant bonus) and what the survivors keep.
+            val bombWin = (rw == attack && planted && alive[def].isNotEmpty()) || (rw == def && defusedNow)
+            bank.endRound(rw, attack, Array(2) { s -> teams[s].players.indices.filter { teams[s].players[it] in alive[s] }.toSet() }, planted, bombWin)
             winStreak[rw]++; winStreak[lr] = 0
-            for (s in 0..1) teams[s].players.forEachIndexed { i, pc ->
-                carried[s][i] = if (pc in alive[s]) (if (s == attack) qA else qD) * fullBuy * 0.8 else 0.0
-                money[s][i] = minOf(cfg.maxMoney.toDouble(), money[s][i])
-            }
+            streak[lr]++; streak[rw] = 0
             round++
             val target = cfg.roundsToWin
             if (!ot) {
@@ -301,12 +289,11 @@ object TacticalEngine {
                     ot = true
                     otStart = score.copyOf()
                     otRound = 0
-                    val m = if (t.id == "cs2") 10000.0 else 5000.0
-                    for (s in 0..1) money[s].fill(m)
+                    bank.fill(if (t.id == "cs2") 12500.0 else 5000.0)
                 }
                 if (round == cfg.half) {
                     attack = 1 - attack
-                    for (s in 0..1) { money[s].fill(cfg.startMoney.toDouble()); carried[s].fill(0.0); streak[s] = 0; winStreak[s] = 0 }
+                    bank.resetHalf(); for (s in 0..1) { winStreak[s] = 0; streak[s] = 0 }
                 }
             } else {
                 otRound++
@@ -316,7 +303,7 @@ object TacticalEngine {
                 } else {
                     val half = cfg.otRounds / 2
                     if (score[0] - otStart[0] >= half + 1 || score[1] - otStart[1] >= half + 1) break
-                    if (otRound % half == 0) { attack = 1 - attack; for (s in 0..1) money[s].fill(10000.0) }
+                    if (otRound % half == 0) { attack = 1 - attack; bank.fill(12500.0) }
                     if (otRound % cfg.otRounds == 0) otStart = score.copyOf()
                     if (otRound > 60) break
                 }
@@ -329,6 +316,6 @@ object TacticalEngine {
         book.rate(winner) { l ->
             0.4 + book.get(l, K) - book.get(l, D) * 0.55 + book.get(l, A) * 0.3 + book.get(l, KAST) / maxOf(1, rounds) * 2.2 + book.get(l, FK) * 0.4 - book.get(l, FD) * 0.2 + book.get(l, CLUTCH) * 0.9 + book.get(l, MK) * 0.5 + book.get(l, DMG) / 1200
         }
-        return GameOutcome(winner, if (smap != null) clock else rounds * 105, score, book)
+        return GameOutcome(winner, if (smap != null) clock else rounds * 105, score, book, bank.econ())
     }
 }
