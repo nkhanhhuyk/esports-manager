@@ -28,12 +28,30 @@ object Fearless {
 
     fun default(scope: String) = when (scope) { "firststand" -> "hard"; "msi" -> "insane"; else -> "none" }
 
-    /** Fearless needs a deep pool: a game with fewer than this many characters plays normal drafts (new releases can lift it over). */
-    const val MIN_POOL = 120
+    /**
+     * Fearless needs a deep pool (long best-of-sevens use up many characters): Soft Fearless from
+     * 100 characters, Fearless from 120, Insane Fearless from 150. Below 100 a game plays normal
+     * drafts; new releases can lift it over a line.
+     */
+    const val MIN_POOL = 100
+    val POOL_FOR = mapOf("soft" to 100, "hard" to 120, "insane" to 150)
 
     fun applies(t: TitleDef) = t.draft.mode == "sequential" && t.characters.size >= MIN_POOL
 
-    fun rule(w: World, t: TitleDef, scope: String): String = if (!applies(t)) "none" else w.fearlessRules["${t.id}:$scope"] ?: default(scope)
+    /** Whether the pool is deep enough for this rule. */
+    fun allows(t: TitleDef, mode: String) = mode == "none" || (t.draft.mode == "sequential" && t.characters.size >= (POOL_FOR[mode] ?: Int.MAX_VALUE))
+
+    /** The rule actually played: a rule the pool is too small for steps down to the strongest one it allows. */
+    fun effective(t: TitleDef, mode: String): String {
+        var m = mode
+        while (m != "none" && !allows(t, m)) m = when (m) { "insane" -> "hard"; "hard" -> "soft"; else -> "none" }
+        return m
+    }
+
+    /** The modes this game's pool allows. */
+    fun modesFor(t: TitleDef) = MODES.filter { allows(t, it) }
+
+    fun rule(w: World, t: TitleDef, scope: String): String = if (!applies(t)) "none" else effective(t, w.fearlessRules["${t.id}:$scope"] ?: default(scope))
 
     fun scopeOf(c: Competition): String = when {
         c.tier == CompTier.WORLDS -> "worlds"
@@ -42,6 +60,9 @@ object Fearless {
         c.tier == CompTier.INTERNATIONAL -> "msi"
         else -> "league"
     }
+
+    /** The rule a competition's series are actually drafted with in this game. */
+    fun played(t: TitleDef, c: Competition?): String = if (c == null || !applies(t)) "none" else effective(t, modeOf(c))
 
     /** The rule a competition plays with (old saves: the boolean flag means hard Fearless). */
     fun modeOf(c: Competition): String = c.fearlessMode.ifBlank { if (c.fearless) "hard" else "none" }
@@ -59,7 +80,9 @@ object Fearless {
         for (scope in SCOPES) {
             if (!rng.chance(0.3)) continue
             val old = rule(w, t, scope)
-            val next = rng.weighted(MODES.filter { it != old }) { when (it) { "none" -> 3.0; "soft" -> 2.5; "hard" -> 3.0; else -> 1.5 } }
+            val opts = modesFor(t).filter { it != old }
+            if (opts.isEmpty()) continue
+            val next = rng.weighted(opts) { when (it) { "none" -> 3.0; "soft" -> 2.5; "hard" -> 3.0; else -> 1.5 } }
             w.fearlessRules["${t.id}:$scope"] = next
             notes.add("Draft rules — ${SCOPE_LABEL[scope]}: ${LABEL[next]} (was ${LABEL[old]}): ${DESC[next]}.")
         }

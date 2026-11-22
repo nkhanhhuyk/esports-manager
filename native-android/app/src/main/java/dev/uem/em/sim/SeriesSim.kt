@@ -36,7 +36,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
     val games = ArrayList<GameRecord>()
     val fearless = HashSet<String>()
     /** Fearless rule of this series and what each team played / what was banned in earlier games. */
-    val fearlessMode = if (dev.uem.em.comp.Fearless.applies(t)) dev.uem.em.comp.Fearless.modeOf(comp) else "none"
+    val fearlessMode = if (dev.uem.em.comp.Fearless.applies(t)) dev.uem.em.comp.Fearless.effective(t, dev.uem.em.comp.Fearless.modeOf(comp)) else "none"
     val playedBy = arrayOf(HashSet<String>(), HashSet<String>())
     val bannedBefore = HashSet<String>()
     val players = Array(2) { s -> lineups[s].filter { it >= 0 }.map { w.players[it] } }

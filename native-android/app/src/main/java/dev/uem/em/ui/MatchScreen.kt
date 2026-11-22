@@ -70,7 +70,7 @@ fun MatchScreen(vm: GameVm, w: World, id: Int) {
                     TitleTag(t.id)
                     Text(c.name, color = Ui.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
-                val fm = if (dev.uem.em.comp.Fearless.applies(t)) dev.uem.em.comp.Fearless.modeOf(c) else "none"
+                val fm = if (dev.uem.em.comp.Fearless.applies(t)) dev.uem.em.comp.Fearless.effective(t, dev.uem.em.comp.Fearless.modeOf(c)) else "none"
                 Muted("${fixtureLabel(w, f)} · ${Dates.format(f.day, true)} · Bo${f.bestOf}${if (fm != "none") " · " + dev.uem.em.comp.Fearless.LABEL[fm] else ""}", 12)
                 Gap(10)
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -189,7 +189,7 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
         }
     }
     if (t.characters.isNotEmpty() && (g.bans.isNotEmpty() || g.lines.any { it.charId.isNotEmpty() })) Card("Draft") {
-        val fm = if (dev.uem.em.comp.Fearless.applies(t)) dev.uem.em.comp.Fearless.modeOf(w.comps[f.compId]) else "none"
+        val fm = dev.uem.em.comp.Fearless.played(t, w.comps[f.compId])
         val earlier = BoxStore.get(w, f.id)?.games?.take(gi) ?: emptyList()
         if (fm != "none" && earlier.isNotEmpty()) {
             val played = Array(2) { side -> earlier.flatMap { e -> e.lines.filter { it.team == side }.map { it.charId } }.filter { it.isNotEmpty() }.toSet() }

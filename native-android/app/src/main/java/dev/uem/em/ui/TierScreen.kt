@@ -131,12 +131,12 @@ fun TierScreen(vm: GameVm, w: World) {
         }
         if (t.isMoba) item { ItemsCard(w, title) }
         if (t.characters.isNotEmpty() && t.draft.mode == "sequential" && !Fearless.applies(t)) item {
-            Card("Draft rules (${t.short})") { Muted("Normal drafts only: Fearless needs at least ${Fearless.MIN_POOL} ${t.charLabel.lowercase()}s and ${t.short} has ${t.characters.size}. New releases can lift it over.", 11) }
+            Card("Draft rules (${t.short})") { Muted("Normal drafts only: Soft Fearless needs at least ${Fearless.POOL_FOR["soft"]} ${t.charLabel.lowercase()}s, Fearless ${Fearless.POOL_FOR["hard"]}, Insane Fearless ${Fearless.POOL_FOR["insane"]}; ${t.short} has ${t.characters.size}. New releases can lift it over.", 11) }
         }
         if (Fearless.applies(t)) item {
             Card("Draft rules (${t.short})") {
                 for (scope in Fearless.SCOPES) KV(Fearless.SCOPE_LABEL[scope]!!, Fearless.LABEL[Fearless.rule(w, t, scope)]!!)
-                Muted("Major patches can change these rules; each game evolves on its own.", 11)
+                Muted("${t.short} has ${t.characters.size} ${t.charLabel.lowercase()}s. Soft Fearless needs ${Fearless.POOL_FOR["soft"]}, Fearless ${Fearless.POOL_FOR["hard"]}, Insane Fearless ${Fearless.POOL_FOR["insane"]}; a rule the pool is too small for steps down. Major patches can change these rules; each game evolves on its own.", 11)
             }
         }
         item { Gap(16) }

@@ -51,6 +51,15 @@ class BatchFixesTest {
             arrayOf(a.style, b.style), 0, arrayOf(lockedAll, lockedAll), dev.uem.em.core.Rng.of("exhausted")).runAll()
         assertEquals(10, d.picks[0].size + d.picks[1].size)
         assertEquals(10, (d.picks[0] + d.picks[1]).toSet().size)
+        // Pool sizes decide the strongest rule: Insane from 150, Fearless from 120, Soft from 100.
+        val F = dev.uem.em.comp.Fearless
+        fun eff(id: String, m: String) = F.effective(dev.uem.em.titles.Catalogue.get(id), m)
+        assertEquals("insane", eff("lol", "insane"))
+        for (id in listOf("wildrift", "mlbb", "dota2", "hok")) {
+            val n = dev.uem.em.titles.Catalogue.get(id).characters.size
+            val want = when { n >= 150 -> "insane"; n >= 120 -> "hard"; n >= 100 -> "soft"; else -> "none" }
+            assertEquals("$id ($n characters)", want, eff(id, "insane"))
+        }
     }
 
     @Test

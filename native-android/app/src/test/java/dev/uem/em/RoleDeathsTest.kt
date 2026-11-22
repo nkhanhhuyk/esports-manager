@@ -23,6 +23,7 @@ class RoleDeathsTest {
         val out = StringBuilder()
         var worst = 0.0
         val topLow = ArrayList<String>()
+        val othersHigh = ArrayList<String>()
         for (id in w.titles) {
             val t = Catalogue.get(id)
             if (!t.isMoba) continue
@@ -44,6 +45,9 @@ class RoleDeathsTest {
                 if (top[1] / top[3] < 1.4) topLow.add("${t.short} %.2f".format(top[1] / top[3]))
                 val others = t.lineup.drop(1).filter { !t.role(it).isSupport }.mapNotNull { sums[it] }.map { it[1] / it[3] }
                 if (others.isNotEmpty()) worst = maxOf(worst, (others.average() - top[1] / top[3]) / others.average())
+                // The other positions must not die far more than real pro games show (about 2.5-3.5 a game).
+                val all = t.lineup.mapNotNull { sums[it] }.map { it[1] / it[3] }
+                if (all.any { it > 4.2 }) othersHigh.add("${t.short} " + all.joinToString("/") { "%.2f".format(it) })
             }
         }
         println(out)
@@ -53,5 +57,8 @@ class RoleDeathsTest {
         // grouping with the team and a front-line formation lifted it; it must not fall back.
         println("top lane vs other positions: ${"%.0f".format(worst * 100)} % fewer deaths")
         assertTrue("top-lane deaths per game fell back: $topLow", topLow.isEmpty())
+        // Before the second fix mid, carries and supports died 4-5.4 times a game (LoL ~39 kills a game);
+        // picking fights after laning, the front line shielding its carries and no tower dives brought it down.
+        assertTrue("a position dies too often: $othersHigh", othersHigh.isEmpty())
     }
 }

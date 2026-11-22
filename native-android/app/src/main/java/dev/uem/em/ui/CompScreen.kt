@@ -116,7 +116,7 @@ private fun CompRow(vm: GameVm, w: World, c: Competition) {
                 TitleTag(c.titleId)
                 Muted("${Dates.short(c.startDay)} · ${c.teamIds.size.takeIf { it > 0 }?.let { "$it teams · " } ?: ""}${when (c.status) { 0 -> "upcoming"; 1 -> c.stages.getOrNull(c.current)?.name ?: "live"; else -> "finished" }}", 11)
             }
-            if (c.prizePool > 0) Muted("Prize pool ${formatMoney(c.prizePool)}${dev.uem.em.comp.Fearless.modeOf(c).takeIf { it != "none" }?.let { " · " + dev.uem.em.comp.Fearless.LABEL[it] } ?: ""}", 11)
+            if (c.prizePool > 0) Muted("Prize pool ${formatMoney(c.prizePool)}${dev.uem.em.comp.Fearless.played(Catalogue.get(c.titleId), c).takeIf { it != "none" }?.let { " · " + dev.uem.em.comp.Fearless.LABEL[it] } ?: ""}", 11)
             if (mine != null) Text("${w.teams[mine].short}: ${c.placements.indexOf(mine).takeIf { it >= 0 }?.let { ordinal(it + 1) } ?: if (c.done) "—" else "competing"}", color = Ui.accent, fontSize = 11.sp)
         }
         if (c.done && c.placements.isNotEmpty()) Column(horizontalAlignment = Alignment.End) {
@@ -208,7 +208,7 @@ fun CompScreen(vm: GameVm, w: World, id: Int) {
             Tiles(listOfNotNull(
                 Tile("Prize pool", formatMoney(c.prizePool)),
                 Tile("Teams", "${c.teamIds.size}", c.entrants.joinToString { it.substringBefore(':') }),
-                Tile("Format", c.stages.joinToString(" / ") { "Bo${it.bestOf}" }, dev.uem.em.comp.Fearless.modeOf(c).takeIf { it != "none" }?.let { dev.uem.em.comp.Fearless.LABEL[it] } ?: c.stages.joinToString(" → ") { stageType(it.type) }),
+                Tile("Format", c.stages.joinToString(" / ") { "Bo${it.bestOf}" }, dev.uem.em.comp.Fearless.played(Catalogue.get(c.titleId), c).takeIf { it != "none" }?.let { dev.uem.em.comp.Fearless.LABEL[it] } ?: c.stages.joinToString(" → ") { stageType(it.type) }),
                 if (champ != null) Tile("Champion", w.teams[champ].short, w.teams[champ].name, Ui.gold) else Tile("Stage", c.stages.getOrNull(c.current)?.name ?: "—", statusLabel(c.status)),
                 if (c.mvp >= 0) Tile("MVP", w.players[c.mvp].handle, w.teams.getOrNull(w.players[c.mvp].teamId)?.short, Ui.gold) else null,
                 Tile("Matches", "${c.stages.sumOf { s -> s.fixtureIds.count { w.fixtures[it].done } }} / ${c.stages.sumOf { it.fixtureIds.size }}", "played"),
