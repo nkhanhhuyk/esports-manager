@@ -86,7 +86,7 @@ fun PlayerScreen(vm: GameVm, w: World, id: Int) {
                 HGap(14)
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        val f = flag(p.nat)
+                        val f = p.nats().joinToString("") { flag(it) }
                         if (f.isNotEmpty()) Text("$f ", fontSize = 18.sp)
                         Text(p.handle, color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 22.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
@@ -97,7 +97,8 @@ fun PlayerScreen(vm: GameVm, w: World, id: Int) {
                     }
                     Gap(2)
                     if (p.teamId >= 0) TeamChip(w, p.teamId, vm, 18.dp) else Muted(if (p.retired) "Retired ${p.retiredSeason}" else "Free agent")
-                    Muted("Age ${Dates.ageAt(p.birth, w.day)} (born ${Dates.format(p.birth)}) · ${GameData.countries[p.nat]?.name ?: p.nat}", 12)
+                    Muted("Age ${Dates.ageAt(p.birth, w.day)} (born ${Dates.format(p.birth)}) · ${p.nats().joinToString(" / ") { GameData.countries[it]?.name ?: it }}", 12)
+                    if (p.nat2.isEmpty() && p.resYears in 1..2 && p.resCountry.isNotEmpty() && p.resCountry != p.nat) Muted("${p.resYears} of 3 seasons in ${GameData.countries[p.resCountry]?.name ?: p.resCountry} toward a second nationality", 11)
                     val notes = buildList {
                         if (p.injuryUntil > w.day) add("Injured (${p.injury}) until ${Dates.format(p.injuryUntil)}")
                         if (p.loanFrom >= 0) add("On loan from ${w.teams[p.loanFrom].name} until the end of ${p.loanUntil}")
@@ -491,7 +492,7 @@ private fun ProvenanceCard(w: World, p: Player) {
         }
         val host = Regex("https?://([^/]+)").find(p.realSrc)?.groupValues?.get(1) ?: "snapshot"
         KV("Identity (handle, real name)", "Verified · $host", verified)
-        KV("Nationality", if ("nationality" in est) "Estimated by the game" else "Verified", if ("nationality" in est) estimated else verified)
+        KV("Nationality", when { "nationality (from the real name)" in est -> "Estimated from the real name"; "nationality" in est -> "Estimated by the game"; else -> "Verified" }, if ("nationality" in est) estimated else verified)
         KV("Birth date", when { "birthday (year known)" in est -> "Year verified, day estimated"; "age" in est -> "Estimated by the game"; else -> "Verified" }, if ("age" in est || "year known" in est) estimated else verified)
         KV("Position", if ("role" in est) "Estimated (game assignment)" else "Verified", if ("role" in est) estimated else verified)
         KV("Team at the start", if ("free agent" in est) "Free agent (historical record)" else w.teams.getOrNull(p.career.firstOrNull()?.teamId ?: -1)?.dataNote?.ifBlank { null } ?: "Snapshot", Ui.text)

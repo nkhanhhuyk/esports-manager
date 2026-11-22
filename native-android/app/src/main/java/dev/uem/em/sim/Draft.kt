@@ -101,6 +101,8 @@ class DraftSession(
     val know: DoubleArray = doubleArrayOf(0.7, 0.7),
     /** Each team's usual ban approach this season (-1: none), see [banStyle]. */
     banPref: IntArray? = null,
+    /** What each team learned in scrims on this patch (character → -0.5 failed .. +0.5 works). */
+    val scrimBonus: Array<Map<String, Double>>? = null,
 ) {
     val picks = arrayOf(ArrayList<String>(), ArrayList<String>())
     val assign = arrayOf(HashMap<Int, String>(), HashMap<Int, String>())
@@ -112,7 +114,14 @@ class DraftSession(
     val open = arrayOf(lineups[0].indices.toMutableList(), lineups[1].indices.toMutableList())
     var step = 0
         private set
-    private val prefs = Array(2) { s -> lineups[s].mapIndexed { i, p -> Draft.prefs(t, patch, p, i, styles[s]) } }
+    private val prefs = Array(2) { s ->
+        val bonus = scrimBonus?.getOrNull(s)?.takeIf { it.isNotEmpty() }
+        lineups[s].mapIndexed { i, p ->
+            val base = Draft.prefs(t, patch, p, i, styles[s])
+            // Scrims move a team's priorities toward what worked for it on this patch.
+            if (bonus == null) base else base.withIndex().sortedByDescending { (k, c) -> (base.size - k).toDouble() / base.size + (bonus[c.id] ?: 0.0) * 1.2 }.map { it.value }
+        }
+    }
     val sequential = t.draft.mode == "sequential" && t.characters.isNotEmpty()
     val none = t.characters.isEmpty() || t.draft.mode == "none"
 
@@ -192,7 +201,11 @@ class DraftSession(
         return best ?: t.characters.firstOrNull { legal(team, true, it.id) }
     }
 
-    fun legal(team: Int, ban: Boolean, id: String) = id !in banned && (if (ban) id !in picked else id !in picked && id !in locked[team])
+    /**
+     * A ban only counts on a champion the opponent could still pick: under Fearless rules the
+     * champions locked for the opponent are already out, so banning them would waste the ban.
+     */
+    fun legal(team: Int, ban: Boolean, id: String) = id !in banned && id !in picked && (if (ban) id !in locked[1 - team] else id !in locked[team])
 
     fun ban(id: String): Boolean {
         val cur = current() ?: return false

@@ -111,6 +111,8 @@ fun SettingsScreen(vm: GameVm, w: World) {
             Card("Simulation detail") {
                 Muted("Full: every match is played on the 2D engines (most detailed, slowest). Fast: matches without your team or a followed team, and that keep no replay, use a quick model (results, drafts and box scores, no replay) — several times faster on a phone. Matches you watch or play always use the full engines.", 11)
                 Tabs(listOf("Full", "Fast"), if (w.simDetail == "fast") 1 else 0) { w.simDetail = if (it == 1) "fast" else "full"; vm.edit() }
+                Gap(8)
+                SpeedSetting(vm)
             }
         }
         item { DatabaseEditorCard(vm, w) }

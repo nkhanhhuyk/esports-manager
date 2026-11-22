@@ -251,6 +251,7 @@ private fun SquadTraining(vm: GameVm, w: World, team: Team, t: dev.uem.em.titles
         KV("Meta adaptation") { Rating(team.metaAdapt) }
         KV("Injured", "${roster.count { it.injuryUntil > w.day }}")
     }
+    TeamScrims(vm, w, team, showTraining = false)
     Card("Individual development") {
         val ip = inputOf(t)
         SortTable(roster, listOf(
@@ -375,7 +376,7 @@ fun MarketScreen(vm: GameVm, w: World) {
             if (list.isEmpty()) Card { Muted(if (tab == 2) "Shortlist players from their pages (☆ Shortlist)." else "Nobody matches.") }
         }
         lazySortTable(table, list, listOf(
-                    SCol<Player>("Player", 130.dp, false) { p -> Row(verticalAlignment = Alignment.CenterVertically) { flag(p.nat).takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp); HGap(3) }; PlayerChip(p, vm, 20.dp) } },
+                    SCol<Player>("Player", 130.dp, false) { p -> Row(verticalAlignment = Alignment.CenterVertically) { p.nats().joinToString("") { flag(it) }.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp); HGap(3) }; PlayerChip(p, vm, 20.dp) } },
                     SCol("Role", 40.dp, false) { p -> Muted(Catalogue.get(p.titleId).role(p.mainRole).short, 11) },
                     SCol("Age", 34.dp, key = { Dates.ageAt(it.birth, w.day).toDouble() }) { p -> Num("${Dates.ageAt(p.birth, w.day)}") },
                     SCol("Club", 56.dp, false) { p -> Muted(p.teamId.takeIf { it >= 0 }?.let { w.teams[it].short } ?: "free", 11) },

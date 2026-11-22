@@ -174,8 +174,15 @@ class Player(
     var soloHistory: MutableList<String> = ArrayList(),
     /** An import waiting for a work visa cannot play until this day. */
     var visaUntil: Int = 0,
+    /** Second nationality (from the data, or earned after three straight seasons at clubs of one country). */
+    var nat2: String = "",
+    /** Country of the player's club and the consecutive seasons spent there (toward a second nationality). */
+    var resCountry: String = "",
+    var resYears: Int = 0,
 ) {
     val retired get() = retiredSeason != 0
+    /** Every nationality (the first is the main one). */
+    fun nats(): List<String> = if (nat2.isNotEmpty() && nat2 != nat) listOf(nat, nat2) else listOf(nat)
     val mainRole get() = roles[0]
     /** Rating cache of this player object (not saved). Kept per object so two worlds in one process never share entries. */
     @kotlinx.serialization.Transient @JvmField var ratingCache: java.util.concurrent.ConcurrentHashMap<Long, Any>? = null
@@ -230,7 +237,20 @@ class Team(
     var parentId: Int = -1,
     /** Solo queue practice the team asks of its players: 0 light, 1 normal, 2 heavy. */
     var soloFocus: Int = 1,
+    /** Recent scrim blocks (newest last). */
+    var scrimLog: MutableList<ScrimBlock> = ArrayList(),
+    /** Scrim record on this patch by character (MOBAs, Valorant) or map (shooters): key → games, wins. */
+    var scrimStats: MutableMap<String, ScrimStat> = HashMap(),
+    /** Patch the scrim record belongs to (a new patch halves the old record). */
+    var scrimPatch: Int = -1,
 )
+
+/** One scrim block against a partner: games won and lost, and (for teams you follow) the picks of every game. */
+@Serializable
+class ScrimBlock(val day: Int, val opp: Int, val won: Int, val lost: Int, val picks: List<String> = emptyList(), val oppPicks: List<String> = emptyList(), val maps: List<String> = emptyList(), val results: String = "")
+
+@Serializable
+class ScrimStat(var g: Int = 0, var w: Int = 0)
 
 @Serializable
 class TeamSeason(val season: Int, val leagueId: Int, var position: Int, var w: Int, var l: Int, var elo: Double, @ProtoPacked val roster: IntArray = IntArray(0))

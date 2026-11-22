@@ -34,7 +34,7 @@ object Fearless {
 
     fun scopeOf(c: Competition): String = when {
         c.tier == CompTier.WORLDS -> "worlds"
-        c.entrants.any { it.startsWith("nations:") } -> "nations"
+        c.entrants.any { it.startsWith("nations:") || it.startsWith("qual:") || it.startsWith("continent:") } -> "nations"
         c.tier == CompTier.INTERNATIONAL && (c.short.contains("FST") || c.name.contains("First Stand")) -> "firststand"
         c.tier == CompTier.INTERNATIONAL -> "msi"
         else -> "league"

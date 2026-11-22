@@ -88,6 +88,8 @@ fun StartScreen(vm: GameVm) {
                     TextButton(onClick = { PictureStore.clear(); vm.toast = "Stored pictures deleted" }) { Text("Delete stored", color = Ui.muted) }
                 }
                 Tabs(listOf("Load pictures online", "Game art only"), if (online) 0 else 1) { online = it == 0; Pics.online = online; vm.setPicturesOnline(online) }
+                Gap(8)
+                SpeedSetting(vm)
             }
         }
         item {
@@ -343,6 +345,7 @@ fun MoreScreen(vm: GameVm, w: World) {
         Triple("Teams", "All leagues and teams, team directory", Screen.Teams),
         Triple("Players", "Search, filter and compare every player", Screen.Players),
         Triple("World rankings", "Club and organisation rankings, countries and territories, from results", Screen.Rankings),
+        Triple("Solo queue ladders", "Every server's ranked ladder: pros, streamers and unsigned talent", Screen.SoloQ),
         Triple("World", "Games, national scenes, global rankings, organisations", Screen.World),
         Triple("Settings", "Difficulty, autosave, pictures, your name", Screen.Settings),
     )
@@ -381,3 +384,14 @@ fun StandingsTable(vm: GameVm, w: World, rows: List<dev.uem.em.model.Standing>) 
 
 @Composable
 fun rememberInt(v: Int) = remember { mutableIntStateOf(v) }
+
+
+/** Simulation speed vs heat: how many CPU cores the simulation may use. */
+@Composable
+fun SpeedSetting(vm: GameVm) {
+    var mode by remember { mutableStateOf(vm.speedMode()) }
+    Text("Simulation speed", color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+    Muted("Full speed uses every CPU core (fastest, the phone gets warm on long simulations). Balanced uses half of them; Cool uses two (slowest, coolest, easiest on the battery).", 11)
+    val modes = listOf("full", "balanced", "cool")
+    Tabs(listOf("Full speed", "Balanced", "Cool"), modes.indexOf(mode).coerceAtLeast(0)) { mode = modes[it]; vm.setSpeedMode(mode) }
+}

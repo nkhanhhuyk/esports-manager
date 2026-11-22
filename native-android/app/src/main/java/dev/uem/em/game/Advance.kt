@@ -30,8 +30,14 @@ import kotlin.math.roundToInt
  * daily recovery, monthly development, weekly box-score paging and the season rollover follow.
  */
 object Advance {
-    private val cores = maxOf(1, Runtime.getRuntime().availableProcessors())
-    private val pool: ExecutorService = Executors.newFixedThreadPool(cores) { r -> Thread(r, "sim").apply { isDaemon = true; priority = Thread.NORM_PRIORITY - 1 } }
+    private val allCores = maxOf(1, Runtime.getRuntime().availableProcessors())
+    /** Simulation threads: "full" every core, "balanced" (default) half, "cool" two (cooler phone, longer battery). */
+    @Volatile var speedMode: String = "balanced"
+        set(v) { field = v; threadsFor(v).let { if (it != cores) { val old = pool; cores = it; pool = newPool(it); old.shutdown() } } }
+    private fun threadsFor(mode: String) = when (mode) { "full" -> allCores; "cool" -> minOf(2, allCores); else -> maxOf(1, (allCores + 1) / 2) }
+    @Volatile private var cores = threadsFor("balanced")
+    private fun newPool(n: Int): ExecutorService = Executors.newFixedThreadPool(n) { r -> Thread(r, "sim").apply { isDaemon = true; priority = Thread.NORM_PRIORITY - 1 } }
+    @Volatile private var pool: ExecutorService = newPool(cores)
 
     class Result(val days: Int, val stoppedForUser: Boolean)
 
@@ -219,6 +225,7 @@ object Advance {
             team.history.add(TeamSeason(w.season, team.leagueId, pos, lines.sumOf { it.w }, lines.sumOf { it.l }, team.elo, team.roster.toIntArray()))
         }
         val rng = dev.uem.em.core.Rng.derive(w.seed, "rollover", w.season)
+        dev.uem.em.mgmt.Extras.residency(w)
         dev.uem.em.mgmt.Career.awards(w)
         dev.uem.em.mgmt.Extras.seasonReview(w)
         dev.uem.em.mgmt.Career.seasonEnd(w)

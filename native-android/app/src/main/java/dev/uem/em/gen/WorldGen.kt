@@ -78,7 +78,7 @@ object WorldGen {
         return valid(code)
     }
 
-    private class Facts(val name: String?, val cc: String?, val birth: String?, val birthYear: Int?, val role: String?, val src: String)
+    private class Facts(val name: String?, val cc: String?, val birth: String?, val birthYear: Int?, val role: String?, val src: String, val cc2: String? = null)
 
     private lateinit var facts: Map<String, Facts>
 
@@ -176,8 +176,8 @@ object WorldGen {
         val j = Json.parseToJsonElement(src.read("playerFacts.json")).jsonObject["players"]!!.jsonObject
         facts = j.mapValues { (_, v) ->
             val o = v.jsonObject
-            Facts(o.str("name"), o.str("countryCode"), o.str("birth"), o["birthYear"]?.jsonPrimitive?.intOrNull, o.str("role"), o.str("src") ?: "").let { f ->
-                if (f.cc == null) Facts(f.name, countryCode(o.str("country")), f.birth, f.birthYear, f.role, f.src) else f
+            Facts(o.str("name"), o.str("countryCode"), o.str("birth"), o["birthYear"]?.jsonPrimitive?.intOrNull, o.str("role"), o.str("src") ?: "", o.str("countryCode2")).let { f ->
+                if (f.cc == null) Facts(f.name, countryCode(o.str("country")), f.birth, f.birthYear, f.role, f.src, f.cc2) else f
             }
         }
     }
@@ -191,18 +191,23 @@ object WorldGen {
     )
     private val LOL_ROLE = mapOf("top" to "top", "jungle" to "jungle", "mid" to "mid", "bot" to "bot", "adc" to "bot", "support" to "support")
 
+    /** A real name as sorted, normalised parts (the facts snapshot's key for players who share a handle). */
+    private fun nameKey(s: String): String = Normalizer.normalize(s, Normalizer.Form.NFKD).replace("-", "").split(Regex("[\\s,]+"))
+        .map { norm(it) }.filter { it.length >= 2 }.map { SURNAME_ALIAS[it] ?: it }.sorted().joinToString("_")
+
     /** Real birthdays, nationalities, names and (LoL) positions from the facts snapshot. */
     private fun applyFacts(p: Player) {
-        val f = facts["${p.titleId}|${norm(p.handle)}"] ?: return
+        val byName = if (p.first.isNotBlank() || p.last.isNotBlank()) facts["${p.titleId}|${norm(p.handle)}|${nameKey("${p.first} ${p.last}")}"] else null
+        val f = byName ?: facts["${p.titleId}|${norm(p.handle)}"] ?: run { inferNat(p); return }
         // Same handle, different person (e.g. two players called "Peyz"): the real names must share a part.
-        if (f.name != null && (p.first.isNotBlank() || p.last.isNotBlank())) {
+        if (byName == null && f.name != null && (p.first.isNotBlank() || p.last.isNotBlank())) {
             fun parts(s: String) = s.lowercase().replace("-", "").split(Regex("[^\\p{L}0-9]+")).filter { it.length >= 2 }.map { norm(it).let { x -> SURNAME_ALIAS[x] ?: x } }.toSet()
             val mine = parts("${p.first} ${p.last}")
             val theirs = parts(f.name)
             val sameName = mine.any { a -> theirs.any { b -> a == b || (a.length >= 3 && b.startsWith(a)) || (b.length >= 3 && a.startsWith(b)) } }
             // Different spelling of the same person is fine when country and position agree.
             val roleOk = p.titleId != "lol" || f.role == null || LOL_ROLE[f.role.lowercase()] == p.roles[0]
-            if (mine.isNotEmpty() && theirs.isNotEmpty() && !sameName && !(valid(f.cc) == p.nat && roleOk)) return
+            if (mine.isNotEmpty() && theirs.isNotEmpty() && !sameName && !(valid(f.cc) == p.nat && roleOk)) { inferNat(p); return }
         }
         val est = p.realEst.toMutableSet()
         if (f.birth != null && Regex("\\d{4}-\\d{2}-\\d{2}").matches(f.birth)) {
@@ -214,7 +219,8 @@ object WorldGen {
             est.remove("age")
             est.add("birthday (year known)")
         }
-        valid(f.cc)?.let { p.nat = it; est.remove("nationality") }
+        valid(f.cc)?.let { p.nat = it; est.remove("nationality"); est.remove("nationality (from the real name)") }
+        valid(f.cc2)?.let { if (it != p.nat) p.nat2 = it }
         if (f.name != null && p.first.isBlank() && p.last.isBlank()) {
             val parts = f.name.split(Regex("\\s+")).filter { it.isNotBlank() }
             if (parts.size >= 2) {
@@ -224,6 +230,32 @@ object WorldGen {
         if (p.titleId == "lol" && f.role != null) LOL_ROLE[f.role.lowercase()]?.let { r -> if (p.roles[0] != r) { p.roles = listOf(r, p.roles[0]); est.remove("role") } }
         p.realEst = est.toList()
         p.realSrc = p.realSrc.ifBlank { f.src }
+        inferNat(p)
+    }
+
+    private val KOREAN_SURNAMES = setOf("kim", "lee", "park", "choi", "jeong", "jung", "gang", "kang", "jo", "cho", "yun", "yoon", "jang", "im", "lim", "oh", "seo", "shin",
+        "gwon", "kwon", "hwang", "an", "ahn", "hong", "jeon", "go", "ko", "moon", "mun", "son", "bae", "baek", "heo", "nam", "no", "noh", "ha", "gwak", "kwak", "seong", "sung",
+        "cha", "joo", "ju", "u", "woo", "min", "ryu", "yoo", "jin", "eom", "chae", "won", "cheon", "bang", "gong", "hyeon", "hyun", "byeon", "byun", "pyo", "gil", "gu", "koo")
+    private val KOREAN_GIVEN = Regex("eo|eu|ae|oo|yeong|yeon|hyeon|hyun|seung|jae|joon|woo|hwan|sik|cheol|chul|gyu|kyu|hoon|hyuk|hyeok|seok|suk|sang|yong|beom|bin|won|gun|geon")
+    private val VIETNAMESE_SURNAMES = setOf("nguyen", "tran", "pham", "hoang", "huynh", "phan", "vu", "vo", "dang", "bui", "ngo", "duong", "trinh", "dinh", "doan", "luong", "truong", "lam")
+
+    /**
+     * A nationality that was only estimated from the player's club is checked against the real
+     * name: Korean and Vietnamese names are distinctive, so a Korean name at a Chinese club is a
+     * Korean import, not a Chinese player.
+     */
+    private fun inferNat(p: Player) {
+        if (!p.realEst.contains("nationality") || (p.first.isBlank() && p.last.isBlank())) return
+        val raw = "${p.first} ${p.last}"
+        val parts = raw.split(Regex("\\s+")).map { norm(it) }.filter { it.isNotEmpty() }
+        if (parts.isEmpty()) return
+        val hyphen = raw.contains('-')
+        val korean = parts.any { it in KOREAN_SURNAMES } && parts.any { it !in KOREAN_SURNAMES && (KOREAN_GIVEN.containsMatchIn(it) || hyphen) }
+        val vietnamese = Normalizer.normalize(raw, Normalizer.Form.NFD).let { d -> parts.any { it in VIETNAMESE_SURNAMES } && (d != raw || parts.any { it == "nguyen" || it == "tran" || it == "pham" || it == "huynh" }) }
+        val nat = when { vietnamese -> "VN"; korean -> "KR"; else -> return }
+        if (nat == p.nat) return
+        p.nat = nat
+        p.realEst = p.realEst.map { if (it == "nationality") "nationality (from the real name)" else it }
     }
 
     private fun planLeagueRegions(pop: Map<String, Int>): List<Pair<String, Double>> {

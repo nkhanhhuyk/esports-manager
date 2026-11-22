@@ -90,10 +90,14 @@ class GameVm(app: Application) : AndroidViewModel(app) {
 
     private val prefs = app.getSharedPreferences("uem", android.content.Context.MODE_PRIVATE)
     fun setPicturesOnline(on: Boolean) { prefs.edit().putBoolean("pictures", on).apply() }
+    /** Simulation speed: "full" (every core), "balanced" (half, default), "cool" (two cores: cooler phone, longer battery). */
+    fun setSpeedMode(mode: String) { dev.uem.em.game.Advance.speedMode = mode; prefs.edit().putString("speed", mode).apply() }
+    fun speedMode(): String = dev.uem.em.game.Advance.speedMode
 
     init {
         PictureStore.dir = File(app.filesDir, "pictures")
         Pics.online = prefs.getBoolean("pictures", true)
+        dev.uem.em.game.Advance.speedMode = prefs.getString("speed", "balanced") ?: "balanced"
         BoxStore.store = store.pages()
         viewModelScope.launch(Dispatchers.Default) {
             GameData.init(src)

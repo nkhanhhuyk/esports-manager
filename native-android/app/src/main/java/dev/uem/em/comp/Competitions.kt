@@ -480,7 +480,15 @@ object Progress {
                 "qual" -> {
                     val src = w.comps[p[1].toInt()]
                     if (!src.done) return null
-                    for (tid in src.placements.take(p[2].toInt())) { if (tid !in out) { dev.uem.em.mgmt.Extras.callUp(w, w.teams[tid]); add(tid) } }
+                    for (tid in src.placements.take(p[2].toInt())) {
+                        if (tid in out) continue
+                        // Squads are picked again on this season's form: they can change from the qualifier.
+                        val tm = dev.uem.em.mgmt.Extras.callUp(w, w.teams[tid])
+                        val (inn, outt) = dev.uem.em.mgmt.Extras.lastChanges
+                        if (inn.isNotEmpty() || outt.isNotEmpty()) w.news.add(dev.uem.em.model.News(w.day, "${tm.name} squad for ${c.short}",
+                            "Changes from the qualifier — in: ${inn.joinToString { w.players[it].handle }.ifEmpty { "none" }}; out: ${outt.joinToString { w.players[it].handle }.ifEmpty { "none" }}.", listOf(tm.id)))
+                        add(tid)
+                    }
                 }
                 // Up to a number of nations: the strongest national teams not already in (a qualifier without enough nations).
                 "fill" -> {

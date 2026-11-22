@@ -40,6 +40,10 @@ object Ratings {
         // different save or a new game, has other players with the same ids).
         // Key: attribute version, title × role slot, input proficiency.
         val cache = p.ratingCache ?: java.util.concurrent.ConcurrentHashMap<Long, Any>().also { p.ratingCache = it }
+        // Only the current attribute version is kept: older entries were never read again and grew
+        // to hundreds of MB over a few seasons (attributes change every week in training).
+        val ver = p.attrVersion.toLong()
+        if ((cache[-1L] as? Long) != ver) { cache.clear(); cache[-1L] = ver }
         val slot = dev.uem.em.titles.Catalogue.IDS.indexOf(t.id) * 8 + t.roles.indexOf(role)
         val key = ((p.attrVersion.toLong() and 0xffffffffL) shl 16) or ((slot.toLong() and 0xff) shl 8) or (ip.toLong() and 0xff)
         (cache[key] as? Base)?.let { return it }
@@ -56,7 +60,6 @@ object Ratings {
             ps[i] = if (sp != null) weighted(p.attrs, sp.first, sp.second, ip) else pc[i]
         }
         val b = Base(c, s, pc, ps)
-        if (cache.size > 48) cache.clear() // old attribute versions
         cache[key] = b
         return b
     }

@@ -13,7 +13,7 @@ new careers start with your data. **Use the original** in the same card switches
 
 | Sheet | Editable | Read only / notes |
 |---|---|---|
-| Players | handle, first and last name, nationality (2-letter code), date of birth (YYYY-MM-DD), team (id or exact team name; "free agent" releases), main and second role (id or name, see *Roles*), picture link, potential, salary, contract end season, retired (Y/N), all 86 attributes (1–99) | current ability is calculated after import. A row with an empty id creates a new player (game, handle, nationality and main role needed) |
+| Players | handle, first and last name, nationality (2-letter code), second nationality (2-letter code; "-" removes it), date of birth (YYYY-MM-DD), team (id or exact team name; "free agent" releases), main and second role (id or name, see *Roles*), picture link, potential, salary, contract end season, retired (Y/N), all 86 attributes (1–99) | current ability is calculated after import. A row with an empty id creates a new player (game, handle, nationality and main role needed) |
 | Teams | name, short name, organisation (id or name), style, aggression (0–100), picture link | league membership (it decides the calendar), roster list |
 | Organisations | name, short name, country, colours (#RRGGBB, comma separated), picture link, reputation, fans, balance (not your own club's) | the organisation's teams |
 | Leagues | name, short name, picture link | region, tier |

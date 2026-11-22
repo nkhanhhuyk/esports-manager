@@ -29,7 +29,7 @@ object Database {
 
     private val ATTR_COLS = Attrs.ALL.map { it.name }
 
-    private val PLAYER_HEAD = listOf("id", "match key", "game", "handle", "first name", "last name", "nationality", "date of birth", "team id", "team", "main role", "second role", "image url", "potential", "current ability (calculated)", "salary", "contract until (season)", "retired (Y/N)") + ATTR_COLS
+    private val PLAYER_HEAD = listOf("id", "match key", "game", "handle", "first name", "last name", "nationality", "date of birth", "team id", "team", "main role", "second role", "image url", "potential", "current ability (calculated)", "salary", "contract until (season)", "retired (Y/N)", "second nationality") + ATTR_COLS
     private val TEAM_HEAD = listOf("id", "match key", "game", "name", "short", "organisation id", "organisation", "league (read only)", "region", "image url", "style", "aggression", "players (read only)")
     private val ORG_HEAD = listOf("id", "match key", "name", "short", "country", "region", "colours", "image url", "reputation", "fans", "balance", "teams (read only)")
     private val LEAGUE_HEAD = listOf("id", "match key", "game", "name", "short", "region (read only)", "tier (read only)", "image url")
@@ -69,7 +69,7 @@ object Database {
                 if (p.retired && !includeRetired) continue
                 val t = Catalogue.get(p.titleId)
                 emit(listOf(p.id, "${p.titleId}|${p.handle}", p.titleId, p.handle, p.first, p.last, p.nat, date(p.birth), if (p.teamId >= 0) p.teamId else null, w.teams.getOrNull(p.teamId)?.name ?: "",
-                    p.roles.getOrNull(0) ?: "", p.roles.getOrNull(1) ?: "", w.images["player:${p.id}"] ?: "", p.pa, p.ca, p.salary.roundToInt(), p.contractEnd, if (p.retired) "Y" else "N") + p.attrs.map { it.roundToInt() })
+                    p.roles.getOrNull(0) ?: "", p.roles.getOrNull(1) ?: "", w.images["player:${p.id}"] ?: "", p.pa, p.ca, p.salary.roundToInt(), p.contractEnd, if (p.retired) "Y" else "N", p.nat2) + p.attrs.map { it.roundToInt() })
             }
         })
         val teams = Xlsx.SheetOut("Teams", TEAM_HEAD, { emit ->
@@ -198,6 +198,8 @@ object Database {
         cell("first name").takeIf { it != pl.first && cell("first name").isNotBlank() }?.let { pl.first = it; changed = true }
         cell("last name").takeIf { it != pl.last && cell("last name").isNotBlank() }?.let { pl.last = it; changed = true }
         cell("nationality").uppercase().takeIf { it.isNotBlank() && it != pl.nat }?.let { if (it in GameData.countries) { pl.nat = it; changed = true } else r.errors.add("$where: unknown nationality '$it'") }
+        // Second nationality: a code sets it, "-" removes it, an empty cell (or an older sheet) keeps it.
+        cell("second nationality").uppercase().let { v -> if (v.isNotBlank() && v != pl.nat2) { if (v == "-") { if (pl.nat2.isNotEmpty()) { pl.nat2 = ""; changed = true } } else if (v in GameData.countries) { pl.nat2 = if (v == pl.nat) "" else v; changed = true } else r.errors.add("$where: unknown second nationality '$v'") } }
         cell("date of birth").takeIf { it.isNotBlank() }?.let { s -> val d = parseDate(s); if (d == null) r.errors.add("$where: date of birth '$s' is not YYYY-MM-DD") else if (d != pl.birth) { pl.birth = d; changed = true } }
         val r1 = cell("main role").let { if (it.isBlank()) null else roleId(game, it) ?: run { r.errors.add("$where: unknown role '$it' for $game"); null } }
         val r2 = cell("second role").let { if (it.isBlank()) null else roleId(game, it) ?: run { r.errors.add("$where: unknown role '$it' for $game"); null } }

@@ -122,10 +122,16 @@ class SaveStore(private val root: File) {
         val f = file(slot).takeIf { it.exists() } ?: File(root, "$slot.bak")
         val sf = try { read(f) } catch (e: Exception) { read(File(root, "$slot.bak")) }
         val w = sf.world
+        fixUp(w)
         w.rebuildSchedule()
         BoxStore.clear()
         BoxStore.restore(sf.records)
         return w
+    }
+
+    /** Older saves: Nations Cup events not started yet take the Nations Cup draft rule (they used the mid-season event's). */
+    private fun fixUp(w: World) {
+        for (c in w.comps) if (c.status == 0 && dev.uem.em.comp.Fearless.scopeOf(c) == "nations") dev.uem.em.comp.Fearless.assign(w, dev.uem.em.titles.Catalogue.get(c.titleId), c)
     }
 
     private fun read(f: File): SaveFile = GZIPInputStream(f.inputStream().buffered(1 shl 16)).use { ProtoBuf.decodeFromByteArray<SaveFile>(it.readBytes()) }

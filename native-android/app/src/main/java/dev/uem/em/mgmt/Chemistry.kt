@@ -91,10 +91,10 @@ object Imports {
     /** Whether a player counts as an import in this team's league. */
     fun isImport(w: World, p: Player, team: Team): Boolean {
         val lg = leagueOf(w, team) ?: return false
-        val home = GameData.regionOf(p.nat)
         val regions = GameData.expand(lg.region).ifEmpty { GameData.expand(team.region) }
         if (regions.isEmpty()) return false
-        return home !in regions
+        // Either nationality makes a player local (a second nationality earned after three seasons counts).
+        return p.nats().none { GameData.regionOf(it) in regions }
     }
 
     /** Visa wait for a player joining a team (days; 0 when none is needed). */

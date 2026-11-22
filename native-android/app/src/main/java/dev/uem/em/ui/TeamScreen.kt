@@ -37,7 +37,7 @@ import dev.uem.em.sim.Ratings
 import dev.uem.em.titles.Catalogue
 import dev.uem.em.titles.TitleDef
 
-private val TEAM_TABS = listOf("Roster", "Schedule & Results", "Statistics", "Staff", "History", "Past rosters", "Transfer history", "Organisation", "Registration")
+private val TEAM_TABS = listOf("Roster", "Schedule & Results", "Statistics", "Staff", "Training & scrims", "History", "Past rosters", "Transfer history", "Organisation", "Registration")
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -100,10 +100,11 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
                 1 -> TeamSchedule(vm, w, team)
                 2 -> TeamStats(vm, w, team, t)
                 3 -> TeamStaff(vm, w, team)
-                4 -> TeamHistory(vm, w, team)
-                5 -> TeamPastRosters(vm, w, team, t)
-                6 -> TeamTransfers(vm, w, team)
-                7 -> TeamOrg(vm, w, team)
+                4 -> TeamScrims(vm, w, team)
+                5 -> TeamHistory(vm, w, team)
+                6 -> TeamPastRosters(vm, w, team, t)
+                7 -> TeamTransfers(vm, w, team)
+                8 -> TeamOrg(vm, w, team)
                 else -> TeamRegistration(vm, w, team, t)
             }
             Gap(16)
@@ -121,7 +122,7 @@ private fun TeamRoster(vm: GameVm, w: World, team: Team, t: TitleDef) {
             SCol("Pos", 46.dp, false, { p -> slot(p).let { if (it < 0) 99.0 else it.toDouble() } }) { p -> val s = slot(p); if (s >= 0) Text(t.lineupRoles[s].short, color = Ui.accent, fontWeight = FontWeight.Bold, fontSize = 12.sp) else Muted("sub", 11) },
             SCol("Player", 140.dp, false) { p ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    flag(p.nat).takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp); HGap(3) }
+                    p.nats().joinToString("") { flag(it) }.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp); HGap(3) }
                     PlayerChip(p, vm, 20.dp)
                 }
             },

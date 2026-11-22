@@ -154,7 +154,7 @@ fun PlayersScreen(vm: GameVm, w: World) {
         }
         lazySortTable(table, list, listOf(
                     SCol<Player>("✓", 30.dp, false) { p -> Text(if (p.id in sel) "☑" else "☐", color = if (p.id in sel) Ui.accent else Ui.muted, fontSize = 15.sp, modifier = Modifier.clickable { if (p.id in sel) sel.remove(p.id) else { sel.add(p.id); if (sel.size > 2) sel.removeAt(0) } }) },
-                    SCol("Player", 130.dp, false) { p -> Row(verticalAlignment = Alignment.CenterVertically) { flag(p.nat).takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp); HGap(3) }; PlayerChip(p, vm, 20.dp) } },
+                    SCol("Player", 130.dp, false) { p -> Row(verticalAlignment = Alignment.CenterVertically) { p.nats().joinToString("") { flag(it) }.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp); HGap(3) }; PlayerChip(p, vm, 20.dp) } },
                     SCol("Age", 34.dp, key = { Dates.ageAt(it.birth, w.day).toDouble() }) { p -> Num("${Dates.ageAt(p.birth, w.day)}") },
                     SCol("Title", 52.dp, false) { p -> TitleTag(p.titleId) },
                     SCol("Role", 40.dp, false) { p -> Muted(Catalogue.get(p.titleId).role(p.mainRole).short, 11) },
@@ -284,7 +284,7 @@ fun HistoryScreen(vm: GameVm, w: World) {
                 Card(if (tab == 1) (title?.let { "${Catalogue.get(it).name} all-time greats" } ?: "Greatest of all time (prestige-weighted)") else "Hall of Fame (retired, legacy ≥ ${HOF_THRESHOLD.toInt()})") {
                     if (rows.isEmpty()) Muted(if (tab == 2) "Nobody has been inducted yet: players enter when they retire with a legacy of ${HOF_THRESHOLD.toInt()}+." else "No players yet.")
                     else SortTable(rows, listOf(
-                        SCol<Pair<Player, Legacy.Score>>("Player", 130.dp, false) { (p, _) -> Row(verticalAlignment = Alignment.CenterVertically) { flag(p.nat).takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp); HGap(3) }; PlayerChip(p, vm, 18.dp) } },
+                        SCol<Pair<Player, Legacy.Score>>("Player", 130.dp, false) { (p, _) -> Row(verticalAlignment = Alignment.CenterVertically) { p.nats().joinToString("") { flag(it) }.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp); HGap(3) }; PlayerChip(p, vm, 18.dp) } },
                         SCol("Title", 52.dp, false) { (p, _) -> TitleTag(p.titleId) },
                         SCol("Trophies", 56.dp, key = { (p, _) -> Legacy.honours(w, p).count { it.trophy }.toDouble() }) { (p, _) -> Num("${Legacy.honours(w, p).count { it.trophy }}", Ui.gold) },
                         SCol("Awards", 50.dp, key = { (p, _) -> w.awards.count { it.playerId == p.id }.toDouble() }) { (p, _) -> Num("${w.awards.count { it.playerId == p.id }}") },

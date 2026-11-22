@@ -66,6 +66,8 @@ class MobaMap(val id: String, val name: String) {
     /** Walkable cells (N x N grid of CELL units). */
     val walk = BooleanArray(N * N)
     private val fields = arrayOfNulls<ShortArray>(N * N)
+    /** Distance fields kept (each is N × N shorts): bounded so memory stays flat over many seasons. */
+    private val kept = java.util.concurrent.atomic.AtomicInteger()
 
     fun cellOf(x: Float, y: Float): Int {
         val cx = (x / CELL).toInt().coerceIn(0, N - 1)
@@ -76,7 +78,13 @@ class MobaMap(val id: String, val name: String) {
     fun cy(c: Int) = (c / N) * CELL + CELL / 2
 
     /** Grid distance (in 10ths of a cell, 8-connected) from every cell to `target`; unreachable = Short.MAX_VALUE. */
-    fun field(target: Int): ShortArray = fields[target] ?: synchronized(fields) { fields[target] ?: computeField(target).also { fields[target] = it } }
+    fun field(target: Int): ShortArray = fields[target] ?: synchronized(fields) {
+        fields[target] ?: computeField(target).also {
+            // Past the budget the cache starts over (the fields in use are rebuilt in microseconds).
+            if (kept.incrementAndGet() > MAX_FIELDS) { java.util.Arrays.fill(fields, null); kept.set(1) }
+            fields[target] = it
+        }
+    }
 
     private fun computeField(target: Int): ShortArray {
         val d = ShortArray(N * N) { Short.MAX_VALUE }
@@ -182,6 +190,8 @@ class MobaMap(val id: String, val name: String) {
     }
 
     companion object {
+        /** At most this many distance fields per map (5 KB each). */
+        const val MAX_FIELDS = 600
         const val N = 50
         const val CELL = 20f
         private val DX = intArrayOf(1, -1, 0, 0, 1, 1, -1, -1)

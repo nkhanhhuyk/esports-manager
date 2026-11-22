@@ -82,7 +82,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
     }
 
     fun draftSession(s: Setup) = DraftSession(t, patch, players, arrayOf(teams[0].style, teams[1].style), s.firstPick, locked(), s.rng,
-        DoubleArray(2) { i -> Draft.knowledge(w, teams[i]) }, IntArray(2) { i -> Draft.banTendency(w, teams[i]) })
+        DoubleArray(2) { i -> Draft.knowledge(w, teams[i]) }, IntArray(2) { i -> Draft.banTendency(w, teams[i]) }, Array(2) { i -> dev.uem.em.mgmt.Scrims.bonus(w, teams[i]) })
 
     /** Simulate one game with a finished draft; `record` keeps events for the 2D view. */
     /** Tactical timeouts allowed per team per map in this series' competition. */

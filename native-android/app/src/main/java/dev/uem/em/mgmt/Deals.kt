@@ -169,5 +169,7 @@ object Deals {
             team.metaAdapt = clamp(team.metaAdapt + (n - 2) * 0.4, 30.0, 99.0)
             for (pid in team.lineup) if (pid >= 0) w.players[pid].fatigue = clamp(w.players[pid].fatigue + n * 1.4, 0.0, 100.0)
         }
+        // The blocks themselves: picks, results, what works on this patch.
+        Scrims.weekly(w)
     }
 }
