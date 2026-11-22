@@ -124,9 +124,9 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
             // Map-side order: the blue team is simulated as side 0.
             val order = if (s.blue == 0) intArrayOf(0, 1) else intArrayOf(1, 0)
             val sideCtx = order.mapIndexed { si, sx -> TeamCtx(ctx[sx].team, si, ctx[sx].players, ctx[sx].phase, ctx[sx].overall, ctx[sx].aggression) }
-            val out = if (quick && rec == null) QuickSim.moba(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), grng)
+            val out = if (quick && rec == null) QuickSim.moba(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), grng, w)
                 else MobaEngine.simulate(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), grng, patch, rec,
-                MobaEngine.Opts(coachComms, doubleArrayOf(coachQ(order[0]), coachQ(order[1]))))
+                MobaEngine.Opts(coachComms, doubleArrayOf(coachQ(order[0]), coachQ(order[1])), w))
             winnerSeries = order[out.winner]
             // Recorded events use series team indexes.
             if (rec != null) {

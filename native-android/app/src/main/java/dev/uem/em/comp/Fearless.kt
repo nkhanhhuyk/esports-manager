@@ -28,7 +28,10 @@ object Fearless {
 
     fun default(scope: String) = when (scope) { "firststand" -> "hard"; "msi" -> "insane"; else -> "none" }
 
-    fun applies(t: TitleDef) = t.draft.mode == "sequential" && t.characters.isNotEmpty()
+    /** Fearless needs a deep pool: a game with fewer than this many characters plays normal drafts (new releases can lift it over). */
+    const val MIN_POOL = 120
+
+    fun applies(t: TitleDef) = t.draft.mode == "sequential" && t.characters.size >= MIN_POOL
 
     fun rule(w: World, t: TitleDef, scope: String): String = if (!applies(t)) "none" else w.fearlessRules["${t.id}:$scope"] ?: default(scope)
 

@@ -73,6 +73,7 @@ object Pics {
         out.addAll(chars.values); out.addAll(weapons.values); out.addAll(teams.values); out.addAll(leagues.values); out.addAll(players.values)
         for (cc in dev.uem.em.data.GameData.countries.keys) out.add(flagUrl(cc))
         if (w != null) out.addAll(w.images.values)
+        for (id in listOf("lol", "wildrift", "mlbb", "hok", "dota2")) for (it in dev.uem.em.titles.Items.of(null, id)) it.img?.let { out.add(it) }
         return out.toList()
     }
 

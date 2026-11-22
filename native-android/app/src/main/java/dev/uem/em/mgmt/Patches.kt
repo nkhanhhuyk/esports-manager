@@ -70,6 +70,18 @@ object Patches {
             repeat(newChars) { Release.character(w, t, rng, delta)?.let { notes.add(0, it) } }
             if (!t.isMoba && rng.chance(if (kind == "major") 0.6 else 0.25)) Release.weapon(w, t, rng)?.let { notes.add(0, it) }
         }
+        // Items: buffs and nerfs (scale of the item's stats), a new item now and then on a major patch.
+        if (t.isMoba && dev.uem.em.titles.Items.hasItems(t.id)) {
+            val items = dev.uem.em.titles.Items.of(w, t.id).filter { it.type != "movement" }
+            val n = when (kind) { "major" -> rng.int(4, 8); "medium" -> rng.int(2, 4); else -> if (rng.chance(0.4)) 1 else 0 }
+            for (it in rng.sample(items, minOf(n, items.size))) {
+                val old = w.itemMods[it.id] ?: 1.0
+                val d = rng.float(0.04, 0.12) * (if (old > 1.15) -1 else if (old < 0.85) 1 else if (rng.chance(0.5)) 1 else -1)
+                w.itemMods[it.id] = (old * (1 + d)).coerceIn(0.7, 1.35)
+                notes.add("Item — ${it.name}: ${if (d > 0) "buffed" else "nerfed"} (${if (d > 0) "+" else ""}${(d * 100).roundToInt()}% stats; ${itemStatText(it, if (d > 0) 1 + d else 1 + d)})")
+            }
+            if (kind == "major" && rng.chance(0.35)) Release.item(w, t, rng)?.let { notes.add(0, it) }
+        }
         if (kind != "minor") for (s in rng.sample(t.styles, if (kind == "major") 3 else 2)) {
             val d = rng.float(0.03, 0.12) * (if (rng.chance(0.5)) 1 else -1)
             style[s] = d
@@ -108,6 +120,13 @@ object Patches {
         w.news.add(News(w.day, "$label ${t.short} $version", notes.take(3).joinToString("; ") + if (notes.size > 3) "; …" else ""))
         if (w.userOrg >= 0 && w.orgs[w.userOrg].teams.any { w.teams[it].titleId == t.id }) w.inbox.add(Message(w.day, "${t.short} patch notes", "$label ${t.short} $version", notes.joinToString("\n")))
     }
+
+    private val STAT_LABEL = mapOf("ad" to "physical attack", "ap" to "magic power", "hp" to "health", "armor" to "armour", "mr" to "magic resistance", "as" to "attack speed",
+        "crit" to "critical chance", "haste" to "ability haste", "pen" to "penetration", "ls" to "life steal", "ms" to "move speed", "mspct" to "move speed", "mana" to "mana")
+
+    /** The item's main stats after a change, e.g. "physical attack 75 → 81". */
+    private fun itemStatText(it: dev.uem.em.titles.ItemDef, f: Double): String =
+        it.stats.entries.sortedByDescending { e -> e.value }.take(2).joinToString(", ") { (k, v) -> "${STAT_LABEL[k] ?: k} ${v.roundToInt()} → ${(v * f).roundToInt()}" }
 
     private fun detail(t: TitleDef, cls: String, buff: Boolean, rng: Rng): String {
         val c = cls.lowercase()

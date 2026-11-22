@@ -53,7 +53,7 @@ object MobaEngine {
     val PROF_NAMES = listOf("waves", "objectives spawn", "plan", "vision", "heroes", "structures", "objectives", "fights")
 
     /** Match rules for the engine: coach comms allowed, and each side's head coach (0..100). */
-    class Opts(val coachComms: Boolean = false, val coachQ: DoubleArray = doubleArrayOf(50.0, 50.0))
+    class Opts(val coachComms: Boolean = false, val coachQ: DoubleArray = doubleArrayOf(50.0, 50.0), val world: dev.uem.em.model.World? = null)
 
     fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, rng: Rng, patch: Patch? = null, rec: Recorder? = null, opts: Opts = Opts()): GameOutcome =
         MobaSim(t, teams, comp, rng, patch, rec, opts).run()
@@ -166,13 +166,44 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         fun cc(now: Float) = now < stunUntil
         fun hpPct() = hp / maxHp
         var atkV = 0f; var asV = 0f; var apV = 0f; var resV = 0f; var powV = 0f
+        // Items: the inventory, the build it follows and the summed item units (see titles.Items).
+        val inv = ArrayList<dev.uem.em.titles.ItemDef>()
+        /** Share of this hero's ability damage that is magic (its kit), basic attacks counted as physical for marksmen. */
+        val magicShare: Double = run {
+            var mg = 0.0; var all = 0.0
+            for (a in acts) for (f in a.fx) if (f.k == Abilities.DMG && f.dmgType != 2) { all += f.p.toDouble(); if (f.dmgType == 1) mg += f.p.toDouble() }
+            if (Regex("marksman|carry|sniper").containsMatchIn((pc.char?.cls ?: "").lowercase()) || pc.role.isCarry) all += maxOf(1.0, all * 0.6)
+            if (all <= 0.0) (if (Regex("mage|nuker").containsMatchIn((pc.char?.cls ?: "").lowercase())) 1.0 else 0.0) else mg / all
+        }
+        var build: dev.uem.em.titles.Items.Profile? = null
+        var sOffP = 0.0; var sOffM = 0.0; var sDef = 0.0; var sArm = 0.0; var sMr = 0.0; var sAs = 0.0; var sHaste = 0.0; var sMs = 0.0; var sLs = 0.0
+        var resP = 0f; var resM = 0f
+        /** Expected offence / defence / attack speed per item for this class (the class power curves assume them). */
+        private val expOff: Double get() = if (marksman) 1.0 else if (assassin || mage) 0.95 else if (tank) 0.2 else if (supportCls) 0.35 else 0.6
+        private val expDef: Double get() = if (tank) 1.0 else if (supportCls) 0.5 else if (marksman) 0.12 else if (assassin || mage) 0.15 else 0.6
+        fun ratio(have: Double, exp: Double, lo: Float, hi: Float): Float = if (inv.isEmpty()) 1f else (((have + 0.5) / (exp * inv.size + 0.5)).toFloat()).coerceIn(lo, hi)
+        val physMain get() = magicShare < 0.5
+        fun offPR() = if (inv.isEmpty()) 1f else ratio(sOffP, if (physMain) expOff else 0.2, 0.35f, 1.75f)
+        fun offMR() = if (inv.isEmpty()) 1f else ratio(sOffM, if (!physMain) expOff else 0.2, 0.35f, 1.75f)
+        fun defR() = ratio(sDef, expDef, 0.4f, 1.9f)
+        fun asR() = ratio(sAs, if (marksman) 0.6 else 0.15, 0.5f, 1.6f)
+        fun resistFor(type: Int): Float = if (type == 1) resM else resP
         /** Recompute combat stats (once per tick). */
         /** Item count with diminishing returns (a gold lead helps, but less and less). */
         private var ieItems = -1
         private var ieV = 0f
         val itemsEff: Float get() { if (items != ieItems) { ieItems = items; ieV = Math.pow(items.toDouble(), 0.8).toFloat() }; return ieV }
         fun refresh() {
-            resV = ((if (tank) 0.32f else if (assassin || mage || marksman) 0.14f else 0.22f) + 0.025f * items + 0.006f * level).coerceAtMost(0.62f)
+            val baseRes = (if (tank) 0.32f else if (assassin || mage || marksman) 0.14f else 0.22f) + 0.006f * level
+            if (inv.isEmpty()) { resP = (baseRes + 0.025f * items).coerceAtMost(0.62f); resM = resP }
+            else {
+                // Item resistance follows the build (more for a tank build), split by armour / magic resistance bought.
+                val itemRes = 0.025f * items * defR()
+                val armShare = ((sArm + 0.3) / (sArm + sMr + 0.6)).toFloat()
+                resP = (baseRes + itemRes * (2f * armShare).coerceIn(0.3f, 1.7f)).coerceAtMost(0.66f)
+                resM = (baseRes + itemRes * (2f * (1f - armShare)).coerceIn(0.3f, 1.7f)).coerceAtMost(0.66f)
+            }
+            resV = (resP + resM) / 2f
             atkV = atkCalc(); asV = asCalc(); apV = apCalc()
             // How strong a hero looks in a fight: its damage, health and level; durability counts, but a
             // tank is not a damage threat twice its size (enemies kept away from tanky front-liners).
@@ -183,14 +214,18 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         fun atk() = atkV
         fun attackSpeed() = asV
         fun apPower() = apV
+        // Class power curves for a typical build of the class; the actual items scale the item part
+        // (a full-damage fighter hits harder and is frailer, a tank build the reverse).
         fun atkCalc(): Float = ((if (marksman) 62f else if (assassin) 60f else if (tank) 42f else if (mage || supportCls) 38f else 56f) * (1f + 0.065f * (level - 1)) +
-            itemsEff * (if (marksman) 34f else if (assassin) 26f else if (tank) 8f else if (mage || supportCls) 5f else 22f)) * meta * buffDmg(side) * teamForm[side]
-        fun asCalc(): Float = ((if (marksman) 0.85f else 0.72f) + items * (if (marksman) 0.07f else 0.025f)) * (1f + (if (asUntil > nowF) asPct else 0f))
-        fun apCalc(): Float = (1f + 0.07f * (level - 1)) * (1f + itemsEff * (if (mage) 0.34f else if (assassin) 0.24f else if (supportCls) 0.14f else if (tank) 0.08f else if (marksman) 0.1f else 0.15f)) * meta * buffDmg(side) * teamForm[side]
+            itemsEff * (if (marksman) 34f else if (assassin) 26f else if (tank) 8f else if (mage || supportCls) 5f else 22f) * (if (physMain) offPR() else offPR().coerceAtMost(1f)) +
+            (if (!physMain && inv.isNotEmpty()) itemsEff * 12f * (offPR() - 0.35f).coerceAtLeast(0f) else 0f)) * meta * buffDmg(side) * teamForm[side]
+        fun asCalc(): Float = ((if (marksman) 0.85f else 0.72f) + items * (if (marksman) 0.07f else 0.025f) * asR()) * (1f + (if (asUntil > nowF) asPct else 0f))
+        fun apCalc(): Float = (1f + 0.07f * (level - 1)) * (1f + itemsEff * (if (mage) 0.34f else if (assassin) 0.24f else if (supportCls) 0.14f else if (tank) 0.08f else if (marksman) 0.1f else 0.15f) * offMR() +
+            (if (physMain && inv.isNotEmpty()) itemsEff * 0.2f * (offMR() - 0.35f).coerceAtLeast(0f) else 0f)) * meta * buffDmg(side) * teamForm[side]
         fun baseHp(): Float = ((if (tank) 1050f else if (assassin) 720f else if (mage) 660f else if (marksman) 650f else if (supportCls) 700f else 880f) * (1f + 0.09f * (level - 1)) +
-            items * (if (tank) 440f else if (assassin) 150f else if (mage) 130f else if (marksman) 120f else if (supportCls) 230f else 300f)) * meta
+            items * (if (tank) 440f else if (assassin) 150f else if (mage) 130f else if (marksman) 120f else if (supportCls) 230f else 300f) * defR()) * meta
         fun speed(): Float {
-            var s = R.ms * (if (slowUntil > nowF) 1f - slowPct else 1f) * (if (msUntil > nowF) 1f + msPct else 1f)
+            var s = R.ms * (if (slowUntil > nowF) 1f - slowPct else 1f) * (if (msUntil > nowF) 1f + msPct else 1f) * (1f + 0.04f * sMs.toFloat().coerceAtMost(3f))
             // Ganks and collapses come out of the fog: the hunters close the gap a little faster.
             if (task == 5) s *= 1.12f
             if (rootUntil > nowF || stunUntil > nowF) s = 0f
@@ -395,7 +430,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         if (!target.alive(now) || target.immuneUntil > nowF && type != 2) return
         var amount = amount0
         if (src != null) { amount *= src.vs[target.gi]; if (commsUntil[src.side] > now) amount *= commsMul[src.side] }
-        if (type != 2) amount *= 1f - target.resist()
+        if (type != 2) amount *= 1f - target.resistFor(type)
         if (target.reduceUntil > nowF) amount *= 1f - target.reducePct
         if (src != null && executeUntil[srcSide] > now && target.hpPct() < 0.2f) amount = target.hp + target.shield + 1f
         if (target.shield > 0f && target.shieldUntil > nowF) {
@@ -412,6 +447,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             if (!src.visible) src.visible = true
             target.dmgBy[src.gi] = now
             target.lastHitBy = src.gi
+            // Life steal / vamp from items.
+            if (src.sLs > 0.0) src.hp = min(src.maxHp, src.hp + amount * (0.035f * src.sLs.toFloat()).coerceAtMost(0.2f))
             src.lastCombat = now
             stat(src, DMG, amount.toDouble())
         } else target.lastHitBy = -1
@@ -581,7 +618,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
 
     fun Hero.fightIqFor(n: Int) = if (n >= 2) fightIq else 1f
     fun readyCount(h: Hero): Int { var n = 0; for (i in h.acts.indices) if (ready(h, i) && h.acts[i].damage != null) n++; return n }
-    fun cdMult(h: Hero) = (1f - 0.012f * h.items).coerceAtLeast(0.7f)
+    fun cdMult(h: Hero) = (1f - 0.012f * h.items * (if (h.inv.isEmpty()) 1f else h.ratio(h.sHaste, 0.3, 0.5f, 1.8f))).coerceAtLeast(0.65f)
     fun lowestAlly(h: Hero, r: Float): Hero? {
         var best: Hero? = null
         for (a in bySide[h.side]) if (a !== h && a.alive(now) && hypot(a.x - h.x, a.y - h.y) < r && (best == null || a.hpPct() < best.hpPct())) best = a
@@ -710,6 +747,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             }
         }
         for (h in heroes) stat(h, GOLD, h.earned.toDouble())
+        for (h in heroes) book.lines.firstOrNull { it.playerId == h.pc.p.id }?.items?.addAll(h.inv.map { it.id })
         if (rec != null && rec.snapT.lastOrNull() != now) snapshot()
         if (rec != null && now % MobaEngine.SAMPLE_STEP != 0) sample()
         book.finalise()
@@ -1103,7 +1141,51 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         shop(h)
     }
 
+    // ------------------------------------------------------------------------------------ items
+    val world = opts.world
+    val catalogue = dev.uem.em.titles.Items.of(world, t.id)
+    /** Engine gold per catalogue gold: a typical full item costs what the class power curves assume. */
+    val itemScale = run {
+        val full = catalogue.filter { it.type != "movement" && it.type != "support" && it.type != "jungle" }.map { it.cost }.sorted()
+        // Items are cheaper against income in the mobile MOBAs (full builds come sooner there).
+        val pace = when (t.id) { "mlbb", "hok" -> 0.62f; "wildrift" -> 0.72f; else -> 1f }
+        if (full.isEmpty()) 1f else (gpmPerSec() * 60f * 4.2f) * pace / full[full.size / 2].coerceAtLeast(1)
+    }
+    /** How much of each side's damage is magic (the other side buys magic resistance against it). */
+    val magicSide = DoubleArray(2) { s -> heroes.filter { it.side == s }.map { it.magicShare }.average() }
+
+    private fun setupBuild(h: Hero) {
+        if (h.build != null) return
+        val front = bySide[h.side].count { it.tank }
+        h.build = dev.uem.em.titles.Items.profile(h.cls, h.pc.role.isSupport || h.supportCls && !h.marksman, h.magicShare, front == 0 && !h.marksman && !h.mage, Rng.derive(rngKey, "build", h.gi))
+    }
+    /** Build choices draw from their own stream (the game's random sequence is left as it was). */
+    private val rngKey = "build|${t.id}|" + heroes.joinToString(",") { "${it.pc.p.id}:${it.pc.charId}" }
+
+    /** Buy items while the gold allows: the build's next pick, adapted to how the game is going. */
+    fun shopItems(h: Hero) {
+        setupBuild(h)
+        val p = h.build ?: return
+        var guard = 0
+        while (h.inv.size < 6 && guard++ < 6) {
+            val myGold = bySide[h.side].sumOf { it.earned.toDouble() }; val theirGold = bySide[1 - h.side].sumOf { it.earned.toDouble() }
+            val behind = ((h.deaths - h.kills) / 4.0 + (theirGold - myGold) / maxOf(1.0, theirGold + myGold) * 4).coerceIn(-0.5, 1.5)
+            val next = dev.uem.em.titles.Items.next(world, t.id, h.inv, p, magicSide[1 - h.side], behind, Rng.derive(rngKey, "item", h.gi, h.inv.size), h.jungler) ?: return
+            val cost = next.cost * itemScale
+            if (h.gold < cost) return
+            h.gold -= cost; h.spent += cost
+            h.inv.add(next)
+            val m = dev.uem.em.titles.Items.mod(world, next.id)
+            h.sOffP += next.offP * m; h.sOffM += next.offM * m; h.sDef += next.def * m; h.sArm += next.arm * m; h.sMr += next.mr * m
+            h.sAs += next.asU * m; h.sHaste += next.haste * m; h.sMs += next.ms; h.sLs += next.ls * m
+            h.items = h.inv.size
+            val frac = h.hpPct(); h.maxHp = h.baseHp(); h.hp = h.maxHp * frac
+            ev(Ev(now, "item", h.side, h.pc.p.id, x = h.items, text = next.id, n = h.spent.roundToInt()))
+        }
+    }
+
     fun shop(h: Hero) {
+        if (catalogue.isNotEmpty()) { shopItems(h); return }
         val itemCost = gpmPerSec() * 60f * 4.2f
         while (h.gold >= itemCost && h.items < 6) { h.gold -= itemCost; h.spent += itemCost; h.items++; val frac = h.hpPct(); h.maxHp = h.baseHp(); h.hp = h.maxHp * frac
             ev(Ev(now, "item", h.side, h.pc.p.id, x = h.items, n = h.spent.roundToInt())) }

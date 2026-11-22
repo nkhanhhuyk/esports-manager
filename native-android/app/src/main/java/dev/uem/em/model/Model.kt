@@ -88,6 +88,10 @@ class World(
     var simDetail: String = "full",
     /** The season the career started in (no transfers during it; 0 for older saves). */
     var firstSeason: Int = 0,
+    /** MOBA items added by patches (new releases). */
+    val customItems: MutableList<CustomItem> = ArrayList(),
+    /** Patch changes to items: item id → scale of its stats (1 = as released). */
+    val itemMods: MutableMap<String, Double> = HashMap(),
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -464,7 +468,11 @@ class Replay(
 )
 
 @Serializable
-class Line(val playerId: Int, val team: Int, val roleId: String, val charId: String = "", var rating: Double = 1.0, @ProtoPacked val s: DoubleArray)
+class Line(val playerId: Int, val team: Int, val roleId: String, val charId: String = "", var rating: Double = 1.0, @ProtoPacked val s: DoubleArray, val items: MutableList<String> = ArrayList())
+
+/** A MOBA item a patch added to a game (fictional, with generated art). */
+@Serializable
+class CustomItem(val id: String, val titleId: String, val name: String, val cost: Int, val type: String, val stats: Map<String, Double>, val season: Int = 0)
 
 
 // ------------------------------------------------------------------------------- management (stage 2)

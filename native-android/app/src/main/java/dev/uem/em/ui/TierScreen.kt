@@ -129,6 +129,10 @@ fun TierScreen(vm: GameVm, w: World) {
                 }
             }
         }
+        if (t.isMoba) item { ItemsCard(w, title) }
+        if (t.characters.isNotEmpty() && t.draft.mode == "sequential" && !Fearless.applies(t)) item {
+            Card("Draft rules (${t.short})") { Muted("Normal drafts only: Fearless needs at least ${Fearless.MIN_POOL} ${t.charLabel.lowercase()}s and ${t.short} has ${t.characters.size}. New releases can lift it over.", 11) }
+        }
         if (Fearless.applies(t)) item {
             Card("Draft rules (${t.short})") {
                 for (scope in Fearless.SCOPES) KV(Fearless.SCOPE_LABEL[scope]!!, Fearless.LABEL[Fearless.rule(w, t, scope)]!!)

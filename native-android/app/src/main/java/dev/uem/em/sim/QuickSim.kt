@@ -17,10 +17,19 @@ import kotlin.math.roundToInt
  * these games. Your matches, followed teams and everything you watch always use the full engines.
  */
 object QuickSim {
+    /** Share of a hero's ability damage that is magic (its kit). */
+    fun magicShareOf(pc: PlayerCtx): Double {
+        var mg = 0.0; var all = 0.0
+        for (a in Abilities.kit(pc.charId, pc.char).actives) for (f in a.fx) if (f.k == Abilities.DMG && f.dmgType != 2) { all += f.p.toDouble(); if (f.dmgType == 1) mg += f.p.toDouble() }
+        val cls = (pc.char?.cls ?: "").lowercase()
+        if (Regex("marksman|carry|sniper").containsMatchIn(cls) || pc.role.isCarry) all += maxOf(1.0, all * 0.6)
+        return if (all <= 0.0) (if (Regex("mage|nuker").containsMatchIn(cls)) 1.0 else 0.0) else mg / all
+    }
+
     /** Typical kills per game in the full engines (both teams). */
     private val KILLS = mapOf("mlbb" to 28.0, "wildrift" to 30.0, "hok" to 27.0, "lol" to 30.0, "dota2" to 42.0)
 
-    fun moba(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, rng: Rng): GameOutcome {
+    fun moba(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, rng: Rng, world: dev.uem.em.model.World? = null): GameOutcome {
         val cfg = t.moba!!
         val book = StatBook(teams, t)
         fun idx(k: String) = book.idx(k)
@@ -70,6 +79,18 @@ object QuickSim {
             repeat(towers.toInt()) { book.add(rng.pickCtx(ps) { if (it.role.isSupport) 0.5 else 1.0 }.p.id, TOWERS, 1.0) }
             val objs = if (side == winner) rng.int(2, 5) else rng.int(0, 2)
             repeat(objs) { book.add((ps.firstOrNull { jungler(it) } ?: ps[0]).p.id, OBJ, 1.0) }
+        }
+        // Item builds as the game's gold allows (fast mode: no item-by-item decisions, same build logic).
+        if (dev.uem.em.titles.Items.hasItems(t.id)) {
+            val magic = DoubleArray(2) { s -> teams[s].players.map { magicShareOf(it) }.average().takeIf { v -> !v.isNaN() } ?: 0.3 }
+            for ((side, tc) in teams.withIndex()) for (pc in tc.players) {
+                val brng = Rng.derive("qbuild", t.id, pc.p.id, pc.charId ?: "", dur)
+                val cls = pc.char?.cls ?: ""
+                val prof = dev.uem.em.titles.Items.profile(cls, pc.role.isSupport, magicShareOf(pc), tc.players.none { Regex("tank|guardian").containsMatchIn((it.char?.cls ?: "").lowercase()) }, brng)
+                val n = (book.value(pc.p.id, GOLD) / (cfg.gpm * 4.2)).toInt().coerceIn(1, 6)
+                val items = dev.uem.em.titles.Items.quickBuild(world, t.id, n, prof, magic[1 - side], brng, jungler(pc))
+                book.lines.firstOrNull { it.playerId == pc.p.id }?.items?.addAll(items.map { it.id })
+            }
         }
         book.finalise()
         book.rate(winner) { l ->

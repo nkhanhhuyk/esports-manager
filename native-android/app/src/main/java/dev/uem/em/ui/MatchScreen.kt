@@ -250,9 +250,14 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
 @Composable
 private fun FullBoxScore(vm: GameVm, w: World, t: TitleDef, lines: List<Line>, mvp: Int) {
     val hasKda = t.statIndex.containsKey("k") && t.statIndex.containsKey("d")
-    val cols = listOf(Col("Player", 150.dp, false), Col("Role", 40.dp, false)) + t.stats.map { Col(it.label, if (it.key in setOf("gold", "dmg", "taken", "heal")) 58.dp else 44.dp) } + (if (hasKda) listOf(Col("KDA", 46.dp)) else emptyList()) + Col("Rtg", 46.dp)
-    Table(cols, lines.size, onRow = { vm.go(Screen.Player(lines[it].playerId)) }, highlight = { lines[it].playerId == mvp }) { r, c ->
+    val hasItems = lines.any { it.items.isNotEmpty() }
+    val cols = listOf(Col("Player", 150.dp, false), Col("Role", 40.dp, false)) + (if (hasItems) listOf(Col("Build", 128.dp, false)) else emptyList()) +
+        t.stats.map { Col(it.label, if (it.key in setOf("gold", "dmg", "taken", "heal")) 58.dp else 44.dp) } + (if (hasKda) listOf(Col("KDA", 46.dp)) else emptyList()) + Col("Rtg", 46.dp)
+    val off = if (hasItems) 1 else 0
+    Table(cols, lines.size, onRow = { vm.go(Screen.Player(lines[it].playerId)) }, highlight = { lines[it].playerId == mvp }) { r, c0 ->
         val l = lines[r]
+        if (hasItems && c0 == 2) { ItemRow(w, l.items, 19.dp); return@Table }
+        val c = if (c0 > 2) c0 - off else c0
         when {
             c == 0 -> Row(verticalAlignment = Alignment.CenterVertically) {
                 if (l.charId.isNotEmpty()) { CharPic(l.charId, t.charIndex[l.charId]?.name ?: l.charId, 24.dp, round = true); HGap(4) }

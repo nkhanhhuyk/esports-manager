@@ -16,6 +16,39 @@ import kotlin.math.sqrt
 
 /** New fictional characters and weapons released by medium and major patches. */
 object Release {
+    private val ITEM_A = mapOf(
+        "physical" to listOf("Ember", "Storm", "Iron", "Raven", "Gilded", "Thorn", "Sunforged", "Shatter", "Duskwind", "Brass"),
+        "magical" to listOf("Astral", "Arcane", "Void", "Starfire", "Moonlit", "Hexed", "Prism", "Rune", "Twilight", "Aether"),
+        "defense" to listOf("Warden's", "Bulwark", "Granite", "Oathbound", "Frost", "Titan", "Sentinel", "Bastion", "Stoneheart", "Ironbark"),
+        "support" to listOf("Shepherd's", "Beacon", "Harmony", "Guardian's", "Pilgrim's", "Lantern"))
+    private val ITEM_B = mapOf(
+        "physical" to listOf("Cleaver", "Edge", "Reaver", "Saber", "Halberd", "Bow", "Fang", "Talon"),
+        "magical" to listOf("Codex", "Orb", "Scepter", "Grimoire", "Focus", "Crown", "Wand", "Lens"),
+        "defense" to listOf("Aegis", "Plate", "Mantle", "Carapace", "Bulwark", "Cuirass", "Ward", "Shroud"),
+        "support" to listOf("Censer", "Charm", "Banner", "Locket", "Chime", "Seal"))
+
+    /**
+     * A new item for a game (a major patch): a fresh name, a price and stats in the range of the
+     * game's items of that kind, a generated icon. Returns the patch note.
+     */
+    fun item(w: World, t: TitleDef, rng: Rng): String? {
+        val pool = dev.uem.em.titles.Items.of(w, t.id).filter { it.type in setOf("physical", "magical", "defense", "support") }
+        if (pool.isEmpty()) return null
+        val type = rng.pick(listOf("physical", "magical", "defense", "defense", "physical", "magical", "support"))
+        val sample = pool.filter { it.type == type }.ifEmpty { pool }
+        val a = rng.pick(sample); val b = rng.pick(sample)
+        val keys = (a.stats.keys + b.stats.keys).distinct()
+        val stats = keys.associateWith { k -> (((a.stats[k] ?: 0.0) + (b.stats[k] ?: 0.0)) / 2 * rng.float(0.9, 1.15)) }.filterValues { it > 0 }.mapValues { (k, v) -> if (k in setOf("as", "crit", "ls", "mspct")) Math.round(v).toDouble() else (Math.round(v / 5) * 5).toDouble().coerceAtLeast(1.0) }
+        var name: String
+        var guard = 0
+        do { name = "${rng.pick(ITEM_A[type] ?: ITEM_A["physical"]!!)} ${rng.pick(ITEM_B[type] ?: ITEM_B["physical"]!!)}"; guard++ } while (guard < 20 && dev.uem.em.titles.Items.of(w, t.id).any { it.name == name })
+        val cost = ((a.cost + b.cost) / 2 / 10) * 10
+        val id = "${t.id}-new-${w.customItems.size + 1}"
+        w.customItems.add(dev.uem.em.model.CustomItem(id, t.id, name, cost, type, stats, w.season))
+        val txt = stats.entries.joinToString(", ") { (k, v) -> "+${v.toInt()}${if (k in setOf("as", "crit", "ls", "mspct")) "%" else ""} $k" }
+        return "New item — $name ($type, ${cost} gold): $txt."
+    }
+
     private val SYL_A = listOf("Ka", "Vor", "Zy", "Mor", "Sel", "Tha", "Ny", "Qui", "Bra", "Ez", "Lum", "Rho", "Iss", "Dra", "Fen", "Ori", "Xan", "Vel", "Ash", "Kir", "Ul", "Nae", "Sor", "Tal")
     private val SYL_B = listOf("el", "an", "ra", "dek", "ene", "rion", "x", "lla", "nn", "ora", "ia", "dax", "ith", "vyn", "eth", "ka", "is", "or", "une", "ael", "yra", "os")
     private val EPITHET = listOf("the Ember Warden", "the Tidecaller", "the Hollow Star", "the Iron Oath", "the Last Lantern", "the Storm Herald", "the Ashen Blade", "the Quiet Comet", "the Verdant Fang", "the Glass Sovereign", "the Dusk Courier", "the Thousand Mirrors")
