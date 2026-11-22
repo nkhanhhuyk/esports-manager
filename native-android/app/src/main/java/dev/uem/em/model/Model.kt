@@ -92,6 +92,10 @@ class World(
     val customItems: MutableList<CustomItem> = ArrayList(),
     /** Patch changes to items: item id → scale of its stats (1 = as released). */
     val itemMods: MutableMap<String, Double> = HashMap(),
+    /** Kinds of neutral objectives added by patches (fictional). */
+    val customNeutrals: MutableList<CustomNeutral> = ArrayList(),
+    /** Patch changes to neutral objective buffs: kind id → scale of its numbers. */
+    val neutralMods: MutableMap<String, Double> = HashMap(),
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -473,6 +477,11 @@ class Replay(
 
 @Serializable
 class Line(val playerId: Int, val team: Int, val roleId: String, val charId: String = "", var rating: Double = 1.0, @ProtoPacked val s: DoubleArray, val items: MutableList<String> = ArrayList())
+
+/** A kind of neutral objective a patch added (e.g. a new elemental drake). */
+@Serializable
+class CustomNeutral(val id: String, val titleId: String, val objId: String, val name: String, val stats: Map<String, Double>, val duration: Int = 0,
+    val stacking: Boolean = false, val soulAt: Int = 0, val soulName: String = "", val soul: Map<String, Double> = emptyMap(), val text: String = "", val season: Int = 0)
 
 /** A MOBA item a patch added to a game (fictional, with generated art). */
 @Serializable

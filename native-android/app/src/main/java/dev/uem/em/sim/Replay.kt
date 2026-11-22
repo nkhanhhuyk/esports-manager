@@ -38,7 +38,7 @@ object ReplayCodec {
 
     /** Event kinds (index = code). */
     val KINDS = listOf("kill", "fight", "tower", "base", "core", "obj", "end", "round", "plant", "defuse", "roundEnd", "buyback",
-        "cast", "shp", "ward", "unward", "spawn", "recall", "item", "aegis", "steal", "duel", "util", "move", "timeout", "comms")
+        "cast", "shp", "ward", "unward", "spawn", "recall", "item", "aegis", "steal", "duel", "util", "move", "timeout", "comms", "soul")
     private val KIND_CODE = KINDS.withIndex().associate { it.value to it.index }
 
     /** Shooter buy types (index = code). */
@@ -59,13 +59,17 @@ object ReplayCodec {
     }
 
     /** Events with names restored (objective names, buy types). */
-    fun events(r: Replay, t: TitleDef): List<Ev> {
+    fun events(r: Replay, t: TitleDef, w: dev.uem.em.model.World? = null): List<Ev> {
         val n = r.ev.size / 9
+        val kinds = if (t.isMoba) dev.uem.em.titles.Neutrals.of(w, t.id) else emptyList()
         return List(n) { i ->
             val o = i * 9
             val kind = KINDS.getOrElse(r.ev[o + 1]) { "?" }
             val text = when (kind) {
-                "obj", "spawn", "steal" -> t.moba?.objectives?.getOrNull(r.ev[o + 5])?.name ?: ""
+                // The kind spawned / slain (an elemental drake's element) when the replay recorded one.
+                "obj", "spawn" -> kinds.getOrNull(r.ev[o + 6] - 1)?.name ?: t.moba?.objectives?.getOrNull(r.ev[o + 5])?.name ?: ""
+                "steal" -> t.moba?.objectives?.getOrNull(r.ev[o + 5])?.name ?: ""
+                "soul" -> kinds.getOrNull(r.ev[o + 6] - 1)?.soulName ?: "Dragon Soul"
                 "round" -> BUYS.getOrElse(r.ev[o + 6] / 4) { "" } + "|" + BUYS.getOrElse(r.ev[o + 6] % 4) { "" }
                 else -> ""
             }

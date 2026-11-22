@@ -130,6 +130,7 @@ fun TierScreen(vm: GameVm, w: World) {
             }
         }
         if (t.isMoba) item { ItemsCard(w, title) }
+        if (t.isMoba) item { NeutralsCard(w, t) }
         if (t.characters.isNotEmpty() && t.draft.mode == "sequential" && !Fearless.applies(t)) item {
             Card("Draft rules (${t.short})") { Muted("Normal drafts only: Soft Fearless needs at least ${Fearless.POOL_FOR["soft"]} ${t.charLabel.lowercase()}s, Fearless ${Fearless.POOL_FOR["hard"]}, Insane Fearless ${Fearless.POOL_FOR["insane"]}; ${t.short} has ${t.characters.size}. New releases can lift it over.", 11) }
         }

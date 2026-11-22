@@ -49,6 +49,40 @@ object Release {
         return "New item — $name ($type, ${cost} gold): $txt."
     }
 
+    private val ELEMENT = listOf("Glacial" to mapOf("tenacity" to 0.05, "dr" to 0.02), "Storm" to mapOf("as" to 0.04, "ms" to 0.02), "Verdant" to mapOf("regen" to 0.015, "heal" to 0.04),
+        "Shadow" to mapOf("dmg" to 0.025, "ms" to 0.015), "Solar" to mapOf("ap" to 0.035, "haste" to 3.0), "Iron" to mapOf("armor" to 0.04, "ad" to 0.015), "Void" to mapOf("struct" to 0.05, "dmg" to 0.015))
+    private val SOUL = mapOf("Glacial" to mapOf("tenacity" to 0.15, "dr" to 0.05), "Storm" to mapOf("as" to 0.12, "ms" to 0.06), "Verdant" to mapOf("regen" to 0.04, "heal" to 0.1),
+        "Shadow" to mapOf("dmg" to 0.06), "Solar" to mapOf("ap" to 0.08, "haste" to 10.0), "Iron" to mapOf("armor" to 0.1, "dr" to 0.03), "Void" to mapOf("struct" to 0.15, "dmg" to 0.03))
+    private val BEAST = listOf("Crystal", "Thunder", "Abyssal", "Ember", "Frost", "Gilded")
+
+    /**
+     * A new fictional kind of neutral objective: a new elemental drake (League of Legends, Wild Rift)
+     * with its own stacking buff and soul, or a new variant of another objective (it then spawns in
+     * turn with the real one) with stats drawn from the game's own objectives.
+     */
+    fun neutral(w: World, t: TitleDef, rng: Rng): String? {
+        val kinds = dev.uem.em.titles.Neutrals.of(w, t.id)
+        if (kinds.isEmpty()) return null
+        val id = "${t.id}-neutral-${w.customNeutrals.size + 1}"
+        val drakes = kinds.filter { it.objId == "drake" }
+        if (drakes.isNotEmpty()) {
+            val free = ELEMENT.filter { (e, _) -> kinds.none { it.name.startsWith(e) } }.ifEmpty { return null }
+            val (e, stats) = rng.pick(free)
+            val soulAt = drakes.first().soulAt
+            val c = dev.uem.em.model.CustomNeutral(id, t.id, "drake", "$e Drake", stats, 0, true, soulAt, if (soulAt > 0) "$e Dragon Soul" else "", SOUL[e] ?: emptyMap(),
+                "New elemental drake: ${dev.uem.em.titles.Neutrals.statText(stats)} per stack.", w.season)
+            w.customNeutrals.add(c)
+            return "New objective — $e Drake joins the elemental drakes: ${dev.uem.em.titles.Neutrals.statText(stats)} per stack" + (if (soulAt > 0) "; $e Dragon Soul: ${dev.uem.em.titles.Neutrals.statText(SOUL[e] ?: emptyMap())}." else ".")
+        }
+        val base = rng.pick(kinds.filter { !it.killerOnly && it.fromKill <= 1 && kinds.count { k -> k.objId == it.objId } == 1 }.ifEmpty { return null })
+        val name = "${rng.pick(BEAST.filter { b -> kinds.none { it.name.startsWith(b) } }.ifEmpty { BEAST })} ${base.name}"
+        val extra = rng.pick(ELEMENT).second
+        val stats = base.stats.mapValues { (k, v) -> if (k in setOf("gold", "xp", "push")) v else v * rng.float(0.85, 1.1) } + extra.filterKeys { it !in base.stats }
+        val c = dev.uem.em.model.CustomNeutral(id, t.id, base.objId, name, stats, base.duration, base.stacking, 0, "", emptyMap(), "New variant of ${base.name}: ${dev.uem.em.titles.Neutrals.statText(stats)}.", w.season)
+        w.customNeutrals.add(c)
+        return "New objective — $name, a new form of the ${base.name} that spawns in turn with it: ${dev.uem.em.titles.Neutrals.statText(stats)}."
+    }
+
     private val SYL_A = listOf("Ka", "Vor", "Zy", "Mor", "Sel", "Tha", "Ny", "Qui", "Bra", "Ez", "Lum", "Rho", "Iss", "Dra", "Fen", "Ori", "Xan", "Vel", "Ash", "Kir", "Ul", "Nae", "Sor", "Tal")
     private val SYL_B = listOf("el", "an", "ra", "dek", "ene", "rion", "x", "lla", "nn", "ora", "ia", "dax", "ith", "vyn", "eth", "ka", "is", "or", "une", "ael", "yra", "os")
     private val EPITHET = listOf("the Ember Warden", "the Tidecaller", "the Hollow Star", "the Iron Oath", "the Last Lantern", "the Storm Herald", "the Ashen Blade", "the Quiet Comet", "the Verdant Fang", "the Glass Sovereign", "the Dusk Courier", "the Thousand Mirrors")

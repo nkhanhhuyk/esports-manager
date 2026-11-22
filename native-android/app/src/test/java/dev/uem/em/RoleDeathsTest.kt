@@ -42,8 +42,10 @@ class RoleDeathsTest {
             // carry dying least is normal there, so Dota is reported only).
             if (id != "dota2") {
                 val top = sums[t.lineup[0]] ?: continue
-                if (top[1] / top[3] < 1.4) topLow.add("${t.short} %.2f".format(top[1] / top[3]))
                 val others = t.lineup.drop(1).filter { !t.role(it).isSupport }.mapNotNull { sums[it] }.map { it[1] / it[3] }
+                // Relative to the other cores (every position dies less since the second fix): before the
+                // first fix the top lane died about 30% as often as them.
+                if (others.isNotEmpty() && (top[1] / top[3] < 0.45 * others.average() || top[1] / top[3] < 1.1)) topLow.add("${t.short} %.2f vs %.2f".format(top[1] / top[3], others.average()))
                 if (others.isNotEmpty()) worst = maxOf(worst, (others.average() - top[1] / top[3]) / others.average())
                 // The other positions must not die far more than real pro games show (about 2.5-3.5 a game).
                 val all = t.lineup.mapNotNull { sums[it] }.map { it[1] / it[3] }

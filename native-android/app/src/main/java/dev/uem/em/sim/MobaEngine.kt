@@ -52,7 +52,7 @@ object MobaEngine {
     val RULES = mapOf(
         "mlbb" to Rules(27f, 25, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 70, intArrayOf(4, 8, 12), true, false, 1f, 1.0, 1.35, 1f, 0.05f, lateCaution = 0.22f, backGuard = 0.86f),
         "wildrift" to Rules(26f, 30, 5, 5, 15, 17.0, 80f, 2900f, 4400f, 270f, 90, intArrayOf(5, 9, 13), true, false, 1f, 1.0, 1.35, 1f, 0.05f, lateCaution = 0.22f, backGuard = 0.86f),
-        "hok" to Rules(27f, 30, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 75, intArrayOf(4, 8, 12), true, false, 1f, 1.1, 1.55, 1f, 0.12f, lateCaution = 0.12f, backGuard = 0.9f, peel = 0.4f),
+        "hok" to Rules(27f, 30, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 75, intArrayOf(4, 8, 12), true, false, 1f, 1.1, 1.55, 1f, 0.12f, lateCaution = 0.12f, backGuard = 0.9f, peel = 0.3f),
         "lol" to Rules(22f, 65, 6, 8, 18, 34.0, 80f, 4200f, 5400f, 300f, 120, intArrayOf(6, 11, 16), true, false, 1f, 0.7, 1.7, 1f, 0.55f),
         "dota2" to Rules(20f, 0, 4, 0, 30, 50.0, 100f, 4400f, 6000f, 290f, 60, intArrayOf(6, 12, 18), false, true, 1f, 1.4, 1.15, 2.3f, lateCaution = 0.15f, backGuard = 0.9f),
     )
@@ -93,6 +93,20 @@ object MobaEngine {
     /** Tuning aid: called once a minute with a summary of every hero (null in the game). */
     @Volatile var debug: ((String) -> Unit)? = null
 }
+
+// Objective stats (titles.Neutrals keys) as indices of the per-hero / per-team arrays.
+private const val AD = 0; private const val AP = 1; private const val ARM = 2; private const val MRS = 3; private const val REGEN = 4
+private const val MSP = 5; private const val SLOWRES = 6; private const val HASTE = 7; private const val ASP = 8; private const val TEN = 9
+private const val HEALP = 10; private const val DRS = 11; private const val DMGP = 12; private const val EXEC = 13; private const val STRUCT = 14
+private const val LOWHP = 15; private const val SHARD = 16; private const val NS = 17
+private val STAT_INDEX = mapOf("ad" to AD, "ap" to AP, "armor" to ARM, "mr" to MRS, "regen" to REGEN, "ms" to MSP, "slowres" to SLOWRES, "haste" to HASTE,
+    "as" to ASP, "tenacity" to TEN, "heal" to HEALP, "dr" to DRS, "dmg" to DMGP, "execute" to EXEC, "struct" to STRUCT, "lowhp" to LOWHP, "shard" to SHARD)
+
+/** A timed objective buff on one hero. */
+private class HBuff(val id: String, val v: FloatArray, val until: Int, val endsOnDeath: Boolean)
+
+/** A resistance share raised by a percentage of the underlying armour / magic resistance. */
+private fun boostRes(r: Float, pct: Float): Float { val a = r / (1f - r).coerceAtLeast(0.05f) * (1f + pct); return (a / (1f + a)).coerceIn(0f, 0.75f) }
 
 private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array<CompEval>, val rng: Rng, val patch: Patch?, val rec: Recorder?, val opts: MobaEngine.Opts = MobaEngine.Opts()) {
     /** Coach comms: three 45-second calls per game when the rules allow them. */
@@ -171,6 +185,14 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         var focus = -1
         var camp = -1
         var aegis = false
+        /** Dota 2 Roshan drops held: an emergency full heal, a cooldown reset. */
+        var cheese = false; var refresher = false
+        /** Timed objective buffs on this hero (Baron, Elder, Turtle's Blessing...) and their summed stats. */
+        val hbuffs = ArrayList<HBuff>()
+        val tb = FloatArray(NS)
+        /** An objective stat for this hero: the team's permanent ones (drakes, souls) plus its timed ones. */
+        fun st(k: Int): Float = tPerm[side][k] + tb[k]
+        fun retally() { tb.fill(0f); for (b in hbuffs) for (i in 0 until NS) tb[i] += b.v[i] }
         var visible = false
         /** When this hero last came out of the fog (a gank from the fog is seen late). */
         var visSince = 0
@@ -219,6 +241,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
                 resP = (baseRes + itemRes * (2f * armShare).coerceIn(0.3f, 1.7f)).coerceAtMost(0.66f)
                 resM = (baseRes + itemRes * (2f * (1f - armShare)).coerceIn(0.3f, 1.7f)).coerceAtMost(0.66f)
             }
+            if (st(ARM) != 0f) resP = boostRes(resP, st(ARM))
+            if (st(MRS) != 0f) resM = boostRes(resM, st(MRS))
             resV = (resP + resM) / 2f
             if (penItems != items) {
                 penItems = items
@@ -239,14 +263,14 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         // (a full-damage fighter hits harder and is frailer, a tank build the reverse).
         fun atkCalc(): Float = ((if (marksman) 62f else if (assassin) 60f else if (tank) 42f else if (mage || supportCls) 38f else 56f) * (1f + 0.065f * (level - 1)) +
             itemsEff * (if (marksman) 34f else if (assassin) 26f else if (tank) 8f else if (mage || supportCls) 5f else 22f) * (if (physMain) offPR() else offPR().coerceAtMost(1f)) +
-            (if (!physMain && inv.isNotEmpty()) itemsEff * 12f * (offPR() - 0.35f).coerceAtLeast(0f) else 0f)) * meta * buffDmg(side) * teamForm[side]
-        fun asCalc(): Float = ((if (marksman) 0.85f else 0.72f) + items * (if (marksman) 0.07f else 0.025f) * asR()) * (1f + (if (asUntil > nowF) asPct else 0f))
+            (if (!physMain && inv.isNotEmpty()) itemsEff * 12f * (offPR() - 0.35f).coerceAtLeast(0f) else 0f)) * meta * buffDmg(side) * teamForm[side] * (1f + st(AD) + st(SHARD))
+        fun asCalc(): Float = ((if (marksman) 0.85f else 0.72f) + items * (if (marksman) 0.07f else 0.025f) * asR()) * (1f + (if (asUntil > nowF) asPct else 0f) + st(ASP))
         fun apCalc(): Float = (1f + 0.07f * (level - 1)) * (1f + itemsEff * (if (mage) 0.34f else if (assassin) 0.24f else if (supportCls) 0.14f else if (tank) 0.08f else if (marksman) 0.1f else 0.15f) * offMR() +
-            (if (physMain && inv.isNotEmpty()) itemsEff * 0.2f * (offMR() - 0.35f).coerceAtLeast(0f) else 0f)) * meta * buffDmg(side) * teamForm[side]
+            (if (physMain && inv.isNotEmpty()) itemsEff * 0.2f * (offMR() - 0.35f).coerceAtLeast(0f) else 0f)) * meta * buffDmg(side) * teamForm[side] * (1f + st(AP) + st(SHARD))
         fun baseHp(): Float = ((if (tank) 1000f else if (assassin) 720f else if (mage) 660f else if (marksman) 650f else if (supportCls) 700f else 840f) * (1f + 0.09f * (level - 1)) +
             items * (if (tank) 360f else if (assassin) 150f else if (mage) 130f else if (marksman) 120f else if (supportCls) 230f else 240f) * defR()) * meta
         fun speed(): Float {
-            var s = R.ms * (if (slowUntil > nowF) 1f - slowPct else 1f) * (if (msUntil > nowF) 1f + msPct else 1f) * (1f + 0.04f * sMs.toFloat().coerceAtMost(3f))
+            var s = R.ms * (if (slowUntil > nowF) 1f - slowPct * (1f - st(SLOWRES)).coerceAtLeast(0f) else 1f) * (if (msUntil > nowF) 1f + msPct else 1f) * (1f + 0.04f * sMs.toFloat().coerceAtMost(3f)) * (1f + st(MSP))
             // Ganks and collapses come out of the fog: the hunters close the gap a little faster.
             if (task == 5) s *= 1.12f
             if (rootUntil > nowF || stunUntil > nowF) s = 0f
@@ -278,6 +302,21 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     var winner = -1
 
     // --------------------------------------------------------------------------- team state / buffs
+    /** Permanent objective stats of each team (elemental drake stacks, souls, voidgrubs). */
+    val tPerm = Array(2) { FloatArray(NS) }
+    /** Kinds of neutral objectives (titles.Neutrals): what slaying each gives. */
+    val neutrals = dev.uem.em.titles.Neutrals.of(opts.world, t.id)
+    private val kindsBy = neutrals.groupBy { it.objId }
+    /** A kind's code in replays (index in the title's kinds + 1; 0 = none). */
+    fun kindCode(k: dev.uem.em.titles.NeutralDef?) = if (k == null) 0 else neutrals.indexOf(k) + 1
+    fun kindsOf(objId: String): List<dev.uem.em.titles.NeutralDef> = kindsBy[objId] ?: emptyList()
+    /** Elemental drakes: the kinds seen so far and the rift's element from the third drake on. */
+    val drakeSeen = ArrayList<String>(); var riftKind: String? = null
+    val soulTaken = BooleanArray(2)
+    /** Elder after a soul (League of Legends rules: drakes with a soul and an Elder objective). */
+    val soulGated by lazy { t.id == "lol" && kindsOf("drake").any { it.soulAt > 0 } && kindsOf("elder").isNotEmpty() }
+    var objKills = HashMap<String, Int>()
+    val spawnCount = HashMap<String, Int>()
     val stacks = Array(2) { HashMap<String, Int>() }
     val soul = FloatArray(2)
     val buffUntil = IntArray(2); val buffVal = FloatArray(2)
@@ -291,7 +330,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     fun buffDmg(side: Int) = sideBuff[side]
     fun computeBuff(side: Int): Float {
         var b = 1f + soul[side] + (if (buffUntil[side] > now) buffVal[side] else 0f) + (if (executeUntil[side] > now) 0.2f else 0f)
-        for ((id, n) in stacks[side]) cfg.objectives.firstOrNull { it.id == id }?.let { b += (n * it.value).toFloat() }
+        for ((id, n) in stacks[side]) if (kindsOf(id).isEmpty()) cfg.objectives.firstOrNull { it.id == id }?.let { b += (n * it.value).toFloat() }
         val c = comp[side]
         val phaseT = (now / 60.0 / cfg.avgLength).coerceIn(0.0, 1.5)
         b *= (1 + ((c.prof("early") - 5) * (1 - phaseT) + (c.prof("scaling", "farm") - 5) * phaseT) * 0.01).toFloat()
@@ -367,6 +406,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         var hp = maxHp
         val dmgBy = FloatArray(2)
         val capture = o.kind == "xp"
+        /** The kind spawned this time (an elemental drake's element), or null. */
+        var kind: dev.uem.em.titles.NeutralDef? = null
     }
     val objs: List<Obj> = ArrayList<Obj>().also { list ->
         cfg.objectives.forEachIndexed { i, o ->
@@ -456,7 +497,12 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         // part of the damage aimed at them never lands (divers and assassins still reach them).
         if (src != null && !src.assassin && (target.marksman || target.mage || target.supportCls) && !target.tank && now >= laneEndS) amount *= R.backGuard
         if (target.reduceUntil > nowF) amount *= 1f - target.reducePct
-        if (src != null && executeUntil[srcSide] > now && target.hpPct() < 0.2f) amount = target.hp + target.shield + 1f
+        if (src != null) {
+            var up = src.st(DMGP); if (src.st(LOWHP) > 0f && src.hpPct() < 0.5f) up += src.st(LOWHP)
+            if (up != 0f) amount *= 1f + up
+        }
+        run { var dr = target.st(DRS); if (target.st(LOWHP) > 0f && target.hpPct() < 0.5f) dr += target.st(LOWHP); if (dr > 0f) amount *= 1f - dr.coerceAtMost(0.6f) }
+        if (src != null && src.st(EXEC) > 0f && target.hpPct() < src.st(EXEC)) amount = target.hp + target.shield + 1f
         if (target.shield > 0f && target.shieldUntil > nowF) {
             val absorbed = min(target.shield, amount)
             target.shield -= absorbed; amount -= absorbed
@@ -464,6 +510,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         if (amount <= 0f) return
         target.hp -= amount
         target.lastCombat = now
+        // Dota 2 Cheese: eaten at low health.
+        if (target.cheese && target.hp > 0f && target.hpPct() < 0.2f) { target.cheese = false; target.hp = target.maxHp }
         if (src != null) {
             // Attacking breaks stealth and reveals the attacker briefly.
             if (src.stealthUntil > nowF) src.stealthUntil = nowF
@@ -482,7 +530,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
 
     fun heal(src: Hero, target: Hero, amount: Float) {
         if (!target.alive(now)) return
-        val v = min(amount, target.maxHp - target.hp)
+        val v = min(amount * (1f + src.st(HEALP)), target.maxHp - target.hp)
         if (v <= 0f) return
         target.hp += v
         stat(src, HEAL, v.toDouble())
@@ -506,6 +554,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         }
         v.hp = 0f
         v.deaths++
+        if (v.hbuffs.removeAll { it.endsOnDeath }) v.retally()
         val respawn = respawnTime()
         v.deadUntil = now + respawn
         v.recallUntil = 0
@@ -625,14 +674,14 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
                 Abilities.DOT -> for (v in victims) { v.dotDps = std * 0.25f * power / max(1f, f.t); v.dotUntil = nowF + f.t.coerceIn(1f, 5f); v.dotBy = h.gi; hitAny = true }
                 Abilities.STUN, Abilities.KNOCKUP, Abilities.SUPPRESS, Abilities.CHARM, Abilities.TAUNT, Abilities.FEAR, Abilities.KNOCKBACK -> for (v in victims) {
                     if (v.immuneUntil > nowF) continue
-                    v.stunUntil = max(v.stunUntil, nowF + f.t.coerceIn(0.3f, 3f)); v.recallUntil = 0; v.dmgBy[h.gi] = now; hitAny = true
+                    v.stunUntil = max(v.stunUntil, nowF + f.t.coerceIn(0.3f, 3f) * (1f - v.st(TEN))); v.recallUntil = 0; v.dmgBy[h.gi] = now; hitAny = true
                     if (f.k == Abilities.KNOCKBACK) { val dx = v.x - h.x; val dy = v.y - h.y; val d = max(1f, hypot(dx, dy)); push(v, v.x + dx / d * 18f, v.y + dy / d * 18f) }
                 }
-                Abilities.ROOT, Abilities.TERRAIN -> for (v in victims) { if (v.immuneUntil > nowF) continue; v.rootUntil = max(v.rootUntil, nowF + f.t.coerceIn(0.5f, 2.5f)); v.dmgBy[h.gi] = now; hitAny = true }
+                Abilities.ROOT, Abilities.TERRAIN -> for (v in victims) { if (v.immuneUntil > nowF) continue; v.rootUntil = max(v.rootUntil, nowF + f.t.coerceIn(0.5f, 2.5f) * (1f - v.st(TEN))); v.dmgBy[h.gi] = now; hitAny = true }
                 Abilities.SILENCE, Abilities.BLIND -> for (v in victims) { v.silenceUntil = max(v.silenceUntil, nowF + f.t.coerceIn(0.5f, 2.5f)); v.dmgBy[h.gi] = now; hitAny = true }
                 Abilities.SLOW -> for (v in victims) { v.slowUntil = nowF + f.t.coerceIn(0.5f, 4f); v.slowPct = f.v.coerceIn(0.1f, 0.8f); v.dmgBy[h.gi] = now; hitAny = true }
                 Abilities.HEAL -> { val tg = if (f.ally && ally != null) ally else h; heal(h, tg, (70f + 22f * rank) * f.p * power * (if (a.ult) 2.2f else 1f) * (1f + 0.05f * h.z(Phase.SUPPORT))); hitAny = true }
-                Abilities.SHIELD -> { val tg = if (f.ally && ally != null) ally else h; val s = (90f + 28f * rank) * f.p * power * (if (a.ult) 2f else 1f); tg.shield = s; tg.shieldUntil = nowF + 3f; stat(h, HEAL, s * 0.5); hitAny = true }
+                Abilities.SHIELD -> { val tg = if (f.ally && ally != null) ally else h; val s = (90f + 28f * rank) * f.p * power * (if (a.ult) 2f else 1f) * (1f + h.st(HEALP)); tg.shield = s; tg.shieldUntil = nowF + 3f; stat(h, HEAL, s * 0.5); hitAny = true }
                 Abilities.DASH -> {
                     val tg = target
                     if (tg != null && (a.ai == Abilities.AI_ENGAGE || a.ai == Abilities.AI_POKE || a.ai == Abilities.AI_BURST || a.ai == Abilities.AI_FINISH || h.hpPct() > 0.45f)) push(h, tg.x + (h.x - tg.x) * 0.15f, tg.y + (h.y - tg.y) * 0.15f, f.v.coerceIn(20f, 120f))
@@ -660,7 +709,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
 
     fun Hero.fightIqFor(n: Int) = if (n >= 2) fightIq else 1f
     fun readyCount(h: Hero): Int { var n = 0; for (i in h.acts.indices) if (ready(h, i) && h.acts[i].damage != null) n++; return n }
-    fun cdMult(h: Hero) = (1f - 0.012f * h.items * (if (h.inv.isEmpty()) 1f else h.ratio(h.sHaste, 0.3, 0.5f, 1.8f))).coerceAtLeast(0.65f)
+    fun cdMult(h: Hero) = (1f - 0.012f * h.items * (if (h.inv.isEmpty()) 1f else h.ratio(h.sHaste, 0.3, 0.5f, 1.8f))).coerceAtLeast(0.65f) / (1f + h.st(HASTE) / 100f)
     fun lowestAlly(h: Hero, r: Float): Hero? {
         var best: Hero? = null
         for (a in bySide[h.side]) if (a !== h && a.alive(now) && hypot(a.x - h.x, a.y - h.y) < r && (best == null || a.hpPct() < best.hpPct())) best = a
@@ -910,10 +959,14 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         for (o in objs) {
             if (o.alive) { if (o.o.until != null && m > o.o.until + 1) o.alive = false; continue }
             if (o.o.until != null && m > o.o.until) continue
+            // League of Legends: once a team has its soul the Elder Dragon replaces the drakes.
+            if (soulGated && o.o.id == "drake" && (soulTaken[0] || soulTaken[1])) continue
+            if (soulGated && o.o.id == "elder" && !(soulTaken[0] || soulTaken[1])) continue
             if (now >= o.next && o.next >= 0) {
                 o.place()
                 o.alive = true; o.hp = o.maxHp * (1f + (m / 30.0).toFloat() * 0.6f); o.dmgBy[0] = 0f; o.dmgBy[1] = 0f
-                ev(Ev(now, "spawn", -1, x = o.idx, n = MobaEngine.packPos(o.x, o.y)))
+                o.kind = spawnKind(o.o.id)
+                ev(Ev(now, "spawn", -1, x = o.idx, m = kindCode(o.kind), n = MobaEngine.packPos(o.x, o.y), text = o.kind?.name ?: ""))
             }
         }
     }
@@ -957,8 +1010,10 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         o.next = now + (o.o.respawn * 60 * (patch?.objRespawn(o.o.id) ?: 1.0)).toInt()
         val taker = bySide[side].filter { it.alive(now) }.minByOrNull { hypot(it.x - o.x, it.y - o.y) + (if (it.jungler) -30f else 0f) }
         if (taker != null) stat(taker, OBJ, 1.0)
-        ev(Ev(now, "obj", side, taker?.pc?.p?.id ?: -1, x = o.idx, n = MobaEngine.packPos(o.x, o.y)))
+        ev(Ev(now, "obj", side, taker?.pc?.p?.id ?: -1, x = o.idx, m = kindCode(o.kind), n = MobaEngine.packPos(o.x, o.y), text = o.kind?.name ?: o.o.name))
         val mod = (patch?.objValue(o.o.id) ?: 1.0).toFloat()
+        objKills[o.o.id] = (objKills[o.o.id] ?: 0) + 1
+        if (kindsOf(o.o.id).isNotEmpty()) { takeKinds(o, side, taker, mod); return }
         val v = (o.o.value * mod).toFloat()
         val team = bySide[side]
         when (o.o.kind) {
@@ -971,6 +1026,67 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             "xp" -> for (h in team) addXp(h, 0.9)
             "buff" -> { buffUntil[side] = now + 150; buffVal[side] = max(buffVal[side], v * 0.6f) }
         }
+    }
+
+    /**
+     * The kind of an objective that spawns now. Elemental drakes follow League of Legends: the first
+     * two are of different random elements, the third's element becomes the rift's and every later
+     * drake is of it. Other objectives have one kind (Dota 2 Roshan drops by kill count instead).
+     */
+    fun spawnKind(objId: String): dev.uem.em.titles.NeutralDef? {
+        val kinds = kindsOf(objId).filter { !it.killerOnly && it.fromKill <= 1 }
+        if (kinds.isEmpty()) return null
+        if (kinds.size == 1) return kinds.first()
+        // A real objective and the forms patches added spawn in turn.
+        if (objId != "drake") { val n = spawnCount[objId] ?: 0; spawnCount[objId] = n + 1; return kinds[n % kinds.size] }
+        riftKind?.let { r -> kinds.firstOrNull { it.id == r }?.let { return it } }
+        val fresh = kinds.filter { it.id !in drakeSeen }.ifEmpty { kinds }
+        val k = fresh[rng.int(0, fresh.size - 1)]
+        drakeSeen.add(k.id)
+        if (drakeSeen.size >= 3) riftKind = k.id
+        return k
+    }
+
+    /** What slaying an objective gives: the spawned kind, the last hitter's own reward, Roshan's drops. */
+    fun takeKinds(o: Obj, side: Int, taker: Hero?, patchMod: Float) {
+        val kills = objKills[o.o.id] ?: 1
+        val given = ArrayList<dev.uem.em.titles.NeutralDef>()
+        o.kind?.let { given.add(it) }
+        for (k in kindsOf(o.o.id)) if (k !in given && (k.killerOnly || o.kind == null) && kills >= k.fromKill) given.add(k)
+        for (k in given) applyKind(k, side, if (k.killerOnly) taker else null, patchMod)
+        val n = (stacks[side][o.o.id] ?: 0) + 1
+        stacks[side][o.o.id] = n
+        // Soul: the team's fourth drake gives the soul of the rift's element.
+        val soulDef = (riftKind?.let { r -> kindsOf(o.o.id).firstOrNull { it.id == r } } ?: o.kind)
+        if (soulDef != null && soulDef.soulAt > 0 && n >= soulDef.soulAt && !soulTaken[side]) {
+            soulTaken[side] = true
+            if (soulGated) for (e in objs) if (e.o.id == "elder" && !e.alive) e.next = minOf(maxOf(e.next, 0), now + (e.o.respawn * 60).toInt())
+            val m = (dev.uem.em.titles.Neutrals.mod(world, soulDef.id) * patchMod).toFloat()
+            for ((key, v) in soulDef.soul) STAT_INDEX[key]?.let { tPerm[side][it] += (v * m).toFloat() } ?: run { if (key == "shield") for (h in bySide[side]) if (h.alive(now)) { h.shield = max(h.shield, h.maxHp * v.toFloat() * m); h.shieldUntil = nowF + 60f } }
+            ev(Ev(now, "soul", side, m = kindCode(soulDef), text = soulDef.soulName))
+        }
+    }
+
+    fun applyKind(k: dev.uem.em.titles.NeutralDef, side: Int, only: Hero?, patchMod: Float) {
+        val m = (dev.uem.em.titles.Neutrals.mod(world, k.id) * patchMod).toFloat()
+        val team = if (only != null) listOf(only) else bySide[side]
+        val v = FloatArray(NS)
+        for ((key, x) in k.stats) STAT_INDEX[key]?.let { v[it] += (x * m).toFloat() }
+        val gold = k.stats["gold"] ?: 0.0; val xp = k.stats["xp"] ?: 0.0
+        for (h in team) {
+            if (gold > 0) addGold(h, (gold * itemScale).toFloat())
+            if (xp > 0) addXp(h, xp)
+        }
+        k.stats["push"]?.let { pushUntil[side] = max(pushUntil[side], now + it.toInt()); for (h in team) addGold(h, gpmPerSec() * 20f) }
+        k.stats["shield"]?.let { sh -> for (h in team) if (h.alive(now)) { h.shield = max(h.shield, h.maxHp * (sh * m).toFloat()); h.shieldUntil = nowF + (if (k.duration > 0) k.duration else 60) } }
+        if ((k.stats["aegis"] ?: 0.0) > 0) (only ?: team.filter { it.alive(now) }.maxByOrNull { it.earned })?.aegis = true
+        if ((k.stats["cheese"] ?: 0.0) > 0) (only ?: team.firstOrNull())?.cheese = true
+        if ((k.stats["refresher"] ?: 0.0) > 0) (only ?: team.firstOrNull())?.refresher = true
+        if (v.all { it == 0f }) return
+        if (k.duration == 0 && !k.endsOnDeath && only == null) { for (i in 0 until NS) tPerm[side][i] += v[i]; return }
+        // A killer's drop (shard) is the hero's own for the rest of the game.
+        val until = if (k.duration > 0) now + k.duration else Int.MAX_VALUE
+        for (h in team) if (h.alive(now)) { h.hbuffs.add(HBuff(k.id, v, until, k.endsOnDeath)); h.retally() }
     }
 
     // ---------------------------------------------------------------------------- structures
@@ -1010,8 +1126,9 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         }
     }
 
-    fun hitStruct(st: Struct, side: Int, dmg: Float, h: Hero?) {
-        if (st.dead || dmg <= 0f) return
+    fun hitStruct(st: Struct, side: Int, dmg0: Float, h: Hero?) {
+        if (st.dead || dmg0 <= 0f) return
+        val dmg = dmg0 * (1f + (h?.st(STRUCT) ?: tPerm[side][STRUCT]))
         st.hp -= dmg
         val pct = (st.hp / st.maxHp * 100).roundToInt().coerceIn(0, 100)
         if (pct <= st.lastPct - 10 || st.hp <= 0f) { st.lastPct = pct; ev(Ev(now, "shp", side, x = st.s.idx, a = pct)) }
@@ -1152,6 +1269,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         val inBase = hypot(h.x - fountain(h.side)[0], h.y - fountain(h.side)[1]) < 60f
         if (inBase) { h.hp = min(h.maxHp, h.hp + h.maxHp * 0.12f * DTF); h.mana = h.maxMana; shop(h) }
         else if (h.lastCombat < now - 6) h.hp = min(h.maxHp, h.hp + h.maxHp * 0.004f * DTF)
+        if (h.st(REGEN) > 0f) h.hp = min(h.maxHp, h.hp + (h.maxHp - h.hp) * h.st(REGEN) / 5f * DTF)
+        if (h.hbuffs.isNotEmpty() && h.hbuffs.removeAll { it.until <= now }) h.retally()
         if (h.shieldUntil <= nowF) h.shield = 0f
         // Passive gold (and the Dota courier).
         addGold(h, gpmPerSec() * 0.25f * DTF)

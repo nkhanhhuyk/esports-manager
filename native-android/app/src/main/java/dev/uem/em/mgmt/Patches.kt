@@ -82,6 +82,19 @@ object Patches {
             }
             if (kind == "major" && rng.chance(0.35)) Release.item(w, t, rng)?.let { notes.add(0, it) }
         }
+        // Neutral objectives: a kind's buff raised or lowered (every number of it), a new fictional kind now and then.
+        if (t.isMoba) {
+            val kinds = dev.uem.em.titles.Neutrals.of(w, t.id)
+            val n = when (kind) { "major" -> rng.int(1, 3); "medium" -> if (rng.chance(0.6)) 1 else 0; else -> 0 }
+            for (k in rng.sample(kinds, minOf(n, kinds.size))) {
+                val old = w.neutralMods[k.id] ?: 1.0
+                val d = rng.float(0.1, 0.25) * (if (old > 1.2) -1 else if (old < 0.8) 1 else if (rng.chance(0.5)) 1 else -1)
+                val now = (old * (1 + d)).coerceIn(0.6, 1.5)
+                w.neutralMods[k.id] = now
+                notes.add("Objective — ${k.name}: ${if (d > 0) "buffed" else "nerfed"} (${dev.uem.em.titles.Neutrals.statText(k.stats, now)})")
+            }
+            if (kind == "major" && rng.chance(0.3)) Release.neutral(w, t, rng)?.let { notes.add(0, it) }
+        }
         if (kind != "minor") for (s in rng.sample(t.styles, if (kind == "major") 3 else 2)) {
             val d = rng.float(0.03, 0.12) * (if (rng.chance(0.5)) 1 else -1)
             style[s] = d

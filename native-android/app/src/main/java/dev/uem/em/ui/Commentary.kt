@@ -76,6 +76,7 @@ object Commentary {
                     }, e.a >= e.b + 3))
                 }
                 "obj" -> out.add(Line(e.t, "${teams[e.team].short} secure ${e.text}", e.text.contains("Baron") || e.text.contains("Lord") || e.text.contains("Roshan") || e.text.contains("Elder")))
+                "soul" -> out.add(Line(e.t, "${teams[e.team].short} claim the ${e.text}!", true))
                 "steal" -> out.add(Line(e.t, "STOLEN! ${who(e.a)} snatches ${e.text} away from ${teams[1 - e.team].short}!", true))
                 "tower" -> { towers[e.team]++; out.add(Line(e.t, "${teams[e.team].short} take ${MobaMap.of(t.id).structs.getOrNull(e.n)?.name ?: "a tower"} — ${towers[e.team]} structure${if (towers[e.team] > 1) "s" else ""} down for them")) }
                 "base" -> out.add(Line(e.t, "${teams[e.team].short} break into the base: ${MobaMap.of(t.id).structs.getOrNull(e.n)?.name ?: "a base structure"} falls", true))
