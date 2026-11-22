@@ -11,6 +11,8 @@ object TestData {
     val source = DataSource { name -> roots.map { File(it, name) }.first { it.exists() }.readText() }
 
     fun init() {
+        // Tests measure simulation time on every core (the app defaults to half of them).
+        dev.uem.em.game.Advance.speedMode = "full"
         GameData.init(source)
         Catalogue.init(source)
     }

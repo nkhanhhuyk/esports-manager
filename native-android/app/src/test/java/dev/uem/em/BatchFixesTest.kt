@@ -44,6 +44,13 @@ class BatchFixesTest {
             arrayOf(Lineups.auto(w, a).map { w.players[it] }, Lineups.auto(w, b).map { w.players[it] }), arrayOf(a.style, b.style), 0,
             arrayOf(setOf("lol-ahri"), setOf("lol-azir")), dev.uem.em.core.Rng.of("fearless"))
         assertTrue(!s.legal(0, true, "lol-azir") && s.legal(0, true, "lol-ahri"))
+        // A pool used up by a long Fearless series (only 8 champions left): the draft still completes.
+        val lol = dev.uem.em.titles.Catalogue.get("lol")
+        val lockedAll = lol.characters.drop(8).map { it.id }.toSet()
+        val d = dev.uem.em.sim.DraftSession(lol, dev.uem.em.sim.Patch.of(w, lol), arrayOf(Lineups.auto(w, a).map { w.players[it] }, Lineups.auto(w, b).map { w.players[it] }),
+            arrayOf(a.style, b.style), 0, arrayOf(lockedAll, lockedAll), dev.uem.em.core.Rng.of("exhausted")).runAll()
+        assertEquals(10, d.picks[0].size + d.picks[1].size)
+        assertEquals(10, (d.picks[0] + d.picks[1]).toSet().size)
     }
 
     @Test

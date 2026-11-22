@@ -165,6 +165,9 @@ class DraftSession(
      */
     private fun chooseBan(team: Int): CharDef? {
         val enemy = 1 - team
+        // Deep in a long Fearless series the pool runs low: bans stop while both teams still need picks from it.
+        val need = open[0].size + open[1].size + 4
+        if (minOf(t.characters.count { legal(0, false, it.id) }, t.characters.count { legal(1, false, it.id) }) <= need) return null
         val style = banStyle[team]
         val wMeta = when (style) { 0 -> 1.6; 1 -> 0.5; else -> 1.0 }
         val wTarget = when (style) { 1 -> 1.7; 0 -> 0.5; else -> 1.0 }
@@ -268,7 +271,7 @@ class DraftSession(
         }
         if (bc == null) {
             bi = open[team][0]
-            bc = t.characters.filter { legal(team, false, it.id) }.maxByOrNull { patch.charMeta[it.id] ?: 0.0 }
+            bc = t.characters.filter { legal(team, false, it.id) }.maxByOrNull { patch.charMeta[it.id] ?: 0.0 } ?: exhausted(team)
         }
         if (bc != null) place(team, bi, bc.id)
         step++
@@ -278,7 +281,7 @@ class DraftSession(
     fun autoTeam(s: Int) {
         val taken = HashSet(picks[s])
         lineups[s].indices.filter { it in open[s] }.sortedBy { (it * 7919 + s * 31 + step) % 11 }.forEach { i ->
-            val c = prefs[s][i].firstOrNull { it.id !in taken && it.id !in locked[s] } ?: t.characters.first { it.id !in taken }
+            val c = prefs[s][i].firstOrNull { it.id !in taken && it.id !in locked[s] } ?: t.characters.firstOrNull { it.id !in taken && it.id !in locked[s] } ?: t.characters.first { it.id !in taken }
             taken.add(c.id)
             place(s, i, c.id)
         }
@@ -299,11 +302,15 @@ class DraftSession(
         while (!done && guard++ < 200) aiStep()
         // Anyone left without a pick (short drafts) takes the best legal option.
         for (s in 0..1) for (i in open[s].toList()) {
-            val c = prefs[s][i].firstOrNull { legal(s, false, it.id) } ?: t.characters.first { legal(s, false, it.id) }
+            val c = prefs[s][i].firstOrNull { legal(s, false, it.id) } ?: t.characters.firstOrNull { legal(s, false, it.id) } ?: exhausted(s) ?: continue
             place(s, i, c.id)
         }
         return result()
     }
+
+    /** The Fearless pool is used up (a very long series): champions locked by earlier games come back, best meta first. */
+    private fun exhausted(team: Int): CharDef? =
+        t.characters.filter { it.id !in picked && it.id !in banned }.maxByOrNull { patch.charMeta[it.id] ?: 0.0 }
 
     fun result() = Draft.Result(picks, bans, assign, firstPick, order)
 }
