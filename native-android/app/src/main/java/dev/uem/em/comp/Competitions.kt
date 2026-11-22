@@ -100,15 +100,32 @@ object Season {
         }
     }
 
-    fun plan(w: World, season: Int) {
-        // Nations Cup (odd seasons): national teams in early December, before the season starts.
-        if (season % 2 == 1) w.titles.sortedByDescending { id -> Catalogue.POPULARITY[id]!!.values.average() }.take(6).forEachIndexed { i, id ->
-            val t = Catalogue.get(id)
-            val start = Dates.day(season - 1, 12, 3) + i % 3
-            if (start > w.day) mk(w, t, season, "${t.short} Nations Cup $season", "${t.short} NC", CompTier.INTERNATIONAL, null, listOf("nations:$id:8"),
-                listOf(stage("Group Stage", StageType.GROUPS, start, t.formats.first.n, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 2), stage("Knockout Stage", StageType.SINGLE_ELIM, start + 5, t.formats.second.n, daysBetween = 2)),
-                t.prizeScale * 150_000, 55, emptyList())
+    /** Esports World Cup club championship points by placing in each game's event. */
+    val EWC_CLUB_POINTS = listOf(1000, 600, 350, 350, 150, 150, 150, 150)
+    const val EWC = "Esports World Cup"
+    const val ENC = "Esports Nations Cup"
+    private val EWC_CLUB_PRIZE = listOf(3_500_000.0, 2_000_000.0, 1_000_000.0, 600_000.0, 500_000.0, 400_000.0, 300_000.0, 250_000.0)
+
+    /** Esports World Cup club championship: organisations by points over every game's event of the season. */
+    fun ewcClubStandings(w: World, season: Int): List<Triple<Int, Int, Int>> {
+        val pts = HashMap<Int, IntArray>() // org → points, events
+        for (c in w.comps) {
+            if (c.season != season || !c.name.startsWith(EWC) || !c.done) continue
+            c.placements.forEachIndexed { i, tid -> val org = w.teams[tid].orgId; val a = pts.getOrPut(org) { IntArray(2) }; a[0] += EWC_CLUB_POINTS.getOrElse(i) { 50 }; a[1]++ }
         }
+        return pts.entries.sortedByDescending { it.value[0] }.map { Triple(it.key, it.value[0], it.value[1]) }
+    }
+
+    /** When the last game's Esports World Cup ends: the club championship prizes. */
+    fun ewcClubPayout(w: World, season: Int) {
+        if (w.comps.any { it.season == season && it.name.startsWith(EWC) && !it.done }) return
+        if (w.news.any { it.title == "$EWC $season Club Championship" }) return
+        val table = ewcClubStandings(w, season)
+        table.take(EWC_CLUB_PRIZE.size).forEachIndexed { i, (org, p, _) -> dev.uem.em.mgmt.Economy.ledger(w, w.orgs[org], "prize", EWC_CLUB_PRIZE[i], "$EWC Club Championship: ${dev.uem.em.core.ordinal(i + 1)} ($p points)") }
+        table.firstOrNull()?.let { (org, p, n) -> w.news.add(dev.uem.em.model.News(w.day, "$EWC $season Club Championship", "${w.orgs[org].name} win the Club Championship with $p points from $n events.")) }
+    }
+
+    fun plan(w: World, season: Int) {
         w.titles.forEachIndexed { ti, titleId ->
             val t = Catalogue.get(titleId)
             val off = ti % 3
@@ -154,12 +171,24 @@ object Season {
             val n = count(msiE)
             val msiStages = if (n > 8) listOf(stage("Play-In Groups", StageType.GROUPS, D(6, 26), t.formats.first.n, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 4), stage("Bracket Stage", StageType.DOUBLE_ELIM, D(6, 26) + 6, t.formats.second.n))
             else listOf(stage("Bracket Stage", StageType.DOUBLE_ELIM, D(6, 26), t.formats.second.n))
-            mk(w, t, season, msiN.first, msiN.second, CompTier.INTERNATIONAL, null, msiE, msiStages, t.prizeScale * 400_000, 70, MSI_POINTS).realName = msiN.third
+            val msi = mk(w, t, season, msiN.first, msiN.second, CompTier.INTERNATIONAL, null, msiE, msiStages, t.prizeScale * 400_000, 70, MSI_POINTS)
+            msi.realName = msiN.third
+            // Esports World Cup (after the mid-season event): its top four and the strongest other teams; club championship across all games.
+            val ewc = mk(w, t, season, "$EWC $season — ${t.name}", "EWC ${t.short}", CompTier.INTERNATIONAL, null, listOf("top:${msi.id}:4", "elo:$titleId:4"),
+                listOf(stage("Group Stage", StageType.GROUPS, D(7, 14), t.formats.first.n, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 2, daysBetween = 1),
+                    stage("Playoffs", StageType.SINGLE_ELIM, D(7, 14) + 4, t.formats.second.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)),
+                t.prizeScale * 700_000, 80, emptyList())
+            ewc.realName = true
             val target = maxOf(4, minOf(16, tier1.size * 4 / 4 * 4))
             val slots = allocate(tier1.map { leagueStrength(it) }, target, 4)
             val wE = tier1.mapIndexed { i, l -> "circuit:${l.id}:${minOf(slots[i], l.teamIds.size)}" }
             val wN = name("worlds", "World Championship", "Worlds")
             mk(w, t, season, wN.first, wN.second, CompTier.WORLDS, null, wE, international(t, count(wE), D(9, 24)), t.prizeScale * 1_000_000, 100, emptyList()).realName = wN.third
+            // Esports Nations Cup (after the World Championship): the strongest eight nations' teams.
+            val encStart = Dates.day(season, 11, 2) + ti % 3
+            mk(w, t, season, "$ENC $season — ${t.name}", "ENC ${t.short}", CompTier.INTERNATIONAL, null, listOf("nations:$titleId:8"),
+                listOf(stage("Group Stage", StageType.GROUPS, encStart, t.formats.first.n, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 2, daysBetween = 1), stage("Knockout Stage", StageType.SINGLE_ELIM, encStart + 4, t.formats.second.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)),
+                t.prizeScale * 300_000, 75, emptyList()).realName = true
         }
     }
 }
@@ -411,6 +440,8 @@ object Progress {
                 "league" -> w.leagues[p[1].toInt()].teamIds.forEach(::add)
                 "ids" -> p[1].split(',').mapNotNull { it.toIntOrNull() }.filter { it in w.teams.indices }.forEach(::add)
                 "nations" -> dev.uem.em.mgmt.Extras.nationalTeams(w, p[1], p[2].toInt()).forEach(::add)
+                // The strongest tier-1 teams of a game not already in (by Elo).
+                "elo" -> { val need = p[2].toInt(); w.teams.filter { it.titleId == p[1] && it.active && it.nationalOf.isEmpty() && w.leagues.getOrNull(it.leagueId)?.tier == 1 && it.id !in out }.sortedByDescending { it.elo }.take(need).forEach { add(it.id) } }
                 "top" -> {
                     val src = w.comps[p[1].toInt()]
                     if (!src.done) return null
@@ -424,7 +455,7 @@ object Progress {
                     val league = w.leagues[p[1].toInt()]
                     val splits = w.comps.filter { it.season == c.season && it.leagueId == league.id }
                     if (splits.any { !it.done }) return null
-                    if (w.comps.any { it.season == c.season && it.titleId == c.titleId && it.tier == CompTier.INTERNATIONAL && !it.done }) return null
+                    if (w.comps.any { it.season == c.season && it.titleId == c.titleId && it.tier == CompTier.INTERNATIONAL && !it.done && it.startDay < c.startDay }) return null
                     val pts = circuitPoints(w, c.season, c.titleId)
                     val last = splits.maxByOrNull { it.split }
                     val chosen = ArrayList<Int>()
@@ -492,6 +523,7 @@ object Progress {
         val maxGp = c.pstats.values.maxOfOrNull { it.gp } ?: 0
         c.pstats.entries.filter { it.value.gp * 2 >= maxGp && it.value.gp > 0 }.maxByOrNull { it.value.r / it.value.gp }?.let { c.mvp = it.key }
         dev.uem.em.mgmt.Economy.onCompetitionFinished(w, c)
+        if (c.name.startsWith(Season.EWC)) Season.ewcClubPayout(w, c.season)
         dev.uem.em.mgmt.Career.onCompetitionFinished(w, c)
         dev.uem.em.mgmt.Extras.onCompetitionFinished(w, c)
         dev.uem.em.mgmt.Supporters.onCompetitionFinished(w, c)

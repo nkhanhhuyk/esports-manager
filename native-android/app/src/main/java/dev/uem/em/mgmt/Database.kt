@@ -33,7 +33,8 @@ object Database {
     private val TEAM_HEAD = listOf("id", "match key", "game", "name", "short", "organisation id", "organisation", "league (read only)", "region", "image url", "style", "aggression", "players (read only)")
     private val ORG_HEAD = listOf("id", "match key", "name", "short", "country", "region", "colours", "image url", "reputation", "fans", "balance", "teams (read only)")
     private val LEAGUE_HEAD = listOf("id", "match key", "game", "name", "short", "region (read only)", "tier (read only)", "image url")
-    private val COMP_HEAD = listOf("id", "game", "season", "name", "short", "tier (read only)", "region (read only)", "start (read only)", "prize pool", "image url")
+    private val COMP_HEAD = listOf("id", "game", "season", "name", "short", "tier (read only)", "region (read only)", "start", "prize pool", "image url",
+        "format (new)", "teams (new)", "best of: groups / playoffs / final (new)", "groups (new)", "advance per group (new)", "every season (new)", "entry fee (new)")
     private val STAFF_HEAD = listOf("id", "match key", "game", "first name", "last name", "nationality", "date of birth", "role (read only)", "quality", "team id", "team")
     private val CHAR_HEAD = listOf("id", "game", "name (read only)", "class (read only)", "image url")
 
@@ -57,7 +58,8 @@ object Database {
                 "Leave a cell empty to keep the current value. Columns marked (read only) are for reference.",
                 "Players: a row with an empty id is a new player (game, handle, nationality and main role are needed). Team = team id, or the team's exact name in that game; write 'free agent' to release a player.",
                 "Nationality: two-letter country code (KR, CN, US, PH, ...). Dates: YYYY-MM-DD. Roles: the game's role ids or names (see the Roles sheet). Attributes: 1 to 99.",
-                "Image url: a direct link to a picture (png, jpg, webp). The game downloads it when online.",
+                "Image url: a direct link to a picture (png, jpg, webp). The game downloads it when online (Settings → Download all pictures keeps it for good).",
+                "Competitions: a row with an empty id creates a new competition. Needed: game, name, start date, format (league, double-league, groups-se, groups-de, se, de, swiss-se), teams (team names separated by ';', or league:<league name>, or top:<competition id>:<count>). Optional: short name, prize pool, best of as 1/3/5, groups, advance per group, every season (Y/N), entry fee, image url. It is checked like the in-game competition editor.",
                 "Current ability is calculated from the attributes and role after import.",
             )) emit(listOf(l))
         })
@@ -99,8 +101,8 @@ object Database {
             n.startsWith("player") || "handle" in h -> "players"
             n.startsWith("team") || ("organisation id" in h && "style" in h) -> "teams"
             n.startsWith("organi") || ("colours" in h) -> "orgs"
-            n.startsWith("league") || ("tier (read only)" in h && "region (read only)" in h) -> "leagues"
             n.startsWith("comp") || "prize pool" in h -> "comps"
+            n.startsWith("league") || ("tier (read only)" in h && "region (read only)" in h) -> "leagues"
             n.startsWith("staff") || ("quality" in h && "role (read only)" in h) -> "staff"
             n.startsWith("char") || ("class (read only)" in h) -> "chars"
             else -> null
@@ -129,7 +131,7 @@ object Database {
                         "orgs" -> importOrg(w, ::cell, where, byKey, r)
                         "leagues" -> { val l = (if (byKey) w.leagues.firstOrNull { "${it.titleId}|${it.name}" == cell("match key") } else cell("id").toIntOrNull()?.let { w.leagues.getOrNull(it) }) ?: run { r.errors.add("$where: no such league"); null }
                             if (l != null) { var ch = false; cell("name").takeIf { it.isNotBlank() && it != l.name }?.let { l.name = it; ch = true }; cell("short").takeIf { it.isNotBlank() && it != l.short }?.let { l.short = it; ch = true }; if (setImage(w, "league:${l.id}", cell("image url"))) ch = true; if (ch) r.updated++ } }
-                        "comps" -> { val c = if (byKey) null else cell("id").toIntOrNull()?.let { w.comps.getOrNull(it) }
+                        "comps" -> if (cell("id").isBlank() && cell("name").isNotBlank()) createComp(w, ::cell, where, r) else { val c = if (byKey) null else cell("id").toIntOrNull()?.let { w.comps.getOrNull(it) }
                             if (c != null) { var ch = false; cell("name").takeIf { it.isNotBlank() && it != c.name }?.let { c.name = it; ch = true }; cell("short").takeIf { it.isNotBlank() && it != c.short }?.let { c.short = it; ch = true }
                                 cell("prize pool").toDoubleOrNull()?.let { v -> if (c.status == 0 && v >= 0 && v != c.prizePool) { c.prizePool = v; ch = true } }; if (setImage(w, "comp:${c.id}", cell("image url"))) ch = true; if (ch) r.updated++ } }
                         "staff" -> importStaff(w, ::cell, where, byKey, r)
@@ -255,6 +257,36 @@ object Database {
         cell("balance").toDoubleOrNull()?.let { v -> if (v != o.balance && o.id != w.userOrg) { o.balance = v; ch = true } else if (v != o.balance) r.notes.add("$where: your own club's balance is not changed from the sheet") }
         if (setImage(w, "org:${o.id}", cell("image url"))) ch = true
         if (ch) r.updated++
+    }
+
+    /** A new competition from a sheet row (a published custom competition, checked like the in-game editor). */
+    private fun createComp(w: World, cell: (String) -> String, where: String, r: Report) {
+        val game = cell("game")
+        if (game !in w.titles) { r.errors.add("$where: unknown game '$game'"); return }
+        val start = parseDate(cell("start")) ?: run { r.errors.add("$where: start date needed (YYYY-MM-DD)"); return }
+        val format = cell("format (new)").ifBlank { "groups-se" }.lowercase()
+        if (format !in dev.uem.em.comp.CustomComps.FORMATS) { r.errors.add("$where: format must be one of ${dev.uem.em.comp.CustomComps.FORMATS.joinToString()}"); return }
+        val id = (w.customComps.maxOfOrNull { it.id } ?: -1) + 1
+        val c = dev.uem.em.model.CustomComp(id, cell("name"), cell("short").ifBlank { cell("name").filter { it.isLetterOrDigit() }.take(6).uppercase() }, game, format)
+        c.startMonth = Dates.month(start); c.startDom = Dates.dom(start)
+        cell("prize pool").toDoubleOrNull()?.let { c.prize = it.coerceAtLeast(0.0) }
+        cell("entry fee (new)").toDoubleOrNull()?.let { c.entryFee = it.coerceAtLeast(0.0) }
+        cell("groups (new)").toIntOrNull()?.let { c.groups = it.coerceIn(1, 8) }
+        cell("advance per group (new)").toIntOrNull()?.let { c.advance = it.coerceIn(1, 8) }
+        c.recurring = cell("every season (new)").uppercase() == "Y"
+        cell("best of: groups / playoffs / final (new)").split('/', ',', ' ').mapNotNull { it.trim().toIntOrNull() }.let { b -> b.getOrNull(0)?.let { c.boGroup = it }; b.getOrNull(1)?.let { c.boPlayoff = it }; b.getOrNull(2)?.let { c.boFinal = it } }
+        for (part in cell("teams (new)").split(';').map { it.trim() }.filter { it.isNotBlank() }) {
+            when {
+                part.startsWith("league:", true) -> { val n = part.substringAfter(':').trim(); val l = w.leagues.firstOrNull { it.titleId == game && (it.name.equals(n, true) || it.short.equals(n, true)) }; if (l != null) c.sources.add("league:${l.id}") else r.errors.add("$where: no $game league '$n'") }
+                part.startsWith("top:", true) -> { val p = part.split(':'); if (p.size == 3 && p[1].toIntOrNull() != null && p[2].toIntOrNull() != null) c.sources.add("top:${p[1]}:${p[2]}") else r.errors.add("$where: '$part' should be top:<competition id>:<count>") }
+                else -> { val tm = teamRef(w, game, "", part); if (tm != null) c.teams.add(tm.id) else r.errors.add("$where: no $game team '$part'") }
+            }
+        }
+        w.customComps.add(c)
+        val err = dev.uem.em.comp.CustomComps.publish(w, c)
+        if (err != null) { r.errors.add("$where: ${c.name} kept as a draft in the competition editor — $err"); return }
+        setImage(w, "comp:${c.editions.lastOrNull() ?: -1}", cell("image url"))
+        r.created++
     }
 
     private fun importStaff(w: World, cell: (String) -> String, where: String, byKey: Boolean, r: Report) {

@@ -86,6 +86,8 @@ class World(
     val images: MutableMap<String, String> = HashMap(),
     /** Simulation detail: "full" (every match on the 2D engines) or "fast" (unwatched matches use a quick model). */
     var simDetail: String = "full",
+    /** The season the career started in (no transfers during it; 0 for older saves). */
+    var firstSeason: Int = 0,
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -231,7 +233,7 @@ class Team(
 )
 
 @Serializable
-class TeamSeason(val season: Int, val leagueId: Int, var position: Int, var w: Int, var l: Int, var elo: Double)
+class TeamSeason(val season: Int, val leagueId: Int, var position: Int, var w: Int, var l: Int, var elo: Double, @ProtoPacked val roster: IntArray = IntArray(0))
 
 @Serializable
 class Trophy(val season: Int, val compId: Int, val name: String)

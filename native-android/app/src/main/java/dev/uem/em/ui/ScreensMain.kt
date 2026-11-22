@@ -76,6 +76,21 @@ fun StartScreen(vm: GameVm) {
             }
         }
         item {
+            var online by remember { mutableStateOf(Pics.online) }
+            val stored = remember(vm.busy) { PictureStore.count() to PictureStore.bytes() }
+            Card("Settings") {
+                Text("Pictures", color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Muted("Download every picture the game knows — characters, weapons, team and league logos, player photos, all country flags and your database-editor links — into the app for good. They show without internet. A full download can take a few GB.", 11)
+                Muted("Stored now: ${stored.first} pictures (${stored.second / (1024 * 1024)} MB)", 11)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Button(onClick = { vm.downloadAllPictures() }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Download all pictures") }
+                    HGap(8)
+                    TextButton(onClick = { PictureStore.clear(); vm.toast = "Stored pictures deleted" }) { Text("Delete stored", color = Ui.muted) }
+                }
+                Tabs(listOf("Load pictures online", "Game art only"), if (online) 0 else 1) { online = it == 0; Pics.online = online; vm.setPicturesOnline(online) }
+            }
+        }
+        item {
             val importer = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.importSave(uri) { saves = vm.saves() } }
             Card("Saves") {
                 Muted("Saves on this phone are below. You can also import a save exported from this or another phone (checked before it is added; nothing is overwritten).", 12)

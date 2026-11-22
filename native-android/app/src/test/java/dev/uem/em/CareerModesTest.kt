@@ -39,11 +39,13 @@ class CareerModesTest {
         // Move a player down and back up.
         val t1 = w.teams.first { it.name == "T1" }
         val ac = Academies.of(w, t1)!!
-        val p = w.players[t1.roster.last()]
-        assertTrue(Academies.move(w, p).ok)
-        assertEquals(ac.id, p.teamId)
+        // T1 starts with its real five, so nobody can be moved down until someone comes up.
+        assertTrue(t1.roster.size > Catalogue.get(t1.titleId).teamSize || !Academies.move(w, w.players[t1.roster.last()]).ok)
+        val p = w.players[ac.roster.first()]
         assertTrue(Academies.move(w, p).ok)
         assertEquals(t1.id, p.teamId)
+        assertTrue(Academies.move(w, p).ok)
+        assertEquals(ac.id, p.teamId)
         // An AI team missing a position promotes from its academy before signing anyone.
         val gen = w.teams.first { it.name.startsWith("Gen.G") && it.parentId < 0 }
         val jungler = gen.roster.map { w.players[it] }.filter { it.roles[0] == "jungle" }

@@ -60,6 +60,15 @@ fun TeamsScreen(vm: GameVm, w: World) {
         }
         item { Tabs(ALL_TITLES, idxOf(title)) { title = titleAt(it) } }
         item { Tabs(listOf("By league", "Directory"), mode) { mode = it } }
+        item {
+            // Follow every team shown (the game filter above) in one tap.
+            val shown = w.teams.filter { it.active && !w.isUserTeam(it.id) && it.nationalOf.isEmpty() && (title == null || it.titleId == title) }
+            Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Pill("☆ Follow all (${shown.size})", Ui.accent.copy(alpha = 0.3f)) { for (tm in shown) if (tm.id !in w.followed) w.followed.add(tm.id); vm.edit() }
+                Pill("Unfollow all") { w.followed.removeAll(shown.map { it.id }.toSet()); vm.edit() }
+                Muted("following ${w.followed.size}", 11)
+            }
+        }
         if (mode == 0) {
             val mine = w.teams.filter { w.isUserTeam(it.id) && (title == null || it.titleId == title) }
             if (mine.isNotEmpty()) item {
@@ -72,7 +81,7 @@ fun TeamsScreen(vm: GameVm, w: World) {
                 }
             }
             for (l in w.leagues.filter { title == null || it.titleId == title }.sortedWith(compareBy({ it.titleId }, { it.tier }))) item(key = "l${l.id}") {
-                Card(l.name, right = { Row(verticalAlignment = Alignment.CenterVertically) { TitleTag(l.titleId); Pic(Pics.league(l), l.short, 22.dp) } }) {
+                Card(l.name, right = { Row(verticalAlignment = Alignment.CenterVertically) { TitleTag(l.titleId); w.comps.lastOrNull { it.leagueId == l.id }?.let { CompPic(w, it, 22.dp) } ?: Pic(Pics.league(l), l.short, 22.dp) } }) {
                     Muted("${GameData.regionName(l.region)} · tier ${l.tier} · ${l.teamIds.size} teams${if (l.real) " · real league" else ""}", 11)
                     for (tid in l.teamIds.sortedByDescending { w.teams[it].elo }) Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { TeamChip(w, tid, vm) }

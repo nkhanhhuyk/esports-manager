@@ -24,13 +24,18 @@ import kotlin.math.roundToInt
  * their rosters and bidding for the user's players (answered from the inbox).
  */
 object Market {
+    /** The first season keeps every roster as the real snapshot had it: no window, no AI signings. */
+    fun frozen(w: World) = w.firstSeason > 0 && w.season == w.firstSeason
+    const val FROZEN_TEXT = "No transfers in the first season: every roster stays as it started (an emergency signing is allowed only when a team cannot field a lineup). The first window opens after the season."
+
     fun inWindow(w: World): Boolean {
+        if (frozen(w)) return false
         val m = Dates.month(w.day)
         val d = Dates.dom(w.day)
         return (m == 11 && d >= 23) || m == 12 || (m == 1 && d <= 12) || (m == 5 && d >= 25) || (m == 6 && d <= 20)
     }
 
-    fun windowLabel(w: World): String = if (inWindow(w)) "Transfer window open" else if (Dates.month(w.day) in 1..5) "Window opens 25 May" else "Window opens 23 Nov"
+    fun windowLabel(w: World): String = if (frozen(w)) "No transfers in the first season" else if (inWindow(w)) "Transfer window open" else if (Dates.month(w.day) in 1..5) "Window opens 25 May" else "Window opens 23 Nov"
 
     private fun teamRep(w: World, team: Team) = w.orgs[team.orgId].rep
 
@@ -61,6 +66,7 @@ object Market {
         if (p.titleId != team.titleId) return Reply(false, "${p.handle} plays ${Catalogue.get(p.titleId).short}.")
         val renewal = p.teamId == teamId
         if (!renewal && team.roster.size >= Deals.maxRoster(team.titleId)) return Reply(false, "${team.name} already have ${team.roster.size} players (maximum ${Deals.maxRoster(team.titleId)}).")
+        if (!renewal && frozen(w) && team.roster.count { !w.players[it].retired } >= Catalogue.get(team.titleId).teamSize) return Reply(false, FROZEN_TEXT)
         if (!renewal && !inWindow(w) && team.roster.size >= Catalogue.get(team.titleId).teamSize + 2) return Reply(false, "Outside a transfer window you can only sign free agents when your roster is short.")
         if (!renewal && org.balance < salary * 0.25) return Reply(false, "Not enough money for the signing.")
         val ask = asking(w, team, p) * (if (renewal) (1.0 + p.unhappy / 300) else 1.0)
@@ -76,6 +82,7 @@ object Market {
     fun bid(w: World, playerId: Int, teamId: Int, fee: Double): Reply {
         val p = w.players[playerId]
         if (p.teamId < 0) return Reply(false, "${p.handle} is a free agent: offer a contract instead.")
+        if (frozen(w)) return Reply(false, FROZEN_TEXT)
         if (!inWindow(w)) return Reply(false, "Bids are only possible while a transfer window is open.")
         if (w.orgs[w.teams[teamId].orgId].balance < fee) return Reply(false, "Not enough money for that fee.")
         w.offers.add(Offer(w.offers.size, w.day, playerId, teamId, p.teamId, "bid", fee, 0.0, 0, expiresDay = w.day + 1))
@@ -123,6 +130,8 @@ object Market {
         team.roster.remove(p.id)
         team.lineup.replaceAll { if (it == p.id) -1 else it }
         p.career.add(CareerEntry(w.season, w.day, team.id, type))
+        // Departures to free agency are part of the transfer history (moves to clubs are recorded by the signing).
+        if (type != "transferred") w.transfers.add(Transfer(w.day, w.season, p.id, team.id, -1, 0.0, type))
         p.teamId = -1
         p.salary = 0.0
         p.listed = false
@@ -130,13 +139,14 @@ object Market {
 
     private fun sign(w: World, p: Player, team: Team, salary: Double, years: Int, fee: Double, type: String) {
         if (p.teamId != team.id) {
+            val fromTeam = p.teamId
             if (p.teamId >= 0) leave(w, p, "transferred")
             p.teamId = team.id
             dev.uem.em.mgmt.Imports.onJoin(w, p, team)
             team.roster.add(p.id)
             p.joinedDay = w.day
             p.career.add(CareerEntry(w.season, w.day, team.id, type))
-            w.transfers.add(Transfer(w.day, w.season, p.id, -1, team.id, fee, type))
+            w.transfers.add(Transfer(w.day, w.season, p.id, fromTeam, team.id, fee, type))
         }
         p.salary = salary
         p.contractEnd = w.season + years - 1
@@ -206,6 +216,8 @@ object Market {
         for (team in w.teams) {
             if (!team.active || w.isUserTeam(team.id) || team.nationalOf.isNotEmpty()) continue
             val t = Catalogue.get(team.titleId)
+            // First season: only a team that cannot field a lineup signs (an emergency).
+            if (frozen(w) && team.roster.count { !w.players[it].retired && w.players[it].injuryUntil <= w.day } >= t.teamSize) continue
             val short = team.roster.count { !w.players[it].retired } < t.teamSize + 1
             val missing = missingRoles(w, team).isNotEmpty()
             if (!short && !missing && !(window && rng.chance(1.0 / 40))) continue

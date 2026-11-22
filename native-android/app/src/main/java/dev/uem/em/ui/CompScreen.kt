@@ -89,7 +89,7 @@ fun CompsScreen(vm: GameVm, w: World) {
                     val holder = eds.filter { it.done && it.placements.isNotEmpty() }.maxByOrNull { it.season * 1000 + it.startDay }?.placements?.get(0)
                     val most = eds.filter { it.done && it.placements.isNotEmpty() }.groupingBy { it.placements[0] }.eachCount().maxByOrNull { it.value }
                     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp).background(Ui.card, RoundedCornerShape(10.dp)).clickable { vm.go(Screen.Comp(latest.id)) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Pic(latest.leagueId.takeIf { it >= 0 }?.let { Pics.league(w.leagues[it]) }, latest.short, 32.dp)
+                        CompPic(w, latest, 32.dp)
                         HGap(10)
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) { TitleTag(latest.titleId); Text(seriesName(latest), color = if (latest.tier == CompTier.WORLDS) Ui.gold else Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
@@ -108,7 +108,7 @@ fun CompsScreen(vm: GameVm, w: World) {
 private fun CompRow(vm: GameVm, w: World, c: Competition) {
     val mine = c.teamIds.firstOrNull { w.isUserTeam(it) }
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp).background(Ui.card, RoundedCornerShape(10.dp)).clickable { vm.go(Screen.Comp(c.id)) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Pic(Pics.comp(c) ?: c.leagueId.takeIf { it >= 0 }?.let { Pics.league(w.leagues[it]) }, c.short, 34.dp)
+        CompPic(w, c, 34.dp)
         HGap(10)
         Column(Modifier.weight(1f)) {
             Text(c.name, color = if (c.tier == CompTier.WORLDS) Ui.gold else Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 2)
@@ -140,7 +140,7 @@ fun CompScreen(vm: GameVm, w: World, id: Int) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Pic(Pics.comp(c) ?: c.leagueId.takeIf { it >= 0 }?.let { Pics.league(w.leagues[it]) }, c.short, 52.dp)
+                CompPic(w, c, 52.dp)
                 HGap(12)
                 Column(Modifier.weight(1f)) {
                     Text(c.name, color = if (c.tier == CompTier.WORLDS) Ui.gold else Ui.text, fontWeight = FontWeight.Bold, fontSize = 19.sp)
@@ -161,6 +161,25 @@ fun CompScreen(vm: GameVm, w: World, id: Int) {
             }
             if (editions.size > 1) Row(Modifier.padding(horizontal = 12.dp)) {
                 Select("Edition", editions.map { "${it.season}${if (it.split > 0) " S${it.split}" else ""}" }, editions.indexOf(c)) { vm.go(Screen.Comp(editions[it].id)) }
+            }
+        }
+        if (c.name.startsWith(dev.uem.em.comp.Season.EWC)) item {
+            // Club Championship: every game's Esports World Cup counts for the organisation.
+            val table = remember(c.season, vm.version) { dev.uem.em.comp.Season.ewcClubStandings(w, c.season) }
+            val events = w.comps.filter { it.season == c.season && it.name.startsWith(dev.uem.em.comp.Season.EWC) }
+            Card("Club Championship ${c.season}", right = { Muted("${events.count { it.done }} of ${events.size} events done", 11) }) {
+                Muted("Points by placing in each game's event (1000 · 600 · 350 · 150); the best clubs share the Club Championship prize when the last event ends.", 11)
+                if (table.isEmpty()) Muted("No event finished yet.", 11)
+                table.take(12).forEachIndexed { i, (org, pts, n) ->
+                    Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Org(org)) }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("${i + 1}", color = if (i == 0) Ui.gold else Ui.muted, fontSize = 12.sp, modifier = Modifier.width(24.dp))
+                        Text(w.orgs[org].name, color = Ui.text, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        Muted("$n event${if (n == 1) "" else "s"}  ", 11)
+                        Text("$pts", color = Ui.gold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+                Gap(4)
+                androidx.compose.foundation.layout.FlowRow { for (e in events) Pill("${dev.uem.em.titles.Catalogue.get(e.titleId).short}${if (e.done) " ✓" else ""}") { vm.go(Screen.Comp(e.id)) } }
             }
         }
         item {

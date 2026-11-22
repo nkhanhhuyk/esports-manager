@@ -74,7 +74,7 @@ object Roles {
             if (!handles(w, "signings")) {
                 val t = Catalogue.get(team.titleId)
                 val short = team.roster.size < t.teamSize + 1 || Market.missingRoles(w, team).isNotEmpty()
-                if (short || (Market.inWindow(w) && rng.chance(1.0 / 30))) Market.aiTeamMarket(w, team, rng, short)
+                if ((short && !Market.frozen(w)) || (Market.inWindow(w) && rng.chance(1.0 / 30))) Market.aiTeamMarket(w, team, rng, short)
             }
         }
         if (!handles(w, "sales")) for (o in w.offers.toList()) {

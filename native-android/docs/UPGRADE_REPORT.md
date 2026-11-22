@@ -90,6 +90,24 @@ far apart.
 | Database editor | Export / import spreadsheets (.xlsx for Google Sheets / Excel, .csv): players, teams, organisations, leagues, competitions, staff, character pictures; picture links; applied to this save and optionally every new game. See `docs/DATABASE_EDITOR.md` (columns and what data is missing per game). |
 | Dota 2 objectives | Wisdom runes and Tormentors now spawn on both sides and Roshan alternates pits (all used only their first pit before, favouring Radiant). |
 
+## Third follow-up: history, real data, logos, offline pictures, world events
+
+| Request | What was built |
+|---|---|
+| Past rosters | Team page tab: the current roster, then every season's roster at its end (and who left during it). Rosters are kept at each season end from now on; older seasons are rebuilt from who played for the team. |
+| Transfer history | Team page tab with a season selector: arrivals (from which club, free agency, academy) and departures (to which club, released, contract ended), with fees and dates. Releases, expiring contracts, free-agent signings, loan returns and academy moves are now recorded too. |
+| Follow all | Teams screen: Follow all / Unfollow all for the game shown. |
+| Generated logos | Teams without a real logo get a logo with a motif from the name (wolf, dragon, tiger, eagle, fox, bear, snake, crown, star, flame, bolt, ice, ghost, sword, mountain, wave, rocket, skull) or a monogram, in the organisation's colours; competitions get a trophy (world championships), globe (internationals), shield (leagues), banner (custom), and their own emblems for the Esports World Cup and Nations Cup. |
+| No transfers in the first season | The market is closed for the whole first season (no window, no AI signings, bids or trades); only a team that cannot field a lineup makes an emergency signing. |
+| No generated players on real teams | Real teams keep the snapshot roster; a team listed with fewer than a full lineup is completed with real free agents (same position, same region first). No substitute is generated. |
+| Real player ratings | The same in every save: each real player and team has its own random stream (game + name), not the save's. Recalibrated: curated team strengths for every real LoL, Valorant, MLBB and Dota 2 team; CS2 from Valve Regional Standings points; curated current ability and potential for well-known players (`assets/ratings.json`, editable with the database editor). E.g. Chovy 91, Faker 87, ZywOo 94. |
+| Spreadsheet: new competitions | A Competitions row with an empty id creates a (recurring) competition, checked like the in-game editor. |
+| Pictures offline for good | Pictures are downloaded into the app's own storage (not a cache) and shown from there without internet: Start menu → Settings → Download all pictures (every character, weapon, logo, player photo, all flags and your picture links; a few GB at most), also in a career's Settings. |
+| Esports World Cup | After each game's mid-season event: its top four and the four strongest other tier-1 teams, groups then playoffs; the Club Championship totals every organisation's results over all games' events and pays the best clubs. |
+| Esports Nations Cup | After each game's World Championship (November): the eight strongest nations' teams. Replaces the old December Nations Cup. |
+| All nations | 250 countries and territories (ISO 3166-1) with their English names, flags, regions, languages and name cultures. |
+| Fixes | World Championships waited for every unfinished international of the game (the Nations Cup would have blocked them); now only for internationals that start before them. |
+
 ## Tests and results (JVM, `./gradlew testDebugUnitTest`)
 
 All suites pass (23 classes, including `DraftVarietyTest`, `MobaSideTest`, `WorldIsolationTest`). New or extended:

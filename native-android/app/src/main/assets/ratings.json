@@ -1,0 +1,93 @@
+{
+  "note": "Curated starting ratings for real teams and players (the same in every save). teams: average current ability of the starting lineup. players: [current ability, potential]. Based on results and reputation up to mid-2026; edit with the in-game database editor.",
+  "teams": {
+    "lol": {
+      "gen.g esports": 86, "hanwha life esports": 84, "t1": 85, "dplus kia": 81, "kt rolster": 79, "bnk fearx": 76, "hanjin brion": 73, "nongshim red force": 75, "kiwoom drx": 73, "dn soopers": 72,
+      "beijing jdg esports": 80, "invictus gaming": 81, "xi'an team we": 77, "top esports": 81, "anyone's legend": 82, "bilibili gaming": 85, "lgd gaming": 74, "shenzhen ninjas in pyjamas": 78, "thunder talk gaming": 74, "edward gaming": 74, "weibogaming": 78, "suzhou lng esports": 75,
+      "g2 esports": 80, "movistar koi": 77, "karmine corp": 78, "natus vincere": 75, "team vitality": 75, "giantx": 74, "fnatic": 75, "team heretics": 72, "shifters": 70, "sk gaming": 72,
+      "team liquid alienware": 75, "lyon": 74, "cloud9 kia": 73, "shopify rebellion": 70, "flyquest": 72, "sentinels": 69, "disguised": 66, "dignitas": 66,
+      "furia": 68, "los": 69, "loud": 68, "red kalunga": 66, "pain gaming": 67, "vivo keyd stars": 67, "leviatán": 64, "fluxo w7m": 64,
+      "team secret whales": 73, "ctbc flying oyster": 74, "mvk esports": 70, "gam esports": 71, "detonation focusme": 66, "ground zero gaming": 66, "relove deep cross gaming": 68, "fukuoka softbank hawks gaming": 65
+    },
+    "valorant": {
+      "nrg": 80, "100 thieves": 77, "cloud9": 76, "leviatán": 78, "sentinels": 79, "loud": 76,
+      "team vitality": 78, "giantx": 77, "karmine corp": 76, "ulf esports": 74, "fut esports": 80, "pcific esports": 74, "eternal fire": 73, "eintracht frankfurt": 72,
+      "nongshim redforce": 75, "t1": 79, "paper rex": 82, "rex regum qeon": 76, "global esports": 72, "gen.g": 81,
+      "all gamers": 72, "xi lai gaming": 78, "edward gaming": 82, "bilibili gaming": 77, "dragon ranger gaming": 76, "tyloo": 74, "trace esports": 76, "jd gaming": 72, "wolves esports": 71, "titan esports club": 72, "nova esports": 71, "funplus phoenix": 74
+    },
+    "mlbb": {
+      "alter ego esports": 78, "bigetron by vit": 74, "dewa united": 75, "evos": 75, "geek fam": 74, "navi": 73, "onic": 80, "rrq hoshi": 79, "team liquid id": 77,
+      "ap bren": 76, "aurora gaming": 79, "onic ph": 78, "smart omega": 74, "team falcons": 76, "team liquid ph": 80, "tnc pro team": 73, "twisted minds ph": 75
+    },
+    "dota2": {
+      "team spirit": 84, "team yandex": 81, "parivision": 81, "natus vincere": 77, "aurora gaming": 79, "gamerlegion": 76, "team liquid": 80, "team resilience": 73, "cyberhero": 70, "inner circle x insanity": 70, "1win": 72, "team nemesis": 70, "huligani": 69
+    },
+    "cs2": {}
+  },
+  "players": {
+    "lol": {
+      "chovy": [91, 92], "canyon": [89, 89], "kiin": [87, 87], "ruler": [89, 89], "duro": [81, 85],
+      "zeus": [89, 91], "kanavi": [86, 86], "zeka": [86, 88], "gumayusi": [87, 88], "delight": [84, 85],
+      "faker": [87, 87], "oner": [87, 88], "peyz": [88, 91], "keria": [90, 90], "doran": [84, 84],
+      "showmaker": [84, 84], "lucid": [84, 87], "siwoo": [80, 86], "smash": [82, 87], "career": [78, 83],
+      "bdd": [83, 83], "cuzz": [80, 80], "perfect": [80, 84], "jiwoo": [79, 85], "effort": [78, 79],
+      "clear": [75, 78], "raptor": [76, 80], "vicla": [77, 80], "kellin": [74, 75], "teddy": [76, 76], "scout": [80, 80], "lehends": [79, 79], "kingen": [79, 79], "aiming": [79, 79], "ucal": [76, 76],
+      "bin": [90, 90], "xun": [85, 86], "knight": [90, 90], "viper": [89, 89], "on": [88, 90],
+      "breathe": [83, 84], "tarzan": [87, 87], "shanks": [86, 88], "hope": [85, 86], "kael": [83, 84],
+      "theshy": [84, 84], "wei": [83, 83], "rookie": [83, 83], "jiaqi": [80, 84], "meiko": [82, 82],
+      "tian": [84, 84], "creme": [85, 87], "jackeylove": [86, 86], "zuian": [82, 85], "zhuo": [81, 82],
+      "gala": [87, 87], "hongq": [82, 84], "junjia": [80, 81], "xiaoxu": [80, 82], "vampire": [80, 81],
+      "xiaohu": [83, 83], "elk": [87, 87], "zika": [81, 83], "xiaohao": [80, 82], "hoya": [81, 82], "care": [81, 84], "photic": [81, 83], "jiejie": [80, 80], "leave": [80, 82], "crisp": [80, 80],
+      "caps": [86, 86], "brokenblade": [83, 83], "skewmond": [80, 83], "hans sama": [84, 84], "labrov": [80, 81],
+      "elyoya": [82, 82], "jojopyun": [81, 83], "supa": [79, 82], "alvaro": [78, 80], "myrwn": [78, 81],
+      "canna": [81, 81], "yike": [81, 82], "caliste": [83, 89], "busio": [79, 82], "kyeahoo": [79, 83],
+      "razork": [80, 80], "upset": [82, 82], "poby": [78, 80], "fiesta": [77, 80], "carzzy": [79, 79], "naak nako": [76, 80], "lyncas": [76, 78], "mikyx": [79, 79], "wunder": [77, 77], "oscarinin": [78, 80], "flakked": [77, 77], "isma": [77, 79],
+      "morgan": [76, 77], "josedeodo": [76, 77], "quid": [78, 81], "yeon": [78, 79], "corejj": [77, 77],
+      "inspired": [80, 80], "berserker": [80, 81], "blaber": [77, 77], "loki": [74, 76], "thanatos": [76, 78], "impact": [75, 75], "massu": [76, 78], "quad": [76, 76], "bvoy": [74, 74], "dardoch": [72, 72],
+      "tutsz": [72, 74], "ayu": [72, 74], "tatu": [71, 73], "kaze": [71, 72],
+      "doggo": [78, 80], "rest": [74, 76], "hizto": [72, 74], "eddie": [72, 74], "kiaya": [73, 74], "artemis": [72, 73]
+    },
+    "valorant": {
+      "aspas": [92, 92], "ethan": [82, 82], "mada": [81, 84], "skuba": [80, 82], "zellsis": [80, 80], "johnqt": [80, 80], "n4rrate": [79, 81], "brawk": [79, 81],
+      "tenz": [84, 84], "stax": [82, 82], "buzz": [82, 82], "izu": [80, 83], "crashies": [80, 80],
+      "something": [90, 90], "f0rsaken": [87, 87], "invy": [82, 84], "patmen": [81, 83],
+      "t3xture": [87, 87], "karon": [85, 85], "mako": [83, 83], "ray": [80, 83],
+      "derrek": [80, 80], "oxy": [80, 84], "jamppi": [80, 80], "profek": [80, 80], "chronicle": [82, 82], "sayonara": [81, 84], "jawgemo": [82, 82],
+      "kr1stal": [76, 78], "xavi8k": [75, 77], "jemkin": [80, 80], "monyet": [78, 79],
+      "zjc": [86, 87], "smoggy": [83, 83], "whzy": [83, 84], "yosemite": [79, 79], "life": [80, 80], "nicc": [78, 78], "spitfires": [80, 82], "kangkang": [84, 84], "less": [84, 85],
+      "cned": [80, 80], "s0pp": [79, 81], "wo0t": [84, 85], "hezacoil": [79, 80], "batujnax": [78, 80], "alym": [79, 82], "mazino": [80, 80], "tex": [79, 79], "sato": [79, 81], "kingg": [81, 81], "c0m": [80, 80], "nightz": [77, 79], "eeiu": [78, 79], "bang": [79, 79], "asuna": [79, 79], "cryocells": [80, 80]
+    },
+    "mlbb": {
+      "kairi": [90, 90], "sanz": [87, 87], "kiboy": [86, 86], "lutpi": [83, 85], "kelra": [85, 85],
+      "karltzy": [91, 91], "sanford": [87, 87], "sanji": [83, 85], "daiki": [80, 82], "jaypee": [82, 82],
+      "alberttt": [87, 87], "vyn": [86, 86], "skylar": [86, 86], "rrq hoshi": [80, 80], "lemon": [85, 85], "hajirin": [83, 85], "arthur": [80, 83],
+      "nino": [83, 85], "rindo": [83, 83], "celiboy": [82, 82],
+      "flap": [84, 84], "hadji": [83, 83], "owgwen": [80, 82], "domengkite": [83, 85], "yue": [82, 83], "light": [81, 83], "brusko": [82, 82], "kirk": [82, 83], "super frince": [84, 84],
+      "escalera": [79, 80], "kyle": [81, 82], "sensui": [79, 81], "edward": [82, 82], "ferdz": [81, 81], "innocent": [84, 84]
+    },
+    "dota2": {
+      "yatoro": [92, 92], "larl": [86, 87], "collapse": [90, 90], "rue": [83, 85], "miposhka": [84, 84], "not_me": [82, 85],
+      "satanic": [87, 89], "no[o]ne-": [83, 83], "9class": [82, 84], "dukalis": [81, 81], "noticed": [82, 83],
+      "nisha": [88, 88], "micke": [86, 86], "m1cke": [86, 86], "boxi": [83, 83], "insania": [83, 83], "tofu": [82, 82], "malr1ne": [86, 87],
+      "mira": [80, 80], "kiyotaka": [80, 82], "panto": [79, 80], "mikoto": [82, 82], "ws`": [79, 79],
+      "pure": [84, 85], "33": [84, 84], "gotthejuice": [80, 82], "pma": [77, 78], "watson": [85, 86], "医者watson`": [85, 86], "chira_junior": [82, 84], "ammar_the_f": [84, 84], "saksa": [82, 82], "daze": [78, 79], "rcy": [78, 79], "yuma": [78, 80]
+    },
+    "cs2": {
+      "zywoo": [94, 94], "donk": [95, 96], "m0nesy": [92, 93], "ropz": [90, 90], "niko": [89, 89], "flamez": [86, 86], "mezii": [83, 83], "apex": [80, 80],
+      "torzsi": [88, 89], "xertion": [85, 86], "spinx": [84, 84], "jimi": [82, 84], "brollan": [83, 83],
+      "sh1ro": [89, 89], "zont1x": [83, 85], "magixx": [80, 80], "tn1r": [80, 83],
+      "kscerato": [87, 87], "yekindar": [84, 84], "molodoy": [85, 89], "yuurih": [82, 82], "fallen": [78, 78],
+      "kyousuke": [86, 90], "teses": [82, 82], "karrigan": [76, 76], "jl": [86, 86],
+      "w0nderful": [85, 87], "b1t": [83, 83], "im": [83, 83], "aleksib": [78, 78], "makazze": [79, 86],
+      "xantares": [84, 84], "woxic": [83, 83], "wicadia": [82, 85], "kyxsan": [76, 76],
+      "s1mple": [86, 86], "huNter-": [80, 80], "hunter-": [80, 80], "malbsmd": [83, 85], "heavygod": [82, 85],
+      "twistzz": [84, 84], "frozen": [83, 83], "jcobbb": [80, 82], "elige": [83, 83], "naf": [79, 79],
+      "device": [83, 83], "staehr": [81, 83], "jabbi": [80, 81], "stavn": [82, 82], "sirah": [79, 80],
+      "senzu": [84, 86], "mzinho": [83, 86], "910": [80, 82], "bLitz": [79, 79], "blitz": [79, 79], "techno": [79, 80],
+      "dem0n": [79, 81], "krabeni": [79, 82], "jame": [79, 79], "zweih": [80, 83], "xielo": [79, 81], "fl1t": [80, 80],
+      "boombl4": [74, 74], "s1ren": [81, 82], "magnojez": [78, 80], "nertz": [80, 80], "matys": [80, 84], "nafany": [76, 76],
+      "jottaaa": [80, 82], "xkacpersky": [79, 82], "susp": [79, 82], "brollan_": [83, 83], "try": [78, 79], "dumau": [78, 80], "latto": [78, 79], "insani": [78, 80], "exit": [76, 76],
+      "frontales": [78, 82], "kvem": [79, 82], "kade0": [77, 81], "w1nston": [74, 76]
+    }
+  }
+}

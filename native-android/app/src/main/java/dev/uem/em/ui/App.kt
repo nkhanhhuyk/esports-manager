@@ -109,7 +109,7 @@ private fun BusyScreen(vm: GameVm, b: Busy) {
         if (b.total > 0) {
             LinearProgressIndicator(progress = { b.done.toFloat() / b.total }, modifier = Modifier.fillMaxWidth(), color = Ui.accent, trackColor = Ui.card2)
             Spacer(Modifier.height(8.dp))
-            Muted("${b.done} / ${b.total} days")
+            Muted(if (b.label.contains("picture", true)) "${b.done} / ${b.total} pictures" else "${b.done} / ${b.total} days")
             Spacer(Modifier.height(16.dp))
             TextButton(onClick = { vm.stop() }) { Text("Stop here", color = Ui.muted) }
         } else LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Ui.accent, trackColor = Ui.card2)

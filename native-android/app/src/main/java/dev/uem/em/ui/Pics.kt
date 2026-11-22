@@ -67,6 +67,15 @@ object Pics {
     fun league(l: League) = ov("league:${l.id}") ?: if (l.real) leagues["${l.titleId}|${norm(l.name)}"] ?: leagues["${l.titleId}|${norm(l.short)}"] else null
     fun comp(c: dev.uem.em.model.Competition) = ov("comp:${c.id}")
 
+    /** Every picture link the game knows (all games, flags, your database-editor links): for the full offline download. */
+    fun everything(w: dev.uem.em.model.World?): List<String> {
+        val out = LinkedHashSet<String>()
+        out.addAll(chars.values); out.addAll(weapons.values); out.addAll(teams.values); out.addAll(leagues.values); out.addAll(players.values)
+        for (cc in dev.uem.em.data.GameData.countries.keys) out.add(flagUrl(cc))
+        if (w != null) out.addAll(w.images.values)
+        return out.toList()
+    }
+
     /** Every picture URL for the given games (characters, team and league logos, real players). */
     fun allFor(w: dev.uem.em.model.World, titles: Set<String>): List<String> {
         val out = LinkedHashSet<String>()
@@ -86,8 +95,12 @@ object Pics {
 fun Pic(url: String?, label: String, size: Dp = 28.dp, round: Boolean = false, color: Color = Color(0xFF2B3550), fallback: (@Composable () -> Unit)? = null) {
     val shape = if (round) CircleShape else RoundedCornerShape(6.dp)
     var attempt by remember(url) { mutableStateOf(0) }
+    val stored = remember(url) { PictureStore.local(url) }
     Box(Modifier.size(size).clip(shape).background(color), contentAlignment = Alignment.Center) {
-        if (url == null || attempt > 1 || !Pics.online) {
+        if (stored != null && attempt == 0) {
+            // Downloaded for good (Settings → Pictures): shown with or without internet.
+            AsyncImage(model = stored, contentDescription = label, contentScale = ContentScale.Crop, modifier = Modifier.size(size), onError = { attempt = 1 })
+        } else if (url == null || attempt > 1 || !Pics.online) {
             if (fallback != null) fallback() else
             Text(label.filter { it.isLetterOrDigit() }.take(2).uppercase(), color = Color(0xFFDDE3F0), fontSize = (size.value * 0.38).sp)
         } else {
@@ -111,7 +124,13 @@ fun PlayerPic(p: Player, size: Dp = 28.dp, round: Boolean = true) {
 @Composable
 fun TeamPic(t: Team, size: Dp = 28.dp, round: Boolean = false) {
     val org = Sheets.world?.orgs?.getOrNull(t.orgId)
-    Pic(Pics.team(t), t.short, size, round, fallback = { GenCrest(t.orgId * 17 + t.name.hashCode(), size, t.short, org?.colors?.getOrNull(0)?.let { GenArt.parse(it) }, org?.colors?.getOrNull(1)?.let { GenArt.parse(it) }) })
+    Pic(Pics.team(t), t.short, size, round, fallback = { GenTeamLogo(t.orgId * 17 + t.name.hashCode(), size, t.name, t.short, org?.colors?.getOrNull(0)?.let { GenArt.parse(it) }, org?.colors?.getOrNull(1)?.let { GenArt.parse(it) }) })
+}
+
+/** A competition's logo: your picture link, the league's real logo, or a generated one by tier. */
+@Composable
+fun CompPic(w: dev.uem.em.model.World, c: dev.uem.em.model.Competition, size: Dp = 28.dp) {
+    Pic(Pics.comp(c) ?: c.leagueId.takeIf { it >= 0 }?.let { w.leagues.getOrNull(it) }?.let { Pics.league(it) }, c.short, size, fallback = { GenCompLogo(c, size) })
 }
 
 /** A champion / hero / agent portrait (generated emblem when there is no official art); tap for its sheet. */

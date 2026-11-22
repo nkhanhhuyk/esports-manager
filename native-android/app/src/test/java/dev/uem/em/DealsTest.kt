@@ -20,12 +20,19 @@ class DealsTest {
         w.userOrg = t1.orgId
         Career.setupBoard(w)
         Advance.run(w, 3) // into the off-season window
+        // First season: rosters stay as they started.
+        val fa0 = w.players.filter { it.teamId < 0 && it.titleId == "lol" && !it.retired }.maxBy { it.ca }
+        assertTrue(!dev.uem.em.mgmt.Market.offerContract(w, fa0.id, t1.id, dev.uem.em.mgmt.Market.asking(w, t1, fa0) * 1.5, 2).ok)
+        w.firstSeason = 0 // exercise the market mechanics as in a later season
         // Loan: give T1 a young bench player first.
         val young = w.players.filter { it.teamId < 0 && it.titleId == "lol" && Dates.ageAt(it.birth, w.day) <= 20 }.maxBy { it.ca }
         dev.uem.em.mgmt.Market.offerContract(w, young.id, t1.id, dev.uem.em.mgmt.Market.asking(w, t1, young) * 1.1, 2)
         val loan = Deals.loanOut(w, young.id)
         println("loan: ${loan.text}")
-        // Trade: a bench player plus cash for a similar player at a weaker club.
+        // Trade: a bench player plus cash for a similar player at a weaker club (T1 starts with its real
+        // five, so sign a substitute first).
+        val sub = w.players.filter { it.teamId < 0 && it.titleId == "lol" && !it.retired }.maxBy { it.ca }
+        dev.uem.em.mgmt.Market.offerContract(w, sub.id, t1.id, dev.uem.em.mgmt.Market.asking(w, t1, sub) * 1.2, 2)
         val mine = t1.roster.map { w.players[it] }.filter { it.id !in t1.lineup && it.loanFrom < 0 }.maxBy { it.ca }
         val theirs = w.players.filter { it.titleId == "lol" && it.teamId >= 0 && it.teamId != t1.id && it.mainRole == mine.mainRole && it.loanFrom < 0 }.minBy { kotlin.math.abs(Economy.marketValue(w, it) - Economy.marketValue(w, mine)) }
         val tr = Deals.trade(w, mine.id, theirs.id, Economy.marketValue(w, theirs) * 0.3)

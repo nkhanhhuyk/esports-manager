@@ -86,6 +86,7 @@ object Academies {
     }
 
     private fun join(w: World, p: Player, team: Team, kind: String) {
+        if (p.teamId >= 0 && p.teamId != team.id) w.transfers.add(dev.uem.em.model.Transfer(w.day, w.season, p.id, p.teamId, team.id, 0.0, kind))
         p.teamId = team.id
         team.roster.add(p.id)
         p.career.add(CareerEntry(w.season, w.day, team.id, kind))

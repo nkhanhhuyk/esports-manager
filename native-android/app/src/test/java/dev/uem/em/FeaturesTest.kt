@@ -62,6 +62,18 @@ class FeaturesTest {
         val origKey = book["Players"]!![ri][c("match key")]
         val rep2 = Database.import(w2, mapOf("Players" to players), byKey = true)
         assertTrue(rep2.text(), w2.players.any { "${it.titleId}|EditedHandle" == "lol|EditedHandle" && it.nat == "PH" } || origKey.isBlank())
+        // A new competition from a sheet row.
+        val ch = listOf("id", "game", "season", "name", "short", "tier (read only)", "region (read only)", "start", "prize pool", "image url", "format (new)", "teams (new)", "best of: groups / playoffs / final (new)", "groups (new)", "advance per group (new)", "every season (new)", "entry fee (new)")
+        val lolTeams = w.teams.filter { it.titleId == "lol" && it.active && it.leagueId >= 0 }.take(8).joinToString(";") { it.name }
+        val y = dev.uem.em.core.Dates.year(w.day) + 1
+        val compRow = listOf("", "lol", "", "Spreadsheet Invitational", "SPRI", "", "", "$y-08-20", "500000", "", "se", lolTeams, "3/3/5", "", "", "Y", "")
+        val before = w.comps.size
+        val rep3 = Database.import(w, mapOf("Competitions" to listOf(ch, compRow)))
+        assertTrue("competition created: ${rep3.errors}", rep3.created == 1 && w.comps.size == before + 1 && w.customComps.any { it.name == "Spreadsheet Invitational" && it.recurring })
+        // Esports World Cup and Esports Nations Cup are on the calendar for every game with leagues.
+        assertTrue(w.comps.count { it.name.startsWith("Esports World Cup") } >= 5)
+        assertTrue(w.comps.count { it.name.startsWith("Esports Nations Cup") } >= 5)
+        assertTrue(dev.uem.em.data.GameData.countries.size >= 249)
         // CSV reading.
         val csv = Xlsx.readCsv("id,handle\n1,\"A, B\"\n2,\"say \"\"hi\"\"\"\n")
         assertEquals("A, B", csv[1][1]); assertEquals("say \"hi\"", csv[2][1])
@@ -119,5 +131,36 @@ class FeaturesTest {
         val old = back.fixtures.firstOrNull { it.done && it.page >= 0 }
         if (old != null) assertTrue(BoxStore.get(back, old.id) != null)
         BoxStore.store = null
+    }
+}
+
+class RealDataTest {
+    @Test
+    fun realRatingsSameInEverySaveAndNoGeneratedFillIns() {
+        TestData.init(); BoxStore.clear()
+        val a = WorldGen.create(TestData.source, "seed-one", "A", Dates.day(2026, 11, 21))
+        val b = WorldGen.create(TestData.source, "seed-two", "B", Dates.day(2026, 11, 21))
+        val ra = a.players.filter { it.real && it.teamId >= 0 }.associateBy { "${it.titleId}|${it.handle}" }
+        val rb = b.players.filter { it.real && it.teamId >= 0 }.associateBy { "${it.titleId}|${it.handle}" }
+        var same = 0
+        for ((k, p) in ra) { val q = rb[k] ?: continue
+            if (p.ca != q.ca) println("DIFF $k nat ${p.nat}/${q.nat} birth ${p.birth}/${q.birth} roles ${p.roles}/${q.roles} input ${p.input.toList()}/${q.input.toList()} team ${a.teams[p.teamId].name}/${b.teams[q.teamId].name} attrs ${p.attrs.toList().zip(q.attrs.toList()).count { it.first != it.second }} prof ${p.profTitle}/${q.profTitle} ${p.profRole}/${q.profRole}")
+            assertEquals("$k CA", p.ca, q.ca, 0.0); assertEquals("$k PA", p.pa, q.pa, 0.0); same++ }
+        assertTrue(same > 500)
+        val faker = a.players.first { it.titleId == "lol" && it.handle == "Faker" }
+        val chovy = a.players.first { it.titleId == "lol" && it.handle == "Chovy" }
+        println("Faker ${faker.ca}/${faker.pa}, Chovy ${chovy.ca}/${chovy.pa}, ZywOo ${a.players.first { it.titleId == "cs2" && it.handle == "ZywOo" }.ca}")
+        assertEquals(87.0, faker.ca, 1.5)
+        assertEquals(91.0, chovy.ca, 1.5)
+        // Real teams carry no generated players (real free agents complete short rosters).
+        val gen = a.players.filter { p -> p.teamId >= 0 && a.teams[p.teamId].real && p.realEst.any { it.startsWith("generated") } }
+        println("generated players on real teams: ${gen.size} ${gen.take(5).map { a.teams[it.teamId].name }}")
+        assertTrue(gen.size <= 3)
+        // No transfers in the first season.
+        assertTrue(dev.uem.em.mgmt.Market.frozen(a))
+        Advance.run(a, 120)
+        val moves = a.transfers.count { it.season == a.firstSeason && it.kind != "free agent" && it.kind != "signed" }
+        println("first-season moves: $moves")
+        assertTrue("first-season transfers: $moves", moves <= a.teams.count { it.active } / 10)
     }
 }

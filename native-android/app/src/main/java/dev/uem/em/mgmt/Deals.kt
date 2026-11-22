@@ -50,9 +50,11 @@ object Deals {
             if (p.loanFrom < 0 || p.loanUntil >= w.season) continue
             val home = w.teams[p.loanFrom]
             w.teams.getOrNull(p.teamId)?.let { it.roster.remove(p.id); it.lineup.replaceAll { x -> if (x == p.id) -1 else x } }
+            val loanTeam = p.teamId
             p.teamId = home.id
             home.roster.add(p.id)
             p.career.add(CareerEntry(w.season, w.day, home.id, "loan return"))
+            w.transfers.add(dev.uem.em.model.Transfer(w.day, w.season, p.id, loanTeam, home.id, 0.0, "loan return"))
             if (w.isUserTeam(home.id)) w.inbox.add(Message(w.day, "Loans", "${p.handle} returns from loan", "${p.handle} is back (CA %.0f, potential %.0f).".format(p.ca, p.pa)))
             p.loanFrom = -1
         }
@@ -66,6 +68,7 @@ object Deals {
         val theirs = w.players[theirPlayer]
         val myTeam = w.teams.getOrNull(mine.teamId) ?: return Market.Reply(false, "Not on your team.")
         val other = w.teams.getOrNull(theirs.teamId) ?: return Market.Reply(false, "${theirs.handle} is a free agent.")
+        if (Market.frozen(w)) return Market.Reply(false, Market.FROZEN_TEXT)
         if (!Market.inWindow(w)) return Market.Reply(false, "Trades are only possible while a transfer window is open.")
         if (mine.titleId != theirs.titleId) return Market.Reply(false, "Both players must play the same game.")
         if (cash > 0 && w.orgs[myTeam.orgId].balance < cash) return Market.Reply(false, "Not enough money.")

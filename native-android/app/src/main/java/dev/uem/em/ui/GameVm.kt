@@ -91,6 +91,7 @@ class GameVm(app: Application) : AndroidViewModel(app) {
     fun setPicturesOnline(on: Boolean) { prefs.edit().putBoolean("pictures", on).apply() }
 
     init {
+        PictureStore.dir = File(app.filesDir, "pictures")
         Pics.online = prefs.getBoolean("pictures", true)
         BoxStore.store = store.pages()
         viewModelScope.launch(Dispatchers.Default) {
@@ -222,29 +223,35 @@ class GameVm(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Download every picture the game knows (all games, flags, your picture links) into the app's own
+     * storage, permanently: they show without internet. Works from the start menu (no career needed).
+     */
+    fun downloadAllPictures() {
+        if (busy != null) return
+        cancel.set(false)
+        viewModelScope.launch {
+            busy = Busy("Preparing the picture list…", 0, 0)
+            val urls = withContext(Dispatchers.Default) { GameData.init(src); Pics.init(src); Pics.everything(world) }
+            busy = Busy("Downloading pictures…", 0, urls.size)
+            val (ok, fail) = withContext(Dispatchers.IO) { PictureStore.download(urls, { d, n -> busy = Busy("Downloading pictures… (stored for good)", d, n) }, cancel) }
+            busy = null
+            toast = "Pictures stored on the phone: ${PictureStore.count()} (${PictureStore.bytes() / (1024 * 1024)} MB). New now: $ok" + if (fail > 0) "; $fail could not be downloaded (host refused or unreachable)" else ""
+        }
+    }
+
     /** Download pictures into the phone's picture cache so they show offline. */
     fun downloadPictures(titles: Set<String>) {
         val w = world ?: return
         if (busy != null) return
-        val urls = Pics.allFor(w, titles)
+        val urls = Pics.allFor(w, titles) + w.images.values
         if (urls.isEmpty()) { toast = "No pictures to download"; return }
         busy = Busy("Downloading pictures…", 0, urls.size)
         cancel.set(false)
         viewModelScope.launch {
-            val app = getApplication<Application>()
-            val loader = coil.Coil.imageLoader(app)
-            var ok = 0
-            var done = 0
-            withContext(Dispatchers.IO) {
-                for (chunk in urls.chunked(8)) {
-                    if (cancel.get()) break
-                    val jobs = chunk.map { u -> async { loader.execute(coil.request.ImageRequest.Builder(app).data(u).size(160).build()) } }
-                    for (j in jobs) { if (j.await() is coil.request.SuccessResult) ok++; done++ }
-                    busy = Busy("Downloading pictures…", done, urls.size)
-                }
-            }
+            val (ok, fail) = withContext(Dispatchers.IO) { PictureStore.download(urls, { d, n -> busy = Busy("Downloading pictures… (stored for good)", d, n) }, cancel) }
             busy = null
-            toast = "Pictures saved for offline use: $ok of ${urls.size}" + if (ok < urls.size) " (some hosts refused or were unreachable; the game's badges are shown instead)" else ""
+            toast = "Pictures saved for offline use: $ok new" + if (fail > 0) " ($fail hosts refused or were unreachable; the game's own art is shown instead)" else ""
         }
     }
 

@@ -17,15 +17,19 @@ new careers start with your data. **Use the original** in the same card switches
 | Teams | name, short name, organisation (id or name), style, aggression (0–100), picture link | league membership (it decides the calendar), roster list |
 | Organisations | name, short name, country, colours (#RRGGBB, comma separated), picture link, reputation, fans, balance (not your own club's) | the organisation's teams |
 | Leagues | name, short name, picture link | region, tier |
-| Competitions | name, short name, prize pool (not started yet), picture link | tier, region, start date; only this season and later are listed |
+| Competitions | name, short name, prize pool (not started yet), picture link. **A row with an empty id creates a new competition**: game, name, start date, format (league, double-league, groups-se, groups-de, se, de, swiss-se), teams (team names separated by `;`, or `league:<league name>`, or `top:<competition id>:<count>`), optional short name, prize pool, best of (e.g. `3/3/5` for groups / playoffs / final), groups, advance per group, every season (Y/N), entry fee, picture link | tier, region; only this season and later are listed. New competitions are checked like the in-game editor; one that does not fit stays as a draft in Create a competition with the reason |
 | Staff | names, nationality, date of birth, quality (1–99), team | role |
 | Characters | picture link | name and class come from the game data |
 
 Picture links must be direct links to an image (png, jpg, webp) starting with http:// or https://.
 The game loads them when the phone is online (Settings → download pictures keeps them offline).
 
+Pictures: put any direct picture link in an *image url* column, import, then Start menu → Settings →
+**Download all pictures** (or Settings in a career) stores every picture in the app for good, so they
+show without internet.
+
 Not possible from the sheet (to keep calendars and saves consistent): creating new teams,
-organisations, leagues or competitions, or moving a team to another league. Rename the fictional
+organisations or leagues, or moving a team to another league. Rename the fictional
 ones instead (for example the Honor of Kings teams) and fill their rosters.
 
 ## What is missing or estimated in the snapshot (where your edits help most)

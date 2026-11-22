@@ -10,6 +10,9 @@ import dev.uem.em.model.CareerEntry
 import dev.uem.em.model.League
 import dev.uem.em.model.Org
 import dev.uem.em.model.Player
+import dev.uem.em.model.Attrs
+import dev.uem.em.sim.Ratings
+import kotlinx.serialization.json.double
 import dev.uem.em.model.Team
 import dev.uem.em.model.World
 import dev.uem.em.sim.Lineups
@@ -84,6 +87,44 @@ object WorldGen {
         val rng get() = ctx.rng
         val realOrgs = HashMap<String, Org>()
         val nameRank = HashMap<Int, Int>()
+        /** Real teams the snapshot listed fewer than a full lineup for (filled from real free agents). */
+        val short = ArrayList<Team>()
+        /** Curated ratings (assets/ratings.json): team strength and star players, the same in every save. */
+        val teamRating = HashMap<String, Double>()
+        val playerRating = HashMap<String, DoubleArray>()
+    }
+
+    private fun loadRatings(b: Build) {
+        val j = runCatching { Json.parseToJsonElement(b.src.read("ratings.json")).jsonObject }.getOrNull() ?: return
+        j["teams"]?.jsonObject?.forEach { (title, m) -> m.jsonObject.forEach { (k, v) -> b.teamRating["$title|${k.lowercase()}"] = v.jsonPrimitive.double } }
+        j["players"]?.jsonObject?.forEach { (title, m) -> m.jsonObject.forEach { (k, v) -> b.playerRating["$title|${norm(k)}"] = v.jsonArray.map { it.jsonPrimitive.double }.toDoubleArray() } }
+    }
+
+    /** A real player's own random stream: the same player gets the same attributes in every save. */
+    private fun realCtx(b: Build, titleId: String, handle: String) = GenCtx(b.world, Rng.of("real|$titleId|${norm(handle)}"))
+
+    /** Curated rating override: current ability (and potential) for a known player. */
+    private fun curate(b: Build, p: Player) {
+        val r = b.playerRating["${p.titleId}|${norm(p.handle)}"] ?: return
+        val t = Catalogue.get(p.titleId)
+        val role = t.role(p.mainRole)
+        // Shift every non-development attribute until the rating matches the curated value.
+        for (it in 0 until 8) {
+            val e = Ratings.effectiveness(p, t, role)
+            val delta = r[0] - e
+            if (kotlin.math.abs(delta) < 0.3) break
+            // Attributes and the game / role / character or weapon proficiencies all move toward the target.
+            for (i in 0 until Attrs.COUNT) if (Attrs.ALL[i].group != dev.uem.em.model.AttrGroup.Development) p.attrs[i] = clamp(p.attrs[i] + delta / 0.66, 1.0, 99.0).roundToInt().toDouble()
+            p.profTitle[t.id] = clamp((p.profTitle[t.id] ?: 60.0) + delta, 1.0, 99.0).roundToInt().toDouble()
+            val rk = "${t.id}:${role.id}"
+            p.profRole[rk] = clamp((p.profRole[rk] ?: 60.0) + delta, 1.0, 99.0).roundToInt().toDouble()
+            for (k in p.profChar.keys.toList().sortedByDescending { p.profChar[it] }.take(5)) p.profChar[k] = clamp(p.profChar[k]!! + delta, 1.0, 99.0).roundToInt().toDouble()
+            for (k in p.profWeapon.keys.toList()) p.profWeapon[k] = clamp(p.profWeapon[k]!! + delta, 1.0, 99.0).roundToInt().toDouble()
+            p.attrVersion++
+        }
+        p.ca = Ratings.computeCA(p, t)
+        p.pa = maxOf(p.ca, r.getOrElse(1) { p.pa })
+        p.rep = clamp((p.ca - 50) * 2 + 8, 1.0, 99.0).roundToInt().toDouble()
     }
 
     fun create(src: DataSource, seed: String, name: String, startDay: Int = Dates.today(), titles: List<String> = Catalogue.IDS, fictional: Boolean = false): World {
@@ -92,10 +133,12 @@ object WorldGen {
         val y = Dates.year(startDay)
         val season = if (Dates.month(startDay) >= 11) y + 1 else y
         val world = World(seed = seed, name = name, day = startDay, season = season, titles = titles, fictional = fictional)
+        world.firstSeason = season
         Catalogue.applyCustom(world)
         val ctx = GenCtx(world, Rng.of("$seed|world"))
         val b = Build(ctx, src)
         loadFacts(src)
+        loadRatings(b)
         val rosters = Json.parseToJsonElement(src.read("rosters.json")).jsonObject
         val wild = Json.parseToJsonElement(src.read("wildrift.json")).jsonObject
         val snapLeagues = (rosters["leagues"]!!.jsonArray + wild["leagues"]!!.jsonArray).map { it.jsonObject }
@@ -114,6 +157,7 @@ object WorldGen {
             if (t.characters.isEmpty() && !t.isMoba) Unit
         }
         if (!fictional) addHistory(b, wrTeams.filter { it.str("league_id") == null })
+        fillShortRosters(b)
         freeAgents(b)
         for (team in world.teams) {
             team.lineup = Lineups.auto(world, team)
@@ -377,7 +421,11 @@ object WorldGen {
                 b.world.leagues.add(league)
                 for (st in list) {
                     val z = (signal(st) - mean) / sd
-                    val teamMean = leagueMean + (if (tier == 2) -5 else 0) + clamp(z, -2.2, 2.2) * 1.8 + b.rng.normal(0.0, 0.8)
+                    // Curated strength, or (CS2) the Valve Regional Standings points, or the snapshot signal; never random per save.
+                    val curated = b.teamRating["$titleId|${st.str("name")!!.lowercase()}"]
+                    val vrs = st["vrs_points"]?.jsonPrimitive?.doubleOrNull
+                    val teamMean = curated ?: vrs?.let { clamp(66 + (it - 1000) * 0.021, 60.0, 88.0) }
+                        ?: (leagueMean + (if (tier == 2) -5 else 0) + clamp(z, -2.2, 2.2) * 1.8 + Rng.of("realteam|$titleId|${norm(st.str("name")!!)}").normal(0.0, 0.8))
                     createRealTeam(b, st, league, teamMean)
                 }
                 while (league.teamIds.size < 6) {
@@ -411,7 +459,7 @@ object WorldGen {
         if (org != null && org.teams.any { b.world.teams[it].titleId == titleId }) org = null
         val name = cleanOrg(orgName)
         if (org == null) {
-            val country = orgCountry ?: GameData.pickCountry(b.rng, league.region)
+            val country = orgCountry ?: GameData.pickCountry(Rng.of("realorg|$titleId|${norm(name)}"), league.region)
             org = createOrg(b, GameData.countries[country]?.region ?: GameData.expand(league.region)[0])
             org.name = name
             org.short = shortOf(name, st.str("short"))
@@ -441,12 +489,13 @@ object WorldGen {
         usable.forEachIndexed { i, sp ->
             val est = ArrayList<String>()
             if (sp.str("role_source") != null) est.add("role")
-            val roleId = known[i] ?: (missing.removeFirstOrNull() ?: b.rng.pick(t.lineup)).also { est.add("role (game assignment)") }
+            val roleId = known[i] ?: (missing.removeFirstOrNull() ?: Rng.of("realrole|$titleId|${norm(sp.str("handle") ?: "")}").pick(t.lineup)).also { est.add("role (game assignment)") }
             val nat = natOf(sp) ?: (valid(sp.str("nationality_estimate")) ?: org.country).also { est.add("nationality") }
             est.add("age")
             val starter = roleId in t.lineup && (if (flagged) sp["starter"]?.jsonPrimitive?.contentOrNull == "true" else i in firstOfRole || known[i] == null)
-            val p = PlayerGen.generate(b.ctx, titleId, roleId, nat, clamp(b.rng.normal(22.0, 2.4), 17.0, 30.0).roundToInt(),
-                clamp(teamMean + (if (starter) 1 else -4) + b.rng.normal(0.0, if (starter) 1.6 else 2.2), 35.0, 95.0))
+            val pctx = realCtx(b, titleId, sp.str("handle")!!)
+            val p = PlayerGen.generate(pctx, titleId, roleId, nat, clamp(pctx.rng.normal(22.0, 2.4), 17.0, 30.0).roundToInt(),
+                clamp(teamMean + (if (starter) 1 else -4) + pctx.rng.normal(0.0, if (starter) 1.6 else 2.2), 35.0, 95.0))
             p.handle = sp.str("handle")!!
             val first = sp.str("first_name")
             val realName = sp.str("real_name")
@@ -457,25 +506,18 @@ object WorldGen {
             p.realSrc = team.realSrc
             p.realEst = est
             applyFacts(p)
+            curate(b, p)
             b.ctx.handles.add(p.handle.lowercase())
             sign(b, p, team)
         }
-        val have = team.roster.map { b.world.players[it].roles[0] }.toSet()
-        val open = t.lineup.filter { it !in have }.toMutableList()
+        // Short rosters are completed later from real free agents (never generated players).
+        if (team.roster.size < t.teamSize) b.short.add(team)
         val listed = team.roster.size
-        var generated = 0
-        while (team.roster.size < t.teamSize + 1 || open.isNotEmpty()) {
-            val roleId = open.removeFirstOrNull() ?: b.rng.pick(t.lineup)
-            val gp = PlayerGen.generate(b.ctx, titleId, roleId, org.country, clamp(b.rng.normal(20.0, 2.0), 17.0, 27.0).roundToInt(), clamp(teamMean - 8 + b.rng.normal(0.0, 2.0), 35.0, 90.0))
-            gp.realEst = listOf("generated: the source listed only $listed player(s) for ${team.name}")
-            sign(b, gp, team)
-            generated++
-        }
         val src = team.realSrc
         val host = Regex("https?://([^/]+)").find(src)?.groupValues?.get(1) ?: "the snapshot"
         team.dataNote = if (src.contains("wildrift-esports.fandom")) "Real team, roster from the Wild Rift Esports Wiki as of early 2021 — a historical roster: no current Wild Rift source could be used"
-        else "Real team, roster snapshot of 20 Nov 2026 ($host): $listed player(s) listed" + if (generated > 0) ", $generated generated to complete the roster" else ""
-        team.coach = clamp(b.rng.normal(55 + (teamMean - 64) * 1.2, 7.0), 30.0, 92.0)
+        else "Real team, roster snapshot of 20 Nov 2026 ($host): $listed player(s) listed"
+        team.coach = clamp(Rng.of("realcoach|$titleId|${norm(team.name)}").normal(55 + (teamMean - 64) * 1.2, 7.0), 30.0, 92.0)
     }
 
     private val HIST_REGION = mapOf("AMER" to AMER, "EMEA" to EMEA, "APN" to "APN-KR.JP.PCS.VN.TH.ID.PH.MYSG.SA.OCE")
@@ -521,7 +563,8 @@ object WorldGen {
         }
         val live = HashMap<String, HashSet<String>>()
         for (p in w.players) if (p.real) live.getOrPut(p.titleId) { HashSet() }.add(p.handle.lowercase())
-        val avg = titles.associateWith { id -> w.players.filter { it.titleId == id && it.teamId >= 0 }.map { it.ca }.ifEmpty { listOf(62.0) }.average() }
+        // Real players only (fictional leagues differ per save; real ratings must not).
+        val avg = titles.associateWith { id -> w.players.filter { it.titleId == id && it.teamId >= 0 && it.real }.map { it.ca }.ifEmpty { listOf(62.0) }.average() }
         for (hp in histPlayers) {
             if (hp.title !in titles) continue
             val set = live.getOrPut(hp.title) { HashSet() }
@@ -529,9 +572,10 @@ object WorldGen {
             val t = Catalogue.get(hp.title)
             val roleId = hp.role?.takeIf { r -> t.roles.any { it.id == r } }
             val team = hp.lastTeam?.let { dormant["${hp.title}|${it.lowercase()}"] }
-            val nat = hp.nat ?: team?.let { GameData.pickCountry(b.rng, it.region) } ?: "US"
-            val p = PlayerGen.generate(b.ctx, t.id, roleId ?: b.rng.pick(t.lineup), nat, clamp(b.rng.normal(if (hp.retired) 27.0 else 24.0, 2.5), 18.0, 33.0).roundToInt(),
-                clamp((avg[t.id] ?: 62.0) - (if (hp.retired) 8 else 5) + b.rng.normal(0.0, 3.0), 35.0, 90.0))
+            val pctx = realCtx(b, hp.title, hp.handle)
+            val nat = hp.nat ?: team?.let { GameData.pickCountry(pctx.rng, it.region) } ?: "US"
+            val p = PlayerGen.generate(pctx, t.id, roleId ?: pctx.rng.pick(t.lineup), nat, clamp(pctx.rng.normal(if (hp.retired) 27.0 else 24.0, 2.5), 18.0, 33.0).roundToInt(),
+                clamp((avg[t.id] ?: 62.0) - (if (hp.retired) 8 else 5) + pctx.rng.normal(0.0, 3.0), 35.0, 90.0))
             p.handle = hp.handle
             p.first = hp.first ?: ""
             p.last = hp.last ?: ""
@@ -539,7 +583,41 @@ object WorldGen {
             p.realSrc = hp.src
             p.realEst = listOfNotNull("free agent", "age", if (roleId == null) "role (game assignment)" else null, if (hp.nat == null) "nationality" else null)
             applyFacts(p)
+            curate(b, p)
             if (team != null) p.career.add(CareerEntry(w.season - 1, w.day, team.id, "released"))
+        }
+    }
+
+    /**
+     * Real teams the snapshot listed fewer than a full lineup for are completed with real free agents
+     * (players of the same game without a team, the needed position first, the same region preferred).
+     * Generated players are used only when no real free agent is left.
+     */
+    private fun fillShortRosters(b: Build) {
+        val w = b.world
+        for (team in b.short) {
+            val t = Catalogue.get(team.titleId)
+            val regions = GameData.expand(team.region).toSet()
+            while (team.roster.size < t.teamSize) {
+                val have = team.roster.map { w.players[it].roles[0] }.toSet()
+                val need = t.lineup.firstOrNull { it !in have }
+                val pool = w.players.filter { it.real && !it.retired && it.teamId < 0 && it.titleId == team.titleId }
+                val pick = pool.filter { need == null || it.roles[0] == need || it.roles.getOrNull(1) == need }
+                    .maxByOrNull { it.ca + (if (GameData.regionOf(it.nat) in regions) 8 else 0) + (if (it.roles[0] == need) 4 else 0) }
+                    ?: pool.maxByOrNull { it.ca + (if (GameData.regionOf(it.nat) in regions) 8 else 0) }
+                if (pick != null) {
+                    if (need != null && pick.roles[0] != need) pick.roles = listOf(need) + pick.roles.filter { it != need }
+                    sign(b, pick, team)
+                    pick.career.add(CareerEntry(w.season, w.day, team.id, "signed"))
+                    team.dataNote += "; ${pick.handle} (real free agent) completes the lineup"
+                } else {
+                    val roleId = need ?: t.lineup[0]
+                    val gp = PlayerGen.generate(GenCtx(w, Rng.of("fill|${team.titleId}|${norm(team.name)}|${team.roster.size}")), team.titleId, roleId, w.orgs[team.orgId].country, 20, 60.0)
+                    gp.realEst = listOf("generated: no real free agent left to complete ${team.name}")
+                    sign(b, gp, team)
+                    team.dataNote += "; 1 generated player (no real free agent left)"
+                }
+            }
         }
     }
 

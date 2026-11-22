@@ -209,11 +209,13 @@ object Advance {
     /** End of season: history, contracts, roster upkeep, next season's calendar. */
     private fun rollover(w: World) {
         for (team in w.teams) {
-            if (!team.active || team.leagueId < 0) continue
+            if (!team.active) continue
+            // Every active team keeps its end-of-season roster (team page → Past rosters).
+            if (team.leagueId < 0) { team.history.add(TeamSeason(w.season, -1, 0, 0, 0, team.elo, team.roster.toIntArray())); continue }
             val split3 = w.comps.lastOrNull { it.season == w.season && it.leagueId == team.leagueId }
             val pos = split3?.placements?.indexOf(team.id)?.plus(1) ?: 0
             val lines = w.comps.filter { it.season == w.season && it.leagueId == team.leagueId }.flatMap { it.stages.flatMap { s -> s.standings.filter { r -> r.teamId == team.id } } }
-            team.history.add(TeamSeason(w.season, team.leagueId, pos, lines.sumOf { it.w }, lines.sumOf { it.l }, team.elo))
+            team.history.add(TeamSeason(w.season, team.leagueId, pos, lines.sumOf { it.w }, lines.sumOf { it.l }, team.elo, team.roster.toIntArray()))
         }
         val rng = dev.uem.em.core.Rng.derive(w.seed, "rollover", w.season)
         dev.uem.em.mgmt.Career.awards(w)
@@ -260,6 +262,7 @@ object Advance {
                 pick.salary = (t.baseSalary * Math.pow(maxOf(20.0, pick.ca) / 70, 4.0) / 100).roundToInt() * 100.0
                 team.roster.add(pick.id)
                 pick.career.add(CareerEntry(w.season, w.day, team.id, "signed"))
+                w.transfers.add(dev.uem.em.model.Transfer(w.day, w.season, pick.id, -1, team.id, 0.0, "free agent"))
             }
         }
     }

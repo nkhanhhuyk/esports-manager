@@ -37,7 +37,7 @@ import dev.uem.em.sim.Ratings
 import dev.uem.em.titles.Catalogue
 import dev.uem.em.titles.TitleDef
 
-private val TEAM_TABS = listOf("Roster", "Schedule & Results", "Statistics", "Staff", "History", "Organisation", "Registration")
+private val TEAM_TABS = listOf("Roster", "Schedule & Results", "Statistics", "Staff", "History", "Past rosters", "Transfer history", "Organisation", "Registration")
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -101,7 +101,9 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
                 2 -> TeamStats(vm, w, team, t)
                 3 -> TeamStaff(vm, w, team)
                 4 -> TeamHistory(vm, w, team)
-                5 -> TeamOrg(vm, w, team)
+                5 -> TeamPastRosters(vm, w, team, t)
+                6 -> TeamTransfers(vm, w, team)
+                7 -> TeamOrg(vm, w, team)
                 else -> TeamRegistration(vm, w, team, t)
             }
             Gap(16)
@@ -295,7 +297,7 @@ fun OrgScreen(vm: GameVm, w: World, id: Int) {
         item {
             Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 val first = org.teams.firstOrNull { w.teams[it].active } ?: org.teams.firstOrNull()
-                if (first != null) TeamPic(w.teams[first], 60.dp) else GenCrest(id * 17 + org.name.hashCode(), 60.dp, org.short)
+                if (first != null) TeamPic(w.teams[first], 60.dp) else GenTeamLogo(id * 17 + org.name.hashCode(), 60.dp, org.name, org.short, org.colors.getOrNull(0)?.let { GenArt.parse(it) }, org.colors.getOrNull(1)?.let { GenArt.parse(it) })
                 HGap(12)
                 Column(Modifier.weight(1f)) {
                     Text(org.name, color = if (id == w.userOrg) Ui.gold else Ui.text, fontWeight = FontWeight.Bold, fontSize = 20.sp)
@@ -405,5 +407,75 @@ private fun TeamChemistryCard(vm: GameVm, w: World, team: Team) {
                 for (v in listOf(-1, 1, 2, 3, 5)) Pill(if (v < 0) "no limit" else "$v") { w.importRules[team.leagueId] = v; vm.edit() }
             }
         }
+    }
+}
+
+
+/** The roster of every season: the current one, then each season's roster at its end (and who left during it). */
+@Composable
+private fun TeamPastRosters(vm: GameVm, w: World, team: Team, t: TitleDef) {
+    @Composable fun roster(title: String, ids: List<Int>, sub: String?, leftDuring: List<Int>) = Card(title, right = { if (sub != null) Muted(sub, 11) }) {
+        if (ids.isEmpty()) Muted("No players recorded.", 11)
+        for (pid in ids.sortedBy { t.lineup.indexOf(w.players[it].roles.firstOrNull()).let { i -> if (i < 0) 9 else i } }) {
+            val p = w.players.getOrNull(pid) ?: continue
+            Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Player(pid)) }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(t.role(p.roles.firstOrNull() ?: "").short, color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(40.dp))
+                PlayerPic(p, 22.dp, round = true); HGap(6)
+                Column(Modifier.weight(1f)) {
+                    Text(p.handle, color = Ui.text, fontSize = 13.sp)
+                    Muted("${flag(p.nat)} ${p.name()}", 10)
+                }
+                val line = p.stats.filter { it.teamId == team.id }.lastOrNull()
+                if (line != null) Muted("${line.gp} games", 10)
+            }
+        }
+        if (leftDuring.isNotEmpty()) { Gap(4); Muted("Left during the season: " + leftDuring.joinToString { w.players[it].handle }, 11) }
+    }
+    val seasonsOut = w.transfers.filter { it.fromTeam == team.id }.groupBy { it.season }
+    roster("Season ${w.season} (current)", team.roster.toList(), team.leagueId.takeIf { it >= 0 }?.let { w.leagues[it].short }, seasonsOut[w.season].orEmpty().map { it.playerId }.distinct().filter { it !in team.roster })
+    // Earlier seasons: the end-of-season snapshot, or (older saves) the players who played for the team that season.
+    val seasons = (team.history.map { it.season } + w.players.flatMap { p -> p.stats.filter { it.teamId == team.id }.map { it.season } }).filter { it < w.season }.distinct().sortedDescending()
+    if (seasons.isEmpty()) Card { Muted("Past rosters appear here from the end of the first season.") }
+    for (s in seasons) {
+        val h = team.history.lastOrNull { it.season == s }
+        val ids = h?.roster?.toList()?.takeIf { it.isNotEmpty() } ?: w.players.filter { p -> p.stats.any { it.teamId == team.id && it.season == s && it.gp > 0 } }.map { it.id }
+        val left = seasonsOut[s].orEmpty().map { it.playerId }.distinct().filter { it !in ids }
+        roster("Season $s", ids, h?.let { hh -> listOfNotNull(w.leagues.getOrNull(hh.leagueId)?.short, if (hh.position > 0) "#${hh.position}" else null).joinToString(" · ").ifBlank { null } }, left)
+    }
+}
+
+/** Transfers in and out of the team, by season. */
+@Composable
+private fun TeamTransfers(vm: GameVm, w: World, team: Team) {
+    val all = w.transfers.filter { it.toTeam == team.id || it.fromTeam == team.id }
+    val seasons = (all.map { it.season } + w.season).distinct().sortedDescending()
+    var season by remember(team.id) { mutableIntStateOf(w.season) }
+    Card("Transfer history") {
+        Select("Season", seasons.map { "$it" }, seasons.indexOf(season).coerceAtLeast(0)) { season = seasons[it] }
+        val list = all.filter { it.season == season }.sortedBy { it.day }
+        @Composable fun line(tr: dev.uem.em.model.Transfer, incoming: Boolean) {
+            val p = w.players.getOrNull(tr.playerId) ?: return
+            val other = if (incoming) tr.fromTeam else tr.toTeam
+            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                PlayerPic(p, 22.dp, round = true); HGap(6)
+                Column(Modifier.weight(1f)) {
+                    PlayerLink(w, p.id, weight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Muted(if (incoming) "from " else "to ", 11)
+                        if (other >= 0) TeamLink(w, other, size = 11.sp, color = Ui.accent) else Muted(when (tr.kind) { "promoted", "demoted" -> "academy"; "youth" -> "youth intake"; else -> "free agency" }, 11)
+                        Muted(" · ${tr.kind} · ${Dates.short(tr.day)}", 11)
+                    }
+                }
+                Text(if (tr.fee > 0) formatMoney(tr.fee) else "free", color = if (tr.fee > 0) Ui.gold else Ui.muted, fontSize = 12.sp)
+            }
+        }
+        val ins = list.filter { it.toTeam == team.id }
+        val outs = list.filter { it.fromTeam == team.id }
+        Gap(4); Text("In (${ins.size})", color = Ui.win, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        if (ins.isEmpty()) Muted("No arrivals.", 11)
+        for (tr in ins) line(tr, true)
+        Gap(6); Text("Out (${outs.size})", color = Ui.loss, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        if (outs.isEmpty()) Muted("No departures.", 11)
+        for (tr in outs) line(tr, false)
     }
 }
