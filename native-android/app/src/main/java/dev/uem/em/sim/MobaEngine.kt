@@ -190,6 +190,13 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         var asUntil = 0f; var asPct = 0f; var msUntil = 0f; var msPct = 0f; var revealUntil = 0f
         var dotDps = 0f; var dotUntil = 0f; var dotBy = -1
         var flashReady = 0f; var smiteReady = 0f; var bbReady = 0f; var bkbReady = 0f; var tpReady = 0f
+        /** Summoner / battle spells taken into the game and when each is ready again. */
+        var spells: List<dev.uem.em.titles.SpellDef> = emptyList()
+        val spellReady = FloatArray(2)
+        /** Exhausted / weakened: this hero's damage is reduced until then. */
+        var weakUntil = 0f
+        /** The slot of a ready spell with this effect, or -1. */
+        fun spellOf(effect: String): Int { for (i in spells.indices) if (spells[i].effect == effect && spellReady[i] <= nowF) return i; return -1 }
         var recallUntil = 0; var lastCombat = -99; var lastHitBy = -1; var engagedAt = 0
         val dmgBy = IntArray(10) { -99 } // last time each enemy (gi) damaged or controlled this hero
         var targetX = 0f; var targetY = 0f
@@ -518,6 +525,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         if (src != null) { amount *= src.vs[target.gi]; if (commsUntil[src.side] > now) amount *= commsMul[src.side] }
         if (type != 2) amount *= 1f - target.resistFor(type) * (1f - (src?.pen ?: 0f))
         if (src != null && target.caught) amount *= if (now < laneEndS) R.gankMul else R.pickMul
+        if (src != null && src.weakUntil > nowF) amount *= 0.6f
         // Early fights are short and lethal (base stats against small health pools); the edge fades by the end of laning.
         if (src != null && now < laneEndS) amount *= 1f + (R.earlyDmg - 1f) * (1f - now.toFloat() / laneEndS)
         // After laning, carries, mages and supports fight from behind their front line at max range:
@@ -878,7 +886,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             }
         }
         for (h in heroes) stat(h, GOLD, h.earned.toDouble())
-        for (h in heroes) book.lines.firstOrNull { it.playerId == h.pc.p.id }?.let { l -> l.items.addAll(h.inv.map { it.id }); h.runePage?.let { pg -> l.runes.addAll(pg.entries.map { it.id }) } }
+        for (h in heroes) book.lines.firstOrNull { it.playerId == h.pc.p.id }?.let { l -> l.items.addAll(h.inv.map { it.id }); h.runePage?.let { pg -> l.runes.addAll(pg.entries.map { it.id }) }; l.spells.addAll(h.spells.map { it.id }) }
         if (rec != null && rec.snapT.lastOrNull() != now) snapshot()
         if (rec != null && now % MobaEngine.SAMPLE_STEP != 0) sample()
         book.finalise()
@@ -1037,11 +1045,12 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         var side = if (o.dmgBy[0] >= o.dmgBy[1]) 0 else 1
         // Smite / Retribution contest: the other jungler can steal it.
         if (R.smite) {
-            val other = bySide[1 - side].firstOrNull { it.jungler && it.alive(now) && hypot(it.x - o.x, it.y - o.y) < 60f && it.smiteReady <= nowF }
-            val mine = bySide[side].firstOrNull { it.jungler && it.alive(now) && hypot(it.x - o.x, it.y - o.y) < 60f }
+            val other = bySide[1 - side].firstOrNull { it.alive(now) && hypot(it.x - o.x, it.y - o.y) < 60f && it.spellOf("smite") >= 0 }
+            val mine = bySide[side].firstOrNull { it.alive(now) && hypot(it.x - o.x, it.y - o.y) < 60f && it.spells.any { s -> s.effect == "smite" } }
+            mine?.spellOf("smite")?.takeIf { it >= 0 }?.let { useSpell(mine, it) }
             if (other != null) {
-                val steal = 0.18f + 0.06f * other.clutch - 0.05f * (mine?.clutch ?: -1f) - (if (mine != null && mine.smiteReady <= nowF) 0.1f else 0f)
-                other.smiteReady = nowF + 60f
+                val steal = 0.18f + 0.06f * other.clutch - 0.05f * (mine?.clutch ?: -1f) - (if (mine != null && mine.spellOf("smite") >= 0) 0.1f else 0f)
+                useSpell(other, other.spellOf("smite"))
                 if (rng.chance(steal.coerceIn(0.03f, 0.6f).toDouble())) { side = 1 - side; ev(Ev(now, "steal", side, other.pc.p.id, x = o.idx)) }
             }
         }
@@ -1318,6 +1327,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         addGold(h, gpmPerSec() * 0.25f * DTF)
         if (R.courier && now % 60 == 0) shop(h)
         if (now % 60 == 0) addXp(h, if (h.supportCls) 0.25 else 0.15)
+        // Cleanse / Purify out of crowd control when enemies are close.
+        if (h.cc(nowF) && h.spells.isNotEmpty()) h.spellOf("cleanse").takeIf { it >= 0 && nearestEnemyDist(h) < 60f }?.let { h.stunUntil = 0f; h.rootUntil = 0f; h.slowUntil = 0f; useSpell(h, it) }
         if (h.cc(nowF)) return
         // Recalling.
         if (h.recallUntil > 0) {
@@ -1366,6 +1377,61 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     /** Build choices draw from their own stream (the game's random sequence is left as it was). */
     private val rngKey = "build|${t.id}|" + heroes.joinToString(",") { "${it.pc.p.id}:${it.pc.charId}" }
 
+    /** Spell codes for replays: index in the title's spells (as of this world) + 1. */
+    val spellCodes = dev.uem.em.titles.Spells.all(world, t.id)
+    init {
+        for (h in heroes) h.spells = dev.uem.em.titles.Spells.choose(world, t.id, h.jungler, h.lane, h.pc.role.isSupport, h.pc.role.isCarry || h.marksman, h.cls, Rng.derive(rngKey, "spells", h.gi))
+    }
+
+    fun useSpell(h: Hero, i: Int) {
+        if (i < 0 || i >= h.spells.size) return
+        val s = h.spells[i]
+        val cd = dev.uem.em.titles.Spells.cooldown(world, s).toFloat()
+        h.spellReady[i] = nowF + cd
+        ev(Ev(now, "spell", h.side, h.pc.p.id, x = spellCodes.indexOf(s) + 1, m = cd.toInt(), n = MobaEngine.packPos(h.x, h.y)))
+    }
+    private fun spellPow(h: Hero, i: Int) = dev.uem.em.titles.Spells.mod(world, h.spells[i].id).toFloat()
+
+    /** Damage and control spells once a hero commits to a fight. */
+    fun offensiveSpells(h: Hero, best: Hero, near: Int) {
+        if (h.spells.isEmpty()) return
+        val side = h.side
+        val d = dist(h, best)
+        var i = h.spellOf("ignite")
+        if (i >= 0 && best.hpPct() < 0.35f && d < 45f) { damage(h, side, best, best.maxHp * 0.12f * spellPow(h, i), 2); useSpell(h, i) }
+        i = h.spellOf("execute")
+        if (i >= 0 && best.alive(now) && best.hpPct() < 0.3f && d < 40f) { damage(h, side, best, ((best.maxHp - best.hp) * 0.18f + best.maxHp * 0.03f) * spellPow(h, i), 2); useSpell(h, i) }
+        i = h.spellOf("poke")
+        if (i >= 0 && best.alive(now) && best.hpPct() < 0.3f && d < 110f) { damage(h, side, best, best.maxHp * 0.08f * spellPow(h, i), 1); useSpell(h, i) }
+        i = h.spellOf("weaken")
+        if (i >= 0 && best.alive(now) && (best.marksman || best.mage || best.assassin) && d < 45f && best.lastCombat >= now - 2) { best.weakUntil = nowF + 3f * spellPow(h, i); useSpell(h, i) }
+        i = h.spellOf("stun")
+        if (i >= 0 && near >= 2) {
+            var hit = 0
+            for (e in bySide[1 - side]) if (e.alive(now) && e.immuneUntil <= nowF && abs(e.x - h.x) < 28f && abs(e.y - h.y) < 28f) { e.stunUntil = max(e.stunUntil, nowF + 0.8f * (1f - e.st(TEN))); hit++ }
+            if (hit >= 1) useSpell(h, i)
+        }
+        i = h.spellOf("frenzy")
+        if (i >= 0 && d < h.range + 10f) { h.asUntil = nowF + 5f; h.asPct = max(h.asPct, 0.3f * spellPow(h, i)); useSpell(h, i) }
+        i = h.spellOf("haste")
+        if (i >= 0 && h.task == 5 && d > h.range + 15f) { h.msUntil = nowF + 6f; h.msPct = max(h.msPct, 0.35f); useSpell(h, i) }
+    }
+
+    /** Spells that save a hero in trouble. */
+    fun defensiveSpells(h: Hero, best: Hero) {
+        if (h.spells.isEmpty()) return
+        var i = h.spellOf("heal")
+        if (i >= 0 && h.hpPct() < 0.35f) {
+            heal(h, h, h.maxHp * 0.15f * spellPow(h, i))
+            lowestAlly(h, 50f)?.takeIf { it !== h }?.let { heal(h, it, it.maxHp * 0.1f) }
+            h.msUntil = nowF + 2f; h.msPct = max(h.msPct, 0.15f); useSpell(h, i)
+        }
+        i = h.spellOf("shield")
+        if (i >= 0 && h.hpPct() < 0.3f) { h.shield = max(h.shield, h.maxHp * 0.18f * spellPow(h, i)); h.shieldUntil = nowF + 3f; useSpell(h, i) }
+        i = h.spellOf("reflect")
+        if (i >= 0 && h.hpPct() < 0.55f && h.caught) { h.reduceUntil = nowF + 3f; h.reducePct = max(h.reducePct, 0.35f); useSpell(h, i) }
+    }
+
     // Rune pages (runes, emblems, arcana, talents), chosen before the game from each hero's class.
     init {
         for (h in heroes) {
@@ -1394,7 +1460,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             h.sAs += next.asU * m; h.sHaste += next.haste * m; h.sMs += next.ms; h.sLs += next.ls * m
             h.items = h.inv.size
             val frac = h.hpPct(); h.maxHp = h.baseHp(); h.hp = h.maxHp * frac
-            ev(Ev(now, "item", h.side, h.pc.p.id, x = h.items, text = next.id, n = h.spent.roundToInt()))
+            ev(Ev(now, "item", h.side, h.pc.p.id, x = h.items, text = next.id, m = catalogue.indexOf(next) + 1, n = h.spent.roundToInt()))
         }
     }
 
@@ -1468,6 +1534,16 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
                 }
             }
             else -> jungle(h)
+        }
+        // Teleport / Arrival: a hero far from where the team needs him travels there; Disrupt silences a tower being pushed.
+        if (h.spells.isNotEmpty() && h.lastCombat < now - 4 && h.recallUntil == 0) {
+            val tp = h.spellOf("teleport")
+            if (tp >= 0 && (p == 1 || p == 2 || p == 3 || (laning && h.lane >= 0)) && hypot(h.targetX - h.x, h.targetY - h.y) > 450f) {
+                val f = fountain(side); val dx = f[0] - h.targetX; val dy = f[1] - h.targetY; val l = max(1f, hypot(dx, dy))
+                h.x = h.targetX + dx / l * 25f; h.y = h.targetY + dy / l * 25f; useSpell(h, tp)
+            }
+            val dr = h.spellOf("disrupt")
+            if (dr >= 0 && h.task == 2 && p == 1 && active.any { it.s.team != side && !it.dead && it.shoots && abs(it.s.x - h.x) < 60f && abs(it.s.y - h.y) < 60f }) { siegeUntil[side] = max(siegeUntil[side], now + 5); useSpell(h, dr) }
         }
         // Ganks in the laning phase.
         if (h.jungler && laning && now % 6 == 0) gankCheck(h)
@@ -1645,11 +1721,12 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             best.dmgBy[h.gi] = now
         }
         // A gank in lane: the jungler (or the laner) flashes in to land the catch when the target is in reach.
-        if (engage && laningNow && (h.task == 5 && h.camp == best.gi || gankOn) && h.flashReady <= nowF && t.id != "dota2" && best.hpPct() < 0.75f &&
+        if (engage && laningNow && (h.task == 5 && h.camp == best.gi || gankOn) && h.spellOf("blink") >= 0 && best.hpPct() < 0.75f &&
             dist(h, best) in (h.range + 4f)..48f && rng.chance((0.35 + 0.08 * h.clutch).coerceIn(0.1, 0.7))) {
-            push(h, best.x, best.y, 30f); h.flashReady = nowF + 150f
-            ev(Ev(now, "cast", side, h.pc.p.id, -1, 4, m = 1 shl Abilities.DASH, n = MobaEngine.packPos(h.x, h.y)))
+            push(h, best.x, best.y, 30f); useSpell(h, h.spellOf("blink"))
         }
+        // Spells to save themselves (heal, barrier / aegis, vengeance, ghost / sprint when running).
+        defensiveSpells(h, best)
         // Carries and mages back off earlier once the fight turns on them (flash, a step out of range).
         // The front line (tanks, bruisers) stays in a fight it started until much lower: their job is to absorb.
         val fleeHp = if (back && !laningNow) R.backFlee else if (!laningNow && !back) R.frontFlee else 0.25f
@@ -1658,10 +1735,10 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         if (flee) {
             h.focus = -1
             for (i in h.acts.indices) { val a = h.acts[i]; if ((a.ai == Abilities.AI_MOBILITY || a.ai == Abilities.AI_SURVIVE) && ready(h, i) && dist(h, best) < 45f) { cast(h, i, best); break } }
-            if (h.hpPct() < fleeHp - 0.03f && h.flashReady <= nowF && dist(h, best) < 30f && t.id != "dota2") {
-                val f = fountain(side); push(h, f[0], f[1], 30f); h.flashReady = nowF + 150f
-                ev(Ev(now, "cast", side, h.pc.p.id, -1, 4, m = 1 shl Abilities.DASH, n = MobaEngine.packPos(h.x, h.y)))
+            if (h.hpPct() < fleeHp - 0.03f && h.spellOf("blink") >= 0 && dist(h, best) < 30f) {
+                val f = fountain(side); push(h, f[0], f[1], 30f); useSpell(h, h.spellOf("blink"))
             }
+            h.spellOf("haste").takeIf { it >= 0 && dist(h, best) < 40f }?.let { h.msUntil = nowF + 6f; h.msPct = max(h.msPct, 0.35f); useSpell(h, it) }
             val f = fountain(side); moveTo(h, f[0], f[1])
             return true
         }
@@ -1678,6 +1755,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         h.focus = best.gi
         h.lastCombat = now
         if (h.recallUntil > 0) h.recallUntil = 0
+        offensiveSpells(h, best, near)
         // Abilities: by AI tag and situation (one cast per second of the step).
         val n = near
         var castsThisTick = 0

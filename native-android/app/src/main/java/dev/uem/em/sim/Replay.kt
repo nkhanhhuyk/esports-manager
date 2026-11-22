@@ -38,7 +38,7 @@ object ReplayCodec {
 
     /** Event kinds (index = code). */
     val KINDS = listOf("kill", "fight", "tower", "base", "core", "obj", "end", "round", "plant", "defuse", "roundEnd", "buyback",
-        "cast", "shp", "ward", "unward", "spawn", "recall", "item", "aegis", "steal", "duel", "util", "move", "timeout", "comms", "soul")
+        "cast", "shp", "ward", "unward", "spawn", "recall", "item", "aegis", "steal", "duel", "util", "move", "timeout", "comms", "soul", "spell")
     private val KIND_CODE = KINDS.withIndex().associate { it.value to it.index }
 
     /** Shooter buy types (index = code). */
@@ -70,6 +70,9 @@ object ReplayCodec {
                 "obj", "spawn" -> kinds.getOrNull(r.ev[o + 6] - 1)?.name ?: t.moba?.objectives?.getOrNull(r.ev[o + 5])?.name ?: ""
                 "steal" -> t.moba?.objectives?.getOrNull(r.ev[o + 5])?.name ?: ""
                 "soul" -> kinds.getOrNull(r.ev[o + 6] - 1)?.soulName ?: "Dragon Soul"
+                // A spell cast (x: the spell's code), an item bought (m: the item's code).
+                "spell" -> dev.uem.em.titles.Spells.all(w, t.id).getOrNull(r.ev[o + 5] - 1)?.id ?: ""
+                "item" -> if (r.ev[o + 6] > 0) dev.uem.em.titles.Items.of(w, t.id).getOrNull(r.ev[o + 6] - 1)?.id ?: "" else ""
                 "round" -> BUYS.getOrElse(r.ev[o + 6] / 4) { "" } + "|" + BUYS.getOrElse(r.ev[o + 6] % 4) { "" }
                 else -> ""
             }

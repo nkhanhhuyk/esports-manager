@@ -133,7 +133,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
                 val mapped = rec.events.map { e -> Ev(e.t, e.kind, if (e.team >= 0) order[e.team] else -1, e.a, e.b, e.x, e.text, e.m, e.n) }
                 rec.events.clear(); rec.events.addAll(mapped)
             }
-            val lines = out.book.lines.map { l -> Line(l.playerId, order[l.team], l.roleId, l.charId, l.rating, l.s, l.items, l.runes) }
+            val lines = out.book.lines.map { l -> Line(l.playerId, order[l.team], l.roleId, l.charId, l.rating, l.s, l.items, l.runes, l.spells) }
             // Neutral objectives taken (code * 2 + side), in series team order.
             val objs = IntArray(out.objs.size) { i -> (out.objs[i] shr 1) * 2 + order[out.objs[i] and 1] }
             val score = if (s.blue == 0) out.score else intArrayOf(out.score[1], out.score[0])

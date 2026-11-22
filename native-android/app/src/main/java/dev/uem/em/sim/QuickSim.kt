@@ -131,10 +131,13 @@ object QuickSim {
                 book.lines.firstOrNull { it.playerId == pc.p.id }?.items?.addAll(items.map { it.id })
             }
         }
-        // Rune pages (runes, emblems, arcana, talents) for the box score; the same choice as the full engine makes.
+        // Rune pages (runes, emblems, arcana, talents) and spells for the box score; the same choices as the full engine makes.
         for (tc in teams) for (pc in tc.players) {
-            val pg = dev.uem.em.titles.Runes.page(world, t.id, pc.charId ?: "", pc.char?.cls ?: "", pc.role.isSupport, magicShareOf(pc), Rng.derive("qrunes", t.id, pc.p.id, pc.charId ?: "")) ?: continue
-            book.lines.firstOrNull { it.playerId == pc.p.id }?.runes?.addAll(pg.entries.map { it.id })
+            val line = book.lines.firstOrNull { it.playerId == pc.p.id } ?: continue
+            val pg = dev.uem.em.titles.Runes.page(world, t.id, pc.charId ?: "", pc.char?.cls ?: "", pc.role.isSupport, magicShareOf(pc), Rng.derive("qrunes", t.id, pc.p.id, pc.charId ?: ""))
+            if (pg != null) line.runes.addAll(pg.entries.map { it.id })
+            val laneIdx = if (t.lineup.indexOf(pc.role.id) == 0) 0 else 1
+            line.spells.addAll(dev.uem.em.titles.Spells.choose(world, t.id, jungler(pc), laneIdx, pc.role.isSupport, pc.role.isCarry, pc.char?.cls ?: "", Rng.derive("qspells", t.id, pc.p.id, pc.charId ?: "")).map { it.id })
         }
         book.finalise()
         book.rate(winner) { l ->

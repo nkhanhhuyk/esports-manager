@@ -100,6 +100,12 @@ class World(
     val customRunes: MutableList<CustomRune> = ArrayList(),
     /** Patch changes to runes and the like: id → scale of its stats. */
     val runeMods: MutableMap<String, Double> = HashMap(),
+    /** Spells added by patches (fictional). */
+    val customSpells: MutableList<CustomSpell> = ArrayList(),
+    /** Patch changes to spells: id → strength (cooldowns divided by it). */
+    val spellMods: MutableMap<String, Double> = HashMap(),
+    /** Spells a patch removed from the game. */
+    val removedSpells: MutableList<String> = ArrayList(),
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -484,7 +490,13 @@ class Replay(
 @Serializable
 class Line(val playerId: Int, val team: Int, val roleId: String, val charId: String = "", var rating: Double = 1.0, @ProtoPacked val s: DoubleArray, val items: MutableList<String> = ArrayList(),
     /** Runes / emblems / arcana / talents taken into the game (MOBAs; ids in titles.Runes). */
-    val runes: MutableList<String> = ArrayList())
+    val runes: MutableList<String> = ArrayList(),
+    /** Spells taken into the game (ids in titles.Spells). */
+    val spells: MutableList<String> = ArrayList())
+
+/** A spell a patch added (fictional). */
+@Serializable
+class CustomSpell(val id: String, val titleId: String, val name: String, val cd: Double, val desc: String, val effect: String, val season: Int = 0)
 
 /** A rune, emblem talent or arcana a patch added (fictional). */
 @Serializable
