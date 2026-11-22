@@ -60,6 +60,8 @@ sealed class Screen {
     data object SoloQ : Screen()
     data object Rankings : Screen()
     data class Replay(val fixtureId: Int, val game: Int) : Screen()
+    /** Game reference: "items", "runes", "spells" or "objectives". */
+    data class Library(val kind: String) : Screen()
 }
 
 class Busy(val label: String, val done: Int, val total: Int)

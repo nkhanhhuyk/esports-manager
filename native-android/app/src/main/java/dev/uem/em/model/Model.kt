@@ -85,7 +85,7 @@ class World(
     /** Picture links you set in the database editor: "player:12", "team:3", "org:5", "league:2", "comp:9", "char:lol-ahri". */
     val images: MutableMap<String, String> = HashMap(),
     /** Simulation detail: "full" (every match on the 2D engines) or "fast" (unwatched matches use a quick model). */
-    var simDetail: String = "full",
+    var simDetail: String = "balanced",
     /** The season the career started in (no transfers during it; 0 for older saves). */
     var firstSeason: Int = 0,
     /** MOBA items added by patches (new releases). */
@@ -106,6 +106,8 @@ class World(
     val spellMods: MutableMap<String, Double> = HashMap(),
     /** Spells a patch removed from the game. */
     val removedSpells: MutableList<String> = ArrayList(),
+    /** Role metas per game (titleId → one option per group, comma-separated, see titles.RoleMeta); none = the game's starting meta. */
+    val roleMetas: MutableMap<String, String> = HashMap(),
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }

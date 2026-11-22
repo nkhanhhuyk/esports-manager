@@ -18,6 +18,7 @@ class RoleDeathsTest {
         TestData.init()
         BoxStore.clear()
         val w = WorldGen.create(TestData.source, "roles", "Roles", Dates.day(2026, 11, 21))
+        w.simDetail = "full" // every league on the 2D engines
         // Into the first split (mid-January): enough league games for every MOBA.
         Advance.run(w, 62)
         val out = StringBuilder()

@@ -82,7 +82,9 @@ object QuickSim {
         kills[winner] = (total * share).roundToInt(); kills[1 - winner] = total - kills[winner]
         val sk = Phase.SKIRMISH.ordinal; val tf = Phase.TEAMFIGHT.ordinal; val sv = Phase.SURVIVAL.ordinal
         fun jungler(pc: PlayerCtx) = pc.roleId in cfg.junglers
-        fun killW(pc: PlayerCtx) = (if (pc.role.isCarry) 1.5 else if (pc.role.isSupport) 0.35 else if (jungler(pc)) 1.0 else 1.15) * (pc.phase[sk] / 70).let { it * it }
+        // Kill share by position from the patch's role meta (the carry first, the support last).
+        val prio = dev.uem.em.titles.RoleMeta.killPriority(world, t.id)
+        fun killW(pc: PlayerCtx) = (0.25 + 1.3 * (prio[dev.uem.em.titles.RoleMeta.pos(pc.roleId)] ?: 0.6)) * (pc.phase[sk] / 70).let { it * it }
         fun deathW(pc: PlayerCtx) = (if (pc.role.isSupport) 1.3 else 1.0) * (70 / pc.phase[sv].coerceAtLeast(20.0))
         for (side in 0..1) {
             val mine = teams[side].players; val theirs = teams[1 - side].players
@@ -105,7 +107,7 @@ object QuickSim {
             book.add(pc.p.id, DMG, gold * (if (pc.role.isSupport) 0.55 else if (pc.role.isCarry) 1.25 else 1.0) * rng.normal(1.0, 0.12) * 1.4)
             book.add(pc.p.id, TAKEN, gold * (if (pc.role.isSupport) 0.9 else 1.1) * rng.normal(1.0, 0.15) * 1.2)
             if (HEAL >= 0 && pc.role.isSupport) book.add(pc.p.id, HEAL, minutes * 180 * rng.normal(1.0, 0.3))
-            book.add(pc.p.id, VISION, minutes * (if (pc.role.isSupport) 2.2 else if (jungler(pc)) 1.2 else 0.6))
+            if (MobaEngine.hasWards(t.id)) book.add(pc.p.id, VISION, minutes * (if (pc.role.isSupport) 2.2 else if (jungler(pc)) 1.2 else 0.6))
             if (DN >= 0 && !pc.role.isSupport && !jungler(pc)) book.add(pc.p.id, DN, minutes * 0.4 * rng.normal(1.0, 0.3))
         }
         // Structures and objectives: the winner takes most.

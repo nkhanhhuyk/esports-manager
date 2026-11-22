@@ -58,10 +58,13 @@ fun RunesCard(w: World, t: TitleDef) {
 @Composable
 private fun RuneRow(w: World, r: RuneDef) {
     val mod = Runes.mod(w, r.id)
-    Column(Modifier.padding(top = 3.dp)) {
-        Text(r.name + (if (r.custom) "  NEW" else "") + "  · " + slotName(r.slot), color = if (r.custom) Ui.gold else Ui.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        if (r.desc.isNotBlank()) Muted(r.desc + (if (r.approx) " (summary)" else ""), 10)
-        Text("In the sim: " + Neutrals.statText(r.stats, mod) + (if (mod != 1.0) "  (patched ${if (mod > 1) "+" else ""}${((mod - 1) * 100).toInt()}%)" else ""), color = Ui.text, fontSize = 10.sp)
+    androidx.compose.foundation.layout.Row(Modifier.padding(top = 3.dp)) {
+        RunePic(w, r.id, 28.dp); HGap(6)
+        Column {
+            Text(r.name + (if (r.custom) "  NEW" else "") + "  · " + slotName(r.slot), color = if (r.custom) Ui.gold else Ui.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            if (r.desc.isNotBlank()) Muted(r.desc + (if (r.approx) " (summary)" else ""), 10)
+            Text("In the sim: " + Neutrals.statText(r.stats, mod) + (if (mod != 1.0) "  (patched ${if (mod > 1) "+" else ""}${((mod - 1) * 100).toInt()}%)" else ""), color = Ui.text, fontSize = 10.sp)
+        }
     }
 }
 

@@ -49,6 +49,25 @@ object Release {
         return "New item — $name ($type, ${cost} gold): $txt."
     }
 
+    private val SPELL_NEW = listOf(
+        Triple("Rift Step", "blink", "Dash a short distance and gain a brief shield."), Triple("Overcharge", "frenzy", "Gain attack speed and damage for a few seconds."),
+        Triple("Hex Lock", "stun", "Root nearby enemies briefly."), Triple("Bulwark", "shield", "Gain a large shield that decays over 4 seconds."),
+        Triple("Soul Brand", "ignite", "Burn an enemy hero for true damage and reduce their healing."), Triple("Windwalk", "haste", "Gain a burst of movement speed and pass through units."),
+        Triple("Mend", "heal", "Restore health to you and the nearest ally over 3 seconds."), Triple("Drain", "weaken", "Reduce an enemy's damage and steal some of it as health."),
+        Triple("Warp Gate", "teleport", "After a channel, travel to an allied structure."), Triple("Reprisal", "reflect", "Reflect part of the damage you take for 3 seconds."))
+
+    /** A new fictional spell for a game that has spells (cooldown and effect drawn from the game's own spells). */
+    fun spell(w: World, t: TitleDef, rng: Rng): String? {
+        val pool = dev.uem.em.titles.Spells.all(w, t.id)
+        if (pool.isEmpty()) return null
+        val (name, effect, desc) = SPELL_NEW.filter { n -> pool.none { it.name == n.first } }.ifEmpty { return null }.let { rng.pick(it) }
+        val like = pool.filter { it.effect == effect }.ifEmpty { pool }
+        val cd = (like.map { it.cd }.average() * rng.float(0.85, 1.15) / 5).toInt() * 5.0
+        val id = "${t.id}-spell-${w.customSpells.size + 1}"
+        w.customSpells.add(dev.uem.em.model.CustomSpell(id, t.id, name, cd, desc, effect, w.season))
+        return "New spell — $name ($desc, ${cd.toInt()} s cooldown)."
+    }
+
     private val RUNE_A = listOf("Astral", "Molten", "Hollow", "Tempest", "Verdant", "Gilded", "Riven", "Lunar", "Thorned", "Ember", "Frost", "Echoing")
     private val RUNE_B = mapOf("keystone" to listOf("Covenant", "Onslaught", "Requiem", "Bastion", "Surge", "Pact"), "core" to listOf("Fury", "Resolve", "Overdrive", "Sanctum", "Hunt", "Momentum"),
         "arcana" to listOf("Sigil", "Omen", "Tide", "Crest", "Ward", "Fang"), "facet" to listOf("Aspect", "Path", "Form", "Way"))

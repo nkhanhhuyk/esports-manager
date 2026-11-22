@@ -834,6 +834,20 @@ fun PatchesScreen(vm: GameVm, w: World) {
                     Muted("Objectives", 11)
                     for ((o, v) in patch.obj) KV(t.moba?.objectives?.firstOrNull { it.id == o }?.name ?: o, "×%.2f".format(v))
                 }
+                // Role metas: what each position does on this patch (the match engine plays them).
+                val metas = dev.uem.em.titles.RoleMeta.current(w, t.id)
+                if (metas.isNotEmpty()) {
+                    Muted("Role metas", 11)
+                    for ((i, id) in metas.withIndex()) Column(Modifier.padding(vertical = 3.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(dev.uem.em.titles.RoleMeta.GROUP_LABEL[dev.uem.em.titles.RoleMeta.GROUPS[i]] ?: "", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(64.dp))
+                            Text(dev.uem.em.titles.RoleMeta.label(t.id, id), color = Ui.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Muted(dev.uem.em.titles.RoleMeta.desc(id), 10)
+                    }
+                    val prio = dev.uem.em.titles.RoleMeta.killPriority(w, t.id).entries.sortedByDescending { it.value }
+                    Muted("Kill share expected: " + prio.joinToString(" > ") { dev.uem.em.titles.RoleMeta.posName(t.id, it.key) }, 10)
+                }
             }
         }
         if (list.isEmpty()) item { Card { Muted("No patches yet. Minor patches come every few weeks, a bigger one before each international event, and a major patch after Worlds.") } }

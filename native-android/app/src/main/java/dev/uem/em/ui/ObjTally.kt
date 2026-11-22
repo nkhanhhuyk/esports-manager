@@ -28,7 +28,7 @@ import dev.uem.em.titles.TitleDef
  * Roshan, Tormentors and Wisdom Runes (Dota 2). Codes: see GameRecord.objs.
  */
 object ObjTally {
-    class Row(val name: String, val counts: IntArray, val order: Int)
+    class Row(val name: String, val counts: IntArray, val order: Int, val img: String? = null)
 
     /** Rows from (code, team) pairs, in the game's objective order (drakes by element, then the soul). */
     fun rows(w: World?, t: TitleDef, takes: List<Pair<Int, Int>>): List<Row> {
@@ -42,7 +42,13 @@ object ObjTally {
                 code >= 500 -> cfg.objectives.getOrNull(code - 500)?.let { Triple(it.name.removeSuffix(" (Aegis)"), objOrder(cfg, it.id) * 100, 1) } ?: continue
                 else -> kinds.getOrNull(code - 1)?.let { k -> Triple(k.name, objOrder(cfg, k.objId) * 100 + kinds.indexOf(k) % 90, if (k.objId == "grubs") 3 else 1) } ?: continue
             }
-            by.getOrPut(name) { Row(name, IntArray(2), order) }.counts[team] += n
+            // The real picture: the drake's element, the soul, Baron, Turtle, Lord, Tyrant, Roshan...
+            val img = when {
+                code >= 1000 -> kinds.getOrNull(code - 1001)?.let { objKey(t, it.id, it.objId, soul = true) }
+                code >= 500 -> cfg.objectives.getOrNull(code - 500)?.let { objKey(t, null, it.id) }
+                else -> kinds.getOrNull(code - 1)?.let { objKey(t, it.id, it.objId) }
+            }
+            by.getOrPut(name) { Row(name, IntArray(2), order, img) }.counts[team] += n
         }
         return by.values.sortedBy { it.order }
     }
@@ -69,6 +75,7 @@ fun ObjTallyCard(w: World, t: TitleDef, names: List<String>, rows: List<ObjTally
             Text(names.getOrElse(1) { "" }, color = Ui.red, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
         }
         for (r in rows) Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            ObjPic(r.img, r.name, 22.dp); HGap(6)
             Text(r.name, color = Ui.text, fontSize = 12.sp, modifier = Modifier.weight(1f))
             for (s in 0..1) Text(r.counts[s].toString(), color = if (r.counts[s] > r.counts[1 - s]) Ui.text else Ui.muted, fontSize = 12.sp,
                 fontWeight = if (r.counts[s] > r.counts[1 - s]) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
@@ -86,7 +93,7 @@ fun ObjTallyStrip(rows: List<ObjTally.Row>, teams: List<String>) {
         Text(teams.getOrElse(s) { "" } + " ", color = if (s == 0) Ui.blue else Ui.red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         val mine = rows.filter { it.counts[s] > 0 }
         if (mine.isEmpty()) Muted("—", 10)
-        for (r in mine) Text("${short(r.name)} ${r.counts[s]}  ", color = Ui.text, fontSize = 10.sp)
+        for (r in mine) { ObjPic(r.img, r.name, 16.dp); Text(" ${short(r.name)} ${r.counts[s]}  ", color = Ui.text, fontSize = 10.sp) }
     }
 }
 

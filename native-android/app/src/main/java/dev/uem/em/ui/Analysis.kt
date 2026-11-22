@@ -119,7 +119,7 @@ object MobaAnalysis {
         val structs = IntArray(2).also { a -> ev.filter { it.kind == "tower" || it.kind == "base" }.forEach { a[mapSide(it.team)]++ } }
         observed.add("Structures destroyed ${names[0]} ${structs[0]} – ${structs[1]} ${names[1]}" to (ev.firstOrNull { it.kind == "tower" }?.t ?: 0))
         val wardCount = IntArray(2).also { a -> for ((pid, c) in wards) { val i = rp.pids.indexOf(pid); if (i >= 0) a[sideOf[i]] += c } }
-        observed.add("Wards placed ${names[0]} ${wardCount[0]} – ${wardCount[1]} ${names[1]}" to 0)
+        if (MobaEngine.hasWards(t.id)) observed.add("Wards placed ${names[0]} ${wardCount[0]} – ${wardCount[1]} ${names[1]}" to 0)
         val earlyKills = IntArray(2).also { a -> ev.filter { it.kind == "kill" && it.team >= 0 && it.t < laneEnd }.forEach { a[mapSide(it.team)]++ } }
         observed.add("Kills before ${laneEnd / 60}:00 ${names[0]} ${earlyKills[0]} – ${earlyKills[1]} ${names[1]}" to (ev.firstOrNull { it.kind == "kill" }?.t ?: 0))
         val ccSide = IntArray(2).also { a -> for ((pid, c) in cc) { val i = rp.pids.indexOf(pid); if (i >= 0) a[sideOf[i]] += c } }
@@ -132,7 +132,7 @@ object MobaAnalysis {
         if (objs[winSide] > objs[1 - winSide] + 1) opinion.add("Objective control decided it: $wn converted their fights into ${objs[winSide]} objectives.")
         if (fights.isNotEmpty() && fw[winSide] > fw[1 - winSide]) opinion.add("$wn were the better teamfighting side (${fw[winSide]} of ${fights.size} teamfights).")
         if (ccSide[winSide] > ccSide[1 - winSide] * 1.4) opinion.add("$wn's crowd control set up their fights (${ccSide[winSide]} landed vs ${ccSide[1 - winSide]}).")
-        if (wardCount[1 - winSide] < wardCount[winSide] * 0.7) opinion.add("$ln had less vision (${wardCount[1 - winSide]} wards vs ${wardCount[winSide]}): ganks and objective setups went unseen.")
+        if (MobaEngine.hasWards(t.id) && wardCount[1 - winSide] < wardCount[winSide] * 0.7) opinion.add("$ln had less vision (${wardCount[1 - winSide]} wards vs ${wardCount[winSide]}): ganks and objective setups went unseen.")
         if (earlyKills[1 - winSide] > earlyKills[winSide] + 2) opinion.add("$ln won the early game but could not turn it into structures — a macro problem to train.")
         if (opinion.isEmpty()) opinion.add("A close game: $wn finished ${"%.1f".format(abs(leadAtEnd) / 1000.0)}k gold ${if ((leadAtEnd >= 0) == (winSide == 0)) "ahead" else "behind"}; review the late teamfights.")
         return Report(times, lead, moments, lanes, fights, observed, opinion, cc, wards, casts)
@@ -192,7 +192,7 @@ fun MobaAnalysisCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
         for (l in g.lines.sortedWith(compareBy({ it.team != g.blue }, { t.lineup.indexOf(it.roleId) }))) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
             CharPic(l.charId, l.charId, 22.dp, round = true); HGap(6)
             Text(w.players[l.playerId].handle, color = if (l.team == g.blue) Ui.blue else Ui.red, fontSize = 12.sp, modifier = Modifier.width(90.dp))
-            Muted("dmg ${k1(dmgK?.let { l.s[it] } ?: 0.0)} · heal ${k1(healK?.let { l.s[it] } ?: 0.0)} · CC ${r.cc[l.playerId] ?: 0} · casts ${r.casts[l.playerId] ?: 0} · wards ${r.wards[l.playerId] ?: 0}", 11)
+            Muted("dmg ${k1(dmgK?.let { l.s[it] } ?: 0.0)} · heal ${k1(healK?.let { l.s[it] } ?: 0.0)} · CC ${r.cc[l.playerId] ?: 0} · casts ${r.casts[l.playerId] ?: 0}${if (MobaEngine.hasWards(t.id)) " · wards ${r.wards[l.playerId] ?: 0}" else ""}", 11)
         }
     }
     HeatmapCard(w, t, g, f)
@@ -228,7 +228,9 @@ private fun HeatmapCard(w: World, t: TitleDef, g: GameRecord, f: Fixture) {
         h
     }
     Card("Heatmap") {
-        Tabs(listOf("Positions", "Deaths", "Wards", "Abilities used"), mode) { mode = it }
+        // MLBB and HoK have no wards.
+        val modes = if (MobaEngine.hasWards(t.id)) listOf("Positions", "Deaths", "Wards", "Abilities used") else listOf("Positions", "Deaths", "Abilities used")
+        Tabs(modes, if (!MobaEngine.hasWards(t.id) && mode == 3) 2 else mode) { mode = if (!MobaEngine.hasWards(t.id) && it == 2) 3 else it }
         val names = listOf(w.teams[if (g.blue == 0) f.a else f.b].short + " team", w.teams[if (g.blue == 0) f.b else f.a].short + " team") + rp.pids.map { w.players[it].handle }
         Tabs(names, if (who == -1) 0 else if (who == -2) 1 else who + 2) { who = if (it == 0) -1 else if (it == 1) -2 else it - 2 }
         val mx = grid.maxOrNull() ?: 0f

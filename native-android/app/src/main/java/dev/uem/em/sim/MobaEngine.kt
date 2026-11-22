@@ -28,6 +28,21 @@ class GameOutcome(val winner: Int, val duration: Int, val score: IntArray, val b
  * Recording (Recorder) never draws random numbers, so watched and unwatched games are identical.
  */
 object MobaEngine {
+    /**
+     * Damage taken by lineup slot (tuning, from the role-deaths diagnostic): evens out deaths across
+     * positions (EXP / Clash laners died least, MLBB junglers and Dota mids most).
+     */
+    val DEATH_CAL = mapOf(
+        "mlbb" to floatArrayOf(1.16f, 0.86f, 0.98f, 0.98f, 1.10f),
+        "hok" to floatArrayOf(1.18f, 0.95f, 0.98f, 0.93f, 0.98f),
+        "lol" to floatArrayOf(1.02f, 1.03f, 0.97f, 1.0f, 0.95f),
+        "wildrift" to floatArrayOf(1.06f, 0.98f, 0.97f, 1.02f, 0.96f),
+        "dota2" to floatArrayOf(1.04f, 0.9f, 0.9f, 1.0f, 1.0f),
+    )
+    /** How strongly teams hand kills to their carry, per title (tuning). */
+    val CREDIT = mapOf("lol" to 1.7f, "wildrift" to 1.0f, "mlbb" to 1.5f, "hok" to 1.15f, "dota2" to 2.2f)
+    /** MLBB and Honor of Kings have no wards (vision comes from heroes, towers and bushes). */
+    fun hasWards(titleId: String) = titleId != "mlbb" && titleId != "hok"
     /** Tuning counters (tests only): ganks per lane 0..2, hunts per lane 3..5. */
     @JvmField @Volatile var dbg: java.util.concurrent.atomic.AtomicIntegerArray? = null
     /** Title rules that differ between the five MOBAs (approximate values where marked in docs). */
@@ -174,7 +189,15 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         val clutch = z(Phase.CLUTCH)
         val jungleSkill = 1f + 0.08f * z(Phase.JUNGLE)
         val visionSkill = 1f + 0.12f * z(Phase.VISION)
-        val econ = 1f + 0.04f * z(Phase.ECONOMY)
+        var econ = 1f + 0.04f * z(Phase.ECONOMY)
+        /** Position (top / jungle / mid / bot / support) for the role metas. */
+        val pos = dev.uem.em.titles.RoleMeta.pos(pc.roleId)
+        /** How readily the team lets this hero take a kill it helped with (the meta's carry: 1). */
+        var killPrio = 0.5f
+        /** The item this hero is saving for (re-chosen every 30 s of game time or after a purchase). */
+        var nextItem: dev.uem.em.titles.ItemDef? = null; var nextAt = -999
+        /** Per-position calibration of damage taken (deaths about even across positions). */
+        var takenMul = 1f
         val survive = 0.04f * z(Phase.SURVIVAL)
 
         var x = 0f; var y = 0f
@@ -453,6 +476,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     val campNext = IntArray(map.camps.size) { if (t.id == "dota2") 60 else 90 }
     val campHp = FloatArray(map.camps.size)
     val wards = ArrayList<FloatArray>() // x, y, side, until
+    val wardsOn = MobaEngine.hasWards(t.id)
 
     // ---------------------------------------------------------------------------- recording
     fun ev(e: Ev) { ev?.add(e) }
@@ -521,8 +545,10 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     // --------------------------------------------------------------------------- damage & death
     fun damage(src: Hero?, srcSide: Int, target: Hero, amount0: Float, type: Int) {
         if (!target.alive(now) || target.immuneUntil > nowF && type != 2) return
-        var amount = amount0
+        var amount = amount0 * target.takenMul
         if (src != null) { amount *= src.vs[target.gi]; if (commsUntil[src.side] > now) amount *= commsMul[src.side] }
+        // A babysitting support next to its carry peels for it.
+        if (babysit && src != null && target.pos == dev.uem.em.titles.RoleMeta.BOT) for (a in bySide[target.side]) if (a.pos == dev.uem.em.titles.RoleMeta.SUPPORT && a.alive(now) && abs(a.x - target.x) < 60f && abs(a.y - target.y) < 60f) { amount *= 0.92f; break }
         if (type != 2) amount *= 1f - target.resistFor(type) * (1f - (src?.pen ?: 0f))
         if (src != null && target.caught) amount *= if (now < laneEndS) R.gankMul else R.pickMul
         if (src != null && src.weakUntil > nowF) amount *= 0.6f
@@ -596,7 +622,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         stat(v, D, 1.0)
         val ks = 1 - v.side
         // The last enemy hero to hurt the victim within 10 s gets the kill; otherwise it is an execution.
-        val killer = src ?: heroes.firstOrNull { it.gi == v.lastHitBy && it.side == ks && v.dmgBy[it.gi] >= now - 10 }
+        var killer = src ?: heroes.firstOrNull { it.gi == v.lastHitBy && it.side == ks && v.dmgBy[it.gi] >= now - 10 }
         if (killer == null) {
             var anyHero = false
             for (h in bySide[ks]) if (v.dmgBy[h.gi] >= now - 10) anyHero = true
@@ -632,6 +658,17 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         for (h in bySide[ks]) if (h !== killer && v.dmgBy[h.gi] >= now - 10) { assisters.add(h); mask = mask or (1 shl h.idx) }
         // Healers / shielders of the killer's team near the fight assist too.
         for (h in bySide[ks]) if (h !== killer && h !in assisters && h.alive(now) && h.supportCls && hypot(h.x - v.x, h.y - v.y) < 70f && h.lastCombat >= now - 6) { assisters.add(h); mask = mask or (1 shl h.idx) }
+        // Teams let their carry take the last hit when it helped (the patch's role meta says who the carry is).
+        val k0 = killer
+        if (k0 != null) {
+            var best: Hero? = null
+            for (a in assisters) if (a.alive(now) && v.dmgBy[a.gi] >= now - 5 && a.killPrio > (best?.killPrio ?: k0.killPrio)) best = a
+            if (best != null && rng.chance(((best.killPrio - k0.killPrio) * (MobaEngine.CREDIT[t.id] ?: 1f)).toDouble().coerceAtMost(0.85))) {
+                assisters.remove(best); assisters.add(k0)
+                mask = (mask and (1 shl best.idx).inv()) or (1 shl k0.idx)
+                killer = best
+            }
+        }
         kills[ks]++
         if (killer == null) { // finished by a tower or monster after enemy heroes hurt him: the best assister scores
             val credit = assisters.maxByOrNull { v.dmgBy[it.gi] }
@@ -1383,6 +1420,22 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         for (h in heroes) h.spells = dev.uem.em.titles.Spells.choose(world, t.id, h.jungler, h.lane, h.pc.role.isSupport, h.pc.role.isCarry || h.marksman, h.cls, Rng.derive(rngKey, "spells", h.gi))
     }
 
+    // Role metas of the patch: who the carry is (kill priority, farm share), ganking or farming junglers,
+    // roaming or lane-bound supports and mids, the pace of fights.
+    val roleMetas = dev.uem.em.titles.RoleMeta.current(world, t.id)
+    val gankEvery = if ("jungle-gank" in roleMetas) 4 else if ("jungle-farm" in roleMetas) 9 else 6
+    val gankBias = if ("jungle-gank" in roleMetas) -0.12f else if ("jungle-farm" in roleMetas) 0.15f else 0f
+    val roamMid = "mid-roam" in roleMetas
+    val roamSup = "support-roam" in roleMetas
+    val babysit = "support-babysit" in roleMetas
+    /** Extra edge wanted before a fight in the laning phase (early skirmish metas fight more, scaling metas less). */
+    val paceCaution = if ("early-skirmish" in roleMetas) -0.04f else if ("scaling" in roleMetas) 0.05f else 0f
+    init {
+        val prio = dev.uem.em.titles.RoleMeta.killPriority(world, t.id); val farm = dev.uem.em.titles.RoleMeta.farm(world, t.id)
+        val cal = MobaEngine.DEATH_CAL[t.id]
+        for (h in heroes) { h.killPrio = (prio[h.pos] ?: 0.5).toFloat(); h.econ *= farm[h.pos] ?: 1f; h.takenMul = cal?.getOrNull(h.idx) ?: 1f }
+    }
+
     fun useSpell(h: Hero, i: Int) {
         if (i < 0 || i >= h.spells.size) return
         val s = h.spells[i]
@@ -1448,13 +1501,18 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         val p = h.build ?: return
         var guard = 0
         while (h.inv.size < 6 && guard++ < 6) {
-            val myGold = bySide[h.side].sumOf { it.earned.toDouble() }; val theirGold = bySide[1 - h.side].sumOf { it.earned.toDouble() }
-            val behind = ((h.deaths - h.kills) / 4.0 + (theirGold - myGold) / maxOf(1.0, theirGold + myGold) * 4).coerceIn(-0.5, 1.5)
-            val next = dev.uem.em.titles.Items.next(world, t.id, h.inv, p, magicSide[1 - h.side], behind, Rng.derive(rngKey, "item", h.gi, h.inv.size), h.jungler) ?: return
+            // The choice is kept for a while: choosing from the whole catalogue every second in base was
+            // the most expensive part of a season's simulation.
+            val next = h.nextItem?.takeIf { now - h.nextAt < 30 } ?: run {
+                val myGold = bySide[h.side].sumOf { it.earned.toDouble() }; val theirGold = bySide[1 - h.side].sumOf { it.earned.toDouble() }
+                val behind = ((h.deaths - h.kills) / 4.0 + (theirGold - myGold) / maxOf(1.0, theirGold + myGold) * 4).coerceIn(-0.5, 1.5)
+                dev.uem.em.titles.Items.next(world, t.id, h.inv, p, magicSide[1 - h.side], behind, Rng.derive(rngKey, "item", h.gi, h.inv.size), h.jungler)
+                    ?.also { h.nextItem = it; h.nextAt = now }
+            } ?: return
             val cost = next.cost * itemScale
             if (h.gold < cost) return
             h.gold -= cost; h.spent += cost
-            h.inv.add(next)
+            h.inv.add(next); h.nextItem = null
             val m = dev.uem.em.titles.Items.mod(world, next.id)
             h.sOffP += next.offP * m; h.sOffM += next.offM * m; h.sDef += next.def * m; h.sArm += next.arm * m; h.sMr += next.mr * m
             h.sAs += next.asU * m; h.sHaste += next.haste * m; h.sMs += next.ms; h.sLs += next.ls * m
@@ -1546,7 +1604,14 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             if (dr >= 0 && h.task == 2 && p == 1 && active.any { it.s.team != side && !it.dead && it.shoots && abs(it.s.x - h.x) < 60f && abs(it.s.y - h.y) < 60f }) { siegeUntil[side] = max(siegeUntil[side], now + 5); useSpell(h, dr) }
         }
         // Ganks in the laning phase.
-        if (h.jungler && laning && now % 6 == 0) gankCheck(h)
+        if (h.jungler && laning && now % gankEvery == 0) gankCheck(h)
+        // Roaming mids and supports (the meta): leave lane for a low enemy in another lane now and then.
+        if (laning && now >= 180 && now % 10 == 0 && h.lane >= 0 && h.hpPct() > 0.6f && h.huntUntil <= now &&
+            ((roamMid && h.pos == dev.uem.em.titles.RoleMeta.MID) || (roamSup && h.pos == dev.uem.em.titles.RoleMeta.SUPPORT)) && rng.chance(0.18)) {
+            var tg: Hero? = null; var tv = Float.MAX_VALUE
+            for (e in bySide[1 - side]) if (e.alive(now) && e.lane >= 0 && e.laneMap != h.laneMap) { val v = e.hpPct() + dist(h, e) / 1500f; if (v < tv) { tv = v; tg = e } }
+            if (tg != null && dist(h, tg) < 650f) { h.huntTarget = tg.gi; h.huntUntil = now + 14 }
+        }
         if (h.task == 5 && h.focus < 0) { val tg = heroes.getOrNull(h.camp); if (tg != null && tg.alive(now)) { h.targetX = tg.x; h.targetY = tg.y } }
     }
 
@@ -1606,7 +1671,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             if (v > bv) { bv = v; best = e; bestLi = li }
         }
         val aggression = (teams[side].aggression / 100.0).toFloat()
-        if (best != null && bv > 1.15f - aggression * 0.4f - 0.1f * h.z(Phase.JUNGLE)) {
+        if (best != null && bv > 1.15f + gankBias - aggression * 0.4f - 0.1f * h.z(Phase.JUNGLE)) {
             if ((h.task != 5 || h.camp != best.gi) && bestLi in 0..2) { laneGanks[side][bestLi]++; MobaEngine.dbg?.incrementAndGet(bestLi) }
             h.task = 5; h.camp = best.gi; h.targetX = best.x; h.targetY = best.y
         }
@@ -1614,7 +1679,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     }
 
     fun ward(h: Hero) {
-        if (!(h.supportCls || h.jungler || h.pc.role.isSupport)) return
+        if (!wardsOn || !(h.supportCls || h.jungler || h.pc.role.isSupport)) return
         val every = (90f / h.visionSkill).toInt().coerceIn(40, 180)
         if ((tick + h.gi * 7) % (every / DT).coerceAtLeast(1) != 0) return
         // At the nearest objective pit, else the river point closest to the hero.
@@ -1701,7 +1766,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         // After the laning phase teams pick their fights: a skirmish away from an objective or a push
         // needs a clearer edge, and the back line (carries, mages, supports) does not start it.
         val back = h.marksman || h.mage || h.supportCls
-        val lateC = if (laningNow || h.task == 5) 0f else (if (back) R.lateCaution * 2f else R.lateCaution)
+        val lateC = if (laningNow || h.task == 5) paceCaution else (if (back) R.lateCaution * 2f else R.lateCaution)
         val engage = when {
             // A gank in the laning phase goes in with the numbers (the jungler waits for its laner); later collapses as before.
             h.task == 5 && (h.camp == best.gi || h.huntTarget == best.gi) -> ratio > (if (laningNow) 1.15f else 0.75f) || (killable && ratio > 0.8f)

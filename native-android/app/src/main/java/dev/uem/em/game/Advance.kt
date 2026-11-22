@@ -127,7 +127,10 @@ object Advance {
             // A series the user started live and left unfinished continues from its saved games.
             val resume = w.live?.takeIf { lv -> fixtures.any { it.id == lv.fixtureId } }
             // Nations Cup qualifiers are always simulated in fast mode (hundreds of nations), unless you follow a side.
-            fun quick(f: Fixture) = (w.simDetail == "fast" || dev.uem.em.comp.Season.isEncQualifier(w.comps[f.compId])) && !w.isUserTeam(f.a) && !w.isUserTeam(f.b) && f.a !in w.followed && f.b !in w.followed
+            // Balanced (the default): second-tier leagues (Challengers, academies, LJL / PCS / VCS...) use the quick model too;
+            // top leagues, international events and every match of your or a followed team play on the full engines.
+            fun quick(f: Fixture) = (w.simDetail == "fast" || dev.uem.em.comp.Season.isEncQualifier(w.comps[f.compId]) ||
+                (w.simDetail == "balanced" && w.comps[f.compId].tier == dev.uem.em.model.CompTier.CHALLENGER)) && !w.isUserTeam(f.a) && !w.isUserTeam(f.b) && f.a !in w.followed && f.b !in w.followed
             fun sim(f: Fixture) = SeriesSim.run(w, f, lineups[f.id]!!, record = shouldRecord(w, f), resume = resume?.takeIf { it.fixtureId == f.id }, quick = quick(f))
             val outcomes: List<SeriesOutcome> = if (fixtures.size == 1 || cores == 1) fixtures.map { sim(it) }
             else pool.invokeAll(fixtures.map { f -> Callable { sim(f) } }).map { it.get() }

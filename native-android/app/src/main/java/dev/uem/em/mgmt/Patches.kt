@@ -70,6 +70,8 @@ object Patches {
             repeat(newChars) { Release.character(w, t, rng, delta)?.let { notes.add(0, it) } }
             if (!t.isMoba && rng.chance(if (kind == "major") 0.6 else 0.25)) Release.weapon(w, t, rng)?.let { notes.add(0, it) }
         }
+        // Role metas: who the carry is, how junglers / supports / mids / tops play, the pace of games.
+        if (t.isMoba) dev.uem.em.titles.RoleMeta.shift(w, t, kind, rng).asReversed().forEach { notes.add(0, it) }
         // Items: buffs and nerfs (scale of the item's stats), a new item now and then on a major patch.
         if (t.isMoba && dev.uem.em.titles.Items.hasItems(t.id)) {
             val items = dev.uem.em.titles.Items.of(w, t.id).filter { it.type != "movement" }
@@ -94,6 +96,29 @@ object Patches {
                 notes.add("${dev.uem.em.titles.Runes.KIND[t.id]?.removeSuffix("s") ?: "Rune"} — ${r.name}: ${if (d > 0) "buffed" else "nerfed"} (${dev.uem.em.titles.Neutrals.statText(r.stats, now)})")
             }
             if (kind == "major" && rng.chance(0.35)) Release.rune(w, t, rng)?.let { notes.add(0, it) }
+        }
+        // Spells: buffs and nerfs (cooldown and strength), a spell taken out of the game or brought back, a new fictional one.
+        if (t.isMoba && dev.uem.em.titles.Spells.slots(t.id) > 0) {
+            val S = dev.uem.em.titles.Spells
+            val pool = S.of(w, t.id)
+            val n = when (kind) { "major" -> rng.int(1, 3); "medium" -> if (rng.chance(0.6)) 1 else 0; else -> if (rng.chance(0.15)) 1 else 0 }
+            for (sp in rng.sample(pool, minOf(n, pool.size))) {
+                val old = w.spellMods[sp.id] ?: 1.0
+                val d = rng.float(0.08, 0.2) * (if (old > 1.15) -1 else if (old < 0.85) 1 else if (rng.chance(0.5)) 1 else -1)
+                val now = (old * (1 + d)).coerceIn(0.6, 1.5)
+                w.spellMods[sp.id] = now
+                notes.add("Spell — ${sp.name}: ${if (d > 0) "buffed" else "nerfed"} (cooldown ${(sp.cd / old).toInt()} s → ${(sp.cd / now).toInt()} s; effect ${if (d > 0) "+" else ""}${(d * 100).toInt()}%)")
+            }
+            if (kind == "major") {
+                // Never Flash / Flicker or the jungle spell: the game would not be playable.
+                val removable = pool.filter { it.effect != "blink" && it.effect != "smite" }
+                if (removable.size > S.slots(t.id) + 2 && rng.chance(0.12)) rng.pick(removable).let { sp -> w.removedSpells.add(sp.id); notes.add("Spell — ${sp.name} removed from the game.") }
+                else if (w.removedSpells.any { id -> S.all(w, t.id).any { it.id == id } } && rng.chance(0.4)) {
+                    val back = w.removedSpells.first { id -> S.all(w, t.id).any { it.id == id } }
+                    w.removedSpells.remove(back); notes.add("Spell — ${S.get(w, back)?.name ?: back} returns to the game.")
+                }
+                if (rng.chance(0.25)) Release.spell(w, t, rng)?.let { notes.add(0, it) }
+            }
         }
         // Neutral objectives: a kind's buff raised or lowered (every number of it), a new fictional kind now and then.
         if (t.isMoba) {

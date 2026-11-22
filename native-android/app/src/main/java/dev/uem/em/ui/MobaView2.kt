@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -129,6 +130,8 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
     /** Objectives alive by pit position (newer replays record where each one spawned). */
     val aliveAt = HashSet<Int>()
     val wards = ArrayList<Triple<Float, Float, Int>>()
+    /** Kind code of the objective alive at each pit position (which drake element, Turtle, Lord...). */
+    val kindAt = HashMap<Int, Int>()
     for (e in ev) {
         if (e.t > Ti) break
         when (e.kind) {
@@ -139,12 +142,12 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
                 dNow.merge(e.b, 1, Int::plus)
             } else dNow.merge(e.b, 1, Int::plus)
             "obj" -> { objs[mapSide(e.team)]++; objAlive.getOrNull(e.x)?.let { objAlive[e.x] = false }; if (e.n >= 0) aliveAt.remove(e.n) }
-            "spawn" -> { if (e.x in objAlive.indices) objAlive[e.x] = true; if (e.n >= 0) aliveAt.add(e.n) }
+            "spawn" -> { if (e.x in objAlive.indices) objAlive[e.x] = true; if (e.n >= 0) { aliveAt.add(e.n); kindAt[e.n] = e.m } }
             "shp" -> if (e.x in structHp.indices) structHp[e.x] = min(structHp[e.x], e.a)
             "tower", "base", "core" -> if (e.n in structHp.indices) structHp[e.n] = 0
         }
     }
-    for (e in ev) if (e.kind == "ward" && e.t <= Ti && Ti < e.t + e.m) wards.add(Triple(MobaEngine.unpackX(e.n), MobaEngine.unpackY(e.n), mapSide(e.team)))
+    if (MobaEngine.hasWards(t.id)) for (e in ev) if (e.kind == "ward" && e.t <= Ti && Ti < e.t + e.m) wards.add(Triple(MobaEngine.unpackX(e.n), MobaEngine.unpackY(e.n), mapSide(e.team)))
     for (e in ev) if (e.kind == "unward" && e.t <= Ti) wards.removeAll { abs(it.first - MobaEngine.unpackX(e.n)) < 2 && abs(it.second - MobaEngine.unpackY(e.n)) < 2 }
     // Approximate team vision (heroes, wards, towers) for the fog-of-war view.
     fun seenBy(side: Int, x: Float, y: Float): Boolean {
@@ -153,6 +156,20 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
         for ((si, s) in map.structs.withIndex()) if (s.team == side && structHp[si] > 0 && dist(s.x, s.y, x, y) < 95f) return true
         return false
     }
+    // Items bought so far (in order), spells cast (for cooldowns), deaths (buffs lost on death).
+    val buys = remember(g) { HashMap<Int, ArrayList<Pair<Int, String>>>().also { m -> for (e in ev) if (e.kind == "item" && e.text.isNotEmpty()) m.getOrPut(e.a) { ArrayList() }.add(e.t to e.text) } }
+    val casts = remember(g) { HashMap<Int, ArrayList<Ev>>().also { m -> for (e in ev) if (e.kind == "spell" && e.text.isNotEmpty()) m.getOrPut(e.a) { ArrayList() }.add(e) } }
+    val deathsOf = remember(g) { HashMap<Int, ArrayList<Int>>().also { m -> for (e in ev) if (e.kind == "kill" && e.b >= 0) m.getOrPut(e.b) { ArrayList() }.add(e.t) } }
+    // Objectives that empower a side's minions for a while (Baron, Herald, Lord, Overlords, Tempest Dragon).
+    val pushes = remember(g) {
+        val kinds = dev.uem.em.titles.Neutrals.of(w, t.id)
+        ev.filter { it.kind == "obj" && it.m > 0 && it.team >= 0 }.mapNotNull { e ->
+            val k = kinds.getOrNull(e.m - 1) ?: return@mapNotNull null
+            val secs = k.stats["push"] ?: return@mapNotNull null
+            Push(mapSide(e.team), k, e.t, e.t + secs.toInt())
+        }
+    }
+    val pushNow = pushes.filter { Ti in it.from until it.until }
     val si = ReplayCodec.snapAt(rp, Ti)
     fun snap(pid: Int, field: Int) = ReplayCodec.value(rp, si, pid, field)
     val teamGold = DoubleArray(2).also { a -> for ((i, pid) in rp.pids.withIndex()) a[sideOfIdx[i]] += snap(pid, 0).toDouble() }
@@ -203,6 +220,15 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
                 val pit = map.pits.firstOrNull { o.id in it.objectives } ?: continue
                 drawCircle(if (objAlive[oi]) Color(0xFFB98CFF) else Color(0x556E5A9B), W * 0.028f, p(pit.x, pit.y), style = Stroke(if (objAlive[oi]) 5f else 2f))
             }
+            // Heroes holding a buff that ends on death (Baron Nashor): a purple aura.
+            for (pu in pushNow) if (pu.kind.endsOnDeath) for (i in 0 until n) {
+                if (sideOfIdx[i] != pu.side || (units[i][3].toInt() and 1) != 0) continue
+                val pid = rp.pids[i]
+                if (deathsOf[pid]?.any { it in (pu.from - 1)..Ti } == true) continue
+                val atTake = ReplayPos.unit(rp, (pu.from / step).coerceIn(0, max(0, samples - 1)), i)
+                if ((MobaEngine.unitFlags(atTake) and 1) != 0) continue
+                drawCircle(EMPOWERED.copy(alpha = 0.35f), W * 0.034f, p(units[i][0], units[i][1]))
+            }
             // Wards.
             for (wd in wards) if (vision < 0 || wd.third == vision) { drawCircle(teamCol[wd.third].copy(alpha = 0.12f), 75f * u, p(wd.first, wd.second)); drawCircle(Color(0xFFFFD166), W * 0.006f, p(wd.first, wd.second)) }
             // Structures with health.
@@ -228,10 +254,14 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
                     val f0 = (wv and 1023) / 1000f
                     val sup = (wv shr 16) and 1 == 1
                     val dir = if (s == 0) -1f else 1f
+                    // Minions empowered by Baron / Lord / an Overlord are purple.
+                    val buffed = sup && pushNow.any { it.side == s }
                     for (k in 0 until min(cnt, 8)) {
                         val ff = (f0 + dir * k * 0.006f).coerceIn(0f, 1f)
                         val pt = p(lane.x(ff), lane.y(ff)) + Offset(((k % 2) * 2 - 1) * W * 0.004f, 0f)
-                        drawRect(teamCol[s].copy(alpha = 0.85f), pt - Offset(W * 0.003f, W * 0.003f), Size(W * (if (sup) 0.008f else 0.006f), W * (if (sup) 0.008f else 0.006f)))
+                        val sz = W * (if (sup) 0.008f else 0.006f)
+                        if (buffed) drawCircle(EMPOWERED.copy(alpha = 0.35f), sz * 1.1f, pt + Offset(sz / 2 - W * 0.003f, sz / 2 - W * 0.003f))
+                        drawRect(if (buffed) EMPOWERED else teamCol[s].copy(alpha = 0.85f), pt - Offset(W * 0.003f, W * 0.003f), Size(sz, sz))
                     }
                 }
             }
@@ -285,6 +315,40 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
                 }
             }
         }) { side ->
+            val kindsAll = dev.uem.em.titles.Neutrals.of(w, t.id)
+            @Composable fun pinAt(x: Float, y: Float, sz: androidx.compose.ui.unit.Dp, content: @Composable () -> Unit) {
+                val q = cam.view(Offset(x / 1000f, y / 1000f))
+                if (q.x < -0.05f || q.y < -0.05f || q.x > 1.05f || q.y > 1.05f) return
+                Box(Modifier.offset(x = side * q.x - sz / 2, y = side * q.y - sz / 2)) { content() }
+            }
+            val pitSz = (side.value * 0.05f * cam.zoom.coerceAtMost(1.6f)).dp
+            if (positional) for (pit in map.pits) {
+                val key = MobaEngine.packPos(pit.x, pit.y)
+                if (key !in aliveAt) continue
+                val kind = kindAt[key]?.let { kindsAll.getOrNull(it - 1) }
+                val obj = t.moba.objectives.firstOrNull { o -> kind?.objId == o.id } ?: t.moba.objectives.firstOrNull { it.id in pit.objectives }
+                pinAt(pit.x, pit.y, pitSz) { ObjPic(objKey(t, kind?.id, obj?.id), kind?.name ?: obj?.name ?: "", pitSz) }
+            } else for ((oi, o) in t.moba.objectives.withIndex()) {
+                if (!objAlive[oi]) continue
+                val pit = map.pits.firstOrNull { o.id in it.objectives } ?: continue
+                pinAt(pit.x, pit.y, pitSz) { ObjPic(objKey(t, null, o.id), o.name, pitSz) }
+            }
+            // A summoned objective pushing with its minions: MLBB's Lord, the Rift Herald, HoK's Overlord vanguards.
+            for (pu in pushNow) {
+                if (pu.kind.objId !in PUSHERS) continue
+                val fronts = (0..2).mapNotNull { li ->
+                    val lane = map.lanes[map.laneIds[li]] ?: return@mapNotNull null
+                    val wv = ReplayPos.wave(rp, s0, li, pu.side)
+                    if ((wv shr 10) and 63 <= 0) return@mapNotNull null
+                    val f0 = (wv and 1023) / 1000f
+                    Triple(if (pu.side == 0) f0 else 1f - f0, lane.x(f0), lane.y(f0))
+                }
+                val shown = if (pu.kind.objId in setOf("overlord", "shadow", "tempest")) fronts else listOfNotNull(fronts.maxByOrNull { it.first })
+                val sz = (pitSz.value * 0.9f).dp
+                for (fr in shown) pinAt(fr.second, fr.third, sz) {
+                    Box(Modifier.size(sz).background(EMPOWERED, CircleShape).padding(2.dp)) { ObjPic(objKey(t, pu.kind.id, pu.kind.objId), pu.kind.name, sz - 4.dp) }
+                }
+            }
             if (coreEv != null && Ti >= coreEv.t) Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.TopCenter) {
                 Text("${teams[coreEv.team.coerceIn(0, 1)].short} destroy the ${t.moba.structures.coreName} — victory", color = Ui.gold, fontWeight = FontWeight.Black, fontSize = 16.sp,
                     modifier = Modifier.background(Color(0xCC000000), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp))
@@ -369,11 +433,37 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
                         HGap(6)
                         Column(Modifier.weight(1f)) {
                             Text(p.handle, color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Muted("${t.role(l.roleId).short} · ${(v[2]).toInt()}% HP · ${snap(l.playerId, 4)}00 in items · ult ${if (ult > 0) "${ult}s" else "ready"}${if (dead) " · dead" else ""}", 10)
+                            Muted("${t.role(l.roleId).short} · ${(v[2]).toInt()}% HP · ult ${if (ult > 0) "${ult}s" else "ready"}${if (dead) " · dead" else ""}", 10)
                         }
                         Text("${snap(l.playerId, 2).coerceAtLeast(1)}", color = Ui.text, fontSize = 12.sp, modifier = Modifier.width(22.dp), textAlign = TextAlign.Center)
                         Text("${kNow[l.playerId] ?: 0}/${dNow[l.playerId] ?: 0}/${aNow[l.playerId] ?: 0}", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
                         Column(Modifier.width(44.dp), horizontalAlignment = Alignment.End) { Text(k1(snap(l.playerId, 0).toDouble()), color = Ui.gold, fontSize = 12.sp); Muted("${snap(l.playerId, 1)} cs", 9) }
+                    }
+                    // What the hero has right now: the items bought so far, its spells (dark with the seconds left
+                    // while on cooldown) and its rune / emblem / arcana with the name under the picture.
+                    val owned = buys[l.playerId]?.filter { it.first <= Ti }?.map { it.second }.orEmpty()
+                    Row(Modifier.fillMaxWidth().padding(start = 36.dp, bottom = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                        for (k in 0 until 6) {
+                            val id = owned.getOrNull(k)
+                            if (id != null) ItemPic(w, id, 20.dp) else Box(Modifier.size(20.dp).background(Ui.card2, RoundedCornerShape(4.dp)))
+                            HGap(2)
+                        }
+                        if (l.spells.isNotEmpty()) {
+                            HGap(6)
+                            for (sp in l.spells) {
+                                val last = casts[l.playerId]?.lastOrNull { it.text == sp && it.t <= Ti }
+                                SpellPic(w, sp, 20.dp, last?.let { (it.t + it.m - Ti).coerceAtLeast(0) } ?: 0)
+                                HGap(2)
+                            }
+                        }
+                        val rr = mainRunes(w, t, l.runes).firstOrNull()
+                        if (rr != null) {
+                            HGap(6)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(58.dp)) {
+                                RunePic(w, rr.id, 18.dp)
+                                Text(rr.name.removePrefix("Custom "), color = Ui.muted, fontSize = 8.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                            }
+                        }
                     }
                 }
             }
@@ -420,3 +510,10 @@ private fun PlayFeed(w: World, t: dev.uem.em.titles.TitleDef, ev: List<Ev>, g: G
         }
     }
 }
+
+/** An objective's buff on a side's minions, from the moment it was slain. */
+private class Push(val side: Int, val kind: dev.uem.em.titles.NeutralDef, val from: Int, val until: Int)
+/** Empowered minions and Baron-buffed heroes. */
+private val EMPOWERED = Color(0xFFB46CFF)
+/** Objectives that walk with the minion wave (MLBB Lord, Rift Herald, HoK Overlord / Tempest vanguards). */
+private val PUSHERS = setOf("lord", "herald", "overlord", "shadow", "tempest")

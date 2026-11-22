@@ -259,15 +259,32 @@ private fun FullBoxScore(vm: GameVm, w: World, t: TitleDef, lines: List<Line>, m
     val hasKda = t.statIndex.containsKey("k") && t.statIndex.containsKey("d")
     val hasItems = lines.any { it.items.isNotEmpty() }
     val hasRunes = lines.any { it.runes.isNotEmpty() }
-    val runeCol = if (hasItems) 3 else 2
-    val cols = listOf(Col("Player", 150.dp, false), Col("Role", 40.dp, false)) + (if (hasItems) listOf(Col("Build", 128.dp, false)) else emptyList()) +
-        (if (hasRunes) listOf(Col(dev.uem.em.titles.Runes.KIND[t.id]?.removeSuffix("s") ?: "Runes", 110.dp, false)) else emptyList()) +
-        t.stats.map { Col(it.label, if (it.key in setOf("gold", "dmg", "taken", "heal")) 58.dp else 44.dp) } + (if (hasKda) listOf(Col("KDA", 46.dp)) else emptyList()) + Col("Rtg", 46.dp)
-    val off = (if (hasItems) 1 else 0) + (if (hasRunes) 1 else 0)
+    val hasSpells = lines.any { it.spells.isNotEmpty() }
+    // MLBB and HoK have no wards: no vision column.
+    val statIdx = t.stats.indices.filter { !(t.stats[it].key == "vision" && t.isMoba && !dev.uem.em.sim.MobaEngine.hasWards(t.id)) }
+    // Pictures with names under them: keystone / emblem set + core talent / three arcana / facet; the chosen spells.
+    val runeN = if (hasRunes) lines.maxOf { mainRunes(w, t, it.runes).size }.coerceAtLeast(1) else 0
+    val spellN = if (hasSpells) lines.maxOf { it.spells.size }.coerceAtLeast(1) else 0
+    val extra = buildList {
+        if (hasItems) add("items")
+        if (hasSpells) add("spells")
+        if (hasRunes) add("runes")
+    }
+    val cols = listOf(Col("Player", 150.dp, false), Col("Role", 40.dp, false)) + extra.map { x ->
+        when (x) {
+            "items" -> Col("Build", 128.dp, false)
+            "spells" -> Col("Spells", (spellN * 46 + 4).dp, false)
+            else -> Col(dev.uem.em.titles.Runes.KIND[t.id]?.removeSuffix("s") ?: "Runes", (runeN * 56 + 4).dp, false)
+        }
+    } + statIdx.map { t.stats[it] }.map { Col(it.label, if (it.key in setOf("gold", "dmg", "taken", "heal")) 58.dp else 44.dp) } + (if (hasKda) listOf(Col("KDA", 46.dp)) else emptyList()) + Col("Rtg", 46.dp)
+    val off = extra.size
     Table(cols, lines.size, onRow = { vm.go(Screen.Player(lines[it].playerId)) }, highlight = { lines[it].playerId == mvp }) { r, c0 ->
         val l = lines[r]
-        if (hasItems && c0 == 2) { ItemRow(w, l.items, 19.dp); return@Table }
-        if (hasRunes && c0 == runeCol) { Text(runeLabel(w, t, l.runes), color = Ui.text, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis); return@Table }
+        when (extra.getOrNull(c0 - 2)) {
+            "items" -> { ItemRow(w, l.items, 19.dp); return@Table }
+            "spells" -> { Row { for (id in l.spells) Tile(dev.uem.em.titles.Spells.get(w, id)?.name ?: id, width = 46.dp) { SpellPic(w, id, 20.dp) } }; return@Table }
+            "runes" -> { RuneTiles(w, t, l.runes, 20.dp, 56.dp); return@Table }
+        }
         val c = if (c0 >= 2 + off) c0 - off else c0
         when {
             c == 0 -> Row(verticalAlignment = Alignment.CenterVertically) {
@@ -279,12 +296,12 @@ private fun FullBoxScore(vm: GameVm, w: World, t: TitleDef, lines: List<Line>, m
                 }
             }
             c == 1 -> Muted(t.role(l.roleId).short, 11)
-            c < 2 + t.stats.size -> {
-                val v = l.s.getOrElse(c - 2) { 0.0 }
-                val key = t.stats[c - 2].key
+            c < 2 + statIdx.size -> {
+                val v = l.s.getOrElse(statIdx[c - 2]) { 0.0 }
+                val key = t.stats[statIdx[c - 2]].key
                 Num(if (v >= 10000 || (key == "gold" && v >= 1000)) "%.1fk".format(v / 1000) else "%.0f".format(v))
             }
-            hasKda && c == 2 + t.stats.size -> Num("%.2f".format((stat(t, l, "k") + stat(t, l, "a")) / maxOf(1.0, stat(t, l, "d"))))
+            hasKda && c == 2 + statIdx.size -> Num("%.2f".format((stat(t, l, "k") + stat(t, l, "a")) / maxOf(1.0, stat(t, l, "d"))))
             else -> Num("%.2f".format(l.rating), if (l.rating >= 1.2) Ui.win else if (l.rating < 0.85) Ui.loss else Ui.text, bold = true)
         }
     }
@@ -293,7 +310,7 @@ private fun FullBoxScore(vm: GameVm, w: World, t: TitleDef, lines: List<Line>, m
 /** Team totals side by side as bars. */
 @Composable
 private fun TeamCompare(w: World, t: TitleDef, f: Fixture, lines: List<Line>, order: IntArray) {
-    val keys = (if (t.isMoba) listOf("k", "gold", "cs", "dmg", "taken", "heal", "vision", "towers", "obj") else listOf("k", "a", "fk", "hs", "dmg", "util", "plant", "defuse", "clutch", "mk")).filter { t.statIndex.containsKey(it) }
+    val keys = (if (t.isMoba) listOf("k", "gold", "cs", "dmg", "taken", "heal", "vision", "towers", "obj") else listOf("k", "a", "fk", "hs", "dmg", "util", "plant", "defuse", "clutch", "mk")).filter { t.statIndex.containsKey(it) && !(it == "vision" && t.isMoba && !dev.uem.em.sim.MobaEngine.hasWards(t.id)) }
     if (keys.isEmpty() || lines.isEmpty()) return
     val teams = intArrayOf(f.a, f.b)
     Card("Team comparison") {
