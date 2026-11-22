@@ -48,6 +48,21 @@ class ItemsTest {
             if (mages > 3 && magMages < mages * 0.7) fails.add("$id mages build magic")
             if (tanks > 3 && defTanks < tanks * 0.55) fails.add("$id tanks build defence")
         }
+        // A tank far ahead may buy damage, but never more than two damage items, and only after its core defence.
+        run {
+            val t = Catalogue.get("lol")
+            val prof = Items.profile("Tank", false, 0.3, false, Rng.of("tank"))
+            var snow = 0; var maxDmg = 0
+            repeat(40) { i ->
+                val owned = ArrayList<dev.uem.em.titles.ItemDef>()
+                repeat(6) { k -> Items.next(w, t.id, owned, prof, 0.4, -0.5, Rng.of("tank|$i|$k"), false)?.let { owned.add(it) } }
+                val dmg = owned.count { it.type == "physical" || it.type == "magical" }
+                if (dmg > 0) snow++; maxDmg = maxOf(maxDmg, dmg)
+            }
+            sb.appendLine("LoL tanks far ahead: $snow/40 builds with a damage item, at most $maxDmg")
+            if (snow == 0) fails.add("snowballing tanks never buy damage")
+            if (maxDmg > 2) fails.add("tanks buy more than two damage items")
+        }
         println(sb); java.io.File("build/items.txt").writeText(sb.toString())
         assertTrue(fails.joinToString(), fails.isEmpty())
     }

@@ -140,10 +140,16 @@ object Items {
         val hasBoots = owned.any { it.type == "movement" }
         val hasSupport = owned.any { it.type == "support" }
         val hasJungle = owned.any { it.type == "jungle" }
-        // Behind → more defence; ahead → more damage (a tank build stays a tank build).
-        val b = if (p.def >= 0.9) behind.coerceAtLeast(0.0) else behind
-        val defW = (p.def + b * 0.6).coerceAtMost(2.0)
-        val offW = (p.off - b * 0.25).coerceAtLeast(0.1)
+        // Behind → more defence; ahead → more damage. A tank build stays a tank build, but a tank who is
+        // snowballing (clearly ahead, its core defence bought) may take a damage item now and then — at most
+        // two in the build, favouring items that still give some defence (bruiser items).
+        val tank = p.def >= 0.9
+        val dmgOwned = owned.count { it.type == "physical" || it.type == "magical" }
+        val defOwned = owned.count { it.type == "defense" }
+        val snowball = tank && behind <= -0.35 && defOwned >= 2 && dmgOwned < 2 && rng.chance(0.45)
+        val b = if (tank) (if (snowball) 0.0 else behind.coerceAtLeast(0.0)) else behind
+        val defW = if (snowball) p.def * 0.6 else (p.def + b * 0.6).coerceAtMost(2.0)
+        val offW = if (snowball) p.off + 0.7 else (p.off - b * 0.25).coerceAtLeast(0.1)
         var best: ItemDef? = null; var bv = -9.0
         for (it in all) {
             if (it.id in ownedIds) continue
