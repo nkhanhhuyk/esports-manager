@@ -167,12 +167,19 @@ class DraftSession(
         val enemy = 1 - team
         // Deep in a long Fearless series the pool runs low: bans stop while both teams still need picks from it.
         val need = open[0].size + open[1].size + 4
-        if (minOf(t.characters.count { legal(0, false, it.id) }, t.characters.count { legal(1, false, it.id) }) <= need) return null
+        if ((locked[0].isNotEmpty() || locked[1].isNotEmpty() || t.characters.size < 60) &&
+            minOf(t.characters.count { legal(0, false, it.id) }, t.characters.count { legal(1, false, it.id) }) <= need) return null
         val style = banStyle[team]
         val wMeta = when (style) { 0 -> 1.6; 1 -> 0.5; else -> 1.0 }
         val wTarget = when (style) { 1 -> 1.7; 0 -> 0.5; else -> 1.0 }
         val cand = LinkedHashSet<CharDef>()
-        for (i in open[enemy].ifEmpty { lineups[enemy].indices.toList() }) cand.addAll(prefs[enemy][i].take(6))
+        // Each slot's preference lists, taken once (this runs for every ban of every draft of a season).
+        val enemySlots = open[enemy].ifEmpty { lineups[enemy].indices.toList() }
+        val ePref6 = enemySlots.map { prefs[enemy][it].take(6) }
+        val mySlots = open[team]
+        val mPref4 = mySlots.map { prefs[team][it].take(4) }
+        val mPref8 = mySlots.map { prefs[team][it].take(8) }
+        for (l in ePref6) cand.addAll(l)
         cand.addAll(topMeta)
         if (know[team] > 0.5) for (i in open[team]) prefs[team][i].firstOrNull()?.let { mp -> cv.countersTo(mp.id, 2).forEach { cid -> t.charIndex[cid]?.let { cand.add(it) } } }
         val mineNext = nextPickIsMine(team)
@@ -183,16 +190,16 @@ class DraftSession(
             // none, a broken one several — the count changes with every patch.
             val op = (((patch.charMeta[c.id] ?: 0.0) - 4.5) / 2.5).coerceAtLeast(0.0)
             var target = 0.0
-            for (i in open[enemy].ifEmpty { lineups[enemy].indices.toList() }) {
-                if (c !in prefs[enemy][i].take(6)) continue
+            for ((k, i) in enemySlots.withIndex()) {
+                if (c !in ePref6[k]) continue
                 val pl = lineups[enemy][i]
                 target = maxOf(target, comfortOf[enemy][i](c) / 100 * (0.6 + pl.ca / 200))
             }
             var mine = 0.0
-            for (i in open[team]) if (c in prefs[team][i].take(4)) mine = maxOf(mine, comfortOf[team][i](c) / 100)
+            for ((k, i) in mySlots.withIndex()) if (c in mPref4[k]) mine = maxOf(mine, comfortOf[team][i](c) / 100)
             // A counter we are comfortable on: the overpowered pick can stay open (we answer it).
             var answer = 0.0
-            if (op > 0.0) for (i in open[team]) for (x in prefs[team][i].take(8)) if (legal(team, false, x.id) && x.id != c.id) answer = maxOf(answer, cv.score(x.id, c.id) * comfortOf[team][i](x) / 100)
+            if (op > 0.0) for ((k, i) in mySlots.withIndex()) for (x in mPref8[k]) if (legal(team, false, x.id) && x.id != c.id) answer = maxOf(answer, cv.score(x.id, c.id) * comfortOf[team][i](x) / 100)
             // It counters what we want to play: ban it to protect our comfort picks.
             var threat = 0.0
             for (i in open[team]) prefs[team][i].firstOrNull { legal(team, false, it.id) && it.id != c.id }?.let { mp -> threat = maxOf(threat, cv.score(c.id, mp.id) * comfortOf[team][i](mp) / 100) }

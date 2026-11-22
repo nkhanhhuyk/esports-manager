@@ -40,7 +40,7 @@ object MobaEngine {
         "dota2" to floatArrayOf(1.04f, 0.9f, 0.9f, 1.0f, 1.0f),
     )
     /** How strongly teams hand kills to their carry, per title (tuning). */
-    val CREDIT = mapOf("lol" to 1.7f, "wildrift" to 1.0f, "mlbb" to 1.5f, "hok" to 1.15f, "dota2" to 2.2f)
+    val CREDIT = mapOf("lol" to 1.7f, "wildrift" to 1.0f, "mlbb" to 2.1f, "hok" to 1.15f, "dota2" to 3.4f)
     /** MLBB and Honor of Kings have no wards (vision comes from heroes, towers and bushes). */
     fun hasWards(titleId: String) = titleId != "mlbb" && titleId != "hok"
     /** Tuning counters (tests only): ganks per lane 0..2, hunts per lane 3..5. */
@@ -661,9 +661,11 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         // Teams let their carry take the last hit when it helped (the patch's role meta says who the carry is).
         val k0 = killer
         if (k0 != null) {
-            var best: Hero? = null
+            var best: Hero? = null; var near = false
             for (a in assisters) if (a.alive(now) && v.dmgBy[a.gi] >= now - 5 && a.killPrio > (best?.killPrio ?: k0.killPrio)) best = a
-            if (best != null && rng.chance(((best.killPrio - k0.killPrio) * (MobaEngine.CREDIT[t.id] ?: 1f)).toDouble().coerceAtMost(0.85))) {
+            // A carry standing in the fight who has not hit the victim yet can be left the last hit too.
+            for (a in bySide[ks]) if (a !== k0 && a !in assisters && a.alive(now) && a.lastCombat >= now - 3 && abs(a.x - v.x) < 60f && abs(a.y - v.y) < 60f && a.killPrio > (best?.killPrio ?: k0.killPrio)) { best = a; near = true }
+            if (best != null && rng.chance(((best.killPrio - k0.killPrio) * (MobaEngine.CREDIT[t.id] ?: 1f) * (if (near) 0.6f else 1f)).toDouble().coerceAtMost(0.85))) {
                 assisters.remove(best); assisters.add(k0)
                 mask = (mask and (1 shl best.idx).inv()) or (1 shl k0.idx)
                 killer = best

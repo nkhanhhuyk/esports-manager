@@ -25,6 +25,7 @@ class RoleDeathsTest {
         var worst = 0.0
         val topLow = ArrayList<String>()
         val othersHigh = ArrayList<String>()
+        val killOrder = ArrayList<String>()
         for (id in w.titles) {
             val t = Catalogue.get(id)
             if (!t.isMoba) continue
@@ -38,6 +39,13 @@ class RoleDeathsTest {
                 for (g in rec.games) for (l in g.lines) { val s = sums.getOrPut(l.roleId) { DoubleArray(4) }; s[0] += l.s[k]; s[1] += l.s[d]; s[2] += l.s[a]; s[3] += 1.0 }
             }
             if (sums.isEmpty()) continue
+            // Kills by position (starting meta: the bot-side carry): the carry most, mid second, the
+            // support least (a few percent of slack: single seasons vary).
+            run {
+                fun kOf(pos: String) = t.lineup.filter { dev.uem.em.titles.RoleMeta.pos(it) == pos }.mapNotNull { sums[it] }.map { it[0] / it[3] }.maxOrNull() ?: 0.0
+                val bot = kOf("bot"); val mid = kOf("mid"); val top = kOf("top"); val jng = kOf("jungle"); val sup = kOf("support")
+                if (bot < mid * 0.95 || mid < maxOf(top, jng) || sup > minOf(top, jng)) killOrder.add("${t.short} bot %.2f mid %.2f top %.2f jng %.2f sup %.2f".format(bot, mid, top, jng, sup))
+            }
             out.appendLine("${t.short} (${sums.values.first()[3].toInt()} player-games per role): " + t.lineup.joinToString(" | ") { r -> sums[r]?.let { s -> "%s K %.2f D %.2f A %.2f".format(t.role(r).short, s[0] / s[3], s[1] / s[3], s[2] / s[3]) } ?: "$r -" })
             // The top / EXP / Baron / Clash lane against the other non-support positions (Dota 2's
             // carry dying least is normal there, so Dota is reported only).
@@ -64,5 +72,7 @@ class RoleDeathsTest {
         // Before the second fix mid, carries and supports died 4-5.4 times a game (LoL ~39 kills a game);
         // picking fights after laning, the front line shielding its carries and no tower dives brought it down.
         assertTrue("a position dies too often: $othersHigh", othersHigh.isEmpty())
+        // Before the role metas the mid laner had the most kills everywhere (LoL ADC 2.0 vs mid 3.6).
+        assertTrue("kills by position out of order: $killOrder", killOrder.isEmpty())
     }
 }

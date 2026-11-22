@@ -85,8 +85,8 @@ object Items {
     /** The items of a game in this world: the catalogue (with patch changes) and items added by patches. */
     fun of(w: World?, titleId: String): List<ItemDef> {
         val b = base[titleId].orEmpty()
-        val extra = w?.customItems?.filter { it.titleId == titleId }?.map { custom(it) }.orEmpty()
-        return b + extra
+        if (w == null || w.customItems.none { it.titleId == titleId }) return b
+        return b + w.customItems.filter { it.titleId == titleId }.map { custom(it) }
     }
 
     private val customCache = java.util.concurrent.ConcurrentHashMap<String, ItemDef>()
@@ -136,7 +136,6 @@ object Items {
     fun next(w: World?, titleId: String, owned: List<ItemDef>, p: Profile, enemyMagic: Double, behind: Double, rng: Rng, jungler: Boolean): ItemDef? {
         val all = of(w, titleId)
         if (all.isEmpty()) return null
-        val ownedIds = owned.map { it.id }.toHashSet()
         val hasBoots = owned.any { it.type == "movement" }
         val hasSupport = owned.any { it.type == "support" }
         val hasJungle = owned.any { it.type == "jungle" }
@@ -152,7 +151,7 @@ object Items {
         val offW = if (snowball) p.off + 0.7 else (p.off - b * 0.25).coerceAtLeast(0.1)
         var best: ItemDef? = null; var bv = -9.0
         for (it in all) {
-            if (it.id in ownedIds) continue
+            if (owned.contains(it) || (it.custom && owned.any { o -> o.id == it.id })) continue
             if (it.type == "movement" && (hasBoots || owned.isEmpty() && titleId != "dota2")) continue
             if (it.type == "support" && (hasSupport && p.util < 0.8 || p.util < 0.5)) continue
             if (it.type == "jungle" && (!jungler || hasJungle)) continue
@@ -164,7 +163,7 @@ object Items {
             if (it.type == "movement") v = if (owned.size >= 1) 3.0 else -1.0
             if (it.type == "support") v += if (!hasSupport && owned.isEmpty()) 4.0 else 0.5
             if (it.type == "jungle") v += if (owned.isEmpty()) 4.0 else 0.0
-            v += rng.normal(0.0, 0.12)
+            v += (rng.next() - 0.5) * 0.42 // noise (sd about 0.12)
             if (v > bv) { bv = v; best = it }
         }
         return best
@@ -172,8 +171,39 @@ object Items {
 
     /** A plausible finished build for a game simulated in fast mode (no item-by-item decisions). */
     fun quickBuild(w: World?, titleId: String, n: Int, p: Profile, enemyMagic: Double, rng: Rng, jungler: Boolean): List<ItemDef> {
+        val count = n.coerceIn(0, 6)
+        val all = of(w, titleId)
+        if (count == 0 || all.isEmpty()) return emptyList()
+        // The same rules as [next] with no game state (not behind, not ahead): each item is valued once,
+        // then the best are taken in turn (boots after the first item, one support and one jungle item).
+        val defW = p.def.coerceAtMost(2.0); val offW = p.off.coerceAtLeast(0.1)
+        val base = DoubleArray(all.size) { i ->
+            val it = all[i]; val m = mod(w, it.id)
+            val off = (if (p.magic) it.offM else it.offP) * m
+            val wrongOff = (if (p.magic) it.offP else it.offM) * m
+            var v = offW * off - wrongOff * 0.5 + defW * (it.arm * (1 - enemyMagic) + it.mr * enemyMagic) * m + p.util * (it.haste * 0.3 + it.ms * 0.1)
+            if (p.critAs) v += (it.crit + it.asU) * 0.35 * m
+            v + (rng.next() - 0.5) * 0.42
+        }
         val out = ArrayList<ItemDef>()
-        repeat(n.coerceIn(0, 6)) { next(w, titleId, out, p, enemyMagic, 0.0, rng, jungler)?.let { out.add(it) } }
+        while (out.size < count) {
+            val hasBoots = out.any { it.type == "movement" }; val hasSupport = out.any { it.type == "support" }; val hasJungle = out.any { it.type == "jungle" }
+            var best = -1; var bv = -9.0
+            for (i in all.indices) {
+                val it = all[i]
+                if (it in out) continue
+                if (it.type == "movement" && (hasBoots || out.isEmpty() && titleId != "dota2")) continue
+                if (it.type == "support" && (hasSupport && p.util < 0.8 || p.util < 0.5)) continue
+                if (it.type == "jungle" && (!jungler || hasJungle)) continue
+                var v = base[i]
+                if (it.type == "movement") v = if (out.size >= 1) 3.0 else -1.0
+                if (it.type == "support") v += if (!hasSupport && out.isEmpty()) 4.0 else 0.5
+                if (it.type == "jungle") v += if (out.isEmpty()) 4.0 else 0.0
+                if (v > bv) { bv = v; best = i }
+            }
+            if (best < 0) break
+            out.add(all[best])
+        }
         return out
     }
 }

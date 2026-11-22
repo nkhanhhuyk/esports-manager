@@ -109,7 +109,7 @@ fun SettingsScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Card("Simulation detail") {
-                Muted("Full: every match is played on the 2D engines (most detailed, slowest). Balanced (default): top leagues and international events on the 2D engines, second-tier leagues (Challengers, academies) on a quick model. Fast: every match without your team or a followed team, and that keeps no replay, uses the quick model (results, drafts and box scores, no replay) — several times faster on a phone. Matches you watch or play always use the full engines.", 11)
+                Muted("Full: every match is played on the 2D engines (most detailed, slowest). Balanced (default): the top leagues of the games you manage or follow and every international event on the 2D engines; second-tier leagues (Challengers, academies) and the other games' regular leagues on a quick model. Fast: every match without your team or a followed team, and that keeps no replay, uses the quick model (results, drafts and box scores, no replay) — several times faster on a phone. Matches you watch or play always use the full engines.", 11)
                 val modes = listOf("full", "balanced", "fast")
                 Tabs(listOf("Full", "Balanced", "Fast"), modes.indexOf(w.simDetail).coerceAtLeast(0)) { w.simDetail = modes[it]; vm.edit() }
                 Gap(8)

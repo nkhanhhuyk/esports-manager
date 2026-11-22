@@ -86,8 +86,9 @@ object Runes {
 
     private fun best(list: List<RuneDef>, w: Map<String, Double>, rng: Rng): RuneDef? {
         if (list.isEmpty()) return null
-        val sorted = list.sortedByDescending { score(it, w) + rng.next() * 0.01 }
-        return sorted[minOf(sorted.size - 1, (rng.next() * rng.next() * 3).toInt())]
+        // Scored once each (a sort's comparisons would score every entry many times).
+        val sorted = list.map { it to score(it, w) + rng.next() * 0.01 }.sortedByDescending { it.second }
+        return sorted[minOf(sorted.size - 1, (rng.next() * rng.next() * 3).toInt())].first
     }
 
     private val TREE = mapOf("marksman" to "Precision", "mage" to "Sorcery", "assassin" to "Domination", "fighter" to "Precision", "tank" to "Resolve", "support" to "Sorcery")

@@ -105,7 +105,7 @@ object RoleMeta {
     fun killPriority(w: World?, titleId: String): Map<String, Double> {
         val m = current(w, titleId)
         // Dota 2 mids reach high levels first and burst heroes alone: the safe-lane carry is still given the kills.
-        val p = hashMapOf(BOT to 1.0, MID to (if (titleId == "dota2") 0.6 else 0.74), TOP to 0.58, JUNGLE to 0.56, SUPPORT to 0.1)
+        val p = hashMapOf(BOT to 1.0, MID to (if (titleId == "dota2") 0.5 else 0.74), TOP to 0.58, JUNGLE to 0.56, SUPPORT to 0.1)
         val carry = carry(w, titleId)
         if (carry != BOT) { p[carry] = 1.0; p[BOT] = 0.7 }
         if ("jungle-farm" in m) p[JUNGLE] = p[JUNGLE]!! + 0.08

@@ -24,7 +24,9 @@ class SeasonSpeedTest {
             BoxStore.clear()
         }
         val w = WorldGen.create(TestData.source, "seasonprof", "SP", Dates.day(2026, 11, 21))
-        head.append("detail: ${w.simDetail} · ")
+        // A one-game career: follow a LoL team (the balanced mode keeps the other games' leagues on the quick model).
+        w.teams.firstOrNull { it.titleId == "lol" && it.active && it.leagueId >= 0 }?.let { w.followed.add(it.id) }
+        head.append("detail: ${w.simDetail} (following a LoL team) · ")
         Advance.run(w, 5) // warm up
         Advance.timing.fill(0)
         val counts = HashMap<String, Int>()
