@@ -49,6 +49,40 @@ object Release {
         return "New item — $name ($type, ${cost} gold): $txt."
     }
 
+    private val RUNE_A = listOf("Astral", "Molten", "Hollow", "Tempest", "Verdant", "Gilded", "Riven", "Lunar", "Thorned", "Ember", "Frost", "Echoing")
+    private val RUNE_B = mapOf("keystone" to listOf("Covenant", "Onslaught", "Requiem", "Bastion", "Surge", "Pact"), "core" to listOf("Fury", "Resolve", "Overdrive", "Sanctum", "Hunt", "Momentum"),
+        "arcana" to listOf("Sigil", "Omen", "Tide", "Crest", "Ward", "Fang"), "facet" to listOf("Aspect", "Path", "Form", "Way"))
+    private val RUNE_EFFECT = listOf(
+        "After 3 hits on a champion, gain bonus damage for a few seconds." to mapOf("dmg" to 0.05),
+        "Taking heavy damage grants a decaying shield and damage reduction." to mapOf("dr" to 0.05, "hp" to 0.02),
+        "Takedowns refund part of every cooldown." to mapOf("haste" to 8.0, "dmg" to 0.01),
+        "Basic attacks grow faster in a long fight." to mapOf("as" to 0.1),
+        "Damage heals for a share; more below half health." to mapOf("heal" to 0.06, "regen" to 0.004),
+        "Bonus movement speed toward enemy champions." to mapOf("ms" to 0.05, "dmg" to 0.015),
+        "Penetration that grows with level." to mapOf("pen" to 0.06))
+
+    /** A new fictional keystone (LoL, Wild Rift), core talent (MLBB), arcana (HoK) or facet (Dota 2). */
+    fun rune(w: World, t: TitleDef, rng: Rng): String? {
+        val all = dev.uem.em.titles.Runes.of(w, t.id)
+        if (all.isEmpty()) return null
+        val slot = when (t.id) { "lol", "wildrift" -> "keystone"; "mlbb" -> "core"; "hok" -> "arcana"; else -> "facet" }
+        val (desc, stats) = rng.pick(RUNE_EFFECT)
+        var name: String; var guard = 0
+        do { name = "${rng.pick(RUNE_A)} ${rng.pick(RUNE_B[slot]!!)}"; guard++ } while (guard < 20 && all.any { it.name == name })
+        val group = when (t.id) {
+            "lol", "wildrift" -> rng.pick(all.filter { it.slot == "keystone" }.map { it.group }.distinct())
+            "mlbb" -> "Basic Common"
+            "hok" -> "Arcana"
+            else -> rng.pick(all.filter { it.slot == "facet" }.map { it.group }.distinct().ifEmpty { return null })
+        }
+        // Arcana are ten to a page: one arcana gives a tenth.
+        val st = if (slot == "arcana") stats.mapValues { it.value / 10 } else stats
+        val id = "${t.id}-rune-${w.customRunes.size + 1}"
+        w.customRunes.add(dev.uem.em.model.CustomRune(id, t.id, name, group, slot, desc, st, w.season))
+        val kind = when (slot) { "keystone" -> "keystone ($group)"; "core" -> "core talent"; "arcana" -> "arcana"; else -> "facet for ${dev.uem.em.titles.Catalogue.get(t.id).charIndex[group]?.name ?: group}" }
+        return "New $kind — $name: $desc (${dev.uem.em.titles.Neutrals.statText(stats)})."
+    }
+
     private val ELEMENT = listOf("Glacial" to mapOf("tenacity" to 0.05, "dr" to 0.02), "Storm" to mapOf("as" to 0.04, "ms" to 0.02), "Verdant" to mapOf("regen" to 0.015, "heal" to 0.04),
         "Shadow" to mapOf("dmg" to 0.025, "ms" to 0.015), "Solar" to mapOf("ap" to 0.035, "haste" to 3.0), "Iron" to mapOf("armor" to 0.04, "ad" to 0.015), "Void" to mapOf("struct" to 0.05, "dmg" to 0.015))
     private val SOUL = mapOf("Glacial" to mapOf("tenacity" to 0.15, "dr" to 0.05), "Storm" to mapOf("as" to 0.12, "ms" to 0.06), "Verdant" to mapOf("regen" to 0.04, "heal" to 0.1),

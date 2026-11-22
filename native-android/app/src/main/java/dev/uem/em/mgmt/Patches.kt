@@ -82,6 +82,19 @@ object Patches {
             }
             if (kind == "major" && rng.chance(0.35)) Release.item(w, t, rng)?.let { notes.add(0, it) }
         }
+        // Runes / emblems / arcana / talents: some raised or lowered, a new fictional one now and then.
+        if (t.isMoba) {
+            val rs = dev.uem.em.titles.Runes.of(w, t.id).filter { t.id != "dota2" || it.slot == "facet" || rng.chance(0.02) }
+            val n = when (kind) { "major" -> rng.int(2, 5); "medium" -> rng.int(1, 3); else -> if (rng.chance(0.3)) 1 else 0 }
+            for (r in rng.sample(rs, minOf(n, rs.size))) {
+                val old = w.runeMods[r.id] ?: 1.0
+                val d = rng.float(0.1, 0.3) * (if (old > 1.2) -1 else if (old < 0.8) 1 else if (rng.chance(0.5)) 1 else -1)
+                val now = (old * (1 + d)).coerceIn(0.5, 1.6)
+                w.runeMods[r.id] = now
+                notes.add("${dev.uem.em.titles.Runes.KIND[t.id]?.removeSuffix("s") ?: "Rune"} — ${r.name}: ${if (d > 0) "buffed" else "nerfed"} (${dev.uem.em.titles.Neutrals.statText(r.stats, now)})")
+            }
+            if (kind == "major" && rng.chance(0.35)) Release.rune(w, t, rng)?.let { notes.add(0, it) }
+        }
         // Neutral objectives: a kind's buff raised or lowered (every number of it), a new fictional kind now and then.
         if (t.isMoba) {
             val kinds = dev.uem.em.titles.Neutrals.of(w, t.id)

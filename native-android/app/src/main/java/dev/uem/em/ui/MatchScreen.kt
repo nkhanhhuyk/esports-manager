@@ -252,13 +252,17 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
 private fun FullBoxScore(vm: GameVm, w: World, t: TitleDef, lines: List<Line>, mvp: Int) {
     val hasKda = t.statIndex.containsKey("k") && t.statIndex.containsKey("d")
     val hasItems = lines.any { it.items.isNotEmpty() }
+    val hasRunes = lines.any { it.runes.isNotEmpty() }
+    val runeCol = if (hasItems) 3 else 2
     val cols = listOf(Col("Player", 150.dp, false), Col("Role", 40.dp, false)) + (if (hasItems) listOf(Col("Build", 128.dp, false)) else emptyList()) +
+        (if (hasRunes) listOf(Col(dev.uem.em.titles.Runes.KIND[t.id]?.removeSuffix("s") ?: "Runes", 110.dp, false)) else emptyList()) +
         t.stats.map { Col(it.label, if (it.key in setOf("gold", "dmg", "taken", "heal")) 58.dp else 44.dp) } + (if (hasKda) listOf(Col("KDA", 46.dp)) else emptyList()) + Col("Rtg", 46.dp)
-    val off = if (hasItems) 1 else 0
+    val off = (if (hasItems) 1 else 0) + (if (hasRunes) 1 else 0)
     Table(cols, lines.size, onRow = { vm.go(Screen.Player(lines[it].playerId)) }, highlight = { lines[it].playerId == mvp }) { r, c0 ->
         val l = lines[r]
         if (hasItems && c0 == 2) { ItemRow(w, l.items, 19.dp); return@Table }
-        val c = if (c0 > 2) c0 - off else c0
+        if (hasRunes && c0 == runeCol) { Text(runeLabel(w, t, l.runes), color = Ui.text, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis); return@Table }
+        val c = if (c0 >= 2 + off) c0 - off else c0
         when {
             c == 0 -> Row(verticalAlignment = Alignment.CenterVertically) {
                 if (l.charId.isNotEmpty()) { CharPic(l.charId, t.charIndex[l.charId]?.name ?: l.charId, 24.dp, round = true); HGap(4) }

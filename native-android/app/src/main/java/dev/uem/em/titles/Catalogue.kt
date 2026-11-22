@@ -85,6 +85,7 @@ object Catalogue {
         dev.uem.em.sim.MobaMap.init(src)
         dev.uem.em.sim.Abilities.init(src)
         Items.init(src)
+        Runes.init(src)
         dev.uem.em.ui.Maps.init(src)
         val chars = Json.parseToJsonElement(src.read("characters.json")).jsonObject["titles"]!!.jsonObject
         val valMaps = Json.parseToJsonElement(src.read("valorantMaps.json")).jsonObject["maps"]!!.jsonArray.map { it.jsonObject["name"]!!.jsonPrimitive.content }

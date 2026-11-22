@@ -98,9 +98,9 @@ object MobaEngine {
 private const val AD = 0; private const val AP = 1; private const val ARM = 2; private const val MRS = 3; private const val REGEN = 4
 private const val MSP = 5; private const val SLOWRES = 6; private const val HASTE = 7; private const val ASP = 8; private const val TEN = 9
 private const val HEALP = 10; private const val DRS = 11; private const val DMGP = 12; private const val EXEC = 13; private const val STRUCT = 14
-private const val LOWHP = 15; private const val SHARD = 16; private const val NS = 17
+private const val LOWHP = 15; private const val SHARD = 16; private const val HPP = 17; private const val PENR = 18; private const val NS = 19
 private val STAT_INDEX = mapOf("ad" to AD, "ap" to AP, "armor" to ARM, "mr" to MRS, "regen" to REGEN, "ms" to MSP, "slowres" to SLOWRES, "haste" to HASTE,
-    "as" to ASP, "tenacity" to TEN, "heal" to HEALP, "dr" to DRS, "dmg" to DMGP, "execute" to EXEC, "struct" to STRUCT, "lowhp" to LOWHP, "shard" to SHARD)
+    "as" to ASP, "tenacity" to TEN, "heal" to HEALP, "dr" to DRS, "dmg" to DMGP, "execute" to EXEC, "struct" to STRUCT, "lowhp" to LOWHP, "shard" to SHARD, "hp" to HPP, "pen" to PENR)
 
 /** A timed objective buff on one hero. */
 private class HBuff(val id: String, val v: FloatArray, val until: Int, val endsOnDeath: Boolean)
@@ -191,7 +191,10 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         val hbuffs = ArrayList<HBuff>()
         val tb = FloatArray(NS)
         /** An objective stat for this hero: the team's permanent ones (drakes, souls) plus its timed ones. */
-        fun st(k: Int): Float = tPerm[side][k] + tb[k]
+        fun st(k: Int): Float = tPerm[side][k] + tb[k] + rs[k]
+        /** Runes / emblems / arcana / talents: this hero's page and its stats for the whole game. */
+        var runePage: dev.uem.em.titles.RunePage? = null
+        val rs = FloatArray(NS)
         fun retally() { tb.fill(0f); for (b in hbuffs) for (i in 0 until NS) tb[i] += b.v[i] }
         var visible = false
         /** When this hero last came out of the fog (a gank from the fog is seen late). */
@@ -247,7 +250,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             if (penItems != items) {
                 penItems = items
                 val penBought = inv.count { (it.stats["pen"] ?: 0.0) > 0.0 }
-                pen = ((if (marksman || mage || assassin) 0.035f * items else 0.012f * items) + 0.09f * penBought).coerceAtMost(0.45f)
+                pen = ((if (marksman || mage || assassin) 0.035f * items else 0.012f * items) + 0.09f * penBought + rs[PENR]).coerceAtMost(0.5f)
             }
             atkV = atkCalc(); asV = asCalc(); apV = apCalc()
             // How strong a hero looks in a fight: its damage, health and level; durability counts, but a
@@ -268,7 +271,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         fun apCalc(): Float = (1f + 0.07f * (level - 1)) * (1f + itemsEff * (if (mage) 0.34f else if (assassin) 0.24f else if (supportCls) 0.14f else if (tank) 0.08f else if (marksman) 0.1f else 0.15f) * offMR() +
             (if (physMain && inv.isNotEmpty()) itemsEff * 0.2f * (offMR() - 0.35f).coerceAtLeast(0f) else 0f)) * meta * buffDmg(side) * teamForm[side] * (1f + st(AP) + st(SHARD))
         fun baseHp(): Float = ((if (tank) 1000f else if (assassin) 720f else if (mage) 660f else if (marksman) 650f else if (supportCls) 700f else 840f) * (1f + 0.09f * (level - 1)) +
-            items * (if (tank) 360f else if (assassin) 150f else if (mage) 130f else if (marksman) 120f else if (supportCls) 230f else 240f) * defR()) * meta
+            items * (if (tank) 360f else if (assassin) 150f else if (mage) 130f else if (marksman) 120f else if (supportCls) 230f else 240f) * defR()) * meta * (1f + rs[HPP])
         fun speed(): Float {
             var s = R.ms * (if (slowUntil > nowF) 1f - slowPct * (1f - st(SLOWRES)).coerceAtLeast(0f) else 1f) * (if (msUntil > nowF) 1f + msPct else 1f) * (1f + 0.04f * sMs.toFloat().coerceAtMost(3f)) * (1f + st(MSP))
             // Ganks and collapses come out of the fog: the hunters close the gap a little faster.
@@ -839,7 +842,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             }
         }
         for (h in heroes) stat(h, GOLD, h.earned.toDouble())
-        for (h in heroes) book.lines.firstOrNull { it.playerId == h.pc.p.id }?.items?.addAll(h.inv.map { it.id })
+        for (h in heroes) book.lines.firstOrNull { it.playerId == h.pc.p.id }?.let { l -> l.items.addAll(h.inv.map { it.id }); h.runePage?.let { pg -> l.runes.addAll(pg.entries.map { it.id }) } }
         if (rec != null && rec.snapT.lastOrNull() != now) snapshot()
         if (rec != null && now % MobaEngine.SAMPLE_STEP != 0) sample()
         book.finalise()
@@ -1323,6 +1326,16 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     }
     /** Build choices draw from their own stream (the game's random sequence is left as it was). */
     private val rngKey = "build|${t.id}|" + heroes.joinToString(",") { "${it.pc.p.id}:${it.pc.charId}" }
+
+    // Rune pages (runes, emblems, arcana, talents), chosen before the game from each hero's class.
+    init {
+        for (h in heroes) {
+            val pg = dev.uem.em.titles.Runes.page(world, t.id, h.pc.charId ?: "", h.cls, h.pc.role.isSupport || h.supportCls && !h.marksman, h.magicShare, Rng.derive(rngKey, "runes", h.gi)) ?: continue
+            h.runePage = pg
+            for ((k, v) in pg.stats(world)) STAT_INDEX[k]?.let { h.rs[it] += v.toFloat() }
+            h.maxHp = h.baseHp(); h.hp = h.maxHp
+        }
+    }
 
     /** Buy items while the gold allows: the build's next pick, adapted to how the game is going. */
     fun shopItems(h: Hero) {

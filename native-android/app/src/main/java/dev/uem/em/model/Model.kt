@@ -96,6 +96,10 @@ class World(
     val customNeutrals: MutableList<CustomNeutral> = ArrayList(),
     /** Patch changes to neutral objective buffs: kind id → scale of its numbers. */
     val neutralMods: MutableMap<String, Double> = HashMap(),
+    /** Runes / emblems / arcana / talents added by patches (fictional). */
+    val customRunes: MutableList<CustomRune> = ArrayList(),
+    /** Patch changes to runes and the like: id → scale of its stats. */
+    val runeMods: MutableMap<String, Double> = HashMap(),
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -476,7 +480,13 @@ class Replay(
 )
 
 @Serializable
-class Line(val playerId: Int, val team: Int, val roleId: String, val charId: String = "", var rating: Double = 1.0, @ProtoPacked val s: DoubleArray, val items: MutableList<String> = ArrayList())
+class Line(val playerId: Int, val team: Int, val roleId: String, val charId: String = "", var rating: Double = 1.0, @ProtoPacked val s: DoubleArray, val items: MutableList<String> = ArrayList(),
+    /** Runes / emblems / arcana / talents taken into the game (MOBAs; ids in titles.Runes). */
+    val runes: MutableList<String> = ArrayList())
+
+/** A rune, emblem talent or arcana a patch added (fictional). */
+@Serializable
+class CustomRune(val id: String, val titleId: String, val name: String, val group: String, val slot: String, val desc: String, val stats: Map<String, Double>, val season: Int = 0)
 
 /** A kind of neutral objective a patch added (e.g. a new elemental drake). */
 @Serializable

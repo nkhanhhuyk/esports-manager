@@ -143,7 +143,7 @@ object Neutrals {
         "ms" to "% movement speed", "slowres" to "% slow resistance", "haste" to " ability haste", "as" to "% attack speed", "tenacity" to "% tenacity",
         "heal" to "% heal & shield power", "dr" to "% damage reduction", "dmg" to "% damage", "execute" to "% health execute", "struct" to "% structure damage",
         "lowhp" to "% damage & reduction below half health", "push" to " s empowered minions", "shield" to "% max-health shield", "gold" to " gold each", "xp" to " min of experience",
-        "aegis" to " extra life", "cheese" to " emergency heal", "refresher" to " cooldown reset", "shard" to "% damage (carrier)")
+        "aegis" to " extra life", "cheese" to " emergency heal", "refresher" to " cooldown reset", "shard" to "% damage (carrier)", "hp" to "% max health", "pen" to "% penetration")
     private val FLAT = setOf("haste", "push", "gold", "xp", "aegis", "cheese", "refresher")
 
     fun statText(stats: Map<String, Double>, mod: Double = 1.0): String = stats.entries.filter { it.value != 0.0 }.joinToString(", ") { (k, v) ->
