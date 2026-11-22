@@ -108,6 +108,16 @@ far apart.
 | All nations | 250 countries and territories (ISO 3166-1) with their English names, flags, regions, languages and name cultures. |
 | Fixes | World Championships waited for every unfinished international of the game (the Nations Cup would have blocked them); now only for internationals that start before them. |
 
+## Fourth follow-up: Nations Cup qualifiers and world rankings
+
+| Request | What was built |
+|---|---|
+| Continental qualifiers | Every game, every season, after First Stand: an Esports Nations Cup qualifier for Asia, Europe, North America, South America, Africa and Oceania. Every inhabited country and territory of the continent enters (243 in all; Antarctica and uninhabited territories have no team). Best-of-one groups Monday to Wednesday (so they never clash with league days), then a best-of-three bracket the next week; the two finalists qualify. |
+| National squads | The best player of the nationality for every position (any club or free agency), then the best others off-role, plus a substitute. A nation without enough professionals calls up amateurs, created once with a level that follows the country's scene, and kept: they can be found on the national team page and signed. |
+| Nations Cup format | 12 nations (two per continent): two groups of six, the top four of each group to the quarterfinals, then semifinals and the final. A page shows the road to the Nations Cup (the six qualifiers and their finalists). |
+| World rankings (More → World rankings) | Clubs per game and organisations over all games; countries and territories per game and over all games. Points from results only: each finished event gives prestige × 10 points by placing (winner 100 %, runner-up 70 %, 3rd–4th 50 %, ...). Clubs: last 12 months (older half at half value). Countries: national team results over two years plus a quarter of the club points of their players. Until results exist, the order is by strength. |
+| Speed | Qualifier matches are always simulated in fast mode (unless you follow a side) and only their finals keep replays: a season simulates about 17 % slower with roughly 2,900 more series. |
+
 ## Tests and results (JVM, `./gradlew testDebugUnitTest`)
 
 All suites pass (23 classes, including `DraftVarietyTest`, `MobaSideTest`, `WorldIsolationTest`). New or extended:

@@ -27,7 +27,7 @@ object Patches {
             val last = w.patches.lastOrNull { it.titleId == id }
             val rng = Rng.derive(w.seed, "patch", id, w.day)
             val major = w.comps.any { it.titleId == id && it.tier == CompTier.WORLDS && it.done && (it.season == w.season || it.season == w.season - 1) && it.stages.last().fixtureIds.maxOfOrNull { f -> w.fixtures[f].day }?.let { d -> d + 1 == w.day } == true }
-            val medium = w.comps.any { it.titleId == id && it.season == w.season && (it.tier == CompTier.INTERNATIONAL || it.tier == CompTier.WORLDS) && it.startDay - 10 == w.day }
+            val medium = w.comps.any { it.titleId == id && it.season == w.season && (it.tier == CompTier.INTERNATIONAL || it.tier == CompTier.WORLDS) && !dev.uem.em.comp.Season.isEncQualifier(it) && it.startDay - 10 == w.day }
             val minor = !major && !medium && (last == null || w.day - last.day >= 24) && rng.chance(1.0 / 9)
             if (major) make(w, t, "major", rng) else if (medium) make(w, t, "medium", rng) else if (minor) make(w, t, "minor", rng)
         }

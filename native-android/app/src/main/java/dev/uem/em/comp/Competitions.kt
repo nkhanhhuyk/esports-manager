@@ -1,6 +1,7 @@
 package dev.uem.em.comp
 
 import dev.uem.em.core.Dates
+import dev.uem.em.data.GameData
 import dev.uem.em.model.BracketNode
 import dev.uem.em.model.CompTier
 import dev.uem.em.model.Competition
@@ -125,6 +126,32 @@ object Season {
         table.firstOrNull()?.let { (org, p, n) -> w.news.add(dev.uem.em.model.News(w.day, "$EWC $season Club Championship", "${w.orgs[org].name} win the Club Championship with $p points from $n events.")) }
     }
 
+    /** Short names of the continents for qualifier names. */
+    private val CONTINENT_SHORT = mapOf("Asia" to "AS", "Europe" to "EU", "North America" to "NA", "South America" to "SA", "Africa" to "AF", "Oceania" to "OC")
+
+    /** Whether a competition is an Esports Nations Cup qualifier. */
+    fun isEncQualifier(c: Competition) = c.entrants.any { it.startsWith("continent:") }
+
+    /**
+     * A continent's Nations Cup qualifier: every nation, in small best-of-one groups (Monday to
+     * Wednesday), then a best-of-three bracket the week after. The two finalists qualify.
+     */
+    private fun encQualifier(w: World, t: TitleDef, season: Int, continent: String, ti: Int, ci: Int): Competition {
+        val n = dev.uem.em.mgmt.Extras.nationsOf(continent).size
+        var start = Dates.day(season, 4, 6) + 7 * ((ti + ci) % 4)
+        while (Dates.dow(start) != 1) start++
+        val groups = when { n >= 40 -> (n + 3) / 4; n >= 24 -> 8; n >= 10 -> 4; n >= 5 -> 2; else -> 0 }
+        val advance = if (groups >= 9) 1 else 2
+        val stages = ArrayList<Stage>()
+        if (groups > 0) stages.add(stage("Group Stage", StageType.GROUPS, start, 1, listOf(1, 2, 3), groups = groups, advance = advance, daysBetween = 1))
+        stages.add(stage("Playoffs", StageType.SINGLE_ELIM, if (groups > 0) start + 7 else start, 3, listOf(1, 2, 3, 4), daysBetween = 1))
+        val c = mk(w, t, season, "$ENC $season ${continent} Qualifier — ${t.name}", "ENC ${CONTINENT_SHORT[continent] ?: continent} Q ${t.short}", CompTier.INTERNATIONAL, null,
+            listOf("continent:${t.id}:$continent"), stages, t.prizeScale * 40_000, 30, emptyList())
+        c.finalBo = 3
+        c.realName = true
+        return c
+    }
+
     fun plan(w: World, season: Int) {
         w.titles.forEachIndexed { ti, titleId ->
             val t = Catalogue.get(titleId)
@@ -184,10 +211,14 @@ object Season {
             val wE = tier1.mapIndexed { i, l -> "circuit:${l.id}:${minOf(slots[i], l.teamIds.size)}" }
             val wN = name("worlds", "World Championship", "Worlds")
             mk(w, t, season, wN.first, wN.second, CompTier.WORLDS, null, wE, international(t, count(wE), D(9, 24)), t.prizeScale * 1_000_000, 100, emptyList()).realName = wN.third
-            // Esports Nations Cup (after the World Championship): the strongest eight nations' teams.
+            // Esports Nations Cup: continental qualifiers after First Stand (every nation of the continent;
+            // midweek so they never clash with league days), then the two finalists of each continent at the
+            // Nations Cup after the World Championship.
+            val quals = GameData.CONTINENTS.mapIndexed { ci, continent -> encQualifier(w, t, season, continent, ti, ci) }
             val encStart = Dates.day(season, 11, 2) + ti % 3
-            mk(w, t, season, "$ENC $season — ${t.name}", "ENC ${t.short}", CompTier.INTERNATIONAL, null, listOf("nations:$titleId:8"),
-                listOf(stage("Group Stage", StageType.GROUPS, encStart, t.formats.first.n, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 2, daysBetween = 1), stage("Knockout Stage", StageType.SINGLE_ELIM, encStart + 4, t.formats.second.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)),
+            mk(w, t, season, "$ENC $season — ${t.name}", "ENC ${t.short}", CompTier.INTERNATIONAL, null, quals.map { "qual:${it.id}:2" } + "fill:$titleId:12",
+                listOf(stage("Group Stage", StageType.GROUPS, encStart, t.formats.first.n, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 4, daysBetween = 1),
+                    stage("Playoffs", StageType.SINGLE_ELIM, encStart + 6, t.formats.second.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)),
                 t.prizeScale * 300_000, 75, emptyList()).realName = true
         }
     }
@@ -440,6 +471,20 @@ object Progress {
                 "league" -> w.leagues[p[1].toInt()].teamIds.forEach(::add)
                 "ids" -> p[1].split(',').mapNotNull { it.toIntOrNull() }.filter { it in w.teams.indices }.forEach(::add)
                 "nations" -> dev.uem.em.mgmt.Extras.nationalTeams(w, p[1], p[2].toInt()).forEach(::add)
+                // Every nation of a continent (Nations Cup qualifier), squads called up now.
+                "continent" -> dev.uem.em.mgmt.Extras.continentTeams(w, p[1], p.drop(2).joinToString(":")).forEach(::add)
+                // The best nations of a finished qualifier, squads called up again.
+                "qual" -> {
+                    val src = w.comps[p[1].toInt()]
+                    if (!src.done) return null
+                    for (tid in src.placements.take(p[2].toInt())) { if (tid !in out) { dev.uem.em.mgmt.Extras.callUp(w, w.teams[tid]); add(tid) } }
+                }
+                // Up to a number of nations: the strongest national teams not already in (a qualifier without enough nations).
+                "fill" -> {
+                    val need = p[2].toInt() - out.size
+                    if (need > 0) w.teams.filter { it.titleId == p[1] && it.nationalOf.isNotEmpty() && it.id !in out }.sortedByDescending { it.elo }.take(need)
+                        .forEach { dev.uem.em.mgmt.Extras.callUp(w, it); add(it.id) }
+                }
                 // The strongest tier-1 teams of a game not already in (by Elo).
                 "elo" -> { val need = p[2].toInt(); w.teams.filter { it.titleId == p[1] && it.active && it.nationalOf.isEmpty() && w.leagues.getOrNull(it.leagueId)?.tier == 1 && it.id !in out }.sortedByDescending { it.elo }.take(need).forEach { add(it.id) } }
                 "top" -> {

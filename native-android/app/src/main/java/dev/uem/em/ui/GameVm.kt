@@ -58,6 +58,7 @@ sealed class Screen {
     data object Tiers : Screen()
     data object CompEditor : Screen()
     data object SoloQ : Screen()
+    data object Rankings : Screen()
     data class Replay(val fixtureId: Int, val game: Int) : Screen()
 }
 

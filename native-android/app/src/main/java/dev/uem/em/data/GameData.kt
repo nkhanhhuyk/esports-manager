@@ -17,7 +17,7 @@ fun interface DataSource {
 }
 
 class Region(val id: String, val name: String, val short: String, val macro: String, val economy: Double)
-class Country(val code: String, val name: String, val region: String, val culture: String, val langs: List<String>, val moba: Int, val shooter: Int, val weight: Int)
+class Country(val code: String, val name: String, val region: String, val culture: String, val langs: List<String>, val moba: Int, val shooter: Int, val weight: Int, val continent: String = "")
 class Culture(val first: List<String>, val last: List<String>, val eastern: Boolean)
 
 /** Static tables exported from the web version (assets/gamedata.json, scripts/native-export.ts). */
@@ -49,7 +49,7 @@ object GameData {
         macros = j["macros"]!!.jsonObject.mapValues { it.value.jsonObject.s("name") }
         countries = j["countries"]!!.jsonArray.map { it.jsonObject }.associate { o ->
             val code = o.s("code")
-            code to Country(code, o.s("name"), o.s("region"), o.s("culture"), strs(o["langs"]!!.jsonArray), o["moba"]!!.jsonPrimitive.int, o["shooter"]!!.jsonPrimitive.int, o["weight"]!!.jsonPrimitive.int)
+            code to Country(code, o.s("name"), o.s("region"), o.s("culture"), strs(o["langs"]!!.jsonArray), o["moba"]!!.jsonPrimitive.int, o["shooter"]!!.jsonPrimitive.int, o["weight"]!!.jsonPrimitive.int, o["continent"]?.jsonPrimitive?.content ?: "")
         }
         cultures = j["cultures"]!!.jsonObject.mapValues { (_, v) ->
             val o = v.jsonObject
@@ -75,6 +75,11 @@ object GameData {
         if (!macros.containsKey(macro)) return emptyList()
         return if ('-' in id) id.substringAfter('-').split('.') else regions.values.filter { it.macro == macro }.map { it.id }
     }
+
+    /** Continents with an Esports Nations Cup qualifier, in calendar order. */
+    val CONTINENTS = listOf("Asia", "Europe", "North America", "South America", "Africa", "Oceania")
+
+    fun continentOf(code: String): String = countries[code]?.continent ?: ""
 
     fun regionShort(id: String): String = regions[id]?.short ?: id.substringBefore('-')
     fun regionName(id: String): String = regions[id]?.name ?: macros[id.substringBefore('-')] ?: id

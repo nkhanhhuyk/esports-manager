@@ -24,6 +24,15 @@ class SeasonTest {
         for (c in prev.filter { it.tier == CompTier.WORLDS || it.tier == CompTier.INTERNATIONAL }) println("  ${c.name}: ${c.placements.take(2).joinToString(" > ") { w.teams[it].name }} (${c.teamIds.size} teams, mvp ${c.mvp.takeIf { it >= 0 }?.let { w.players[it].handle }})")
         val stuck = prev.filter { !it.done }
         for (c in stuck) println("  NOT DONE: ${c.name} status ${c.status} stage ${c.current} startDay ${Dates.format(c.startDay)} entrants ${c.entrants}")
+        // Nations Cup: six continental qualifiers per game, then twelve nations (the two finalists of each continent).
+        val quals = prev.filter { dev.uem.em.comp.Season.isEncQualifier(it) }
+        val encs = prev.filter { it.name.startsWith(dev.uem.em.comp.Season.ENC) && !dev.uem.em.comp.Season.isEncQualifier(it) }
+        println("ENC qualifiers ${quals.size} (${quals.sumOf { it.teamIds.size }} nation entries, ${quals.sumOf { q -> q.stages.sumOf { it.fixtureIds.size } }} series); national amateurs ${w.players.count { p -> p.career.any { it.type.contains("national") } }}")
+        for (q in quals.filter { it.titleId == "lol" }) println("  ${q.name}: ${q.teamIds.size} nations, final ${q.placements.take(2).joinToString(" > ") { w.teams[it].name }}")
+        for (e in encs) println("  ${e.name}: ${e.placements.take(4).joinToString(" > ") { w.teams[it].name }} (${e.teamIds.size} teams: ${e.teamIds.groupBy { dev.uem.em.data.GameData.continentOf(w.teams[it].nationalOf) }.mapValues { it.value.size }})")
+        assertEquals(w.titles.size * 6, quals.size)
+        assertTrue(encs.all { e -> e.teamIds.size == 12 && e.stages[0].groups == 2 && e.stages[1].teamIds.size == 8 })
+        assertTrue(encs.all { e -> e.teamIds.groupBy { dev.uem.em.data.GameData.continentOf(w.teams[it].nationalOf) }.values.all { it.size == 2 } })
         assertEquals(s0 + 1, w.season)
         assertTrue(stuck.isEmpty())
         assertTrue(w.comps.any { it.season == s0 + 1 })

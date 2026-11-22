@@ -37,11 +37,21 @@ class MgmtTest {
         println("patches $byKind; sample: ${w.patches.firstOrNull { it.kind == "major" }?.notes?.take(3)}")
         println("awards ${w.awards.size}: ${w.awards.filter { it.titleId == "lol" }.joinToString { it.name + "=" + w.players[it.playerId].handle }}")
         println("board season ${w.board?.season} confidence ${w.board?.confidence?.toInt()} sacked ${w.sacked}; objectives ${w.board?.objectives?.map { it.text }}")
-        val nc = w.comps.filter { it.entrants.any { e -> e.startsWith("nations:") } }
+        val nc = w.comps.filter { it.name.startsWith(dev.uem.em.comp.Season.ENC) && !dev.uem.em.comp.Season.isEncQualifier(it) }
         println("nations cups ${nc.size}: " + nc.joinToString { "${it.short}=${it.placements.firstOrNull()?.let { tid -> w.teams[tid].name } ?: "?"}" })
         println("injured now ${w.players.count { it.injuryUntil > w.day && !it.injury.startsWith("Break") }}, on break ${w.players.count { it.injuryUntil > w.day && it.injury.startsWith("Break") }}, injuries in the season (career) n/a")
         val ncFirst = nc.filter { it.season == w.firstSeason }
         assertTrue(ncFirst.size >= 5 && ncFirst.all { it.done })
+        // World rankings from the season's results.
+        val clubs = dev.uem.em.mgmt.Rankings.clubs(w, "lol")
+        val nations = dev.uem.em.mgmt.Rankings.nations(w, "lol")
+        val orgs = dev.uem.em.mgmt.Rankings.orgs(w, w.titles)
+        println("club ranking LoL: " + clubs.take(5).joinToString { "${w.teams[it.teamId].name} ${it.points.toInt()}" })
+        println("nation ranking LoL: " + nations.take(6).joinToString { "${it.nat} ${it.points.toInt()} (${it.national.toInt()}+${it.players.toInt()})" } + " of ${nations.size}")
+        println("organisations: " + orgs.take(5).joinToString { "${w.orgs[it.orgId].name} ${it.points.toInt()}" })
+        assertTrue(clubs.first().points > 0 && clubs.zipWithNext().all { (a, b) -> a.points >= b.points })
+        assertTrue(nations.size >= 240 && nations.take(10).any { it.nat == "KR" })
+        assertTrue(orgs.isNotEmpty() && orgs.none { o -> w.orgs[o.orgId].teams.all { w.teams[it].nationalOf.isNotEmpty() } })
         assertTrue(w.teams.none { it.nationalOf.isNotEmpty() && it.active })
         assertTrue(org.months.size >= 12)
         assertTrue(w.transfers.isNotEmpty())

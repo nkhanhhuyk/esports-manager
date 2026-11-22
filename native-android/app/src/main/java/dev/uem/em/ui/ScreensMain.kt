@@ -342,6 +342,7 @@ fun MoreScreen(vm: GameVm, w: World) {
         Triple("Stats hub", "Leaderboards, records, head-to-head, season preview & review", Screen.Stats),
         Triple("Teams", "All leagues and teams, team directory", Screen.Teams),
         Triple("Players", "Search, filter and compare every player", Screen.Players),
+        Triple("World rankings", "Club and organisation rankings, countries and territories, from results", Screen.Rankings),
         Triple("World", "Games, national scenes, global rankings, organisations", Screen.World),
         Triple("Settings", "Difficulty, autosave, pictures, your name", Screen.Settings),
     )

@@ -88,40 +88,90 @@ object Extras {
 
     // ------------------------------------------------------------------ national teams
 
-    /** National teams of a title for the Nations Cup: the strongest players of each country. */
+    /** National teams of a title (old saves' Nations Cup rule): the strongest nations' squads. */
     fun nationalTeams(w: World, titleId: String, count: Int): List<Int> {
         val t = Catalogue.get(titleId)
         val byNat = w.players.filter { !it.retired && it.titleId == titleId && it.injuryUntil <= w.day }.groupBy { it.nat }
-        val squads = byNat.mapNotNull { (nat, ps) ->
-            val picked = ArrayList<Player>()
-            for (role in t.lineup) ps.filter { it.mainRole == role && it !in picked }.maxByOrNull { it.ca }?.let { picked.add(it) }
-            if (picked.size < t.teamSize) return@mapNotNull null
-            ps.filter { it !in picked }.maxByOrNull { it.ca }?.let { picked.add(it) }
-            Triple(nat, picked, picked.take(t.teamSize).sumOf { it.ca })
-        }.sortedByDescending { it.third }.take(count)
-        return squads.map { (nat, picked, _) ->
-            val existing = w.teams.firstOrNull { it.nationalOf == nat && it.titleId == titleId }
-            val team = existing ?: run {
-                val country = GameData.countries[nat]
-                val org = Org(w.orgs.size, "${country?.name ?: nat} national team", nat, nat, country?.region ?: "NA", rep = 60.0)
-                w.orgs.add(org)
-                Team(w.teams.size, org.id, titleId, country?.name ?: nat, nat, country?.region ?: "NA", nationalOf = nat).also { w.teams.add(it); org.teams.add(it.id) }
-            }
-            team.roster.clear()
-            team.roster.addAll(picked.map { it.id })
-            team.active = true
-            team.manualLineup = false
-            team.lineup = Lineups.auto(w, team)
-            team.elo = 1500 + (picked.take(t.teamSize).map { it.ca }.average() - 65) * 18
-            team.id
+        val strong = byNat.filter { (_, ps) -> ps.size >= t.teamSize }.map { (nat, ps) -> nat to ps.sortedByDescending { it.ca }.take(t.teamSize).sumOf { it.ca } }
+            .sortedByDescending { it.second }.take(count).map { it.first }
+        return strong.map { nat -> callUp(w, nationalTeam(w, titleId, nat), byNat[nat].orEmpty()).id }
+    }
+
+    /** Places with no permanent population: no national team. */
+    val UNINHABITED = setOf("AQ", "BV", "HM", "GS", "TF", "UM", "IO")
+
+    /** Countries and territories of a continent that enter its Nations Cup qualifier. */
+    fun nationsOf(continent: String): List<String> =
+        GameData.countries.values.filter { it.continent == continent && it.code !in UNINHABITED }.map { it.code }.sorted()
+
+    /** A nation's team in a game (created once; one organisation per nation for all games). */
+    fun nationalTeam(w: World, titleId: String, nat: String): Team {
+        w.teams.firstOrNull { it.nationalOf == nat && it.titleId == titleId }?.let { return it }
+        val country = GameData.countries[nat]
+        val org = w.orgs.firstOrNull { o -> o.teams.isNotEmpty() && o.teams.all { w.teams[it].nationalOf == nat } }
+            ?: Org(w.orgs.size, "${country?.name ?: nat} national team", nat, nat, country?.region ?: "NA", rep = 40.0 + (country?.let { maxOf(it.moba, it.shooter) } ?: 20) * 0.3).also { w.orgs.add(it) }
+        val team = Team(w.teams.size, org.id, titleId, country?.name ?: nat, nat, country?.region ?: "NA", nationalOf = nat)
+        team.active = false
+        team.dataNote = "National team: the country's best available players of the game, called up for each Nations Cup event; amateurs are called up when there are not enough professionals."
+        w.teams.add(team)
+        org.teams.add(team.id)
+        team.elo = 1500.0
+        return team
+    }
+
+    /**
+     * Call up a nation's squad: the best player of the nationality for every position (any team,
+     * free agents too), then the best remaining players off-role, plus a substitute. A nation without
+     * enough players calls up amateurs (created once and kept, so they can be scouted and signed).
+     */
+    fun callUp(w: World, team: Team, pool0: List<Player>? = null): Team {
+        val t = Catalogue.get(team.titleId)
+        val nat = team.nationalOf
+        val pool = (pool0 ?: w.players.filter { it.nat == nat && it.titleId == team.titleId && !it.retired })
+            .filter { !it.retired && it.injuryUntil <= w.day && it.nat == nat }
+        val picked = ArrayList<Player>()
+        for (role in t.lineup) pool.filter { it.mainRole == role && it !in picked }.maxByOrNull { it.ca }?.let { picked.add(it) }
+        for (role in t.lineup) {
+            if (picked.size >= t.teamSize) break
+            if (picked.any { it.mainRole == role }) continue
+            pool.filter { it !in picked }.maxByOrNull { it.ca }?.let { picked.add(it) }
         }
+        if (picked.size < t.teamSize) {
+            val country = GameData.countries[nat]
+            val scene = (if (t.isMoba) country?.moba else country?.shooter) ?: 15
+            val missing = t.lineup.filter { r -> picked.none { it.mainRole == r } }.take(t.teamSize - picked.size)
+            for ((k, role) in missing.withIndex()) {
+                val rng = Rng.derive(w.seed, "national", team.titleId, nat, role, k, w.season)
+                val ctx = dev.uem.em.gen.GenCtx(w, rng)
+                val p = dev.uem.em.gen.PlayerGen.generate(ctx, team.titleId, role, nat, rng.int(17, 26), clamp(20.0 + scene * 0.36 + rng.normal(0.0, 3.5), 18.0, 58.0), rng.float(0.0, 8.0))
+                // Not a ladder amateur (keeps the solo queue's weekly work and amateur scouting as they were).
+                p.career.add(dev.uem.em.model.CareerEntry(w.season, w.day, -1, "amateur (national call-up)"))
+                picked.add(p)
+            }
+        }
+        val starters = picked.take(t.teamSize)
+        pool.filter { it !in picked }.maxByOrNull { it.ca }?.let { picked.add(it) }
+        team.roster.clear()
+        team.roster.addAll(picked.map { it.id })
+        team.active = true
+        team.manualLineup = false
+        team.lineup = Lineups.auto(w, team)
+        val squadElo = 1500 + (starters.map { it.ca }.average() - 65) * 18
+        team.elo = if (team.elo == 1500.0 && team.trophies.isEmpty()) squadElo else team.elo * 0.5 + squadElo * 0.5
+        return team
+    }
+
+    /** Every nation of a continent with its squad called up, strongest first (the qualifier's seeding). */
+    fun continentTeams(w: World, titleId: String, continent: String): List<Int> {
+        val byNat = w.players.filter { it.titleId == titleId && !it.retired }.groupBy { it.nat }
+        return nationsOf(continent).map { nat -> callUp(w, nationalTeam(w, titleId, nat), byNat[nat].orEmpty()) }.sortedByDescending { it.elo }.map { it.id }
     }
 
     fun isNational(t: Team) = t.nationalOf.isNotEmpty()
 
-    /** National teams step down when their cup ends. */
+    /** National teams step down when their event ends (they are called up again for the next one). */
     fun onCompetitionFinished(w: World, c: dev.uem.em.model.Competition) {
-        if (c.entrants.any { it.startsWith("nations:") }) for (tid in c.teamIds) w.teams[tid].active = false
+        for (tid in c.teamIds) if (w.teams[tid].nationalOf.isNotEmpty()) w.teams[tid].active = false
     }
 
     // ------------------------------------------------------------------ difficulty

@@ -182,6 +182,27 @@ fun CompScreen(vm: GameVm, w: World, id: Int) {
                 androidx.compose.foundation.layout.FlowRow { for (e in events) Pill("${dev.uem.em.titles.Catalogue.get(e.titleId).short}${if (e.done) " ✓" else ""}") { vm.go(Screen.Comp(e.id)) } }
             }
         }
+        if (c.name.startsWith(dev.uem.em.comp.Season.ENC)) item {
+            // Road to the Nations Cup: the six continental qualifiers of this game and season.
+            val quals = w.comps.filter { it.season == c.season && it.titleId == c.titleId && dev.uem.em.comp.Season.isEncQualifier(it) }
+            val cup = w.comps.firstOrNull { it.season == c.season && it.titleId == c.titleId && it.name.startsWith(dev.uem.em.comp.Season.ENC) && !dev.uem.em.comp.Season.isEncQualifier(it) }
+            if (quals.isNotEmpty()) Card("Road to the Nations Cup", right = { Muted("${quals.count { it.done }} of ${quals.size} qualifiers done", 11) }) {
+                Muted("Every country and territory plays its continent's qualifier after First Stand (best-of-one groups midweek, then a best-of-three bracket). The two finalists of each continent go to the Nations Cup: 12 nations, two groups of six, the top four of each group to the quarterfinals.", 11)
+                for (q in quals) {
+                    val continent = q.entrants.firstOrNull { it.startsWith("continent:") }?.split(':')?.drop(2)?.joinToString(":") ?: q.short
+                    Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Comp(q.id)) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(continent, color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Muted(when { q.done -> "${q.teamIds.size} nations · done"; q.status == 1 -> "${q.teamIds.size} nations · in progress"; else -> "${dev.uem.em.mgmt.Extras.nationsOf(continent).size} nations · from ${Dates.format(q.startDay)}" }, 10)
+                        }
+                        if (q.done) Column(horizontalAlignment = Alignment.End) {
+                            q.placements.take(2).forEach { tid -> TeamChip(w, tid, vm, 16.dp) }
+                        }
+                    }
+                }
+                if (cup != null && cup.id != c.id) { Gap(4); Pill("Nations Cup ${c.season}") { vm.go(Screen.Comp(cup.id)) } }
+            }
+        }
         item {
             val champ = c.placements.firstOrNull()?.takeIf { c.done }
             Tiles(listOfNotNull(
