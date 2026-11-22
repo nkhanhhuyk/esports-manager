@@ -11,7 +11,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /** One simulated game's outcome. Team index 0/1 is the series' team order. */
-class GameOutcome(val winner: Int, val duration: Int, val score: IntArray, val book: StatBook, val econ: IntArray = IntArray(0))
+class GameOutcome(val winner: Int, val duration: Int, val score: IntArray, val book: StatBook, val econ: IntArray = IntArray(0), val objs: IntArray = IntArray(0))
 
 /**
  * Positional, ability-aware MOBA simulation on the title's real map (1-second ticks).
@@ -339,6 +339,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     val soulGated by lazy { t.id == "lol" && kindsOf("drake").any { it.soulAt > 0 } && kindsOf("elder").isNotEmpty() }
     var objKills = HashMap<String, Int>()
     val spawnCount = HashMap<String, Int>()
+    /** Objectives taken in order: code * 2 + side (kind code, 500 + objective index without a kind, 1000 + kind for a soul). */
+    val objTakes = ArrayList<Int>()
     val stacks = Array(2) { HashMap<String, Int>() }
     val soul = FloatArray(2)
     val buffUntil = IntArray(2); val buffVal = FloatArray(2)
@@ -886,7 +888,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         }
         ev(Ev(now, "end", winner))
         ev?.sortBy { it.t }
-        return GameOutcome(winner, now, intArrayOf(kills[0], kills[1]), book)
+        return GameOutcome(winner, now, intArrayOf(kills[0], kills[1]), book, objs = objTakes.toIntArray())
     }
 
     // ------------------------------------------------------------------------------ minion waves
@@ -1050,6 +1052,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         ev(Ev(now, "obj", side, taker?.pc?.p?.id ?: -1, x = o.idx, m = kindCode(o.kind), n = MobaEngine.packPos(o.x, o.y), text = o.kind?.name ?: o.o.name))
         val mod = (patch?.objValue(o.o.id) ?: 1.0).toFloat()
         objKills[o.o.id] = (objKills[o.o.id] ?: 0) + 1
+        objTakes.add((if (o.kind != null) kindCode(o.kind) else 500 + o.idx) * 2 + side)
         if (kindsOf(o.o.id).isNotEmpty()) { takeKinds(o, side, taker, mod); return }
         val v = (o.o.value * mod).toFloat()
         val team = bySide[side]
@@ -1101,6 +1104,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             val m = (dev.uem.em.titles.Neutrals.mod(world, soulDef.id) * patchMod).toFloat()
             for ((key, v) in soulDef.soul) STAT_INDEX[key]?.let { tPerm[side][it] += (v * m).toFloat() } ?: run { if (key == "shield") for (h in bySide[side]) if (h.alive(now)) { h.shield = max(h.shield, h.maxHp * v.toFloat() * m); h.shieldUntil = nowF + 60f } }
             ev(Ev(now, "soul", side, m = kindCode(soulDef), text = soulDef.soulName))
+            objTakes.add((1000 + kindCode(soulDef)) * 2 + side)
         }
     }
 

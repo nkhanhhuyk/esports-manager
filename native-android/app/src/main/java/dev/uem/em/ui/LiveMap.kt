@@ -202,7 +202,7 @@ fun MobaViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -> Un
     val rp = g.replay ?: run { Card { Muted("No 2D replay was recorded for this game.") }; return }
     // Positional replays (v2) play in the full viewer; older replays keep this event view.
     if (rp.step > 0) { MobaReplayViewer(w, f, g, after); return }
-    val ev = remember(g) { ReplayCodec.events(rp, t) }
+    val ev = remember(g) { ReplayCodec.events(rp, t, w) }
     val teams = arrayOf(w.teams[f.a], w.teams[f.b])
     val blue = g.blue
     fun mapSide(seriesTeam: Int) = if (seriesTeam == blue) 0 else 1
@@ -355,6 +355,8 @@ fun MobaViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -> Un
             Text(k1(teamGold[1]), color = Ui.gold, fontSize = 12.sp)
         }
         Text("${map.name} · ${sideNames.first} ${down[1].values.sum() + baseDown[1]} – ${down[0].values.sum() + baseDown[0]} ${sideNames.second} structures · objectives ${objs[0]}–${objs[1]} · gold lead ${k1(abs(teamGold[0] - teamGold[1]))}", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 12.dp))
+        // Every kind of neutral objective each team has taken so far (drakes by element, Baron, Turtles, Lords...).
+        Column(Modifier.padding(horizontal = 12.dp)) { ObjTallyStrip(ObjTally.fromEvents(w, t, ev, T, ::mapSide), listOf(teams[blue].short, teams[1 - blue].short)) }
         MapFrame(cam, draw = { W ->
             fun p(o: Offset) = Offset(o.x * W, o.y * W)
             drawRect(Color(0xFF1C3524), Offset.Zero, Size(W, W))
@@ -537,7 +539,7 @@ fun TacticalViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -
     val rp = g.replay ?: run { Card { Muted("No 2D replay was recorded for this map.") }; return }
     // Positional rounds (recorded per second) play in the full viewer.
     if (rp.step > 0) { ShooterReplayViewer(w, f, g, after); return }
-    val ev = remember(g) { ReplayCodec.events(rp, t) }
+    val ev = remember(g) { ReplayCodec.events(rp, t, w) }
     val teams = arrayOf(w.teams[f.a], w.teams[f.b])
     val teamCol = arrayOf(Ui.blue, Ui.red)
     val rounds = remember(g) { ev.groupBy { it.t }.toSortedMap().values.toList() }

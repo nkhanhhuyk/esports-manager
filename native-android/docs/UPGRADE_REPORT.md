@@ -145,6 +145,13 @@ far apart.
 | LJL, PCS, VCS | Real teams of the three leagues (official LoL Esports feed) as tier-2 leagues under the LCP; real academies tied to their LCP teams; each October an LCP Promotion tournament: the LCP's last two against the lower leagues' best; the top two play the LCP next season, the others go to the lower league of their region. |
 | Database audit | The main cause of wrong nationalities was matching by handle alone (a fact belonging to another player with the same handle); such facts are now refused when they contradict the roster source. More real birth dates (Valorant wiki table + redirects, Leaguepedia redirects), Dota 2 positions from lanes and farm in pro matches, Dota 2 nationalities by agreement of three sources (Valve's unset "af" no longer reads as Afghanistan), CS2 same-nickname mix-ups settled by team. See DATA_PROVENANCE.md for what is still estimated (MLBB birth dates, CS2 positions: no open source). |
 
+## Seventh follow-up: objectives by kind, top lane deaths
+
+| Request | What was built / found |
+|---|---|
+| Objectives by kind | Every game record keeps each neutral objective taken (kind and team; full and fast simulation). The match report has a **Neutral objectives** table per game (each elemental drake, Dragon Soul, Elder, Baron, Herald, Voidgrubs one by one; Turtles and Lords; Tyrant, Overlord, Shadow Tyrant, Shadow Overlord, Tempest Dragon; Roshan, Tormentors, Wisdom Runes), and the live / replay viewer shows a per-team strip under the scoreboard that updates as the game plays. Found while doing it: the box score lost every player's item build and rune page when a MOBA game was saved to the match record; fixed. |
+| Top lane deaths | Top laners were never killed in the laning phase (0 of 216 early deaths): melee solo laners stood far behind their wave and hardly ever traded, so they stayed at full health, and ganks and collapses could not catch a fleeing laner on 2-second steps. Now melee top / EXP / Baron / Clash laners contest their wave and trade, gankers hit at the end of a chase step and open with crowd control (or flash in), a lone laner hit by two or more enemies takes more damage (no peel, chained CC, ignite), two healthy heroes may dive a low laner, a strong lead in a solo lane is an all-in, early fights are slightly more lethal and front-liners stay in fights longer. League deaths per game, top against the other cores: LoL 2.6 vs 2.8-3.3, Wild Rift 2.7 vs 3.1-3.4, MLBB 2.4 vs 3.2-3.8, HoK 2.2 vs 3.0-3.3 (about 50% before, now 70-85%). |
+
 ## Tests and results (JVM, `./gradlew testDebugUnitTest`)
 
 All suites pass (23 classes, including `DraftVarietyTest`, `MobaSideTest`, `WorldIsolationTest`). New or extended:
@@ -220,8 +227,9 @@ rather than invented heatmaps.
 * Not run on a phone or emulator here (no hardware acceleration in this environment): frame rate,
   battery and ANR behaviour on devices are unmeasured. The viewer's toggles (abilities, minions,
   paths, names) serve as a reduced-effects mode.
-* Kills in LoL (~27 per game in league matches) match the pro average (~25–30); the top lane still
-  dies less than the other positions (about half as often; in pro play it is about the same). Dota 2
+* Kills in LoL (~28 per game in league matches) match the pro average (~25–30); the top lane dies
+  70-85% as often as the other cores (in pro play about the same), most of the remaining gap in
+  MLBB and HoK; mid laners die a little more than in pro play. Dota 2
   games are a few minutes longer than average. Occasional outlier games (a hero dying very often) remain and are
   logged by the tuning tests (`MobaTraceTest`, `MobaDiagTest`, `MobaCharBalanceTest`, env-gated).
 * Valorant attackers win 43 % of rounds in the seeded sample (pro play is close to 48–50 %).

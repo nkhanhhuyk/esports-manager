@@ -243,6 +243,12 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
         }
     }
     if (!t.isMoba) EconomyCard(vm, w, t, f, g)
+    // Neutral objectives by kind (each drake element, souls, Baron, Elder, Herald, grubs; Turtles, Lords; ...), blue side first.
+    if (t.isMoba) {
+        val raw = if (g.objs.isNotEmpty()) ObjTally.fromRecord(w, t, g.objs) else g.replay?.let { ObjTally.fromEvents(w, t, dev.uem.em.sim.ReplayCodec.events(it, t, w), Int.MAX_VALUE) } ?: emptyList()
+        val ids = intArrayOf(f.a, f.b)
+        ObjTallyCard(w, t, listOf(w.teams[ids[order[0]]].short, w.teams[ids[order[1]]].short), raw.map { ObjTally.Row(it.name, intArrayOf(it.counts[order[0]], it.counts[order[1]]), it.order) })
+    }
     TeamCompare(w, t, f, g.lines, order)
     // Analysis from the recorded game comes after the draft and the box score.
     if (t.isMoba) MobaAnalysisCard(vm, w, f, t, g, gi) else ShooterAnalysisCard(vm, w, f, t, g, gi)

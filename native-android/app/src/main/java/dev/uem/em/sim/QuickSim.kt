@@ -29,6 +29,42 @@ object QuickSim {
     /** Typical kills per game in the full engines (both teams). */
     private val KILLS = mapOf("mlbb" to 28.0, "wildrift" to 30.0, "hok" to 27.0, "lol" to 30.0, "dota2" to 42.0)
 
+    /**
+     * Which neutral objectives a fast-simulated game's teams took (the same codes as the full engine):
+     * spawned ones only, weighted by how often each is taken, League's drake rule and souls.
+     */
+    fun quickObjectives(t: TitleDef, world: dev.uem.em.model.World?, count: IntArray, dur: Int, rng: Rng): IntArray {
+        val cfg = t.moba ?: return IntArray(0)
+        val kinds = dev.uem.em.titles.Neutrals.of(world, t.id)
+        val minutes = dur / 60.0
+        val avail = cfg.objectives.withIndex().filter { (_, o) -> o.spawn < minutes }
+        if (avail.isEmpty()) return IntArray(0)
+        fun weight(id: String) = when (id) { "drake", "turtle", "tyrant", "wisdom" -> 3.0; "baron", "lord", "overlord", "shadow", "shadowtyrant", "tormentor" -> 1.5; "roshan" -> 1.2; "elder", "tempest" -> 0.35; else -> 1.0 }
+        val drakeKinds = kinds.filter { it.objId == "drake" && !it.killerOnly }
+        val seq = ArrayList<dev.uem.em.titles.NeutralDef>()
+        if (drakeKinds.isNotEmpty()) {
+            val pool = drakeKinds.toMutableList()
+            repeat(minOf(3, pool.size)) { seq.add(pool.removeAt(rng.int(0, pool.size - 1))) }
+        }
+        var drakesTaken = 0
+        val drakesBy = IntArray(2); val souls = BooleanArray(2)
+        val out = ArrayList<Int>()
+        for (side in 0..1) repeat(count[side]) {
+            val (idx, o) = rng.weighted(avail) { weight(it.value.id) }
+            val kind = when {
+                o.id == "drake" && seq.isNotEmpty() -> seq[minOf(drakesTaken++, seq.size - 1)]
+                else -> kinds.firstOrNull { it.objId == o.id && !it.killerOnly && it.fromKill <= 1 }
+            }
+            out.add((if (kind != null) kinds.indexOf(kind) + 1 else 500 + idx) * 2 + side)
+            if (o.id == "drake") {
+                drakesBy[side]++
+                val soulDef = seq.lastOrNull()
+                if (soulDef != null && soulDef.soulAt > 0 && drakesBy[side] >= soulDef.soulAt && !souls[side] && !souls[1 - side]) { souls[side] = true; out.add((1000 + kinds.indexOf(soulDef) + 1) * 2 + side) }
+            }
+        }
+        return out.toIntArray()
+    }
+
     fun moba(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, rng: Rng, world: dev.uem.em.model.World? = null): GameOutcome {
         val cfg = t.moba!!
         val book = StatBook(teams, t)
@@ -73,13 +109,16 @@ object QuickSim {
             if (DN >= 0 && !pc.role.isSupport && !jungler(pc)) book.add(pc.p.id, DN, minutes * 0.4 * rng.normal(1.0, 0.3))
         }
         // Structures and objectives: the winner takes most.
+        val objCount = IntArray(2)
         for (side in 0..1) {
             val ps = teams[side].players; if (ps.isEmpty()) continue
             val towers = (if (side == winner) rng.int(6, 10) else rng.int(0, 4)).toDouble()
             repeat(towers.toInt()) { book.add(rng.pickCtx(ps) { if (it.role.isSupport) 0.5 else 1.0 }.p.id, TOWERS, 1.0) }
             val objs = if (side == winner) rng.int(2, 5) else rng.int(0, 2)
             repeat(objs) { book.add((ps.firstOrNull { jungler(it) } ?: ps[0]).p.id, OBJ, 1.0) }
+            objCount[side] = objs
         }
+        val objTakes = quickObjectives(t, world, objCount, dur, Rng.derive("qobj", t.id, dur, winner, teams[0].players.firstOrNull()?.p?.id ?: 0))
         // Item builds as the game's gold allows (fast mode: no item-by-item decisions, same build logic).
         if (dev.uem.em.titles.Items.hasItems(t.id)) {
             val magic = DoubleArray(2) { s -> teams[s].players.map { magicShareOf(it) }.average().takeIf { v -> !v.isNaN() } ?: 0.3 }
@@ -102,7 +141,7 @@ object QuickSim {
             val kk = book.get(l, K); val d = book.get(l, D); val a = book.get(l, A)
             (kk * 3 + a * 1.5 + 1) / (d * 2 + 2) + book.get(l, GOLD) / 1000 * 0.25 + book.get(l, DMG) / 15000 + book.get(l, HEAL) / 20000 + book.get(l, OBJ) * 0.4 + book.get(l, TOWERS) * 0.3 + book.get(l, VISION) / 40
         }
-        return GameOutcome(winner, dur, kills, book)
+        return GameOutcome(winner, dur, kills, book, objs = objTakes)
     }
 
     fun shooter(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, firstAttack: Int, rng: Rng): GameOutcome {

@@ -454,6 +454,8 @@ class GameRecord(
     val draftOrder: List<String> = emptyList(),
     /** Shooters: every round's buys (see sim.ShooterEconomy.Bank.econ). */
     @ProtoPacked val econ: IntArray = IntArray(0),
+    /** MOBAs: every neutral objective taken, code * 2 + team (see ui.ObjTally): a kind (drake element...), an objective, a soul. */
+    @ProtoPacked val objs: IntArray = IntArray(0),
 )
 
 /**

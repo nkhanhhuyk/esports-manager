@@ -88,3 +88,30 @@ class RunesTest {
         println(sb); java.io.File("build/runes.txt").writeText(sb.toString())
     }
 }
+
+/** The objective tally: every game record keeps which kinds each team took (full and fast simulation), and the box score keeps builds and runes. */
+class ObjTallyTest {
+    @Test
+    fun recordsKeepObjectivesByKind() {
+        TestData.init()
+        dev.uem.em.game.BoxStore.clear()
+        val w = dev.uem.em.gen.WorldGen.create(TestData.source, "tally", "Tally", dev.uem.em.core.Dates.day(2026, 11, 21))
+        val sb = StringBuilder()
+        for (id in listOf("lol", "wildrift", "mlbb", "hok", "dota2")) {
+            val t = Catalogue.get(id)
+            val league = w.comps.first { it.titleId == id && it.leagueId >= 0 && it.season == w.season }
+            val ts = w.teams.filter { it.titleId == id && it.leagueId == league.leagueId && it.parentId < 0 }
+            for (quick in listOf(false, true)) {
+                val f = dev.uem.em.model.Fixture(200_000 + w.fixtures.size + (if (quick) 1 else 0), league.id, 0, id, w.day, ts[0].id, ts[1].id, 3)
+                val out = dev.uem.em.sim.SeriesSim.run(w, f, arrayOf(dev.uem.em.sim.Lineups.auto(w, ts[0]), dev.uem.em.sim.Lineups.auto(w, ts[1])), quick = quick)
+                for (g in out.record.games.take(1)) {
+                    val rows = dev.uem.em.ui.ObjTally.fromRecord(w, t, g.objs)
+                    sb.appendLine("$id ${if (quick) "fast" else "full"}: " + rows.joinToString(", ") { "${it.name} ${it.counts[0]}-${it.counts[1]}" })
+                    assertTrue("$id ${if (quick) "fast" else "full"}: objectives recorded by kind", rows.isNotEmpty())
+                    if (!quick) assertTrue("$id: builds and runes kept in the record", g.lines.all { it.items.isNotEmpty() && it.runes.isNotEmpty() })
+                }
+            }
+        }
+        println(sb); java.io.File("build/obj-tally.txt").writeText(sb.toString())
+    }
+}

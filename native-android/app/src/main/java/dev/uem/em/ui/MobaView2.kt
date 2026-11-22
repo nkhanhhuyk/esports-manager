@@ -73,7 +73,7 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
     val t = Catalogue.get(f.titleId)
     val rp = g.replay ?: return
     val map = remember(t.id) { MobaMap.of(t.id) }
-    val ev = remember(g) { ReplayCodec.events(rp, t) }
+    val ev = remember(g) { ReplayCodec.events(rp, t, w) }
     val positional = remember(g) { ev.any { it.kind == "spawn" && it.n >= 0 } }
     val teams = arrayOf(w.teams[f.a], w.teams[f.b])
     val blue = g.blue
@@ -185,6 +185,8 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
         }
         val down = IntArray(2).also { d -> for ((i, s) in map.structs.withIndex()) if (structHp[i] == 0) d[s.team]++ }
         Text("${map.name} · structures destroyed ${down[1]}–${down[0]} · objectives ${objs[0]}–${objs[1]} · gold lead ${k1(abs(teamGold[0] - teamGold[1]))}", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 12.dp))
+        // Every kind of neutral objective each team has taken so far (drakes by element, Baron, Turtles, Lords...).
+        Column(Modifier.padding(horizontal = 12.dp)) { ObjTallyStrip(ObjTally.fromEvents(w, t, ev, Ti, ::mapSide), listOf(teams[blue].short, teams[1 - blue].short)) }
         MapFrame(cam, draw = { W ->
             val u = W / 1000f
             fun p(x: Float, y: Float) = Offset(x * u, y * u)

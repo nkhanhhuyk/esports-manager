@@ -133,9 +133,11 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
                 val mapped = rec.events.map { e -> Ev(e.t, e.kind, if (e.team >= 0) order[e.team] else -1, e.a, e.b, e.x, e.text, e.m, e.n) }
                 rec.events.clear(); rec.events.addAll(mapped)
             }
-            val lines = out.book.lines.map { l -> Line(l.playerId, order[l.team], l.roleId, l.charId, l.rating, l.s) }
+            val lines = out.book.lines.map { l -> Line(l.playerId, order[l.team], l.roleId, l.charId, l.rating, l.s, l.items, l.runes) }
+            // Neutral objectives taken (code * 2 + side), in series team order.
+            val objs = IntArray(out.objs.size) { i -> (out.objs[i] shr 1) * 2 + order[out.objs[i] and 1] }
             val score = if (s.blue == 0) out.score else intArrayOf(out.score[1], out.score[0])
-            g = GameRecord(winnerSeries, out.duration, s.mapId, s.blue, intArrayOf(s.chooser, s.choice, if (s.byLoser) 1 else 0, s.firstPick), draft.bans, draft.picks[0] + draft.picks[1], score, lines, draftOrder = draft.order)
+            g = GameRecord(winnerSeries, out.duration, s.mapId, s.blue, intArrayOf(s.chooser, s.choice, if (s.byLoser) 1 else 0, s.firstPick), draft.bans, draft.picks[0] + draft.picks[1], score, lines, draftOrder = draft.order, objs = objs)
         } else {
             val firstAttack = if (grng.chance(0.5)) 0 else 1
             val out = if (quick && rec == null) QuickSim.shooter(t, ctx.toList(), evals, firstAttack, grng)
