@@ -52,3 +52,18 @@ Characters: 724 champions / heroes / agents from game data sources (Riot Data Dr
 - **Wild Rift:** wiki-listed positions are no longer counted as estimates; the wiki has almost no
   player records (birthdays) for the 2021 rosters.
 - Liquipedia answered HTTP 429; per its terms nothing was retried there.
+
+## Mobile Legends fixes (22 Nov 2026, third pass)
+
+- **Wrong people matched by handle.** Six MLBB players had been given the facts of an unrelated
+  Wikidata person with the same handle, and the continent check let three through (RRQ's ARTHUR
+  shown as a Korean "Park Mir" born 2000; others with Chinese, Taiwanese, Swedish, South African and
+  Italian facts). All six were removed; handle-only Wikidata matches are no longer used for MLBB or
+  Honor of Kings (their rosters list no real names), both in `player_facts_fix.py` and in the game.
+- **Kairi (ONIC):** Filipino, born 21 Sep 2005, full name from Liquipedia (CC BY-SA 3.0, one API
+  request); the second request was rate-limited (HTTP 429), so nothing more was fetched there.
+- **Team Liquid PH's Teddy** had no position: the official site writes "Goldlane" without a space;
+  the parser and the snapshot now read it as Gold lane.
+- Still estimated (shown as such on player pages): other current MLBB players' nationalities (taken
+  from the league's country, so Filipino imports in MPL ID can show as Indonesian) and all MLBB
+  birth dates — no open source the project may use lists them.

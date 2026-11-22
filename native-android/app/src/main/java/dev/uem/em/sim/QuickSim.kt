@@ -142,6 +142,7 @@ object QuickSim {
             line.spells.addAll(dev.uem.em.titles.Spells.choose(world, t.id, jungler(pc), laneIdx, pc.role.isSupport, pc.role.isCarry, pc.char?.cls ?: "", Rng.derive("qspells", t.id, pc.p.id, pc.charId ?: "")).map { it.id })
         }
         book.finalise()
+        book.metaWorld = world
         book.rate(winner) { l ->
             val kk = book.get(l, K); val d = book.get(l, D); val a = book.get(l, A)
             (kk * 3 + a * 1.5 + 1) / (d * 2 + 2) + book.get(l, GOLD) / 1000 * 0.25 + book.get(l, DMG) / 15000 + book.get(l, HEAL) / 20000 + book.get(l, OBJ) * 0.4 + book.get(l, TOWERS) * 0.3 + book.get(l, VISION) / 40

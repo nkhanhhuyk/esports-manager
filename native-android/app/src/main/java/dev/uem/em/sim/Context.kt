@@ -133,6 +133,21 @@ object TeamContexts {
 
 /** Box-score book for one game: per-player stat values in the title's stat order. */
 class StatBook(teams: List<TeamCtx>, val t: TitleDef) {
+    /** The world whose role metas tilt ratings toward its carries (null: the game's starting meta). */
+    var metaWorld: dev.uem.em.model.World? = null
+    companion object {
+        /**
+         * What each lineup slot's raw game impact averages relative to the team (from league games on
+         * the full engines, `RoleDeathsTest`): ratings divide by it.
+         */
+        val ROLE_NORM = mapOf(
+            "lol" to doubleArrayOf(1.14, 1.09, 1.06, 0.92, 0.77),
+            "wildrift" to doubleArrayOf(1.12, 1.05, 1.08, 1.0, 0.77),
+            "mlbb" to doubleArrayOf(1.06, 1.03, 1.11, 0.99, 0.8),
+            "hok" to doubleArrayOf(1.09, 1.08, 1.08, 1.05, 0.69),
+            "dota2" to doubleArrayOf(1.09, 1.28, 0.77, 1.14, 0.74),
+        )
+    }
     val lines = ArrayList<Line>()
     private val byPlayer = HashMap<Int, Line>()
 
@@ -154,7 +169,18 @@ class StatBook(teams: List<TeamCtx>, val t: TitleDef) {
     fun finalise() { for (l in lines) for (i in l.s.indices) l.s[i] = l.s[i].roundToInt().toDouble() }
 
     fun rate(winner: Int, impact: (Line) -> Double) {
-        val vals = lines.map { maxOf(0.01, impact(it)) }
+        // Each MOBA position is rated against what that position usually produces: top laners (towers,
+        // damage, assists) no longer out-rate everyone and take most MVPs; supports are not always last.
+        val norm = ROLE_NORM[t.id]
+        // ...while the meta's carries still stand out a little more often than the support (target 0.97-1.03 by kill priority).
+        val prio = if (norm != null) dev.uem.em.titles.RoleMeta.killPriority(metaWorld, t.id) else emptyMap()
+        // The position's usual level is shifted (not scaled): a support's big-assist games no longer turn into 9.5s.
+        val raw = lines.map { maxOf(0.01, impact(it)) }
+        val rawAvg = raw.sum() / maxOf(1, raw.size)
+        val vals = lines.mapIndexed { i, l ->
+            val n = norm?.getOrNull(t.lineup.indexOf(l.roleId))
+            if (n == null) raw[i] else maxOf(0.01, raw[i] + rawAvg * ((0.97 + 0.06 * (prio[dev.uem.em.titles.RoleMeta.pos(l.roleId)] ?: 0.5)) - n))
+        }
         val avg = vals.sum() / maxOf(1, vals.size)
         lines.forEachIndexed { i, l ->
             val bonus = if (winner >= 0) (if (l.team == winner) 0.06 else -0.06) else 0.0

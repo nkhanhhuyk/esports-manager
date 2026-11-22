@@ -54,14 +54,16 @@ class ScreenshotTest {
         val shots = listOf("home" to Screen.Home, "comp" to Screen.Comp(comp.id), "team" to Screen.Team(t1.id), "player" to Screen.Player(faker.id), "match" to Screen.Match(match.id), "comps" to Screen.Comps, "squad" to Screen.Squad, "market" to Screen.Market, "finances" to Screen.Finances, "inbox" to Screen.Inbox, "board" to Screen.Board, "patches" to Screen.Patches, "more" to Screen.More, "stats" to Screen.Stats, "schedule" to Screen.Schedule, "settings" to Screen.Settings,
             "history" to Screen.History, "world" to Screen.World, "teams" to Screen.Teams, "players" to Screen.Players,
             "compare" to Screen.Compare(faker.id, w.players.first { it.handle == "Chovy" }.id),
-            "academy" to Screen.Team(dev.uem.em.mgmt.Academies.of(w, t1)!!.id))
+            "academy" to Screen.Team(dev.uem.em.mgmt.Academies.of(w, t1)!!.id), "social" to Screen.Social, "library-runes" to Screen.Library("runes"))
         vm.tab(Screen.Home)
         rule.setContent { AppRoot(vm) {} }
         rule.waitForIdle()
         // Live match: draft, then the 2D view part-way through game 1 (MOBA and shooter).
         LiveDefaults.autoplay = false
         LiveDefaults.startFraction = 0.45f
-        val lolFx = w.fixtures.firstOrNull { !it.done && it.titleId == "lol" && (it.a == t1.id || it.b == t1.id) } ?: w.fixtures.first { !it.done && it.titleId == "lol" }
+        // T1 may be out of the current event by now: then the user takes charge of a team that still plays.
+        val lolFx = w.fixtures.firstOrNull { !it.done && it.titleId == "lol" && (it.a == t1.id || it.b == t1.id) }
+            ?: w.fixtures.first { !it.done && it.titleId == "lol" && it.a >= 0 && it.b >= 0 }.also { fx -> w.userOrg = w.teams[fx.a].orgId }
         rule.runOnIdle { vm.startLive(lolFx.id) }
         shot(out, "live-draft")
         rule.runOnIdle { vm.live!!.draftAct(vm.live!!.draft!!.t.characters.first { vm.live!!.draft!!.legal(vm.live!!.me, vm.live!!.draft!!.current()?.second ?: true, it.id) }.id); vm.live!!.autoDraft() }

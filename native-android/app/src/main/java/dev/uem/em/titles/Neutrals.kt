@@ -146,8 +146,27 @@ object Neutrals {
         "aegis" to " extra life", "cheese" to " emergency heal", "refresher" to " cooldown reset", "shard" to "% damage (carrier)", "hp" to "% max health", "pen" to "% penetration")
     private val FLAT = setOf("haste", "push", "gold", "xp", "aegis", "cheese", "refresher")
 
+    /** Items a patch cannot scale (one extra life, one emergency heal, one cooldown reset). */
+    val FIXED = setOf("aegis", "cheese", "refresher")
+
+    private fun num(k: String, x: Double): String =
+        if (k in FLAT) (if (x % 1.0 == 0.0) x.toInt().toString() else "%.1f".format(x)) else "%.1f".format(x * 100).removeSuffix(".0")
+
     fun statText(stats: Map<String, Double>, mod: Double = 1.0): String = stats.entries.filter { it.value != 0.0 }.joinToString(", ") { (k, v) ->
-        val x = if (k in setOf("push", "gold", "xp", "aegis", "cheese", "refresher")) v else v * mod
-        if (k in FLAT) "+${if (x % 1.0 == 0.0) x.toInt().toString() else "%.1f".format(x)}${LABEL[k] ?: " $k"}" else "+${"%.1f".format(x * 100).removeSuffix(".0")}${LABEL[k] ?: "% $k"}"
+        val x = if (k in FIXED) v else v * mod
+        if (k in FLAT) "+${num(k, x)}${LABEL[k] ?: " $k"}" else "+${num(k, x)}${LABEL[k] ?: "% $k"}"
+    }
+
+    /** Whether a patch can change these stats at all. */
+    fun scalable(stats: Map<String, Double>) = stats.any { (k, v) -> v != 0.0 && k !in FIXED }
+
+    /**
+     * What a patch changed, value before → after ("armour bonus 3% → 2.7%, gold each 300 → 255"):
+     * a nerf always shows smaller numbers, a buff larger ones.
+     */
+    fun changeText(stats: Map<String, Double>, old: Double, now: Double): String = stats.entries.filter { it.value != 0.0 && it.key !in FIXED }.joinToString(", ") { (k, v) ->
+        val label = (LABEL[k] ?: " $k").removePrefix("% ").removePrefix(" ")
+        val unit = if (k in FLAT) (if (k == "push") " s" else "") else "%"
+        "$label ${num(k, v * old)}$unit → ${num(k, v * now)}$unit"
     }
 }

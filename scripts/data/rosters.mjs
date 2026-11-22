@@ -36,7 +36,7 @@ if (existsSync('src/data/real/rosters.json')) {
 // ------------------------------------------------------------------------------------------
 // MLBB — MPL ID and MPL PH (official sites)
 // ------------------------------------------------------------------------------------------
-const ML_ROLE = { 'exp lane': 'exp', exp: 'exp', 'gold lane': 'gold', gold: 'gold', 'mid lane': 'mid', midlane: 'mid', mid: 'mid', jungle: 'jungle', jungler: 'jungle', roam: 'roam', roamer: 'roam', roaming: 'roam' };
+const ML_ROLE = { 'exp lane': 'exp', explane: 'exp', exp: 'exp', 'gold lane': 'gold', goldlane: 'gold', gold: 'gold', 'mid lane': 'mid', midlane: 'mid', mid: 'mid', jungle: 'jungle', jungler: 'jungle', roam: 'roam', roamer: 'roam', roaming: 'roam' };
 function mlRole(r) {
   const k = r.toLowerCase().trim();
   if (/coach|analyst|manager/.test(k)) return { status: 'staff', role: k.includes('analyst') ? 'analyst' : 'head-coach' };

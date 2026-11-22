@@ -33,7 +33,7 @@ object Patches {
         }
     }
 
-    private fun make(w: World, t: TitleDef, kind: String, rng: Rng) {
+    internal fun make(w: World, t: TitleDef, kind: String, rng: Rng) {
         val n = count(w, t.id) + 1
         val version = "${w.season % 100}.$n"
         val notes = ArrayList<String>()
@@ -74,26 +74,29 @@ object Patches {
         if (t.isMoba) dev.uem.em.titles.RoleMeta.shift(w, t, kind, rng).asReversed().forEach { notes.add(0, it) }
         // Items: buffs and nerfs (scale of the item's stats), a new item now and then on a major patch.
         if (t.isMoba && dev.uem.em.titles.Items.hasItems(t.id)) {
-            val items = dev.uem.em.titles.Items.of(w, t.id).filter { it.type != "movement" }
+            // Items without stats in the data (pure actives) are not patched: the note could show no change.
+            val items = dev.uem.em.titles.Items.of(w, t.id).filter { it.type != "movement" && it.stats.values.any { v -> v != 0.0 } }
             val n = when (kind) { "major" -> rng.int(4, 8); "medium" -> rng.int(2, 4); else -> if (rng.chance(0.4)) 1 else 0 }
             for (it in rng.sample(items, minOf(n, items.size))) {
                 val old = w.itemMods[it.id] ?: 1.0
                 val d = rng.float(0.04, 0.12) * (if (old > 1.15) -1 else if (old < 0.85) 1 else if (rng.chance(0.5)) 1 else -1)
-                w.itemMods[it.id] = (old * (1 + d)).coerceIn(0.7, 1.35)
-                notes.add("Item — ${it.name}: ${if (d > 0) "buffed" else "nerfed"} (${if (d > 0) "+" else ""}${(d * 100).roundToInt()}% stats; ${itemStatText(it, if (d > 0) 1 + d else 1 + d)})")
+                val now = (old * (1 + d)).coerceIn(0.7, 1.35)
+                w.itemMods[it.id] = now
+                val pct = ((now / old - 1) * 100).roundToInt()
+                notes.add("Item — ${it.name}: ${if (now > old) "buffed" else "nerfed"} (${if (pct > 0) "+" else ""}$pct% stats; ${itemStatText(it, old, now)})")
             }
             if (kind == "major" && rng.chance(0.35)) Release.item(w, t, rng)?.let { notes.add(0, it) }
         }
         // Runes / emblems / arcana / talents: some raised or lowered, a new fictional one now and then.
         if (t.isMoba) {
-            val rs = dev.uem.em.titles.Runes.of(w, t.id).filter { t.id != "dota2" || it.slot == "facet" || rng.chance(0.02) }
+            val rs = dev.uem.em.titles.Runes.of(w, t.id).filter { (t.id != "dota2" || it.slot == "facet" || rng.chance(0.02)) && dev.uem.em.titles.Neutrals.scalable(it.stats) }
             val n = when (kind) { "major" -> rng.int(2, 5); "medium" -> rng.int(1, 3); else -> if (rng.chance(0.3)) 1 else 0 }
             for (r in rng.sample(rs, minOf(n, rs.size))) {
                 val old = w.runeMods[r.id] ?: 1.0
                 val d = rng.float(0.1, 0.3) * (if (old > 1.2) -1 else if (old < 0.8) 1 else if (rng.chance(0.5)) 1 else -1)
                 val now = (old * (1 + d)).coerceIn(0.5, 1.6)
                 w.runeMods[r.id] = now
-                notes.add("${dev.uem.em.titles.Runes.KIND[t.id]?.removeSuffix("s") ?: "Rune"} — ${r.name}: ${if (d > 0) "buffed" else "nerfed"} (${dev.uem.em.titles.Neutrals.statText(r.stats, now)})")
+                notes.add("${dev.uem.em.titles.Runes.KIND[t.id]?.removeSuffix("s") ?: "Rune"} — ${r.name}: ${if (now > old) "buffed" else "nerfed"} (${dev.uem.em.titles.Neutrals.changeText(r.stats, old, now)})")
             }
             if (kind == "major" && rng.chance(0.35)) Release.rune(w, t, rng)?.let { notes.add(0, it) }
         }
@@ -107,7 +110,8 @@ object Patches {
                 val d = rng.float(0.08, 0.2) * (if (old > 1.15) -1 else if (old < 0.85) 1 else if (rng.chance(0.5)) 1 else -1)
                 val now = (old * (1 + d)).coerceIn(0.6, 1.5)
                 w.spellMods[sp.id] = now
-                notes.add("Spell — ${sp.name}: ${if (d > 0) "buffed" else "nerfed"} (cooldown ${(sp.cd / old).toInt()} s → ${(sp.cd / now).toInt()} s; effect ${if (d > 0) "+" else ""}${(d * 100).toInt()}%)")
+                val pct = ((now / old - 1) * 100).roundToInt()
+                notes.add("Spell — ${sp.name}: ${if (now > old) "buffed" else "nerfed"} (cooldown ${(sp.cd / old).roundToInt()} s → ${(sp.cd / now).roundToInt()} s; strength ${if (pct > 0) "+" else ""}$pct%)")
             }
             if (kind == "major") {
                 // Never Flash / Flicker or the jungle spell: the game would not be playable.
@@ -122,14 +126,14 @@ object Patches {
         }
         // Neutral objectives: a kind's buff raised or lowered (every number of it), a new fictional kind now and then.
         if (t.isMoba) {
-            val kinds = dev.uem.em.titles.Neutrals.of(w, t.id)
+            val kinds = dev.uem.em.titles.Neutrals.of(w, t.id).filter { dev.uem.em.titles.Neutrals.scalable(it.stats) }
             val n = when (kind) { "major" -> rng.int(1, 3); "medium" -> if (rng.chance(0.6)) 1 else 0; else -> 0 }
             for (k in rng.sample(kinds, minOf(n, kinds.size))) {
                 val old = w.neutralMods[k.id] ?: 1.0
                 val d = rng.float(0.1, 0.25) * (if (old > 1.2) -1 else if (old < 0.8) 1 else if (rng.chance(0.5)) 1 else -1)
                 val now = (old * (1 + d)).coerceIn(0.6, 1.5)
                 w.neutralMods[k.id] = now
-                notes.add("Objective — ${k.name}: ${if (d > 0) "buffed" else "nerfed"} (${dev.uem.em.titles.Neutrals.statText(k.stats, now)})")
+                notes.add("Objective — ${k.name}: ${if (now > old) "buffed" else "nerfed"} (${dev.uem.em.titles.Neutrals.changeText(k.stats, old, now)})")
             }
             if (kind == "major" && rng.chance(0.3)) Release.neutral(w, t, rng)?.let { notes.add(0, it) }
         }
@@ -175,9 +179,13 @@ object Patches {
     private val STAT_LABEL = mapOf("ad" to "physical attack", "ap" to "magic power", "hp" to "health", "armor" to "armour", "mr" to "magic resistance", "as" to "attack speed",
         "crit" to "critical chance", "haste" to "ability haste", "pen" to "penetration", "ls" to "life steal", "ms" to "move speed", "mspct" to "move speed", "mana" to "mana")
 
-    /** The item's main stats after a change, e.g. "physical attack 75 → 81". */
-    private fun itemStatText(it: dev.uem.em.titles.ItemDef, f: Double): String =
-        it.stats.entries.sortedByDescending { e -> e.value }.take(2).joinToString(", ") { (k, v) -> "${STAT_LABEL[k] ?: k} ${v.roundToInt()} → ${(v * f).roundToInt()}" }
+    /** The item's main stats before and after a change, e.g. "physical attack 75 → 81" (with earlier patches included). */
+    private fun itemStatText(it: dev.uem.em.titles.ItemDef, old: Double, now: Double): String =
+        it.stats.entries.sortedByDescending { e -> e.value }.take(2).joinToString(", ") { (k, v) ->
+            val a = v * old; val b = v * now
+            fun f(x: Double) = if (abs(x) >= 10) x.roundToInt().toString() else "%.1f".format(x)
+            "${STAT_LABEL[k] ?: k} ${f(a)} → ${f(b)}"
+        }
 
     private fun detail(t: TitleDef, cls: String, buff: Boolean, rng: Rng): String {
         val c = cls.lowercase()

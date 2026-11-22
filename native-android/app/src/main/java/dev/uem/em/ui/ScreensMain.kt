@@ -333,6 +333,7 @@ fun MoreScreen(vm: GameVm, w: World) {
     val unread = w.inbox.count { !it.read }
     val menu = listOf(
         Triple("Match centre", "Watch any match live on the 2D map, recorded replays", Screen.Watch),
+        Triple("Social media", "Fans, analysts and teams on Agora, Chirp, Lens and Fanbase: reactions, ratings, debates, hot takes", Screen.Social),
         Triple("Inbox", if (unread > 0) "$unread unread" else "Messages, offers, reports", Screen.Inbox),
         Triple("Finances", "Balance, income and expenses, sponsors, facilities", Screen.Finances),
         Triple("Board", "Objectives and confidence", Screen.Board),

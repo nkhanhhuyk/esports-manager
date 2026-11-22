@@ -197,7 +197,9 @@ for (ti, h, rn, team, region) in people:
     pick = None
     if rn:
         pick = next((e for e in named if same_name(rn, e["pLabel"])), None)
-    elif len(ents) == 1:
+    elif len(ents) == 1 and ti not in ("mlbb", "hok"):
+        # A unique handle among all Wikidata pro gamers is not enough for MLBB / HoK players (rosters give
+        # no real names): "ARTHUR" of RRQ matched a Korean "Park Mir", "Allen" of AP Bren a Swede.
         pick = ents[0]
     if pick is None:
         continue

@@ -26,6 +26,7 @@ class RoleDeathsTest {
         val topLow = ArrayList<String>()
         val othersHigh = ArrayList<String>()
         val killOrder = ArrayList<String>()
+        val mvpHeavy = ArrayList<String>()
         for (id in w.titles) {
             val t = Catalogue.get(id)
             if (!t.isMoba) continue
@@ -45,6 +46,22 @@ class RoleDeathsTest {
                 fun kOf(pos: String) = t.lineup.filter { dev.uem.em.titles.RoleMeta.pos(it) == pos }.mapNotNull { sums[it] }.map { it[0] / it[3] }.maxOrNull() ?: 0.0
                 val bot = kOf("bot"); val mid = kOf("mid"); val top = kOf("top"); val jng = kOf("jungle"); val sup = kOf("support")
                 if (bot < mid * 0.95 || mid < maxOf(top, jng) || sup > minOf(top, jng)) killOrder.add("${t.short} bot %.2f mid %.2f top %.2f jng %.2f sup %.2f".format(bot, mid, top, jng, sup))
+            }
+            // MVPs and average game rating by position (who looks like they decide games).
+            run {
+                val mvps = HashMap<String, Int>(); val rating = HashMap<String, DoubleArray>()
+                for (f in w.fixtures) {
+                    if (!f.done || f.titleId != id) continue
+                    val rec = BoxStore.get(w, f.id) ?: continue
+                    for (g in rec.games) for (l in g.lines) rating.getOrPut(l.roleId) { DoubleArray(2) }.let { it[0] += l.rating; it[1] += 1.0 }
+                    if (f.mvp >= 0) rec.games.flatMap { it.lines }.firstOrNull { it.playerId == f.mvp }?.let { mvps.merge(it.roleId, 1, Int::plus) }
+                }
+                val tm = mvps.values.sum().coerceAtLeast(1)
+                // No position takes a third of the series MVPs (the top lane took 35% in LoL, 33% in Wild Rift).
+                val most = t.lineup.maxByOrNull { mvps[it] ?: 0 }
+                if (most != null && (mvps[most] ?: 0) * 1.0 / tm > 0.33 && tm >= 30) mvpHeavy.add("${t.short} ${t.role(most).short} ${(mvps[most] ?: 0) * 100 / tm}%")
+                out.appendLine("  ${t.short} series MVP share: " + t.lineup.joinToString(" | ") { r -> "%s %.0f%%".format(t.role(r).short, (mvps[r] ?: 0) * 100.0 / tm) } +
+                    " · rating: " + t.lineup.joinToString(" | ") { r -> rating[r]?.let { "%s %.2f".format(t.role(r).short, it[0] / it[1]) } ?: "" })
             }
             out.appendLine("${t.short} (${sums.values.first()[3].toInt()} player-games per role): " + t.lineup.joinToString(" | ") { r -> sums[r]?.let { s -> "%s K %.2f D %.2f A %.2f".format(t.role(r).short, s[0] / s[3], s[1] / s[3], s[2] / s[3]) } ?: "$r -" })
             // The top / EXP / Baron / Clash lane against the other non-support positions (Dota 2's
@@ -74,5 +91,6 @@ class RoleDeathsTest {
         assertTrue("a position dies too often: $othersHigh", othersHigh.isEmpty())
         // Before the role metas the mid laner had the most kills everywhere (LoL ADC 2.0 vs mid 3.6).
         assertTrue("kills by position out of order: $killOrder", killOrder.isEmpty())
+        assertTrue("one position takes most MVPs: $mvpHeavy", mvpHeavy.isEmpty())
     }
 }

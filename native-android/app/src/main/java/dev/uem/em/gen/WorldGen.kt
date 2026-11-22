@@ -227,6 +227,9 @@ object WorldGen {
             if (handleOnly && sourceNat && fc != p.nat && fc != p.nat2) { inferNat(p); return }
             // (Dota 2 Wikidata matches are checked against OpenDota profile countries in the snapshot itself.)
             if (handleOnly && !sourceNat && p.titleId != "dota2" && f.src == "wikidata.org" && GameData.continentOf(fc) != GameData.continentOf(p.nat)) { inferNat(p); return }
+            // MLBB / HoK rosters list no real names, so a handle-only Wikidata match is never trusted there
+            // (RRQ's ARTHUR matched a Korean "Park Mir"; the continent check let it through).
+            if (handleOnly && !sourceNat && (p.titleId == "mlbb" || p.titleId == "hok") && f.src == "wikidata.org" && fc != p.nat) { inferNat(p); return }
         }
         val est = p.realEst.toMutableSet()
         if (f.birth != null && Regex("\\d{4}-\\d{2}-\\d{2}").matches(f.birth)) {

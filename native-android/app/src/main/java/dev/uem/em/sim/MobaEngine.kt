@@ -929,6 +929,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         if (rec != null && rec.snapT.lastOrNull() != now) snapshot()
         if (rec != null && now % MobaEngine.SAMPLE_STEP != 0) sample()
         book.finalise()
+        book.metaWorld = world
         book.rate(winner) { l ->
             val k = book.get(l, K); val d = book.get(l, D); val a = book.get(l, A)
             (k * 3 + a * 1.5 + 1) / (d * 2 + 2) + book.get(l, GOLD) / 1000 * 0.25 + book.get(l, DMG) / 15000 + book.get(l, HEAL) / 20000 + book.get(l, OBJ) * 0.4 + book.get(l, TOWERS) * 0.3 + book.get(l, VISION) / 40
@@ -1161,12 +1162,14 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         val team = if (only != null) listOf(only) else bySide[side]
         val v = FloatArray(NS)
         for ((key, x) in k.stats) STAT_INDEX[key]?.let { v[it] += (x * m).toFloat() }
-        val gold = k.stats["gold"] ?: 0.0; val xp = k.stats["xp"] ?: 0.0
+        // Patch changes scale every number of the buff, gold, experience and empowered-minion time included.
+        val nm = dev.uem.em.titles.Neutrals.mod(world, k.id)
+        val gold = (k.stats["gold"] ?: 0.0) * nm; val xp = (k.stats["xp"] ?: 0.0) * nm
         for (h in team) {
             if (gold > 0) addGold(h, (gold * itemScale).toFloat())
             if (xp > 0) addXp(h, xp)
         }
-        k.stats["push"]?.let { pushUntil[side] = max(pushUntil[side], now + it.toInt()); for (h in team) addGold(h, gpmPerSec() * 20f) }
+        k.stats["push"]?.let { pushUntil[side] = max(pushUntil[side], now + (it * nm).toInt()); for (h in team) addGold(h, gpmPerSec() * 20f) }
         k.stats["shield"]?.let { sh -> for (h in team) if (h.alive(now)) { h.shield = max(h.shield, h.maxHp * (sh * m).toFloat()); h.shieldUntil = nowF + (if (k.duration > 0) k.duration else 60) } }
         if ((k.stats["aegis"] ?: 0.0) > 0) (only ?: team.filter { it.alive(now) }.maxByOrNull { it.earned })?.aegis = true
         if ((k.stats["cheese"] ?: 0.0) > 0) (only ?: team.firstOrNull())?.cheese = true

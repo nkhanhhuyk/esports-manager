@@ -86,6 +86,7 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                         Screen.SoloQ -> SoloQueueScreen(vm, w)
                         Screen.Rankings -> RankingsScreen(vm, w)
                         is Screen.Library -> LibraryScreen(vm, w, s.kind)
+                        Screen.Social -> SocialScreen(vm, w)
                         is Screen.Replay -> ReplayScreen(vm, w, s.fixtureId, s.game)
                         else -> HomeScreen(vm, w)
                     }
