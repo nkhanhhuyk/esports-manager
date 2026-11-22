@@ -63,6 +63,37 @@ class BatchFixesTest {
     }
 
     @Test
+    fun pacificLowerLeaguesFeedTheLcp() {
+        val lcp = w.leagues.first { it.titleId == "lol" && it.short == "LCP" }
+        val lowers = w.leagues.filter { it.upperId == lcp.id }
+        assertEquals(setOf("LJL", "PCS", "VCS"), lowers.map { it.short }.toSet())
+        assertTrue(lowers.all { it.tier == 2 && it.real && it.teamIds.size >= 5 })
+        val dupes = w.teams.filter { it.titleId == "lol" && it.nationalOf.isEmpty() }.groupBy { it.name.lowercase() }.filter { it.value.size > 1 }.keys
+        assertTrue("teams twice: $dupes", dupes.isEmpty())
+        val dupP = w.players.filter { it.titleId == "lol" && it.real && !it.retired }.groupBy { it.handle.lowercase() }.filter { it.value.size > 1 }.keys
+        assertTrue("players twice: $dupP", dupP.isEmpty())
+        // Real academies of LCP teams play below their parent.
+        val dfm = w.teams.first { it.name == "DFM Academy" }
+        assertEquals("DetonatioN FocusMe", w.teams[dfm.parentId].name)
+        assertEquals("LJL", w.leagues[dfm.leagueId].short)
+        // The promotion tournament: LCP's last two against the lower leagues' best (no academies).
+        val pc = w.comps.first { it.promoLeague == lcp.id && it.season == w.season }
+        assertTrue(pc.entrants.count { it.startsWith("promo:") } == 3 && pc.entrants.any { it.startsWith("bottom:") })
+        // Winners go up, the LCP teams that missed out go down to their home league.
+        val down = lcp.teamIds.take(2)
+        val up = lowers.first { it.short == "VCS" }.teamIds.first { w.teams[it].parentId < 0 }
+        val other = lowers.first { it.short == "LJL" }.teamIds.first { w.teams[it].parentId < 0 }
+        pc.teamIds = (down + up + other).toMutableList()
+        pc.placements = mutableListOf(up, down[0], other, down[1])
+        pc.status = 2
+        dev.uem.em.comp.Season.applyPromotions(w)
+        assertEquals(lcp.id, w.teams[up].leagueId)
+        assertEquals(lcp.id, w.teams[down[0]].leagueId)
+        assertTrue(w.teams[down[1]].leagueId in lowers.map { it.id })
+        assertEquals(8, lcp.teamIds.size)
+    }
+
+    @Test
     fun nationalitiesFromRealNamesAndResidency() {
         val viper = w.players.first { it.titleId == "lol" && it.handle == "Viper" && it.teamId >= 0 }
         val tarzan = w.players.first { it.titleId == "lol" && it.handle == "Tarzan" && it.teamId >= 0 }

@@ -152,6 +152,53 @@ object Season {
         return c
     }
 
+    /** The lower league a team plays in when it leaves [upper]: the one covering its organisation's country. */
+    fun homeLower(w: World, upper: League, team: dev.uem.em.model.Team): League? {
+        val lowers = w.leagues.filter { it.upperId == upper.id && it.tier == 2 }
+        val org = w.orgs[team.orgId]
+        return lowers.firstOrNull { org.region in GameData.expand(it.region) || org.country in GameData.expand(it.region) } ?: lowers.maxByOrNull { leagueStrength(it) }
+    }
+
+    /** Move a team to another league (its academy steps out of a league its parent now plays in). */
+    fun moveTeam(w: World, team: dev.uem.em.model.Team, to: League) {
+        w.leagues.getOrNull(team.leagueId)?.teamIds?.remove(team.id)
+        team.leagueId = to.id
+        if (team.id !in to.teamIds) to.teamIds.add(team.id)
+        for (a in w.teams) if (a.parentId == team.id && a.leagueId == to.id) {
+            to.teamIds.remove(a.id); a.leagueId = -1
+            w.news.add(dev.uem.em.model.News(w.day, "${a.name} leave ${to.short}", "With ${team.name} in ${to.name}, their academy cannot play there and continues as a development squad.", listOf(a.id)))
+        }
+    }
+
+    /**
+     * End of season: the top two of each promotion tournament play the tier-1 league next season,
+     * the tier-1 teams that missed out go down to their home lower league.
+     */
+    fun applyPromotions(w: World) {
+        for (c in w.comps) {
+            if (c.season != w.season || c.promoLeague < 0 || !c.done) continue
+            val upper = w.leagues[c.promoLeague]
+            val wasUp = c.teamIds.filter { w.teams[it].leagueId == upper.id }
+            val slots = wasUp.size
+            val winners = c.placements.take(slots)
+            val up = winners.filter { it !in wasUp && w.teams[it].active }
+            val down = wasUp.filter { it !in winners }
+            if (up.size != down.size) continue
+            for (tid in down) {
+                val team = w.teams[tid]
+                val to = homeLower(w, upper, team) ?: continue
+                moveTeam(w, team, to)
+                w.news.add(dev.uem.em.model.News(w.day, "${team.name} relegated to ${to.short}", "${team.name} finished outside the top $slots of ${c.name} and play ${to.name} next season.", listOf(tid)))
+            }
+            for (tid in up) {
+                val team = w.teams[tid]
+                val from = w.leagues.getOrNull(team.leagueId)
+                moveTeam(w, team, upper)
+                w.news.add(dev.uem.em.model.News(w.day, "${team.name} promoted to ${upper.short}", "${team.name}${from?.let { " (${it.short})" } ?: ""} earned a place in ${upper.name} through ${c.name}.", listOf(tid)))
+            }
+        }
+    }
+
     fun plan(w: World, season: Int) {
         w.titles.forEachIndexed { ti, titleId ->
             val t = Catalogue.get(titleId)
@@ -183,6 +230,20 @@ object Season {
                 splitComps[l.id] = list
             }
             if (tier1.isEmpty()) return@forEachIndexed
+            // Promotion tournaments: a tier-1 league with its own lower leagues (LCP: LJL, PCS, VCS) puts its
+            // last two teams against the lower leagues' champions (the strongest lower league sends two); the
+            // top two play the tier-1 league next season. Midweek in October, after the last splits.
+            for (upper in tier1) {
+                // Independent lower leagues only (not an academy league, not the upper league's own Challengers division).
+                val lowers = tier2.filter { l -> l.upperId == upper.id && upper.lowerId != l.id && l.teamIds.count { w.teams[it].parentId < 0 } >= 4 }.sortedByDescending { leagueStrength(it) }
+                if (lowers.isEmpty() || upper.teamIds.size < 6) continue
+                val last = splitComps[upper.id]?.lastOrNull() ?: continue
+                val rules = listOf("bottom:${last.id}:2") + lowers.mapIndexed { i, l -> "promo:${splitComps[l.id]!!.last().id}:${if (i == 0) 2 else 1}" }
+                val pc = mk(w, t, season, "${upper.name} Promotion $season", "${upper.short} PRO", CompTier.CHALLENGER, null, rules,
+                    listOf(stage("Promotion", StageType.RR, D(10, 13), t.formats.second.n, listOf(1, 2, 3), daysBetween = 1)), t.prizeScale * 60_000, 20, emptyList())
+                pc.promoLeague = upper.id
+                pc.realName = true
+            }
             val real = REAL_EVENTS[titleId]
             fun name(k: String, generic: String, short: String): Triple<String, String, Boolean> =
                 real?.get(k)?.let { Triple("${it.first} $season", it.second, true) } ?: Triple("${t.short} $generic $season", "${t.short} $short", false)
@@ -498,6 +559,18 @@ object Progress {
                 }
                 // The strongest tier-1 teams of a game not already in (by Elo).
                 "elo" -> { val need = p[2].toInt(); w.teams.filter { it.titleId == p[1] && it.active && it.nationalOf.isEmpty() && w.leagues.getOrNull(it.leagueId)?.tier == 1 && it.id !in out }.sortedByDescending { it.elo }.take(need).forEach { add(it.id) } }
+                // The last teams of a finished league split that are still in its league (promotion tournaments).
+                "bottom" -> {
+                    val src = w.comps[p[1].toInt()]
+                    if (!src.done) return null
+                    src.placements.reversed().filter { w.teams[it].active && w.teams[it].leagueId == src.leagueId && it !in out }.take(p[2].toInt()).forEach(::add)
+                }
+                // The best teams of a finished lower-league split that may go up: no academies (their parent's league).
+                "promo" -> {
+                    val src = w.comps[p[1].toInt()]
+                    if (!src.done) return null
+                    src.placements.filter { w.teams[it].active && w.teams[it].parentId < 0 && w.teams[it].leagueId == src.leagueId && it !in out }.take(p[2].toInt()).forEach(::add)
+                }
                 "top" -> {
                     val src = w.comps[p[1].toInt()]
                     if (!src.done) return null

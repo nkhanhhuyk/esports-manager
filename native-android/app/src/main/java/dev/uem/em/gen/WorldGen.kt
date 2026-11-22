@@ -42,7 +42,7 @@ object WorldGen {
     private val AMER = "AMER-NA.LATN.LATS.BR"
     private val EMEA = "EMEA-EUW.EUE.CIS.MENA.AFR"
     private val LEAGUE_REGION = mapOf(
-        "mpl-id" to "ID", "mpl-ph" to "PH", "lol-lck" to "KR", "lol-lpl" to "CN", "lol-lec" to "EMEA-EUW.EUE.CIS.MENA", "lol-lcs" to "NA", "lol-cblol" to "BR", "lol-lcp" to "APN-PCS.JP.VN",
+        "mpl-id" to "ID", "mpl-ph" to "PH", "lol-lck" to "KR", "lol-lpl" to "CN", "lol-lec" to "EMEA-EUW.EUE.CIS.MENA", "lol-lcs" to "NA", "lol-cblol" to "BR", "lol-lcp" to "APN-PCS.JP.VN", "lol-ljl" to "JP", "lol-pcs" to "PCS", "lol-vcs" to "VN",
         "vct-americas" to AMER, "vct-emea" to EMEA, "vct-pacific" to "APN-KR.JP.PCS.VN.TH.ID.PH.MYSG.SA.OCE", "vct-china" to "CN",
         "cs2-vrs-europe" to EMEA, "cs2-vrs-americas" to AMER, "cs2-vrs-asia" to "APS-CN.KR.JP.PCS.MYSG.OCE.SA.ID.PH.TH.VN",
         "wr-sea-pi" to "APS-PH.ID", "wr-sea-m" to "APS-MYSG.TH.VN.OCE.SA", "wr-emea" to EMEA,
@@ -440,7 +440,7 @@ object WorldGen {
         val t = Catalogue.get(titleId)
         val pop = Catalogue.POPULARITY[titleId]!!
         val covered = HashSet<String>()
-        class Group(val region: String, val name: String, val short: String, val src: String, val teams: List<JsonObject>, val real: Boolean)
+        class Group(val region: String, val name: String, val short: String, val src: String, val teams: List<JsonObject>, val real: Boolean, val lid: String = "", val tier: Int = 1, val upper: String? = null)
         val groups = ArrayList<Group>()
         if (titleId == "dota2") {
             val by = LinkedHashMap<String, MutableList<JsonObject>>()
@@ -457,10 +457,13 @@ object WorldGen {
                 val region = LEAGUE_REGION[lid] ?: continue
                 if (list.isEmpty()) continue
                 val cs = CS2_NAME[lid]
-                groups.add(Group(region, cs?.first ?: l.str("name")!!, cs?.second ?: l.str("short")!!, l.str("source_url") ?: "", list, cs == null))
+                groups.add(Group(region, cs?.first ?: l.str("name")!!, cs?.second ?: l.str("short")!!, l.str("source_url") ?: "", list, cs == null, lid,
+                    l["tier"]?.jsonPrimitive?.intOrNull ?: 1, l.str("upper")))
             }
         }
-        for (g in groups) {
+        // Leagues of the snapshot by id (a second-tier league names its upper league: LJL, PCS, VCS under the LCP).
+        val made = HashMap<String, League>()
+        for (g in groups.sortedBy { it.tier }) {
             covered.addAll(GameData.expand(g.region))
             val strength = sceneStrength(t, g.region, popStrength(pop, g.region))
             val leagueMean = 57 + 19 * (strength / 100)
@@ -468,15 +471,18 @@ object WorldGen {
             val sigs = ordered.map { signal(it) }
             val mean = sigs.average()
             val sd = sqrt(sigs.sumOf { (it - mean) * (it - mean) } / sigs.size).let { if (it == 0.0) 1.0 else it }
-            val cut = if (ordered.size > 16) 12 else ordered.size
-            val tiers = mutableListOf(1 to ordered.take(cut))
+            val cut = if (ordered.size > 16 && g.tier == 1) 12 else ordered.size
+            val tiers = mutableListOf(g.tier to ordered.take(cut))
             if (cut < ordered.size) tiers.add(2 to ordered.drop(cut))
-            var upper: League? = null
+            var upper: League? = g.upper?.let { made[it] }
             for ((tier, list) in tiers) {
+                val own = g.tier == 2 && tier == 2
                 val league = League(b.world.leagues.size, titleId, g.region, tier,
-                    if (tier == 1) g.name else if (g.name.endsWith("League")) g.name.removeSuffix("League") + "Challengers" else "${g.name} — Challengers",
-                    if (tier == 1) g.short else "${g.short} C", real = g.real, realSrc = g.src, upperId = upper?.id ?: -1)
-                upper?.lowerId = league.id
+                    if (tier == 1 || own) g.name else if (g.name.endsWith("League")) g.name.removeSuffix("League") + "Challengers" else "${g.name} — Challengers",
+                    if (tier == 1 || own) g.short else "${g.short} C", real = g.real, realSrc = g.src, upperId = upper?.id ?: -1)
+                // A tier-1 league with several real lower leagues keeps no single "lower" league.
+                if (!own) upper?.lowerId = league.id
+                if (tier == g.tier) made[g.lid] = league
                 b.world.leagues.add(league)
                 for (st in list) {
                     val z = (signal(st) - mean) / sd
@@ -514,8 +520,10 @@ object WorldGen {
         val orgCountry = valid(st.str("country")) ?: countryCode(st.str("country_name")) ?: (if (top != null && top.value >= 3) top.key else null)
         val orgName = st.str("org")?.ifBlank { null } ?: st.str("name")!!
         val key = orgKey(orgName)
-        var org = b.realOrgs[key]
-        if (org != null && org.teams.any { b.world.teams[it].titleId == titleId }) org = null
+        // The academy of a real team (a second team of the same organisation in a lower league).
+        val parent = st.str("academy_of")?.let { pn -> b.world.teams.firstOrNull { it.titleId == titleId && it.parentId < 0 && it.name.equals(pn, ignoreCase = true) } }
+        var org = parent?.let { b.world.orgs[it.orgId] } ?: b.realOrgs[key]
+        if (parent == null && org != null && org.teams.any { b.world.teams[it].titleId == titleId }) org = null
         val name = cleanOrg(orgName)
         if (org == null) {
             val country = orgCountry ?: GameData.pickCountry(Rng.of("realorg|$titleId|${norm(name)}"), league.region)
@@ -536,6 +544,7 @@ object WorldGen {
         val team = createTeam(b, org, titleId, league.region, league, st.str("name")!!, st.str("short") ?: st.str("name")!!)
         team.real = true
         team.realSrc = st.str("source_url") ?: ""
+        if (parent != null) team.parentId = parent.id
         org.rep = maxOf(org.rep, clamp(42 + (teamMean - 64) * 3 + b.rng.normal(0.0, 4.0), 15.0, 95.0)).roundToInt().toDouble()
         org.fans = (org.rep.pow(2.2) * 40 * GameData.economy(org.region) + b.rng.int(1000, 20000))
         org.prestige = (org.rep * 0.5).roundToInt().toDouble()

@@ -35,6 +35,18 @@ class SeasonTest {
         assertTrue(encs.all { e -> e.teamIds.groupBy { dev.uem.em.data.GameData.continentOf(w.teams[it].nationalOf) }.values.all { it.size == 2 } })
         assertEquals(s0 + 1, w.season)
         assertTrue(stuck.isEmpty())
+        // The LCP promotion tournament was played and its top two play the LCP this season.
+        val promo = w.comps.first { it.season == s0 && it.promoLeague >= 0 }
+        println("promotion: ${promo.entrants} -> ${promo.placements.map { w.teams[it].name + " (" + (w.leagues.getOrNull(w.teams[it].leagueId)?.short ?: "-") + ")" }}")
+        assertTrue("promotion played", promo.done && promo.teamIds.size == 6)
+        assertTrue(promo.placements.take(2).all { w.teams[it].leagueId == promo.promoLeague })
+        assertEquals(8, w.leagues[promo.promoLeague].teamIds.size)
+        // Relegated teams play the lower league of their region (Taiwan -> PCS, Japan -> LJL, Vietnam -> VCS).
+        for (tid in promo.placements.drop(2)) {
+            val team = w.teams[tid]; val l = w.leagues[team.leagueId]
+            val reg = w.orgs[team.orgId].region
+            if (reg in setOf("PCS", "JP", "VN")) assertTrue("${team.name} ($reg) in ${l.short}", reg in dev.uem.em.data.GameData.expand(l.region))
+        }
         assertTrue(w.comps.any { it.season == s0 + 1 })
     }
 }

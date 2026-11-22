@@ -225,6 +225,7 @@ object Advance {
             team.history.add(TeamSeason(w.season, team.leagueId, pos, lines.sumOf { it.w }, lines.sumOf { it.l }, team.elo, team.roster.toIntArray()))
         }
         val rng = dev.uem.em.core.Rng.derive(w.seed, "rollover", w.season)
+        Season.applyPromotions(w)
         dev.uem.em.mgmt.Extras.residency(w)
         dev.uem.em.mgmt.Career.awards(w)
         dev.uem.em.mgmt.Extras.seasonReview(w)

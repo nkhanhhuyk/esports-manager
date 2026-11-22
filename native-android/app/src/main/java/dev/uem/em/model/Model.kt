@@ -345,6 +345,8 @@ class Competition(
     var coachComms: Int = -1,
     /** Tactical timeouts per team per map in shooters (-1: the game's default). */
     var timeouts: Int = -1,
+    /** Promotion tournament: the league whose places it decides (-1: not one). */
+    var promoLeague: Int = -1,
 ) {
     val done get() = status == 2
 }

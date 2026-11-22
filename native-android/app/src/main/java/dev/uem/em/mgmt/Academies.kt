@@ -29,6 +29,8 @@ object Academies {
 
     /** The Challengers league an academy of this team would play in, if the region has one. */
     fun leagueFor(w: World, parent: Team) = w.leagues.getOrNull(parent.leagueId)?.let { l -> w.leagues.getOrNull(l.lowerId) }
+        // A league with several lower leagues (LCP: LJL, PCS, VCS): the one of the organisation's country.
+        ?: w.leagues.getOrNull(parent.leagueId)?.let { l -> w.leagues.firstOrNull { it.upperId == l.id && it.tier == 2 && w.orgs[parent.orgId].region in GameData.expand(it.region) } }
         ?: w.leagues.firstOrNull { it.titleId == parent.titleId && it.tier == 2 && it.region == parent.region }
 
     class Result(val ok: Boolean, val text: String, val team: Team? = null)
