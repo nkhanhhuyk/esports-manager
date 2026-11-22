@@ -443,7 +443,10 @@ object Stages {
         if (stage.type == StageType.GROUPS) {
             val groups = stage.standings.groupBy { it.group }.values.map { sortStandings(w, it) }
             val out = ArrayList<Int>()
-            for (rank in 0 until groups.maxOf { it.size }) out.addAll(sortStandings(w, groups.mapNotNull { it.getOrNull(rank) }).map { it.teamId })
+            // Across groups (which can differ in size): win rate, then game difference per series, then seed strength.
+            val across = compareByDescending<dev.uem.em.model.Standing> { it.w.toDouble() / maxOf(1, it.w + it.l) }
+                .thenByDescending { (it.gw - it.gl).toDouble() / maxOf(1, it.w + it.l) }.thenByDescending { w.teams[it.teamId].elo }.thenBy { it.teamId }
+            for (rank in 0 until groups.maxOf { it.size }) out.addAll(groups.mapNotNull { it.getOrNull(rank) }.sortedWith(across).map { it.teamId })
             return out
         }
         if (stage.type == StageType.SWISS) return stage.standings.sortedWith(compareByDescending<Standing> { it.w }.thenBy { it.l }.thenByDescending { it.gw - it.gl }.thenBy { stage.teamIds.indexOf(it.teamId) }).map { it.teamId }
