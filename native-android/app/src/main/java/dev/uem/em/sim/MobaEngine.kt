@@ -43,6 +43,20 @@ object MobaEngine {
         val backFlee: Float = 0.4f,
         /** After laning: target value of a carry with its front line between him and the attacker. */
         val peel: Float = 0.45f,
+        /** Laning: health lead (share) at which a solo laner goes all in. */
+        val soloAllIn: Float = 0.3f,
+        /** Laning: where a melee solo laner stands against his wave (share of the lane; negative = ahead of it). */
+        val soloStance: Float = -0.04f,
+        /** Damage taken by a hero caught alone by two or more enemies (no peel, chained crowd control, ignite). */
+        val pickMul: Float = 1.8f,
+        /** The same in the laning phase (a gank: the jungler's crowd control, flash and ignite on a lone laner). */
+        val gankMul: Float = 1.8f,
+        /** Damage between heroes at the start of the game, fading to 1 at the end of laning. */
+        val earlyDmg: Float = 1.2f,
+        /** After laning: of five 40-second spells, how many the top / EXP laner spends with the team (the rest split-pushing). */
+        val topGroup: Int = 3,
+        /** After laning: health share at which tanks and bruisers leave a fight. */
+        val frontFlee: Float = 0.14f,
         /** After laning: skill shots miss carries and mages behind their front line more often. */
         val backDodge: Float = 0.08f,
         /** After laning: share of non-assassin damage that reaches a carry, mage or support. */
@@ -50,9 +64,9 @@ object MobaEngine {
     )
 
     val RULES = mapOf(
-        "mlbb" to Rules(27f, 25, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 70, intArrayOf(4, 8, 12), true, false, 1f, 1.0, 1.35, 1f, 0.05f, lateCaution = 0.22f, backGuard = 0.86f),
-        "wildrift" to Rules(26f, 30, 5, 5, 15, 17.0, 80f, 2900f, 4400f, 270f, 90, intArrayOf(5, 9, 13), true, false, 1f, 1.0, 1.35, 1f, 0.05f, lateCaution = 0.22f, backGuard = 0.86f),
-        "hok" to Rules(27f, 30, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 75, intArrayOf(4, 8, 12), true, false, 1f, 1.1, 1.55, 1f, 0.12f, lateCaution = 0.12f, backGuard = 0.9f, peel = 0.3f),
+        "mlbb" to Rules(27f, 25, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 70, intArrayOf(4, 8, 12), true, false, 1f, 1.0, 1.35, 1f, 0.05f, lateCaution = 0.22f, backGuard = 0.86f, soloStance = -0.06f, topGroup = 2),
+        "wildrift" to Rules(26f, 30, 5, 5, 15, 17.0, 80f, 2900f, 4400f, 270f, 90, intArrayOf(5, 9, 13), true, false, 1f, 1.0, 1.35, 1f, 0.05f, lateCaution = 0.22f, backGuard = 0.86f, soloStance = -0.06f, topGroup = 2),
+        "hok" to Rules(27f, 30, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 75, intArrayOf(4, 8, 12), true, false, 1f, 1.1, 1.55, 1f, 0.12f, lateCaution = 0.12f, backGuard = 0.9f, peel = 0.3f, soloStance = -0.06f, topGroup = 2),
         "lol" to Rules(22f, 65, 6, 8, 18, 34.0, 80f, 4200f, 5400f, 300f, 120, intArrayOf(6, 11, 16), true, false, 1f, 0.7, 1.7, 1f, 0.55f),
         "dota2" to Rules(20f, 0, 4, 0, 30, 50.0, 100f, 4400f, 6000f, 290f, 60, intArrayOf(6, 12, 18), false, true, 1f, 1.4, 1.15, 2.3f, lateCaution = 0.15f, backGuard = 0.9f),
     )
@@ -185,6 +199,11 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         var focus = -1
         var camp = -1
         var aegis = false
+        /** Alone and hit by two or more enemies (no one to peel, CC chained): picks finish such a hero. */
+        var caught = false
+        /** When this hero's gank / collapse opener (gap closer, crowd control) is ready again. */
+        var openReady = 0f
+        var huntedAt = -999
         /** Dota 2 Roshan drops held: an emergency full heal, a cooldown reset. */
         var cheese = false; var refresher = false
         /** Timed objective buffs on this hero (Baron, Elder, Turtle's Blessing...) and their summed stats. */
@@ -496,6 +515,9 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         var amount = amount0
         if (src != null) { amount *= src.vs[target.gi]; if (commsUntil[src.side] > now) amount *= commsMul[src.side] }
         if (type != 2) amount *= 1f - target.resistFor(type) * (1f - (src?.pen ?: 0f))
+        if (src != null && target.caught) amount *= if (now < laneEndS) R.gankMul else R.pickMul
+        // Early fights are short and lethal (base stats against small health pools); the edge fades by the end of laning.
+        if (src != null && now < laneEndS) amount *= 1f + (R.earlyDmg - 1f) * (1f - now.toFloat() / laneEndS)
         // After laning, carries, mages and supports fight from behind their front line at max range:
         // part of the damage aimed at them never lands (divers and assassins still reach them).
         if (src != null && !src.assassin && (target.marksman || target.mage || target.supportCls) && !target.tank && now >= laneEndS) amount *= R.backGuard
@@ -584,6 +606,10 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
                 if (al == 0) d.incrementAndGet(40 + r)
                 if (en >= 3) d.incrementAndGet(45 + r)
                 if (v.task == 0) d.incrementAndGet(50 + r)
+            }
+            if (d.length() >= 60) {
+                if (now - v.huntedAt <= 25) d.incrementAndGet(56 + (if (v.idx == 0) 0 else 1))
+                if (v.huntTarget >= 0 && v.huntUntil > now) d.incrementAndGet(58)
             }
             if (d.length() >= 40 && now / 60.0 < cfg.laneEnd && v.jungler) {
                 if (active.any { !it.dead && it.shoots && it.s.team != v.side && hypot(it.s.x - v.x, it.s.y - v.y) < 70f }) d.incrementAndGet(32)
@@ -813,6 +839,14 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             if (now % 60 < DT) for (sd in 0..1) teamForm[sd] = (1.0 + rng.normal(0.0, 0.09) * (1.2 - (teams[sd].phase[Phase.CLUTCH.ordinal] - 60) / 100)).toFloat().coerceIn(0.8f, 1.2f)
             for (sd in 0..1) { avgLevel[sd] = bySide[sd].sumOf { it.level }.toDouble() / max(1, bySide[sd].size); var gsum = 0f; for (h in bySide[sd]) gsum += h.earned; teamGold[sd] = gsum }
             for (h in heroes) h.refresh()
+            // Caught alone: a hero with no ally near him who is being hit by two or more enemies.
+            for (h in heroes) {
+                var ally = false
+                if (h.alive(now)) for (a in bySide[h.side]) if (a !== h && a.alive(now) && abs(a.x - h.x) < 70f && abs(a.y - h.y) < 70f) { ally = true; break }
+                var hitters = 0
+                if (!ally) for (e in bySide[1 - h.side]) if (h.dmgBy[e.gi] >= now - 3) hitters++
+                h.caught = !ally && hitters >= 2
+            }
             val pf = MobaEngine.profile
             var t0 = if (pf) System.nanoTime() else 0L
             fun lap(i: Int) { if (pf) { val t1 = System.nanoTime(); MobaEngine.prof[i] += t1 - t0; t0 = t1 } }
@@ -1187,9 +1221,10 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             // A split-pusher drawing pressure is the usual target: teams send people to catch him.
             if (!rng.chance((0.3 + aggression * 0.18 + macro * 0.03 + (if (e.idx == 0) 0.08 else 0.0)).coerceIn(0.1, 0.6))) continue
             val hunters = bySide[side].filter { it.alive(now) && it.hpPct() > 0.55f && it.task != 3 && it.task != 4 && it.recallUntil == 0 && it.lastCombat < now - 3 }
-                .sortedBy { hypot(it.x - e.x, it.y - e.y) }.take(if (e.power() > teamPower(1 - side) / 5f) 3 else 2)
+                .sortedBy { hypot(it.x - e.x, it.y - e.y) }.take(if (e.idx == 0 || e.power() > teamPower(1 - side) / 5f) 3 else 2)
             if (hunters.size < 2 || hypot(hunters[0].x - e.x, hunters[0].y - e.y) > 650f) continue
             for (x in hunters) { x.huntTarget = e.gi; x.huntUntil = now + 25 }
+            e.huntedAt = now
             MobaEngine.dbg?.incrementAndGet(3 + li)
             return
         }
@@ -1416,12 +1451,15 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
                 val f = laneFront(li, side)
                 // After laning the carries and mages farm a safer wave (a step behind the front, nearer their tower).
                 val safer = if (!laning && (h.marksman || h.mage || h.assassin)) 0.03f else 0f
-                val back = (if (side == 0) -1f else 1f) * (0.02f + safer + (if (h.hpPct() < 0.5f) 0.03f else 0f) + (if (h.duoSecond) 0.01f else 0f))
+                // Solo laners in the laning phase stand at their wave to contest it (melee ones a step ahead, to trade).
+                val solo = laning && cfg.lanes.getOrNull(li)?.second?.size == 1 && h.hpPct() >= 0.5f
+                val stance = if (!solo) 0.02f else if (h.range > 25f) 0.03f else if (li == 0) R.soloStance else 0.02f
+                val back = (if (side == 0) -1f else 1f) * (stance + safer + (if (h.hpPct() < 0.5f) 0.03f else 0f) + (if (h.duoSecond) 0.01f else 0f))
                 laneXY(h.laneMap, (f + back).coerceIn(0.02f, 0.98f), tmp)
                 h.task = 0; h.targetX = tmp[0]; h.targetY = tmp[1]
                 // After laning: roam to mid / farm the side lane. The top / EXP laner splits its time:
                 // side-lane farming, then a spell with the team (and its fights) in the middle.
-                if (!laning && !h.marksman && (h.lane != 0 || (now / 40 + h.gi) % 5 < 4)) {
+                if (!laning && !h.marksman && (h.lane != 0 || (now / 40 + h.gi) % 5 < R.topGroup)) {
                     laneXY("mid", (laneFront(1, side) + back).coerceIn(0.05f, 0.95f), tmp); h.targetX = tmp[0]; h.targetY = tmp[1]
                 }
             }
@@ -1565,7 +1603,9 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         if (!committed) h.engagedAt = now
         // Laning phase: nobody follows a laner under his own tower unless the dive kills (a gank that
         // fails at the tower is called off; junglers chasing into towers died far too often).
-        if (laningNow && !killable) {
+        // A tower dive on a low laner by two healthy heroes is allowed (it is how solo laners die early).
+        val dive = best.hpPct() < 0.4f && h.hpPct() > 0.6f && bySide[side].any { it !== h && it.alive(now) && it.hpPct() > 0.5f && abs(it.x - best.x) < 60f && abs(it.y - best.y) < 60f }
+        if (laningNow && !killable && !dive) {
             var underTower = false
             for (st in active) if (!st.dead && st.shoots && st.s.team == best.side && abs(st.s.x - best.x) < 62f && abs(st.s.y - best.y) < 62f) { underTower = true; break }
             if (underTower) {
@@ -1586,12 +1626,29 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             // A gank in the laning phase goes in with the numbers (the jungler waits for its laner); later collapses as before.
             h.task == 5 && (h.camp == best.gi || h.huntTarget == best.gi) -> ratio > (if (laningNow) 1.15f else 0.75f) || (killable && ratio > 0.8f)
             gankOn -> ratio > 0.85f
-            laningNow && !committed -> (killable && ratio > 1.0f) || (ratio > 1.9f && best.hpPct() < 0.45f)
+            // Solo lanes (top / EXP / mid): a clear health lead is an all-in (solo kills).
+            laningNow && !committed -> (killable && ratio > 1.0f) || (ratio > 1.9f && best.hpPct() < 0.45f) ||
+                (best.lane == h.lane && cfg.lanes.getOrNull(h.lane)?.second?.size == 1 && h.hpPct() - best.hpPct() > R.soloAllIn && ratio > 1.1f)
             h.task == 2 || h.task == 3 -> ratio > 0.92f + R.caution + lateC * 0.4f - aggression * 0.12f || (committed && ratio > 0.75f) || killable && ratio > 0.8f + R.caution + lateC * 0.4f
             else -> ratio > 1.3f + R.caution + lateC - aggression * 0.2f || (killable && ratio > 0.95f + R.caution + lateC) || (committed && ratio > 0.85f)
         }
+        // The opener of a gank or a collapse: the hunter's gap closer / crowd control lands on the fleeing target
+        // (better junglers land it more often), so the target cannot simply walk away at the same speed.
+        if (engage && h.task == 5 && (h.camp == best.gi || h.huntTarget == best.gi) && h.openReady <= nowF && dist(h, best) < 55f && best.immuneUntil <= nowF &&
+            rng.chance((0.55 + 0.06 * h.z(Phase.JUNGLE) + 0.04 * h.clutch).coerceIn(0.25, 0.85))) {
+            h.openReady = nowF + 25f
+            best.slowUntil = nowF + 2.5f; best.slowPct = max(if (best.slowUntil > nowF) best.slowPct else 0f, 0.45f)
+            best.dmgBy[h.gi] = now
+        }
+        // A gank in lane: the jungler (or the laner) flashes in to land the catch when the target is in reach.
+        if (engage && laningNow && (h.task == 5 && h.camp == best.gi || gankOn) && h.flashReady <= nowF && t.id != "dota2" && best.hpPct() < 0.75f &&
+            dist(h, best) in (h.range + 4f)..48f && rng.chance((0.35 + 0.08 * h.clutch).coerceIn(0.1, 0.7))) {
+            push(h, best.x, best.y, 30f); h.flashReady = nowF + 150f
+            ev(Ev(now, "cast", side, h.pc.p.id, -1, 4, m = 1 shl Abilities.DASH, n = MobaEngine.packPos(h.x, h.y)))
+        }
         // Carries and mages back off earlier once the fight turns on them (flash, a step out of range).
-        val fleeHp = if (back && !laningNow) R.backFlee else 0.25f
+        // The front line (tanks, bruisers) stays in a fight it started until much lower: their job is to absorb.
+        val fleeHp = if (back && !laningNow) R.backFlee else if (!laningNow && !back) R.frontFlee else 0.25f
         val flee = (ratio < 0.72f - h.clutch * 0.04f && !killable) || (h.hpPct() < fleeHp && !killable) || (laningNow && h.hpPct() < 0.4f && ratio < 1.1f) ||
             (committed && now - h.engagedAt > 7 && dist(h, best) > h.range + 25f)
         if (flee) {
@@ -1646,7 +1703,17 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             damage(h, side, best, h.atk() * h.attackSpeed() * h.execution * DMG_PACE * DTF, 0)
             // Kiting ranged carries step back a little.
             if (h.range > 25f && d < h.range * 0.6f) { val dx = h.x - best.x; val dy = h.y - best.y; val l = max(1f, hypot(dx, dy)); push(h, h.x + dx / l * 6f * DTF, h.y + dy / l * 6f * DTF, 6f * DTF) }
-        } else moveTo(h, best.x, best.y)
+        } else {
+            moveTo(h, best.x, best.y)
+            // A gank or a collapse: the hunters close in during the step and hit at its end (a 2-second step
+            // otherwise leaves a chaser always a step behind a moving target), opening with crowd control.
+            if ((h.task == 5 && (h.camp == best.gi || h.huntTarget == best.gi)) || gankOn) {
+                if (dist(h, best) <= h.range + 2f) {
+                    damage(h, side, best, h.atk() * h.attackSpeed() * h.execution * DMG_PACE * DTF * 0.6f, 0)
+                    for (i in h.acts.indices) { val a = h.acts[i]; if ((a.ai == Abilities.AI_ENGAGE || a.ai == Abilities.AI_CONTROL) && ready(h, i) && !best.cc(nowF)) { if (cast(h, i, best)) break } }
+                }
+            }
+        }
         return true
     }
 }

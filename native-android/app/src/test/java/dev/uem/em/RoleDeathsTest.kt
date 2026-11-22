@@ -43,9 +43,10 @@ class RoleDeathsTest {
             if (id != "dota2") {
                 val top = sums[t.lineup[0]] ?: continue
                 val others = t.lineup.drop(1).filter { !t.role(it).isSupport }.mapNotNull { sums[it] }.map { it[1] / it[3] }
-                // Relative to the other cores (every position dies less since the second fix): before the
-                // first fix the top lane died about 30% as often as them.
-                if (others.isNotEmpty() && (top[1] / top[3] < 0.45 * others.average() || top[1] / top[3] < 1.1)) topLow.add("${t.short} %.2f vs %.2f".format(top[1] / top[3], others.average()))
+                // Relative to the other cores: before the first fix the top lane died about 30% as often as
+                // them, after the second about 50%; solo laners contesting their wave, ganks and collapses that
+                // finish a lone laner, and dives on low laners brought it to 70-85%.
+                if (others.isNotEmpty() && (top[1] / top[3] < 0.6 * others.average() || top[1] / top[3] < 1.5)) topLow.add("${t.short} %.2f vs %.2f".format(top[1] / top[3], others.average()))
                 if (others.isNotEmpty()) worst = maxOf(worst, (others.average() - top[1] / top[3]) / others.average())
                 // The other positions must not die far more than real pro games show (about 2.5-3.5 a game).
                 val all = t.lineup.mapNotNull { sums[it] }.map { it[1] / it[3] }

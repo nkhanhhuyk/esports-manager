@@ -18,7 +18,7 @@ class LaneDiagTest {
         val w = MobaBalanceTest.world()
         val t = Catalogue.get(id)
         val teams = w.teams.filter { it.titleId == id && it.active && it.leagueId >= 0 && it.parentId < 0 }.sortedByDescending { it.elo }
-        MobaEngine.dbg = java.util.concurrent.atomic.AtomicIntegerArray(56)
+        MobaEngine.dbg = java.util.concurrent.atomic.AtomicIntegerArray(60)
         val laneEnd = 14.0
         val deaths = HashMap<String, IntArray>() // role -> [early, late, top, mid, bot, jungle/other, objective]
         val n = 60
@@ -58,6 +58,7 @@ class LaneDiagTest {
         sb.appendLine("  late deaths by heroes in combat nearby (1..9+): " + (13..21).joinToString(" ") { "${it - 12}:${g[it]}" } + "; victim task farm/-/push/objective/home/hunt: " + (22..27).joinToString("/") { "${g[it]}" } + "; hunted ${g[28]}; victim team plan farm/push/objective ${g[29]}/${g[30]}/${g[31]}")
         sb.appendLine("  early jungler deaths: near enemy tower ${g[32]}; ganking/jungling/other ${g[33]}/${g[34]}/${g[35]}; enemy heroes involved 0/1/2/3+ ${g[36]}/${g[37]}/${g[38]}/${g[39]}")
         sb.appendLine("  late deaths by lineup slot: alone ${(40..44).map { g[it] }}; 3+ enemies hitting ${(45..49).map { g[it] }}; while farming ${(50..54).map { g[it] }}")
+        sb.appendLine("  collapses: hunted top laners killed ${g[56]}, other hunted killed ${g[57]}, hunters killed while hunting ${g[58]} (collapses top/bot ${g[3]}/${g[5]})")
         sb.appendLine("  kills/game %.1f; fights/game %.1f with %.1f kills each (%.1f per game in fights); fights with 5+ kills %d, aces %d".format(totalKills / n.toDouble(), fights / n.toDouble(), fightKills / max(1.0, fights.toDouble()), fightKills / n.toDouble(), bigFights, aces))
         for (r in t.lineup) { val d = deaths[r] ?: IntArray(7); sb.appendLine("  ${t.role(r).short}: deaths/game %.2f (early %.2f late %.2f) where top %d mid %d bot %d other %d objective %d".format((d[0] + d[1]) / n.toDouble() / 2, d[0] / n.toDouble() / 2, d[1] / n.toDouble() / 2, d[2], d[3], d[4], d[5], d[6])) }
         println(sb); java.io.File("build/lane-diag.txt").writeText(sb.toString())
