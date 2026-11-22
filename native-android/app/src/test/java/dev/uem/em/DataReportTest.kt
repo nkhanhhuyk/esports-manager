@@ -15,14 +15,14 @@ class DataReportTest {
         BoxStore.clear()
         val w = WorldGen.create(TestData.source, "report", "Report", Dates.day(2026, 11, 21))
         val sb = StringBuilder()
-        sb.appendLine("| Game | Real leagues | Real teams (active) | Historical teams | Fictional teams | Real players | of which: nationality est. | birth est. | position est. | Generated fill-ins | Characters |")
-        sb.appendLine("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+        sb.appendLine("| Game | Real leagues | Real teams (active) | Historical teams | Fictional teams | Real players | of which: nationality est. | birth est. | position from recent matches | position assigned by the game | Generated fill-ins | Characters |")
+        sb.appendLine("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
         for (id in w.titles) {
             val t = Catalogue.get(id)
             val teams = w.teams.filter { it.titleId == id }
             val real = w.players.filter { it.titleId == id && it.real }
             fun pct(f: (String) -> Boolean) = if (real.isEmpty()) "—" else "${real.count { p -> p.realEst.any(f) }} (${100 * real.count { p -> p.realEst.any(f) } / real.size}%)"
-            sb.appendLine("| ${t.name} | ${w.leagues.count { it.titleId == id && it.real }} of ${w.leagues.count { it.titleId == id }} | ${teams.count { it.real && it.active }} | ${teams.count { it.real && !it.active }} | ${teams.count { !it.real }} | ${real.size} | ${pct { it == "nationality" }} | ${pct { it == "age" }} | ${pct { it.startsWith("role") }} | ${w.players.count { it.titleId == id && !it.real && it.realEst.any { e -> e.startsWith("generated") } }} | ${t.characters.size} |")
+            sb.appendLine("| ${t.name} | ${w.leagues.count { it.titleId == id && it.real }} of ${w.leagues.count { it.titleId == id }} | ${teams.count { it.real && it.active }} | ${teams.count { it.real && !it.active }} | ${teams.count { !it.real }} | ${real.size} | ${pct { it == "nationality" }} | ${pct { it == "age" }} | ${pct { it == "role (from recent matches)" || it == "role" }} | ${pct { it == "role (game assignment)" }} | ${w.players.count { it.titleId == id && !it.real && it.realEst.any { e -> e.startsWith("generated") } }} | ${t.characters.size} |")
         }
         sb.appendLine()
         val notes = w.teams.filter { it.dataNote.isNotBlank() }.groupBy { it.titleId to it.dataNote.substringBefore(":").substringBefore(" (").take(60) }

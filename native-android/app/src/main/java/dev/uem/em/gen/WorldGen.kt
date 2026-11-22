@@ -195,6 +195,14 @@ object WorldGen {
     private fun nameKey(s: String): String = Normalizer.normalize(s, Normalizer.Form.NFKD).replace("-", "").split(Regex("[\\s,]+"))
         .map { norm(it) }.filter { it.length >= 2 }.map { SURNAME_ALIAS[it] ?: it }.sorted().joinToString("_")
 
+    /** A facts-snapshot position as this game's role id (null when the game does not use it). */
+    private fun factRoleId(titleId: String, r: String): String? = when (titleId) {
+        "lol" -> LOL_ROLE[r.lowercase()]
+        "wildrift" -> r.takeIf { it in setOf("baron", "jungle", "mid", "dragon", "support") }
+        "dota2" -> r.takeIf { it in setOf("pos1", "pos2", "pos3", "pos4", "pos5") }
+        else -> null
+    }
+
     /** Real birthdays, nationalities, names and (LoL) positions from the facts snapshot. */
     private fun applyFacts(p: Player) {
         val byName = if (p.first.isNotBlank() || p.last.isNotBlank()) facts["${p.titleId}|${norm(p.handle)}|${nameKey("${p.first} ${p.last}")}"] else null
@@ -208,6 +216,17 @@ object WorldGen {
             // Different spelling of the same person is fine when country and position agree.
             val roleOk = p.titleId != "lol" || f.role == null || LOL_ROLE[f.role.lowercase()] == p.roles[0]
             if (mine.isNotEmpty() && theirs.isNotEmpty() && !sameName && !(valid(f.cc) == p.nat && roleOk)) { inferNat(p); return }
+        }
+        // Matched by handle alone (no real name to compare): a fact whose nationality contradicts the
+        // nationality the roster source lists is another player with the same handle (common handles
+        // such as "Master", "Life" or "Sato" belong to several people). A Wikidata match is also
+        // turned down when it points to another continent than the club's country (not Dota 2, see below).
+        val handleOnly = byName == null && (f.name == null || (p.first.isBlank() && p.last.isBlank()))
+        val sourceNat = p.realEst.none { it.startsWith("nationality") }
+        valid(f.cc)?.let { fc ->
+            if (handleOnly && sourceNat && fc != p.nat && fc != p.nat2) { inferNat(p); return }
+            // (Dota 2 Wikidata matches are checked against OpenDota profile countries in the snapshot itself.)
+            if (handleOnly && !sourceNat && p.titleId != "dota2" && f.src == "wikidata.org" && GameData.continentOf(fc) != GameData.continentOf(p.nat)) { inferNat(p); return }
         }
         val est = p.realEst.toMutableSet()
         if (f.birth != null && Regex("\\d{4}-\\d{2}-\\d{2}").matches(f.birth)) {
@@ -227,7 +246,15 @@ object WorldGen {
                 if (p.nat in EASTERN) { p.last = parts[0]; p.first = parts.drop(1).joinToString(" ") } else { p.first = parts.dropLast(1).joinToString(" "); p.last = parts.last() }
             }
         }
-        if (p.titleId == "lol" && f.role != null) LOL_ROLE[f.role.lowercase()]?.let { r -> if (p.roles[0] != r) { p.roles = listOf(r, p.roles[0]); est.remove("role") } }
+        if (f.role != null) {
+            val r = when (p.titleId) { "lol" -> LOL_ROLE[f.role.lowercase()]; "wildrift" -> f.role.takeIf { it in setOf("baron", "jungle", "mid", "dragon", "support") }; else -> null }
+            if (r != null) { if (p.roles[0] != r) p.roles = listOf(r, p.roles[0]); est.removeAll { it.startsWith("role") } }
+            // Dota 2: positions worked out from lanes and farm in pro matches, for players the roster did not place.
+            if (p.titleId == "dota2" && f.role in setOf("pos1", "pos2", "pos3", "pos4", "pos5") && est.contains("role (game assignment)")) {
+                if (p.roles[0] != f.role) p.roles = listOf(f.role!!, p.roles[0])
+                est.remove("role (game assignment)"); est.add("role (from recent matches)")
+            }
+        }
         p.realEst = est.toList()
         p.realSrc = p.realSrc.ifBlank { f.src }
         inferNat(p)
@@ -520,7 +547,8 @@ object WorldGen {
         run { val seen = HashSet<String>(); known.forEachIndexed { i, k -> if (k != null && seen.add(k)) firstOfRole.add(i) } }
         usable.forEachIndexed { i, sp ->
             val est = ArrayList<String>()
-            if (sp.str("role_source") != null) est.add("role")
+            // Positions worked out from recent pro matches (agents played, lanes and farm) rather than listed by the source.
+            if (sp.str("role_source")?.startsWith("estimate") == true) est.add("role (from recent matches)")
             val roleId = known[i] ?: (missing.removeFirstOrNull() ?: Rng.of("realrole|$titleId|${norm(sp.str("handle") ?: "")}").pick(t.lineup)).also { est.add("role (game assignment)") }
             val nat = natOf(sp) ?: (valid(sp.str("nationality_estimate")) ?: org.country).also { est.add("nationality") }
             est.add("age")
@@ -602,7 +630,10 @@ object WorldGen {
             val set = live.getOrPut(hp.title) { HashSet() }
             if (!set.add(hp.handle.lowercase())) continue
             val t = Catalogue.get(hp.title)
-            val roleId = hp.role?.takeIf { r -> t.roles.any { it.id == r } }
+            val listed = hp.role?.takeIf { r -> t.roles.any { it.id == r } }
+            // No position in the history pack: the facts snapshot's (Leaguepedia, or Dota 2 lanes and farm in pro matches).
+            val factRole = if (listed == null) facts["${hp.title}|${norm(hp.handle)}"]?.role?.let { r -> factRoleId(hp.title, r) }?.takeIf { r -> t.roles.any { it.id == r } } else null
+            val roleId = listed ?: factRole
             val team = hp.lastTeam?.let { dormant["${hp.title}|${it.lowercase()}"] }
             val pctx = realCtx(b, hp.title, hp.handle)
             val nat = hp.nat ?: team?.let { GameData.pickCountry(pctx.rng, it.region) } ?: "US"
@@ -613,7 +644,7 @@ object WorldGen {
             p.last = hp.last ?: ""
             p.real = true
             p.realSrc = hp.src
-            p.realEst = listOfNotNull("free agent", "age", if (roleId == null) "role (game assignment)" else null, if (hp.nat == null) "nationality" else null)
+            p.realEst = listOfNotNull("free agent", "age", if (roleId == null) "role (game assignment)" else if (factRole != null && hp.title == "dota2") "role (from recent matches)" else null, if (hp.nat == null) "nationality" else null)
             applyFacts(p)
             curate(b, p)
             if (team != null) p.career.add(CareerEntry(w.season - 1, w.day, team.id, "released"))
