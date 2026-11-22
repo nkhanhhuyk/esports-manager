@@ -87,6 +87,9 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                         Screen.Rankings -> RankingsScreen(vm, w)
                         is Screen.Library -> LibraryScreen(vm, w, s.kind)
                         Screen.Social -> SocialScreen(vm, w)
+                        is Screen.Road -> RoadScreen(vm, w, s.teamId)
+                        is Screen.Prepare -> PrepareScreen(vm, w, s.fixtureId)
+                        Screen.Circuits -> CircuitsScreen(vm, w)
                         is Screen.Replay -> ReplayScreen(vm, w, s.fixtureId, s.game)
                         else -> HomeScreen(vm, w)
                     }

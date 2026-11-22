@@ -79,7 +79,8 @@ object Economy {
         return t.baseSalary * (t.teamSize + 2) * GameData.economy(team.region) * (0.4 + 0.6 * pop(team.titleId, team.region) / 100)
     }
 
-    fun payroll(w: World, team: Team) = team.roster.sumOf { w.players[it].salary } + team.staffIds.sumOf { w.staff[it].salary }
+    /** Wages of contracted players (development clubs' unsigned players are not paid) and staff. */
+    fun payroll(w: World, team: Team) = team.roster.sumOf { val p = w.players[it]; if (p.teamId == team.id) p.salary else 0.0 } + team.staffIds.sumOf { w.staff[it].salary }
 
     class Breakdown(val revenue: Map<String, Double>, val expenses: Map<String, Double>) {
         val income get() = revenue.values.sum()

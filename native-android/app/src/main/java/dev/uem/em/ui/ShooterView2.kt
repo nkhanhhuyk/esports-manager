@@ -109,9 +109,21 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
     val sideOfPid = HashMap<Int, Int>().also { m -> g.lines.forEach { m[it.playerId] = it.team } }
     val followPos = rp.pids.indexOf(follow).takeIf { it >= 0 }?.let { Offset(units[it][0], units[it][1]) }
     val cam = remember(g) { MapCam() }
-    cam.pinned = followPos
+    // Broadcast presentation from the recorded rounds: HUD, kill feed, key moments and a director camera.
+    var bc by remember { mutableStateOf(true) }
+    var director by remember { mutableStateOf(true) }
+    var slate by remember(g) { mutableStateOf(true) }
+    val need = t.tactical?.roundsToWin ?: 13
+    val feedAll = remember(g) { dev.uem.em.sim.Broadcast.shooterFeed(g, ev) }
+    val moments = remember(g) { dev.uem.em.sim.Broadcast.shooterMoments(t, g, ev, need) }
+    val shots = remember(g) { dev.uem.em.sim.Broadcast.director(moments, cooldown = 6, hold = 5) }
+    val shot = if (bc && director && follow < 0) dev.uem.em.sim.Broadcast.shotAt(shots, Ti) else null
+    val shotPos = shot?.moment?.player?.let { pid -> rp.pids.indexOf(pid).takeIf { it >= 0 }?.let { Offset(units[it][0], units[it][1]) } }
+    LaunchedEffect(shot?.from) { if (shot != null && shotPos != null && cam.zoom < 1.5f) cam.zoom = 1.6f }
+    cam.pinned = followPos ?: shotPos
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        if (bc) BroadcastUi.SeriesBar(w, f, g)
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             TeamPic(teams[0], 24.dp); Text(" ${teams[0].short}", color = teamCol[0], fontWeight = FontWeight.Bold)
             Text("${score[0]} – ${score[1]}", color = Ui.text, fontWeight = FontWeight.Black, fontSize = 22.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
@@ -121,6 +133,7 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
         val bombLeft = inRound.lastOrNull { it.kind == "plant" }?.let { (if (t.id == "cs2") 40 else 45) - (Ti - it.t) }
         Text("${map.name} · round ${ri + 1} · ${teams[atkSide].short} attacking (${round?.text?.split("|")?.getOrNull(0) ?: ""} vs ${round?.text?.split("|")?.getOrNull(1) ?: ""}) · ${clock(rt.coerceAtLeast(0))}" + (bombLeft?.let { " · ${if (t.id == "cs2") "bomb" else "spike"} ${max(0, it)}s" } ?: ""),
             color = Ui.muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 12.dp))
+        if (bc) dev.uem.em.sim.Broadcast.shooterRound(t, g, ev, Ti, need)?.let { BroadcastUi.RoundHud(w, t, f, it) { s -> teamCol[s.coerceIn(0, 1)] } }
         MapFrame(cam, draw = { W ->
             fun p(o: Offset) = Offset(o.x * W, o.y * W)
             drawRect(Color(0xFF20262F), Offset.Zero, Size(W, W))
@@ -164,6 +177,17 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
                         modifier = Modifier.background(Color(0xCC000000), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp))
                 }
             }
+            if (bc) with(BroadcastUi) {
+                val roundStart = round?.t ?: 0
+                KillFeed(w, t, g, dev.uem.em.sim.Broadcast.feedAt(feedAll.filter { it.t >= roundStart }, Ti, keep = 20), { s -> teamCol[s.coerceIn(0, 1)] }) { k -> Weapons.of(t.id).getOrNull(k.x)?.name ?: "" }
+                MomentBanner(shot?.moment, Ti, { teams[it.coerceIn(0, 1)].short }, { teamCol[it.coerceIn(0, 1)] })
+                val cardPid = if (follow >= 0) follow else shot?.moment?.player ?: -1
+                if (cardPid >= 0) {
+                    val k = ev.count { it.kind == "kill" && it.a == cardPid && it.t <= Ti }; val d = ev.count { it.kind == "kill" && it.b == cardPid && it.t <= Ti }
+                    PlayerCard(w, t, g, cardPid, "$k/$d · ${Weapons.of(t.id).getOrNull(ReplayCodec.value(rp, si, cardPid, 2))?.name ?: ""} · $${ReplayCodec.value(rp, si, cardPid, 0)}", teamCol[(sideOfPid[cardPid] ?: 0).coerceIn(0, 1)])
+                }
+                if (slate && T - startAt < 5f) TitleSlate(w, t, f, g, map.name) { slate = false }
+            }
             for (i in 0 until n) {
                 val pid = rp.pids[i]
                 val l = g.lines.firstOrNull { it.playerId == pid } ?: continue
@@ -197,6 +221,7 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
             Toggle("names", names) { names = it }; Toggle("utility", utilOn) { utilOn = it }
+            Toggle("broadcast overlay", bc) { bc = it }; Toggle("director", director) { director = it }
             TextButton(onClick = { follow = -1; cam.reset() }) { Text("Reset view", color = Ui.muted, fontSize = 12.sp) }
         }
         Slider(value = time, onValueChange = { time = it; playing = false }, valueRange = 0f..dur, modifier = Modifier.padding(horizontal = 12.dp))
@@ -205,6 +230,7 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
             for (e in ends) drawRect(teamCol[e.team.coerceIn(0, 1)], Offset(Wd * e.t / dur - 2f, 0f), Size(4f, size.height))
             drawLine(Color.White, Offset(Wd * T / dur, 0f), Offset(Wd * T / dur, size.height), strokeWidth = 2f)
         }
+        if (bc) BroadcastUi.Bookmarks(moments, Ti, { teams[it.coerceIn(0, 1)].short }, { teamCol[it.coerceIn(0, 1)] }) { s -> time = (s - 3).coerceAtLeast(0).toFloat(); playing = false; slate = false }
         if (time >= dur) after?.invoke()
         Card("Players", right = { Muted("tap to follow") }) {
             for (team in 0..1) for (l in g.lines.filter { it.team == team }) {

@@ -93,6 +93,13 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
     var trails by remember { mutableStateOf(false) }
     var vision by remember { mutableIntStateOf(-1) } // -1 spectator, 0/1 that side's (approximate) vision
     var auto by remember { mutableStateOf(true) }
+    // Broadcast presentation (overlays and the director camera), all read from the recorded events.
+    var bc by remember { mutableStateOf(true) }
+    var director by remember { mutableStateOf(true) }
+    var slate by remember(g) { mutableStateOf(true) }
+    val feedAll = remember(g) { dev.uem.em.sim.Broadcast.mobaFeed(t, ev) }
+    val moments = remember(g) { dev.uem.em.sim.Broadcast.mobaMoments(w, t, g, ev) }
+    val shots = remember(g) { dev.uem.em.sim.Broadcast.director(moments) }
     val cam = remember(g) { MapCam() }
     // Animation clock (UI time) drives playback; the replay data is never recomputed.
     LaunchedEffect(playing, speed, g) {
@@ -177,9 +184,17 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
     val followIdx = rp.pids.indexOf(cam.follow)
     val coreEv = remember(g) { ev.lastOrNull { it.kind == "core" } }
     val lostCore = coreEv?.let { map.structs.getOrNull(it.n) }
+    val shot = if (bc && director && followIdx < 0) dev.uem.em.sim.Broadcast.shotAt(shots, Ti) else null
+    val shotPos = shot?.moment?.let { m ->
+        if (m.x >= 0f) Offset(m.x / 1000f, m.y / 1000f)
+        else rp.pids.indexOf(m.player).takeIf { it >= 0 }?.let { Offset(units[it][0] / 1000f, units[it][1] / 1000f) }
+    }
+    // The director cuts in (zoomed) for each shot; a cooldown keeps it from jumping around.
+    LaunchedEffect(shot?.from) { if (shot != null && shotPos != null && cam.zoom < 1.6f) cam.zoom = 1.7f }
     cam.pinned = when {
         followIdx >= 0 -> Offset(units[followIdx][0] / 1000f, units[followIdx][1] / 1000f)
         auto && lostCore != null && T > dur - 20f -> Offset(lostCore.x / 1000f, lostCore.y / 1000f)
+        shotPos != null -> shotPos
         auto && cam.zoom > 1.05f -> {
             val recent = ev.filter { it.kind == "cast" && it.t in (Ti - 4)..Ti }
             if (recent.isEmpty()) null else Offset(recent.map { MobaEngine.unpackX(it.n) }.average().toFloat() / 1000f, recent.map { MobaEngine.unpackY(it.n) }.average().toFloat() / 1000f)
@@ -188,6 +203,7 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        if (bc) BroadcastUi.SeriesBar(w, f, g)
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             TeamPic(teams[blue], 26.dp)
             Text(" ${teams[blue].short}", color = Ui.blue, fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -349,6 +365,15 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
                     Box(Modifier.size(sz).background(EMPOWERED, CircleShape).padding(2.dp)) { ObjPic(objKey(t, pu.kind.id, pu.kind.objId), pu.kind.name, sz - 4.dp) }
                 }
             }
+            if (bc) with(BroadcastUi) {
+                KillFeed(w, t, g, dev.uem.em.sim.Broadcast.feedAt(feedAll, Ti), { st -> teamCol[mapSide(st.coerceIn(0, 1))] })
+                Timers(dev.uem.em.sim.Broadcast.mobaTimers(t, ev, Ti), Ti)
+                MomentBanner(shot?.moment ?: moments.lastOrNull { it.t <= Ti && it.priority >= 6 }, Ti, { teams[it].short }, { teamCol[mapSide(it)] })
+                val cardPid = if (cam.follow >= 0) cam.follow else shot?.moment?.player ?: -1
+                if (cardPid >= 0) PlayerCard(w, t, g, cardPid, "K/D/A ${kNow[cardPid] ?: 0}/${dNow[cardPid] ?: 0}/${aNow[cardPid] ?: 0} · ${k1(snap(cardPid, 0).toDouble())} gold · level ${snap(cardPid, 2).coerceAtLeast(1)}",
+                    teamCol[mapSide(g.lines.firstOrNull { it.playerId == cardPid }?.team ?: 0)])
+                if (slate && T - start < 6f) TitleSlate(w, t, f, g, map.name) { slate = false }
+            }
             if (coreEv != null && Ti >= coreEv.t) Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.TopCenter) {
                 Text("${teams[coreEv.team.coerceIn(0, 1)].short} destroy the ${t.moba.structures.coreName} — victory", color = Ui.gold, fontWeight = FontWeight.Black, fontSize = 16.sp,
                     modifier = Modifier.background(Color(0xCC000000), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp))
@@ -389,6 +414,8 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
             Toggle("names", names) { names = it }; Toggle("health", health) { health = it }; Toggle("abilities", effects) { effects = it }; Toggle("minions", waves) { waves = it }; Toggle("paths", trails) { trails = it }
             Toggle("auto camera", auto) { auto = it }
+            Toggle("broadcast overlay", bc) { bc = it }
+            Toggle("director", director) { director = it }
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
             Toggle("spectator view", vision < 0) { vision = -1 }
@@ -412,6 +439,7 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
             }
             drawLine(Color.White, Offset(Wd * (T / dur), 0f), Offset(Wd * (T / dur), size.height), strokeWidth = 2f)
         }
+        if (bc) BroadcastUi.Bookmarks(moments, Ti, { teams[it].short }, { teamCol[mapSide(it)] }) { s -> time = (s - 4).coerceAtLeast(0).toFloat(); playing = false; slate = false }
         if (time >= dur) after?.invoke()
         // Scoreboard.
         Card("Scoreboard", right = { Muted("tap a player to follow") }) {

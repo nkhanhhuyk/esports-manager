@@ -58,13 +58,18 @@ object Draft {
         return { c -> p.profChar[c.id] ?: (byClass[c.cls] ?: 0.0) * 0.45 }
     }
 
-    /** Preference lists cached per patch (as in the web version); a new patch starts a new cache. */
+    /**
+     * Preference lists cached per patch. The key holds everything the list depends on (the player's
+     * character comfort, the roster of characters), so clearing the cache, saving and loading, or
+     * playing another world in the same process never changes a draft.
+     */
     private val prefCache = java.util.concurrent.ConcurrentHashMap<Patch, java.util.concurrent.ConcurrentHashMap<String, List<CharDef>>>()
 
     private fun preferred(t: TitleDef, patch: Patch, p: Player, roleIdx: Int, style: String): List<CharDef> {
         if (prefCache.size > 64) prefCache.clear()
         val m = prefCache.getOrPut(patch) { java.util.concurrent.ConcurrentHashMap() }
-        return m.getOrPut("${p.id}|$roleIdx|$style") { computePreferred(t, patch, p, roleIdx, style) }
+        if (m.size > 40_000) m.clear()
+        return m.getOrPut("${p.id}|$roleIdx|$style|${p.profChar.hashCode()}|${t.characters.size}") { computePreferred(t, patch, p, roleIdx, style) }
     }
 
     /** A player's preferred characters for the patch (top 14). */

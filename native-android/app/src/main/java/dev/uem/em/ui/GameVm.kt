@@ -63,6 +63,11 @@ sealed class Screen {
     /** Game reference: "items", "runes", "spells" or "objectives". */
     data class Library(val kind: String) : Screen()
     data object Social : Screen()
+    /** A team's road through its game's competitions (qualification routes and status). */
+    data class Road(val teamId: Int) : Screen()
+    data object Circuits : Screen()
+    /** Prepare for Match (one of your fixtures). */
+    data class Prepare(val fixtureId: Int) : Screen()
 }
 
 class Busy(val label: String, val done: Int, val total: Int)
@@ -423,6 +428,27 @@ class GameVm(app: Application) : AndroidViewModel(app) {
     }
 
     fun stop() = cancel.set(true)
+
+    /** Strategy laboratory results (sandbox; never saved): fixture id to trials. */
+    var labResult by mutableStateOf<Pair<Int, List<dev.uem.em.mgmt.Prep.Trial>>?>(null)
+
+    /** Run the sandbox laboratory in the background (cancellable with Stop); the world is not changed. */
+    fun runLab(fixtureId: Int, teamId: Int, options: List<Pair<String, dev.uem.em.model.PrepPlan>>, n: Int) {
+        val w = world ?: return
+        if (busy != null) return
+        cancel.set(false)
+        val label = "Strategy laboratory (sandbox)…"
+        busy = Busy(label, 0, options.size * n)
+        simJob = viewModelScope.launch {
+            val res = try {
+                withContext(Dispatchers.Default) {
+                    dev.uem.em.mgmt.Prep.laboratory(w, w.fixtures[fixtureId], teamId, options, n, progress = { d, total -> busy = Busy(label, d, total) }, cancelled = { cancel.get() })
+                }
+            } catch (e: Exception) { toast = "Laboratory stopped: ${e.message}"; null }
+            busy = null
+            if (res != null) { labResult = fixtureId to res; if (cancel.get()) toast = "Laboratory stopped: partial results" }
+        }
+    }
 
     /** A series being played live (draft / veto and the 2D view). */
     var live by mutableStateOf<LiveMatch?>(null)

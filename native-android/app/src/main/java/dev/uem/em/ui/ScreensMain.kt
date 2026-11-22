@@ -216,6 +216,23 @@ fun HomeScreen(vm: GameVm, w: World) {
             ))
         }
         item(key = "resume") { ResumeLiveCard(vm, w) }
+        item(key = "road") {
+            // Qualification: invitations waiting for an answer, and each team's road to the next events.
+            val inv = dev.uem.em.comp.Ecosystem.pending(w)
+            Card("Road to the next events", right = { if (inv.isNotEmpty()) Text("${inv.size} invitation(s)", color = Ui.gold, fontSize = 12.sp) }) {
+                for (tm in teams.filter { it.nationalOf.isEmpty() }) {
+                    val road = dev.uem.em.comp.Ecosystem.road(w, tm).firstOrNull { !it.comp.done && it.comp.tier != dev.uem.em.model.CompTier.LEAGUE }
+                    Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Road(tm.id)) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TeamPic(tm, 20.dp); HGap(6)
+                        Column(Modifier.weight(1f)) {
+                            Text(road?.comp?.name ?: "No upcoming event in reach", color = Ui.text, fontSize = 12.sp, maxLines = 1)
+                            Muted(road?.let { "${it.status}: ${it.detail.lineSequence().first()}" } ?: tm.name, 10)
+                        }
+                        Text("›", color = Ui.muted, fontSize = 18.sp)
+                    }
+                }
+            }
+        }
         item(key = "upcoming") {
             val next = w.fixtures.filter { !it.done && it.day >= w.day && (w.isUserTeam(it.a) || w.isUserTeam(it.b)) }.sortedBy { it.day }.take(6)
             if (next.isNotEmpty()) Card("Upcoming matches", right = { TextButton(onClick = { vm.go(Screen.Schedule) }) { Text("Schedule ›", color = Ui.accent) } }) {
@@ -244,6 +261,8 @@ fun HomeScreen(vm: GameVm, w: World) {
                         HGap()
                         TextButton(onClick = { vm.advance(GameVm.Span.DAY) }) { Text("Let the staff simulate it", color = Ui.accent) }
                     }
+                    val pp = dev.uem.em.mgmt.Prep.planFor(w, f.id, if (w.isUserTeam(f.a)) f.a else f.b)
+                    TextButton(onClick = { vm.go(Screen.Prepare(f.id)) }) { Text("Prepare for match" + (pp?.let { " · ${dev.uem.em.mgmt.Prep.LABEL[it.emphasis]}" } ?: " · no plan yet"), color = Ui.accent) }
                     Muted(if (dev.uem.em.mgmt.Roles.can(w, "tactics")) "Live: you draft (or veto maps) and watch each game on the 2D map." else "Your head coach drafts and plays; you watch from the box on the 2D map.", 11)
                 }
             }
@@ -333,6 +352,7 @@ fun MoreScreen(vm: GameVm, w: World) {
     val unread = w.inbox.count { !it.read }
     val menu = listOf(
         Triple("Match centre", "Watch any match live on the 2D map, recorded replays", Screen.Watch),
+        Triple("Amateur & development circuits", "Community clubs, Community Cups, Amateur Championship, University League, Game Changers; prospects", Screen.Circuits),
         Triple("Social media", "Fans, analysts and teams on Agora, Chirp, Lens and Fanbase: reactions, ratings, debates, hot takes", Screen.Social),
         Triple("Inbox", if (unread > 0) "$unread unread" else "Messages, offers, reports", Screen.Inbox),
         Triple("Finances", "Balance, income and expenses, sponsors, facilities", Screen.Finances),

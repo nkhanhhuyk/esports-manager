@@ -30,7 +30,7 @@ object Deals {
         if (dev.uem.em.core.Dates.ageAt(p.birth, w.day) > 22) return Market.Reply(false, "Only players aged 22 or younger can be loaned out.")
         if (p.id in from.lineup && !from.manualLineup && from.lineup.count { it >= 0 } <= Catalogue.get(from.titleId).teamSize) return Market.Reply(false, "${p.handle} is a starter.")
         val league = w.leagues.getOrNull(from.leagueId)
-        val dest = w.teams.filter { it.active && it.titleId == p.titleId && it.id != from.id && !w.isUserTeam(it.id) && it.nationalOf.isEmpty() && it.roster.size < maxRoster(it.titleId) && (league == null || it.leagueId != from.leagueId) }
+        val dest = w.teams.filter { it.active && it.titleId == p.titleId && it.id != from.id && !w.isUserTeam(it.id) && it.nationalOf.isEmpty() && it.kind.isEmpty() && it.roster.size < maxRoster(it.titleId) && (league == null || it.leagueId != from.leagueId) }
             .minByOrNull { abs(it.elo - from.elo + 150) } ?: return Market.Reply(false, "No club can take him on loan.")
         from.roster.remove(p.id)
         from.lineup.replaceAll { if (it == p.id) -1 else it }

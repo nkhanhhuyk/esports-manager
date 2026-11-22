@@ -24,8 +24,10 @@ class SeriesOutcome(val fixture: Fixture, val winner: Int, val wins: IntArray, v
  */
 class Ev(val t: Int, val kind: String, val team: Int, val a: Int = -1, val b: Int = -1, val x: Int = 0, val text: String = "", val m: Int = 0, val n: Int = -1)
 
-class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
+class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, prepPlans: Array<dev.uem.em.model.PrepPlan?>? = null) {
     val t = Catalogue.get(f.titleId)
+    /** Each side's locked match preparation (Prepare for Match), read by the draft and the veto. */
+    val prep: Array<dev.uem.em.model.PrepPlan?> = prepPlans ?: Array(2) { dev.uem.em.mgmt.Prep.effective(w, f, it) }
     val comp = w.comps[f.compId]
     val teams = arrayOf(w.teams[f.a], w.teams[f.b])
     val patch = Patch.of(w, t)
@@ -81,8 +83,12 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
         bannedBefore.addAll(g.bans)
     }
 
-    fun draftSession(s: Setup) = DraftSession(t, patch, players, arrayOf(teams[0].style, teams[1].style), s.firstPick, locked(), s.rng,
-        DoubleArray(2) { i -> Draft.knowledge(w, teams[i]) }, IntArray(2) { i -> Draft.banTendency(w, teams[i]) }, Array(2) { i -> dev.uem.em.mgmt.Scrims.bonus(w, teams[i]) })
+    /** The composition identity each side drafts toward: the prepared style, else the team's own. */
+    fun styleOf(i: Int) = prep[i]?.style?.takeIf { it.isNotBlank() } ?: teams[i].style
+
+    fun draftSession(s: Setup) = DraftSession(t, patch, players, arrayOf(styleOf(0), styleOf(1)), s.firstPick, locked(), s.rng,
+        DoubleArray(2) { i -> (Draft.knowledge(w, teams[i]) + dev.uem.em.mgmt.Prep.knowledgeBonus(prep[i])).coerceAtMost(1.0) }, IntArray(2) { i -> Draft.banTendency(w, teams[i]) },
+        Array(2) { i -> dev.uem.em.mgmt.Prep.comfort(prep[i], players[i], dev.uem.em.mgmt.Scrims.bonus(w, teams[i])) })
 
     /** Simulate one game with a finished draft; `record` keeps events for the 2D view. */
     /** Tactical timeouts allowed per team per map in this series' competition. */
@@ -115,7 +121,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
         val chars = draft.assign
         val evals = Array(2) { si ->
             val mine = lineups[si].filter { it >= 0 }.mapNotNull { pid -> chars[si][pid]?.let { t.charIndex[it] } }
-            Draft.evaluate(t, patch, mine, draft.picks[1 - si].mapNotNull { t.charIndex[it] }, players[si], teams[si].style)
+            Draft.evaluate(t, patch, mine, draft.picks[1 - si].mapNotNull { t.charIndex[it] }, players[si], styleOf(si))
         }
         val ctx = Array(2) { si -> TeamContexts.build(w, teams[si], lineups[si], si, chars[si], s.mapId, pressure, grng) }
         val g: GameRecord
@@ -191,8 +197,8 @@ object SeriesSim {
      * watched live (the same map veto, draft session and engine), so watching a match never changes
      * its result; `record` keeps every game's replay.
      */
-    fun run(w: World, f: Fixture, lineups: Array<List<Int>>, record: Boolean = false, resume: dev.uem.em.model.LiveState? = null, quick: Boolean = false): SeriesOutcome {
-        val s = LiveSeries(w, f, lineups)
+    fun run(w: World, f: Fixture, lineups: Array<List<Int>>, record: Boolean = false, resume: dev.uem.em.model.LiveState? = null, quick: Boolean = false, prep: Array<dev.uem.em.model.PrepPlan?>? = null): SeriesOutcome {
+        val s = LiveSeries(w, f, lineups, prep)
         s.quick = quick && !record
         if (resume != null) s.restore(resume)
         else if (s.t.engine == Engine.TACTICAL) { val v = VetoSession(s); while (!v.done) v.aiAct() }
@@ -236,7 +242,16 @@ class VetoSession(val s: LiveSeries) {
 
     fun aiAct() {
         val cur = current() ?: return
-        val pref = pool.associateWith { m -> s.lineups[cur.first].filter { it >= 0 }.sumOf { s.w.players[it].profMap[m] ?: 40.0 } + ((m.hashCode() xor s.f.id) % 17) }
+        val me = cur.first
+        val plan = s.prep[me]
+        val oppBest = if (plan?.emphasis == "counter") s.lineups[1 - me].filter { it >= 0 }.let { opp -> pool.maxByOrNull { m -> opp.sumOf { s.w.players[it].profMap[m] ?: 40.0 } } } else null
+        val pref = pool.associateWith { m ->
+            var v = s.lineups[me].filter { it >= 0 }.sumOf { s.w.players[it].profMap[m] ?: 40.0 } + ((m.hashCode() xor s.f.id) % 17)
+            // Prepared map: kept (picked early, never banned); counter study: the opponent's best map goes.
+            if (plan?.emphasis == "map" && plan.map == m) v += 120 * plan.effect
+            if (oppBest == m) v -= 90 * plan!!.effect
+            v
+        }
         act(if (cur.second) pool.minBy { pref[it]!! } else pool.maxBy { pref[it]!! })
     }
 

@@ -49,6 +49,8 @@ object Roles {
         Area("scouting", "Scouting list", "Chief scout", "transfers", "Keeps the scouting list full of the best young prospects in your games."),
         Area("facilities", "Facility upgrades", "Owner", "facilities", "Upgrades facilities when the balance is healthy."),
         Area("sponsors", "Sponsorship deals", "Commercial director", "finance", "Signs sponsorship offers as they come instead of asking you."),
+        Area("development", "Mentoring & youth", "Academy director", "tactics", "Pairs young players with mentors, answers competition invitations, promotes ready academy players."),
+        Area("competitions", "Competition invitations", "General manager", "tactics", "Accepts ranking invitations when the roster and calendar allow it."),
     )
 
     fun can(w: World, perm: String): Boolean = w.userOrg < 0 || (PERMS[w.role] ?: PERMS["coach-gm"]!!).contains(perm)

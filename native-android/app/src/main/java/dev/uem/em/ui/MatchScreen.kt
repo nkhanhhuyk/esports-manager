@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -137,6 +138,10 @@ private fun MatchPreview(vm: GameVm, w: World, f: Fixture, t: TitleDef) {
             Row { for (r in lastResults(w, tid, f.day).reversed()) Text(if (r.winner == tid) "W" else "L", color = if (r.winner == tid) Ui.win else Ui.loss, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp)) }
         }
         dev.uem.em.mgmt.Deals.rivalsOf(w, f.a).firstOrNull { it.first == f.b }?.let { KV("Rivalry", "intensity ${it.second.toInt()}", Ui.loss) }
+        if (w.isUserTeam(f.a) || w.isUserTeam(f.b)) {
+            val pp = dev.uem.em.mgmt.Prep.planFor(w, f.id, if (w.isUserTeam(f.a)) f.a else f.b)
+            TextButton(onClick = { vm.go(Screen.Prepare(f.id)) }) { Text("Prepare for match" + (pp?.let { " · ${dev.uem.em.mgmt.Prep.LABEL[it.emphasis]}${if (it.locked) " (locked)" else ""}" } ?: " · no plan yet"), color = Ui.accent) }
+        }
     }
     ScoutingCard(vm, w, f, t)
     Card("Expected lineups") {

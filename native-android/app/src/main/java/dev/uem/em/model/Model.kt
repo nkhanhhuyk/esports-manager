@@ -108,6 +108,14 @@ class World(
     val removedSpells: MutableList<String> = ArrayList(),
     /** Role metas per game (titleId → one option per group, comma-separated, see titles.RoleMeta); none = the game's starting meta. */
     val roleMetas: MutableMap<String, String> = HashMap(),
+    /** Invitations to competitions (ranking-based invites; the team accepts or declines before the deadline). */
+    val invites: MutableList<Invite> = ArrayList(),
+    /** Mentor relationships (veterans or staff teaching less experienced players). */
+    val mentorships: MutableList<Mentorship> = ArrayList(),
+    /** Development plans and pathway stages of players (one per player at most). */
+    val devPlans: MutableList<DevPlan> = ArrayList(),
+    /** Pre-match preparation plans (one per team and fixture), locked when the match starts. */
+    val preps: MutableList<PrepPlan> = ArrayList(),
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -199,6 +207,10 @@ class Player(
     /** Country of the player's club and the consecutive seasons spent there (toward a second nationality). */
     var resCountry: String = "",
     var resYears: Int = 0,
+    /** University the player is enrolled at (collegiate eligibility), blank if none. */
+    var enrolled: String = "",
+    /** Specialized circuits the player is registered as eligible for ("gc": VALORANT Game Changers; fictional players only). */
+    var circuits: String = "",
 ) {
     val retired get() = retiredSeason != 0
     /** Every nationality (the first is the main one). */
@@ -263,6 +275,8 @@ class Team(
     var scrimStats: MutableMap<String, ScrimStat> = HashMap(),
     /** Patch the scrim record belongs to (a new patch halves the old record). */
     var scrimPatch: Int = -1,
+    /** "" professional / academy / national; "amateur" (community club), "collegiate" (university team), "gc" (VALORANT Game Changers). */
+    var kind: String = "",
 )
 
 /** One scrim block against a partner: games won and lost, and (for teams you follow) the picks of every game. */
@@ -333,8 +347,8 @@ class Competition(
     val leagueId: Int = -1,
     val split: Int = 0,
     val region: String = "",
-    /** How entrants are found: "league:<id>", "top:<compId>:<count>", "circuit:<leagueId>:<count>". */
-    val entrants: List<String>,
+    /** How entrants are found: "league:<id>", "top:<compId>:<count>", "circuit:<leagueId>:<count>", ... (see comp.Ecosystem.describe). */
+    var entrants: List<String>,
     val stages: MutableList<Stage>,
     var teamIds: MutableList<Int> = ArrayList(),
     var current: Int = 0,
@@ -363,6 +377,16 @@ class Competition(
     var timeouts: Int = -1,
     /** Promotion tournament: the league whose places it decides (-1: not one). */
     var promoLeague: Int = -1,
+    /** The competition this edition belongs to across seasons (e.g. "lol:L17:split1", "valorant:champions"). */
+    var defKey: String = "",
+    /** Ruleset the edition was created with (comp.Rulesets id); kept after the season, never rewritten. */
+    var rules: String = "",
+    /** Qualification ledger: how every entrant got its place (route, source result, replacements). */
+    val entries: MutableList<QualEntry> = ArrayList(),
+    /** Circuit of a development event: "amateur", "collegiate", "gc" (blank: professional calendar). */
+    var circuit: String = "",
+    /** Eligibility rule, evaluated per player when registering and fielding ("amateur", "enrolled;age<=25", "circuit:gc"). */
+    var elig: String = "",
 ) {
     val done get() = status == 2
 }
@@ -647,3 +671,39 @@ class CustomComp(
     /** Tactical timeouts per team per map in shooters (-1: the game's default). */
     var timeouts: Int = -1,
 )
+
+/**
+ * One entrant's place in a competition edition: the entry route (the competition's rule that gave it),
+ * the source competition and placing, how it was earned, and what happened to it. Status: "in",
+ * "declined", "withdrawn" (the place passed to [note]'s replacement) or "replacement".
+ */
+@Serializable
+class QualEntry(val teamId: Int, val route: String, val src: Int = -1, val place: Int = -1, val how: String = "", val note: String = "", var status: String = "in", val day: Int = 0)
+
+/** An invitation to a competition: issued from a ranking before the event, accepted or declined by the deadline. */
+@Serializable
+class Invite(val compId: Int, val teamId: Int, val route: String, val rank: Int, val day: Int, val deadline: Int, var status: String = "pending")
+
+/**
+ * A mentor (a player, or staff when [staffMentor]) teaching a mentee toward a goal. Progress comes only
+ * from completed sessions: [sessions] held, [missed] when either was unavailable or the mentor was
+ * overbooked; [gained] attribute points so far (capped); [relation] 0-100 grows with compatible
+ * personalities and sessions, falls with clashes; [log] keeps the evidence.
+ */
+@Serializable
+class Mentorship(val id: Int, val mentorId: Int, val staffMentor: Boolean, val menteeId: Int, val goal: String, val startDay: Int, var reviewDay: Int,
+                 var sessions: Int = 0, var missed: Int = 0, var gained: Double = 0.0, var relation: Double = 50.0, var active: Boolean = true,
+                 val log: MutableList<String> = ArrayList(), var endedDay: Int = 0)
+
+/** A player's development plan: pathway stage, focus, playtime target per month and the next review. */
+@Serializable
+class DevPlan(val playerId: Int, var stage: String = "", var focus: String = "", var gamesTarget: Int = 0, var reviewDay: Int = 0, var note: String = "", var trialTeam: Int = -1, var trialUntil: Int = 0)
+
+/**
+ * A team's preparation for one fixture: emphasis ("balanced", "counter", "comfort", "map", "rest"),
+ * composition identity (MOBA style) or map focus (shooters), who decided it, and — once the match
+ * starts — the locked snapshot: [effect] is the share of the plan the staff could deliver that week.
+ */
+@Serializable
+class PrepPlan(val fixtureId: Int, val teamId: Int, var emphasis: String = "balanced", var style: String = "", var map: String = "", var by: String = "user",
+               var locked: Boolean = false, var lockedDay: Int = 0, var effect: Double = 1.0, var note: String = "")

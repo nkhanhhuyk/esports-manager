@@ -6,10 +6,12 @@ import dev.uem.em.model.BracketNode
 import dev.uem.em.model.CompTier
 import dev.uem.em.model.Competition
 import dev.uem.em.model.Fixture
+import dev.uem.em.model.QualEntry
 import dev.uem.em.model.League
 import dev.uem.em.model.Stage
 import dev.uem.em.model.StageType
 import dev.uem.em.model.Standing
+import dev.uem.em.model.Team
 import dev.uem.em.model.Trophy
 import dev.uem.em.model.World
 import dev.uem.em.titles.Catalogue
@@ -74,9 +76,10 @@ object Season {
         return slots
     }
 
-    internal fun mk(w: World, t: TitleDef, season: Int, name: String, short: String, tier: CompTier, league: League?, entrants: List<String>, stages: List<Stage>, prize: Double, prestige: Int, points: List<Int>, split: Int = 0): Competition {
+    internal fun mk(w: World, t: TitleDef, season: Int, name: String, short: String, tier: CompTier, league: League?, entrants: List<String>, stages: List<Stage>, prize: Double, prestige: Int, points: List<Int>, split: Int = 0, key: String = ""): Competition {
         val c = Competition(w.comps.size, name, short, t.id, season, tier, league?.id ?: -1, split, league?.region ?: "", entrants, stages.toMutableList(),
-            startDay = stages[0].startDay, circuitPoints = points, prizePool = (prize / 1000).toInt() * 1000.0, prestige = prestige)
+            startDay = stages[0].startDay, circuitPoints = points, prizePool = (prize / 1000).toInt() * 1000.0, prestige = prestige,
+            defKey = key.ifBlank { if (league != null) "${t.id}:L${league.id}:split$split" else "" }, rules = Rulesets.of(t.id, season).id)
         w.comps.add(c)
         Fearless.assign(w, t, c)
         return c
@@ -206,6 +209,11 @@ object Season {
             fun D(m: Int, d: Int) = Dates.day(season, m, d) + off
             val tier1 = w.leagues.filter { it.titleId == titleId && it.tier == 1 }.sortedByDescending { leagueStrength(it) }
             val tier2 = w.leagues.filter { it.titleId == titleId && it.tier == 2 }
+            if (titleId == "valorant" && Rulesets.vctOpen(season) && tier1.isNotEmpty()) {
+                planVctOpen(w, t, season, tier1, ::D)
+                nationsCup(w, t, season, ti)
+                return@forEachIndexed
+            }
             val splitComps = HashMap<Int, MutableList<Competition>>()
             for (l in tier1 + tier2) {
                 val size = l.teamIds.size
@@ -249,39 +257,136 @@ object Season {
                 real?.get(k)?.let { Triple("${it.first} $season", it.second, true) } ?: Triple("${t.short} $generic $season", "${t.short} $short", false)
             fun topOf(split: Int, two: (Int) -> Boolean) = tier1.mapIndexed { i, l -> "top:${splitComps[l.id]!![split - 1].id}:${if (two(i)) 2 else 1}" }
             fun count(rules: List<String>) = rules.sumOf { it.split(':')[2].toInt() }
-            val fsE = topOf(1) { i -> tier1.size <= 3 || i < 2 }.take(8)
+            val lol = titleId == "lol"
+            val fsE = (if (lol) topOf(1) { i -> tier1[i].short in setOf("LCK", "LPL") } else topOf(1) { i -> tier1.size <= 3 || i < 2 }).take(8)
             val fsN = name("fs", "First Stand", "FST")
-            val fs = mk(w, t, season, fsN.first, fsN.second, CompTier.INTERNATIONAL, null, fsE, international(t, minOf(8, count(fsE)), D(3, 6)), t.prizeScale * 250_000, 60, FS_POINTS)
+            val fs = mk(w, t, season, fsN.first, fsN.second, CompTier.INTERNATIONAL, null, fsE, international(t, minOf(8, count(fsE)), D(3, 6)), t.prizeScale * 250_000, 60, FS_POINTS, key = "$titleId:fs")
             fs.realName = fsN.third
             Fearless.assign(w, t, fs)
-            val msiE = topOf(2) { i -> tier1.size <= 2 || i < 2 || tier1.size <= 4 }
             val msiN = name("msi", "Mid-Season Invitational", "MSI")
-            val n = count(msiE)
+            // Counter-Strike Majors: Valve-style regional-standings invitations plus open qualifiers per region.
+            val cs = titleId == "cs2"
+            val csInvites = mapOf(0 to 6, 1 to 3, 2 to 3)
+            fun csEntrants(): List<String> = tier1.mapIndexed { i, l -> "invite:cs2:L${l.id}:${csInvites[i] ?: 2}" }
+            val msiE = when {
+                cs -> csEntrants()
+                lol -> topOf(2) { i -> tier1[i].short != "CBLOL" }
+                else -> topOf(2) { i -> tier1.size <= 2 || i < 2 || tier1.size <= 4 }
+            }
+            val n = if (cs) 16 else count(msiE)
             val msiStages = if (n > 8) listOf(stage("Play-In Groups", StageType.GROUPS, D(6, 26), t.formats.first.n, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 4), stage("Bracket Stage", StageType.DOUBLE_ELIM, D(6, 26) + 6, t.formats.second.n))
             else listOf(stage("Bracket Stage", StageType.DOUBLE_ELIM, D(6, 26), t.formats.second.n))
-            val msi = mk(w, t, season, msiN.first, msiN.second, CompTier.INTERNATIONAL, null, msiE, msiStages, t.prizeScale * 400_000, 70, MSI_POINTS)
+            val msi = mk(w, t, season, msiN.first, msiN.second, CompTier.INTERNATIONAL, null, msiE, if (cs) international(t, 16, D(6, 26)) else msiStages, t.prizeScale * 400_000, 70, MSI_POINTS, key = "$titleId:msi")
             msi.realName = msiN.third
+            if (cs) openQualifiers(w, t, season, msi, tier1, csInvites)
             // Esports World Cup (after the mid-season event): its top four and the strongest other teams; club championship across all games.
-            val ewc = mk(w, t, season, "$EWC $season — ${t.name}", "EWC ${t.short}", CompTier.INTERNATIONAL, null, listOf("top:${msi.id}:4", "elo:$titleId:4"),
-                listOf(stage("Group Stage", StageType.GROUPS, D(7, 14), t.formats.first.n, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 2, daysBetween = 1),
-                    stage("Playoffs", StageType.SINGLE_ELIM, D(7, 14) + 4, t.formats.second.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)),
-                t.prizeScale * 700_000, 80, emptyList())
-            ewc.realName = true
+            ewcFor(w, t, season, msi, D(7, 14))
             val target = maxOf(4, minOf(16, tier1.size * 4 / 4 * 4))
-            val slots = allocate(tier1.map { leagueStrength(it) }, target, 4)
-            val wE = tier1.mapIndexed { i, l -> "circuit:${l.id}:${minOf(slots[i], l.teamIds.size)}" }
+            // LoL (2026 handbook): the MSI winner qualifies directly and the MSI runner-up's region gets an extra seed — two of the 16 places.
+            val slots = allocate(tier1.map { leagueStrength(it) }, if (lol && target >= 8) target - 2 else target, 4)
+            val dota = titleId == "dota2"
+            val wE = when {
+                cs -> csEntrants()
+                // The International: invitations on results, then two places from each region's qualifier.
+                dota -> listOf("invite:dota2:all:${maxOf(4, 16 - 2 * tier1.size)}")
+                lol && target >= 8 -> listOf("msiwin:${msi.id}") + tier1.mapIndexed { i, l -> "circuit:${l.id}:${minOf(slots[i], l.teamIds.size)}" } + "msiseed:${msi.id}"
+                else -> tier1.mapIndexed { i, l -> "circuit:${l.id}:${minOf(slots[i], l.teamIds.size)}" }
+            }
             val wN = name("worlds", "World Championship", "Worlds")
-            mk(w, t, season, wN.first, wN.second, CompTier.WORLDS, null, wE, international(t, count(wE), D(9, 24)), t.prizeScale * 1_000_000, 100, emptyList()).realName = wN.third
-            // Esports Nations Cup: continental qualifiers after First Stand (every nation of the continent;
-            // midweek so they never clash with league days), then the two finalists of each continent at the
-            // Nations Cup after the World Championship.
-            val quals = GameData.CONTINENTS.mapIndexed { ci, continent -> encQualifier(w, t, season, continent, ti, ci) }
-            val encStart = Dates.day(season, 11, 2) + ti % 3
-            mk(w, t, season, "$ENC $season — ${t.name}", "ENC ${t.short}", CompTier.INTERNATIONAL, null, quals.map { "qual:${it.id}:2" } + "fill:$titleId:12",
-                listOf(stage("Group Stage", StageType.GROUPS, encStart, t.formats.first.n, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 4, daysBetween = 1),
-                    stage("Playoffs", StageType.SINGLE_ELIM, encStart + 6, t.formats.second.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)),
-                t.prizeScale * 300_000, 75, emptyList()).realName = true
+            val worldsN = when { cs || dota -> 16; lol && target >= 8 -> target; else -> count(wE) }
+            val worlds = mk(w, t, season, wN.first, wN.second, CompTier.WORLDS, null, wE, international(t, worldsN, D(9, 24)), t.prizeScale * 1_000_000, 100, emptyList(), key = "$titleId:worlds")
+            worlds.realName = wN.third
+            if (cs) openQualifiers(w, t, season, worlds, tier1, csInvites)
+            if (dota) { worlds.entrants = worlds.entrants + tier1.map { "qual:${regionalQualifier(w, t, season, worlds, it).id}:2" } }
+            nationsCup(w, t, season, ti)
         }
+    }
+
+    /** Esports World Cup (after the mid-season event): its top four and the strongest other teams; club championship across all games. */
+    private fun ewcFor(w: World, t: TitleDef, season: Int, src: Competition, start: Int) {
+        val ewc = mk(w, t, season, "$EWC $season — ${t.name}", "EWC ${t.short}", CompTier.INTERNATIONAL, null, listOf("top:${src.id}:4", "elo:${t.id}:4"),
+            listOf(stage("Group Stage", StageType.GROUPS, start, t.formats.first.n, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 2, daysBetween = 1),
+                stage("Playoffs", StageType.SINGLE_ELIM, start + 4, t.formats.second.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)),
+            t.prizeScale * 700_000, 80, emptyList(), key = "${t.id}:ewc")
+        ewc.realName = true
+    }
+
+    /**
+     * Esports Nations Cup: continental qualifiers after First Stand (every nation of the continent;
+     * midweek so they never clash with league days), then the two finalists of each continent at the
+     * Nations Cup after the World Championship.
+     */
+    private fun nationsCup(w: World, t: TitleDef, season: Int, ti: Int) {
+        val quals = GameData.CONTINENTS.mapIndexed { ci, continent -> encQualifier(w, t, season, continent, ti, ci) }
+        val encStart = Dates.day(season, 11, 2) + ti % 3
+        mk(w, t, season, "$ENC $season — ${t.name}", "ENC ${t.short}", CompTier.INTERNATIONAL, null, quals.map { "qual:${it.id}:2" } + "fill:${t.id}:12",
+            listOf(stage("Group Stage", StageType.GROUPS, encStart, t.formats.first.n, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 4, daysBetween = 1),
+                stage("Playoffs", StageType.SINGLE_ELIM, encStart + 6, t.formats.second.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)),
+            t.prizeScale * 300_000, 75, emptyList(), key = "${t.id}:enc").realName = true
+    }
+
+    /** A region's open qualifier for an invitation event (CS2 Majors): every team of the region not invited, single elimination. */
+    private fun openQualifiers(w: World, t: TitleDef, season: Int, main: Competition, tier1: List<League>, invites: Map<Int, Int>) {
+        val add = ArrayList<String>()
+        tier1.forEachIndexed { i, l ->
+            val q = mk(w, t, season, "${main.name} — ${l.short} Open Qualifier", "${main.short} ${l.short} OQ", CompTier.CHALLENGER, null,
+                listOf("open:${t.id}:L${l.id}:16:${main.id}:all"), listOf(stage("Open Qualifier", StageType.SINGLE_ELIM, main.startDay - 16, t.formats.second.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)),
+                t.prizeScale * 30_000, 18, emptyList(), key = "${t.id}:${main.defKey.substringAfter(':')}:oq:L${l.id}")
+            q.realName = true
+            add.add("qual:${q.id}:${if (i == 0) 2 else 1}")
+        }
+        main.entrants = main.entrants + add
+    }
+
+    /** A region's closed qualifier for The International: the region's teams that were not invited. */
+    private fun regionalQualifier(w: World, t: TitleDef, season: Int, main: Competition, l: League): Competition {
+        val q = mk(w, t, season, "${main.name} — ${l.short} Regional Qualifier", "${main.short} ${l.short} RQ", CompTier.CHALLENGER, null,
+            listOf("open:${t.id}:L${l.id}:12:${main.id}:all"), listOf(stage("Regional Qualifier", StageType.SINGLE_ELIM, main.startDay - 16, t.formats.second.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)),
+            t.prizeScale * 40_000, 25, emptyList(), key = "${t.id}:worlds:rq:L${l.id}")
+        q.realName = true
+        return q
+    }
+
+    /**
+     * VALORANT from 2027 (official announcement, 8 Apr 2026): one tier. Each of three stages has an open
+     * qualifier per territory (any team without a partner place), a territory event (Kickoff, Cup 1, Cup 2:
+     * partner teams seeded in, two qualifiers join) and a global event: Masters Seoul and Masters Valencia
+     * take the top three of each territory event; Champions takes Cup 2's top two per territory and the
+     * two best on championship points. Partners have no automatic international place.
+     */
+    private fun planVctOpen(w: World, t: TitleDef, season: Int, territories: List<League>, D: (Int, Int) -> Int) {
+        val named = season == 2027
+        val stagesDef = listOf(Triple("Kickoff", D(1, 2), D(1, 16)), Triple("Cup 1", D(3, 22), D(4, 5)), Triple("Cup 2", D(7, 27), D(8, 6)))
+        val events = HashMap<Int, MutableList<Competition>>()
+        for ((si, def) in stagesDef.withIndex()) {
+            val (label, oqDay, evDay) = def
+            for (l in territories) {
+                val base = l.short.removePrefix("VCT ").trim()
+                val oq = mk(w, t, season, "VCT $base $label Open Qualifier $season", "$base ${label.replace(" ", "")} OQ", CompTier.CHALLENGER, null,
+                    listOf("open:${t.id}:L${l.id}:16"), listOf(stage("Open Qualifier", StageType.SINGLE_ELIM, oqDay, t.formats.second.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)),
+                    t.prizeScale * 25_000, 15, emptyList(), key = "${t.id}:L${l.id}:${label.lowercase().replace(" ", "")}:oq")
+                oq.realName = true
+                val n = l.teamIds.size + 2
+                val ev = mk(w, t, season, "VCT $base $label $season", "$base ${label.replace(" ", "")}", CompTier.LEAGUE, l,
+                    listOf("league:${l.id}", "top:${oq.id}:2"), international(t, n, evDay), t.prizeScale * 1_000_000 * 0.08 * (0.4 + leagueStrength(l) / 100),
+                    (25 + leagueStrength(l) * 0.3).toInt(), SPLIT_POINTS, si + 1)
+                ev.realName = true
+                events.getOrPut(l.id) { ArrayList() }.add(ev)
+            }
+        }
+        fun global(si: Int, name: String, short: String, start: Int, prize: Double, prestige: Int, points: List<Int>, entr: List<String>, n: Int, key: String, tier: CompTier = CompTier.INTERNATIONAL): Competition {
+            val c = mk(w, t, season, "$name $season", short, tier, null, entr, international(t, n, start), t.prizeScale * prize, prestige, points, key = key)
+            c.realName = true
+            return c
+        }
+        val m1 = global(0, if (named) "VALORANT Masters Seoul" else "VALORANT Masters (spring)", "Masters I", D(3, 1), 250_000.0, 60, FS_POINTS,
+            territories.map { "top:${events[it.id]!![0].id}:3" }, territories.size * 3, "${t.id}:fs")
+        val m2 = global(1, if (named) "VALORANT Masters Valencia" else "VALORANT Masters (summer)", "Masters II", D(6, 7), 400_000.0, 70, MSI_POINTS,
+            territories.map { "top:${events[it.id]!![1].id}:3" }, territories.size * 3, "${t.id}:msi")
+        ewcFor(w, t, season, m2, D(7, 14))
+        global(2, if (named) "VALORANT Champions Austin" else "VALORANT Champions", "Champions", D(9, 24), 1_000_000.0, 100, emptyList(),
+            territories.map { "top:${events[it.id]!![2].id}:2" } + territories.map { "points:L${it.id}:2" }, territories.size * 4, "${t.id}:worlds", CompTier.WORLDS)
+        @Suppress("UNUSED_VARIABLE") val unused = m1
     }
 }
 
@@ -526,85 +631,170 @@ object Progress {
         return pts
     }
 
-    private fun entrants(w: World, c: Competition): List<Int>? {
-        val out = ArrayList<Int>()
-        fun add(id: Int) { if (w.teams[id].active && id !in out) out.add(id) }
+    /**
+     * Who enters a competition and why: each entry rule in order (a team already in is skipped and the
+     * place passes down the same source), every place recorded with its route, source and placing.
+     * Null while a source competition has not finished. The same rules apply to the user's teams and
+     * the AI's; inactive teams are recorded as withdrawn and their place passes on.
+     */
+    internal fun entrants(w: World, c: Competition): List<QualEntry>? {
+        val out = ArrayList<QualEntry>()
+        val ids = HashSet<Int>()
+        fun has(id: Int) = id in ids
+        fun add(id: Int, rule: String, how: String, src: Int = -1, place: Int = -1, note: String = ""): Boolean {
+            if (id in ids) return false
+            if (!w.teams[id].active) { out.add(QualEntry(id, rule, src, place, how, "team no longer active — place passed on", "withdrawn", w.day)); return false }
+            ids.add(id); out.add(QualEntry(id, rule, src, place, how, note, "in", w.day)); return true
+        }
         for (rule in c.entrants) {
             val p = rule.split(':')
             when (p[0]) {
-                "league" -> w.leagues[p[1].toInt()].teamIds.forEach(::add)
-                "ids" -> p[1].split(',').mapNotNull { it.toIntOrNull() }.filter { it in w.teams.indices }.forEach(::add)
-                "nations" -> dev.uem.em.mgmt.Extras.nationalTeams(w, p[1], p[2].toInt()).forEach(::add)
+                "league" -> { val l = w.leagues[p[1].toInt()]; l.teamIds.forEach { add(it, rule, "member of ${l.short}") } }
+                "ids" -> p[1].split(',').mapNotNull { it.toIntOrNull() }.filter { it in w.teams.indices }.forEach { add(it, rule, "invited") }
+                "nations" -> dev.uem.em.mgmt.Extras.nationalTeams(w, p[1], p[2].toInt()).forEach { add(it, rule, "one of the strongest nations") }
                 // Every nation of a continent (Nations Cup qualifier), squads called up now.
-                "continent" -> dev.uem.em.mgmt.Extras.continentTeams(w, p[1], p.drop(2).joinToString(":")).forEach(::add)
-                // The best nations of a finished qualifier, squads called up again.
+                "continent" -> dev.uem.em.mgmt.Extras.continentTeams(w, p[1], p.drop(2).joinToString(":")).forEach { add(it, rule, "nation of ${p.drop(2).joinToString(":")}") }
+                // The best of a finished qualifier (national squads are called up again on this season's form).
                 "qual" -> {
                     val src = w.comps[p[1].toInt()]
                     if (!src.done) return null
-                    for (tid in src.placements.take(p[2].toInt())) {
-                        if (tid in out) continue
-                        // Squads are picked again on this season's form: they can change from the qualifier.
-                        val tm = dev.uem.em.mgmt.Extras.callUp(w, w.teams[tid])
-                        val (inn, outt) = dev.uem.em.mgmt.Extras.lastChanges
-                        if (inn.isNotEmpty() || outt.isNotEmpty()) w.news.add(dev.uem.em.model.News(w.day, "${tm.name} squad for ${c.short}",
-                            "Changes from the qualifier — in: ${inn.joinToString { w.players[it].handle }.ifEmpty { "none" }}; out: ${outt.joinToString { w.players[it].handle }.ifEmpty { "none" }}.", listOf(tm.id)))
-                        add(tid)
+                    var taken = 0
+                    for ((i, tid) in src.placements.withIndex()) {
+                        if (taken >= p[2].toInt()) break
+                        if (has(tid)) continue
+                        if (w.teams[tid].nationalOf.isNotEmpty()) {
+                            val tm = dev.uem.em.mgmt.Extras.callUp(w, w.teams[tid])
+                            val (inn, outt) = dev.uem.em.mgmt.Extras.lastChanges
+                            if (inn.isNotEmpty() || outt.isNotEmpty()) w.news.add(dev.uem.em.model.News(w.day, "${tm.name} squad for ${c.short}",
+                                "Changes from the qualifier — in: ${inn.joinToString { w.players[it].handle }.ifEmpty { "none" }}; out: ${outt.joinToString { w.players[it].handle }.ifEmpty { "none" }}.", listOf(tm.id)))
+                        }
+                        if (add(tid, rule, "qualifier", src.id, i)) taken++
                     }
                 }
                 // Up to a number of nations: the strongest national teams not already in (a qualifier without enough nations).
                 "fill" -> {
-                    val need = p[2].toInt() - out.size
-                    if (need > 0) w.teams.filter { it.titleId == p[1] && it.nationalOf.isNotEmpty() && it.id !in out }.sortedByDescending { it.elo }.take(need)
-                        .forEach { dev.uem.em.mgmt.Extras.callUp(w, it); add(it.id) }
+                    val need = p[2].toInt() - ids.size
+                    if (need > 0) w.teams.filter { it.titleId == p[1] && it.nationalOf.isNotEmpty() && !has(it.id) }.sortedByDescending { it.elo }.take(need)
+                        .forEach { dev.uem.em.mgmt.Extras.callUp(w, it); add(it.id, rule, "filled an empty place (strongest remaining nation)") }
                 }
                 // The strongest tier-1 teams of a game not already in (by Elo).
-                "elo" -> { val need = p[2].toInt(); w.teams.filter { it.titleId == p[1] && it.active && it.nationalOf.isEmpty() && w.leagues.getOrNull(it.leagueId)?.tier == 1 && it.id !in out }.sortedByDescending { it.elo }.take(need).forEach { add(it.id) } }
+                "elo" -> { val need = p[2].toInt(); w.teams.filter { it.titleId == p[1] && it.active && it.nationalOf.isEmpty() && w.leagues.getOrNull(it.leagueId)?.tier == 1 && !has(it.id) }.sortedByDescending { it.elo }.take(need).forEach { add(it.id, rule, "invited on strength (Elo)") } }
                 // The last teams of a finished league split that are still in its league (promotion tournaments).
                 "bottom" -> {
                     val src = w.comps[p[1].toInt()]
                     if (!src.done) return null
-                    src.placements.reversed().filter { w.teams[it].active && w.teams[it].leagueId == src.leagueId && it !in out }.take(p[2].toInt()).forEach(::add)
+                    val n = src.placements.size
+                    src.placements.withIndex().reversed().filter { (_, it) -> w.teams[it].active && w.teams[it].leagueId == src.leagueId && !has(it) }.take(p[2].toInt())
+                        .forEach { (i, it) -> add(it, rule, "defending its place (bottom ${n - i} of ${src.short})", src.id, i) }
                 }
                 // The best teams of a finished lower-league split that may go up: no academies (their parent's league).
                 "promo" -> {
                     val src = w.comps[p[1].toInt()]
                     if (!src.done) return null
-                    src.placements.filter { w.teams[it].active && w.teams[it].parentId < 0 && w.teams[it].leagueId == src.leagueId && it !in out }.take(p[2].toInt()).forEach(::add)
+                    src.placements.withIndex().filter { (_, it) -> w.teams[it].active && w.teams[it].parentId < 0 && w.teams[it].leagueId == src.leagueId && !has(it) }.take(p[2].toInt())
+                        .forEach { (i, it) -> add(it, rule, "promotion candidate", src.id, i) }
                 }
                 "top" -> {
                     val src = w.comps[p[1].toInt()]
                     if (!src.done) return null
                     var taken = 0
-                    for (tid in src.placements) {
+                    var passed = ""
+                    for ((i, tid) in src.placements.withIndex()) {
                         if (taken >= p[2].toInt()) break
-                        if (tid !in out && w.teams[tid].active) { add(tid); taken++ }
+                        if (has(tid)) { passed = "${w.teams[tid].short} already qualified — place passed down"; continue }
+                        if (add(tid, rule, "placing", src.id, i, passed)) { taken++; passed = "" }
                     }
                 }
                 "circuit" -> {
                     val league = w.leagues[p[1].toInt()]
                     val splits = w.comps.filter { it.season == c.season && it.leagueId == league.id }
                     if (splits.any { !it.done }) return null
-                    if (w.comps.any { it.season == c.season && it.titleId == c.titleId && it.tier == CompTier.INTERNATIONAL && !it.done && it.startDay < c.startDay }) return null
+                    if (w.comps.any { it.season == c.season && it.titleId == c.titleId && it.tier == CompTier.INTERNATIONAL && !it.done && it.startDay < c.startDay && !Season.isEncQualifier(it) && it.promoLeague < 0 }) return null
                     val pts = circuitPoints(w, c.season, c.titleId)
                     val last = splits.maxByOrNull { it.split }
-                    val chosen = ArrayList<Int>()
-                    last?.placements?.firstOrNull()?.let { if (w.teams[it].leagueId == league.id) chosen.add(it) }
-                    for (t in league.teamIds.filter { it !in chosen }.sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo })) {
-                        if (chosen.size >= p[2].toInt()) break
-                        chosen.add(t)
+                    var chosen = 0
+                    last?.placements?.firstOrNull()?.let { if (w.teams[it].leagueId == league.id && add(it, rule, "${league.short} champion (last split)", last.id, 0)) chosen++ }
+                    for (t in league.teamIds.sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo })) {
+                        if (chosen >= p[2].toInt()) break
+                        if (add(t, rule, "circuit points", note = "${(pts[t] ?: 0.0).toInt()} points in ${league.short}")) chosen++
                     }
-                    chosen.forEach(::add)
+                }
+                // Championship points earned in a territory's events this season (VCT 2027: top two per territory).
+                "points" -> {
+                    val league = w.leagues[p[1].removePrefix("L").toInt()]
+                    val own = w.comps.filter { it.season == c.season && it.leagueId == league.id && it.startDay < c.startDay }
+                    if (own.any { !it.done }) return null
+                    val pts = circuitPoints(w, c.season, c.titleId)
+                    var chosen = 0
+                    for (t in w.teams.filter { it.titleId == c.titleId && it.active && Ecosystem.inRegion(w, it, league) && (pts[it.id] ?: 0.0) > 0 }.sortedByDescending { pts[it.id] ?: 0.0 }) {
+                        if (chosen >= p[2].toInt()) break
+                        if (add(t.id, rule, "championship points", note = "${(pts[t.id] ?: 0.0).toInt()} points (${league.short} territory)")) chosen++
+                    }
+                }
+                // Ranking invitations accepted by the start (see Ecosystem.daily).
+                "invite" -> {
+                    if (w.invites.none { it.compId == c.id && it.route == rule }) Ecosystem.issue(w, c, rule)
+                    for (inv in w.invites.filter { it.compId == c.id && it.route == rule }) {
+                        if (inv.status == "pending") Ecosystem.respond(w, inv, true, "accepted by the staff at the deadline")
+                        if (inv.status == "accepted") add(inv.teamId, rule, "invitation (regional standings)", place = inv.rank - 1, note = "${dev.uem.em.core.ordinal(inv.rank)} in the standings")
+                    }
+                }
+                // Open qualifier: every team of the region without a league place in it or an invitation to the main event (strongest first, capped).
+                "open" -> {
+                    val league = Ecosystem.leagueOf(w, p[2])
+                    val cap = p[3].toInt()
+                    val main = p.getOrNull(4)?.toIntOrNull()
+                    // "all": league teams play it too (CS2, Dota 2); otherwise the league's teams are seeded past it (VALORANT partners).
+                    val all = p.getOrNull(5) == "all"
+                    val invited = if (main != null) w.invites.filter { it.compId == main && it.status != "declined" }.map { it.teamId }.toSet() else emptySet()
+                    w.teams.filter { it.titleId == p[1] && it.active && it.nationalOf.isEmpty() && it.parentId < 0 && (it.kind.isEmpty() || it.kind == "amateur") && it.id !in invited && (league == null || all || it.leagueId != league.id) && Ecosystem.inRegion(w, it, league) && it.roster.size >= Catalogue.get(it.titleId).teamSize }
+                        .sortedByDescending { it.elo }.take(cap).forEach { add(it.id, rule, "open qualifier entry") }
+                }
+                // Development circuits: a region's amateur clubs (strongest first), the best on amateur points, or every team of a kind.
+                "amateur", "amateurpts", "kind" -> {
+                    val league = Ecosystem.leagueOf(w, p[2])
+                    val kind = if (p[0] == "kind") p[3] else "amateur"
+                    val full = dev.uem.em.mgmt.Circuits.teamsOf(w, p[1], league, kind).filter { tm -> tm.roster.count { dev.uem.em.mgmt.Circuits.eligible(w, c, w.players[it]) == null && !w.players[it].retired } >= Catalogue.get(tm.titleId).teamSize }
+                    val pts = if (p[0] == "amateurpts") dev.uem.em.mgmt.Circuits.amateurPoints(w, c.season, p[1]) else emptyMap()
+                    if (p[0] == "amateurpts" && w.comps.any { it.season == c.season && it.titleId == p[1] && it.circuit == "amateur" && it.startDay < c.startDay && !it.done && it.entrants.firstOrNull()?.split(':')?.getOrNull(2) == p[2] }) return null
+                    val order = full.sortedWith(compareByDescending<Team> { pts[it.id] ?: 0.0 }.thenByDescending { it.elo })
+                    val cap = if (p[0] == "kind") Int.MAX_VALUE else p[3].toInt()
+                    order.take(cap).forEach { tm -> add(tm.id, rule, when (p[0]) { "amateurpts" -> "amateur points"; "kind" -> "${kind} team of the region"; else -> "amateur club of the region" },
+                        note = if (p[0] == "amateurpts") "${(pts[tm.id] ?: 0.0).toInt()} points" else "") }
+                }
+                // The winner of an earlier international qualifies directly (LoL 2026: the MSI winner goes to Worlds).
+                "msiwin" -> {
+                    val src = w.comps[p[1].toInt()]
+                    if (!src.done) return null
+                    src.placements.firstOrNull()?.let { add(it, rule, "won ${src.short}", src.id, 0) }
+                }
+                // An extra place for the league of an earlier international's runner-up, filled on circuit points.
+                "msiseed" -> {
+                    val src = w.comps[p[1].toInt()]
+                    if (!src.done) return null
+                    val runner = src.placements.getOrNull(1) ?: continue
+                    val league = w.leagues.getOrNull(w.teams[runner].leagueId) ?: continue
+                    val pts = circuitPoints(w, c.season, c.titleId)
+                    league.teamIds.filter { !has(it) }.sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo }).firstOrNull()
+                        ?.let { add(it, rule, "extra ${league.short} seed (${src.short} runner-up region)", note = "${(pts[it] ?: 0.0).toInt()} circuit points") }
                 }
             }
         }
-        if (c.tier == CompTier.INTERNATIONAL || c.tier == CompTier.WORLDS) out.sortByDescending { w.teams[it].elo }
+        if (c.tier == CompTier.INTERNATIONAL || c.tier == CompTier.WORLDS) {
+            // Seeding by strength; the ledger keeps the order it was earned in.
+            val order = ids.sortedByDescending { w.teams[it].elo }
+            return out.filter { it.status != "in" } + order.map { id -> out.first { it.teamId == id && it.status == "in" } }
+        }
         return out
     }
 
     fun startDue(w: World, day: Int) {
         for (c in w.comps) {
             if (c.status != 0 || c.startDay > day + 3) continue
-            val teams = entrants(w, c) ?: continue
+            val entries = entrants(w, c) ?: continue
+            // The ledger is written once, when the edition starts (declined invitations recorded earlier stay).
+            c.entries.addAll(entries)
+            val teams = entries.filter { it.status == "in" }.map { it.teamId }
             if (teams.size < 2) {
                 c.status = 2
                 c.placements = teams.toMutableList()

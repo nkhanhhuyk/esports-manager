@@ -21,6 +21,8 @@ import dev.uem.em.sim.VetoSession
  */
 class LiveMatch(val w: World, fixtureId: Int, spectatorWanted: Boolean = false, private val onProgress: () -> Unit = {}) {
     val f = w.fixtures[fixtureId]
+    // Both sides' preparation is fixed when the series starts (no-op when resuming a series).
+    init { dev.uem.em.mgmt.Prep.lock(w, f) }
     val series = LiveSeries(w, f, arrayOf(
         dev.uem.em.mgmt.Supporters.lineupFor(w, w.comps[f.compId], w.teams[f.a], Lineups.ensure(w, w.teams[f.a]).toList()),
         dev.uem.em.mgmt.Supporters.lineupFor(w, w.comps[f.compId], w.teams[f.b], Lineups.ensure(w, w.teams[f.b]).toList()),

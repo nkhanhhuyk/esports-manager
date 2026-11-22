@@ -34,7 +34,7 @@ object Advance {
     /** Simulation threads: "full" every core, "balanced" (default) half, "cool" two (cooler phone, longer battery). */
     @Volatile var speedMode: String = "balanced"
         set(v) { field = v; threadsFor(v).let { if (it != cores) { val old = pool; cores = it; pool = newPool(it); old.shutdown() } } }
-    private fun threadsFor(mode: String) = when (mode) { "full" -> allCores; "cool" -> minOf(2, allCores); else -> maxOf(1, (allCores + 1) / 2) }
+    private fun threadsFor(mode: String) = when (mode) { "full" -> allCores; "cool" -> minOf(2, allCores); "single" -> 1; else -> maxOf(1, (allCores + 1) / 2) }
     @Volatile private var cores = threadsFor("balanced")
     private fun newPool(n: Int): ExecutorService = Executors.newFixedThreadPool(n) { r -> Thread(r, "sim").apply { isDaemon = true; priority = Thread.NORM_PRIORITY - 1 } }
     @Volatile private var pool: ExecutorService = newPool(cores)
@@ -94,7 +94,7 @@ object Advance {
     fun day(w: World) {
         w.day++
         val d = w.day
-        timed(0) { Progress.startDue(w, d); dev.uem.em.mgmt.Patches.daily(w) }
+        timed(0) { dev.uem.em.mgmt.Circuits.ensure(w); dev.uem.em.mgmt.Circuits.daily(w); dev.uem.em.comp.Ecosystem.daily(w); Progress.startDue(w, d); dev.uem.em.mgmt.Patches.daily(w) }
         timed(1) { playFixtures(w, d) }
         timed(2) { daily(w) }
         timed(3) {
@@ -109,6 +109,7 @@ object Advance {
             if (Dates.dow(d) == 1) {
                 BoxStore.pageOut(w)
                 dev.uem.em.mgmt.Development.weekly(w)
+                dev.uem.em.mgmt.Mentoring.weekly(w)
                 dev.uem.em.mgmt.Extras.weeklyBreaks(w)
                 dev.uem.em.mgmt.Extras.weeklyScouting(w)
                 dev.uem.em.mgmt.Deals.weeklyScrims(w)
@@ -116,21 +117,32 @@ object Advance {
                 dev.uem.em.mgmt.Commerce.weekly(w)
             }
         }
-        timed(4) { dev.uem.em.mgmt.Market.daily(w); dev.uem.em.mgmt.Roles.daily(w) }
+        timed(4) { dev.uem.em.mgmt.Market.daily(w); dev.uem.em.mgmt.Roles.daily(w); dev.uem.em.mgmt.Mentoring.trials(w) }
         timed(5) { if (d == Season.endDay(w.season)) rollover(w) }
     }
 
     private fun playFixtures(w: World, d: Int) {
         // Brackets can schedule follow-up series for the same day; loop until none are left.
         var guard = 0
+        // A player plays one series a day: club fixtures first, then national teams, then development clubs
+        // (a free agent on an amateur roster called up by his country plays for the country).
+        val busy = HashSet<Int>()
         while (guard++ < 8) {
             val ids = (w.schedule[d] ?: return).filter { !w.fixtures[it].done }
             if (ids.isEmpty()) return
             val fixtures = ids.map { w.fixtures[it] }
             // Lineups are settled first (this writes to teams), then series run in parallel read-only.
-            val lineups = fixtures.associate { f ->
+            fun prio(f: Fixture): Int { val a = w.teams[f.a]; val b = w.teams[f.b]; return when { a.kind.isNotEmpty() || b.kind.isNotEmpty() || w.comps[f.compId].circuit.isNotBlank() -> 2; a.nationalOf.isNotEmpty() || b.nationalOf.isNotEmpty() -> 1; else -> 0 } }
+            val lineups = HashMap<Int, Array<List<Int>>>()
+            for (f in fixtures.sortedBy { prio(it) }) {
                 val c = w.comps[f.compId]
-                f.id to arrayOf(dev.uem.em.mgmt.Supporters.lineupFor(w, c, w.teams[f.a], Lineups.ensure(w, w.teams[f.a]).toList()), dev.uem.em.mgmt.Supporters.lineupFor(w, c, w.teams[f.b], Lineups.ensure(w, w.teams[f.b]).toList()))
+                val la = withoutBusy(w, w.teams[f.a], dev.uem.em.mgmt.Supporters.lineupFor(w, c, w.teams[f.a], Lineups.ensure(w, w.teams[f.a]).toList()), busy)
+                busy.addAll(la.filter { it >= 0 })
+                val lb = withoutBusy(w, w.teams[f.b], dev.uem.em.mgmt.Supporters.lineupFor(w, c, w.teams[f.b], Lineups.ensure(w, w.teams[f.b]).toList()), busy)
+                busy.addAll(lb.filter { it >= 0 })
+                lineups[f.id] = arrayOf(la, lb)
+                // Both sides' match preparation is locked now (AI coaches plan theirs); a resumed live series was locked when it began.
+                dev.uem.em.mgmt.Prep.lock(w, f)
             }
             // A series the user started live and left unfinished continues from its saved games.
             val resume = w.live?.takeIf { lv -> fixtures.any { it.id == lv.fixtureId } }
@@ -149,6 +161,19 @@ object Advance {
             for (o in outcomes) apply(w, o)
             if (resume != null) w.live = null
         }
+    }
+
+    /** A lineup without players already playing another series today: each is replaced by the best free roster player for the position. */
+    private fun withoutBusy(w: World, team: dev.uem.em.model.Team, lineup: List<Int>, busy: Set<Int>): List<Int> {
+        if (lineup.none { it in busy }) return lineup
+        val t = Catalogue.get(team.titleId)
+        val out = lineup.toMutableList()
+        for (i in out.indices) {
+            if (out[i] !in busy) continue
+            val role = t.lineupRoles.getOrNull(i) ?: continue
+            out[i] = team.roster.filter { it !in busy && it !in out && Lineups.available(w, w.players[it]) }.maxByOrNull { dev.uem.em.sim.Ratings.effectiveness(w.players[it], t, role) } ?: -1
+        }
+        return out
     }
 
     /** Apply one series: fixture result, player and competition stats, learning, Elo, competition progress. */
@@ -241,6 +266,7 @@ object Advance {
         }
         val rng = dev.uem.em.core.Rng.derive(w.seed, "rollover", w.season)
         Season.applyPromotions(w)
+        dev.uem.em.mgmt.Circuits.seasonEnd(w)
         dev.uem.em.mgmt.Extras.residency(w)
         dev.uem.em.mgmt.Career.awards(w)
         dev.uem.em.mgmt.Extras.seasonReview(w)
@@ -256,7 +282,9 @@ object Advance {
         dev.uem.em.mgmt.Career.youthIntake(w)
         dev.uem.em.mgmt.Academies.aiFound(w)
         fillRosters(w)
+        dev.uem.em.mgmt.Mentoring.aiSuccession(w)
         Season.plan(w, w.season)
+        dev.uem.em.mgmt.Circuits.plan(w, w.season)
         dev.uem.em.comp.CustomComps.rollover(w)
         if (!w.sacked) dev.uem.em.mgmt.Career.setupBoard(w)
         dev.uem.em.mgmt.Extras.seasonPreview(w)
@@ -268,7 +296,7 @@ object Advance {
     fun fillRosters(w: World) {
         val free = w.players.filter { !it.retired && it.teamId < 0 }.groupBy { it.titleId }.mapValues { (_, v) -> v.sortedByDescending { it.ca }.toMutableList() }
         for (team in w.teams) {
-            if (!team.active || w.isUserTeam(team.id) || team.nationalOf.isNotEmpty()) continue
+            if (!team.active || w.isUserTeam(team.id) || team.nationalOf.isNotEmpty() || team.kind.isNotEmpty()) continue
             val t = Catalogue.get(team.titleId)
             val pool = free[team.titleId] ?: continue
             // Every position covered by a player whose main role it is, and at least one substitute.

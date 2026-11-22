@@ -72,7 +72,8 @@ object Supporters {
         val t = Catalogue.get(c.titleId)
         for (tid in c.teamIds) {
             val team = w.teams[tid]
-            c.registrations[tid] = Registration(team.roster.filter { !w.players[it].retired }.sortedByDescending { w.players[it].ca }.take(t.teamSize + 4).toMutableList())
+            // Only players eligible under the event's rules (amateur status, enrolment, age, specialized circuit) are registered.
+            c.registrations[tid] = Registration(team.roster.filter { !w.players[it].retired && Circuits.eligible(w, c, w.players[it]) == null }.sortedByDescending { w.players[it].ca }.take(t.teamSize + 4).toMutableList())
         }
     }
 
@@ -85,9 +86,9 @@ object Supporters {
         for (i in out.indices) {
             val pid = out[i]
             if (pid < 0 || pid in reg.players) continue
-            val sub = reg.players.filter { it in team.roster && it !in out && w.players[it].injuryUntil <= w.day }.maxByOrNull { dev.uem.em.sim.Ratings.effectiveness(w.players[it], t, t.lineupRoles[i]) }
-            if (sub != null && (reg.amendments >= 2 || w.players[sub].ca >= w.players[pid].ca - 3)) out[i] = sub
-            else if (reg.amendments < 2) {
+            val sub = reg.players.filter { it in team.roster && it !in out && w.players[it].injuryUntil <= w.day && Circuits.eligible(w, c, w.players[it]) == null }.maxByOrNull { dev.uem.em.sim.Ratings.effectiveness(w.players[it], t, t.lineupRoles[i]) }
+            if (sub != null && (reg.amendments >= 2 || w.players[sub].ca >= w.players[pid].ca - 3 || Circuits.eligible(w, c, w.players[pid]) != null)) out[i] = sub
+            else if (reg.amendments < 2 && Circuits.eligible(w, c, w.players[pid]) == null) {
                 reg.players.add(pid)
                 reg.amendments++
                 if (w.isUserTeam(team.id)) w.inbox.add(Message(w.day, c.short, "Registration amended: ${w.players[pid].handle}", "${w.players[pid].handle} was registered for ${c.name} (amendment ${reg.amendments} of 2)."))

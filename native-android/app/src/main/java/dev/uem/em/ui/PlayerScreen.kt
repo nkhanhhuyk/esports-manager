@@ -139,7 +139,7 @@ fun PlayerScreen(vm: GameVm, w: World, id: Int) {
             when (tab) {
                 0 -> {
                     if (p.visaUntil > w.day) Card { Text("Waiting for a work visa: can play from ${dev.uem.em.core.Dates.format(p.visaUntil)}", color = Ui.gold, fontSize = 12.sp) }
-                    PlayerOverview(vm, w, p, t, know); SoloQueueCard(vm, w, p)
+                    PlayerOverview(vm, w, p, t, know); PlayerDevelopmentCard(vm, w, p); SoloQueueCard(vm, w, p); CircuitEvidenceCard(w, p)
                 }
                 1 -> PlayerAttributes(p, t)
                 2 -> PlayerProficiency(w, p, t)

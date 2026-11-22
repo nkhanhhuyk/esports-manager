@@ -384,6 +384,7 @@ private fun Placements(vm: GameVm, w: World, c: Competition) {
 
 @Composable
 private fun Entrants(vm: GameVm, w: World, c: Competition) {
+    QualificationCard(vm, w, c)
     Card("Teams (${c.teamIds.size})") {
         if (c.teamIds.isEmpty()) Muted("Entrants are decided when the competition starts.")
         val rows = c.teamIds.map { w.teams[it] }

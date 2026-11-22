@@ -96,6 +96,7 @@ fun LiveScreen(vm: GameVm, w: World, live: LiveMatch) {
                 // Your shooter maps: tactical timeouts from the viewer.
                 LiveHooks.onTimeout = if (live.me >= 0 && !s.t.isMoba) { r, sec -> live.callTimeout(r, sec) } else null
                 LiveHooks.timeoutsLeft = live.timeoutsLeft()
+                LiveHooks.seriesGames = live.series.games.toList()
                 val done: @Composable () -> Unit = { LaunchedEffect(g) { revealed = true }; WatchDone(live) }
                 if (g != null) { if (s.t.isMoba) MobaViewer(w, s.f, g, done) else TacticalViewer(w, s.f, g, done) }
             }
@@ -217,4 +218,6 @@ private fun ResultView(vm: GameVm, w: World, live: LiveMatch) {
 object LiveHooks {
     @Volatile var onTimeout: ((beforeRound: Int, atSeconds: Int) -> Unit)? = null
     @Volatile var timeoutsLeft: Int = 0
+    /** Games of the series being watched live (for the broadcast series bar). */
+    @Volatile var seriesGames: List<dev.uem.em.model.GameRecord>? = null
 }

@@ -214,7 +214,8 @@ object Market {
         if (w.offers.size > 3000) w.offers.removeAll { it.status != "pending" && it.status != "accepted" && it.day < w.day - 120 }
         val window = inWindow(w)
         for (team in w.teams) {
-            if (!team.active || w.isUserTeam(team.id) || team.nationalOf.isNotEmpty()) continue
+            // Development clubs (amateur, university, Game Changers) do not sign contracts: their rosters refill from unsigned players.
+            if (!team.active || w.isUserTeam(team.id) || team.nationalOf.isNotEmpty() || team.kind.isNotEmpty()) continue
             val t = Catalogue.get(team.titleId)
             // First season: only a team that cannot field a lineup signs (an emergency).
             if (frozen(w) && team.roster.count { !w.players[it].retired && w.players[it].injuryUntil <= w.day } >= t.teamSize) continue

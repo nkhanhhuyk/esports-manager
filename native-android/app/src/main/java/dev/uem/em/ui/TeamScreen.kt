@@ -37,7 +37,7 @@ import dev.uem.em.sim.Ratings
 import dev.uem.em.titles.Catalogue
 import dev.uem.em.titles.TitleDef
 
-private val TEAM_TABS = listOf("Roster", "Schedule & Results", "Statistics", "Staff", "Training & scrims", "History", "Past rosters", "Transfer history", "Organisation", "Registration")
+private val TEAM_TABS = listOf("Roster", "Schedule & Results", "Statistics", "Staff", "Training & scrims", "History", "Past rosters", "Transfer history", "Organisation", "Registration", "Development")
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -76,6 +76,7 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
                 FollowButton(vm, w, team)
                 Pill("Edit") { editing = true }
                 if (w.isUserTeam(id)) Pill("Squad & tactics") { vm.tab(Screen.Squad) }
+                if (team.nationalOf.isEmpty()) Pill("Road to the next events") { vm.go(Screen.Road(id)) }
                 team.leagueId.takeIf { it >= 0 }?.let { lid -> w.comps.lastOrNull { it.leagueId == lid && it.season == w.season && it.status > 0 }?.let { c -> Pill("League table") { vm.go(Screen.Comp(c.id)) } } }
             }
             if (editing) EditTeamDialog(vm, w, team) { editing = false }
@@ -105,7 +106,8 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
                 6 -> TeamPastRosters(vm, w, team, t)
                 7 -> TeamTransfers(vm, w, team)
                 8 -> TeamOrg(vm, w, team)
-                else -> TeamRegistration(vm, w, team, t)
+                9 -> TeamRegistration(vm, w, team, t)
+                else -> TeamDevelopment(vm, w, team)
             }
             Gap(16)
         }
