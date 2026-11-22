@@ -120,7 +120,8 @@ object Advance {
             }
             // A series the user started live and left unfinished continues from its saved games.
             val resume = w.live?.takeIf { lv -> fixtures.any { it.id == lv.fixtureId } }
-            fun sim(f: Fixture) = SeriesSim.run(w, f, lineups[f.id]!!, record = shouldRecord(w, f), resume = resume?.takeIf { it.fixtureId == f.id })
+            fun quick(f: Fixture) = w.simDetail == "fast" && !w.isUserTeam(f.a) && !w.isUserTeam(f.b) && f.a !in w.followed && f.b !in w.followed
+            fun sim(f: Fixture) = SeriesSim.run(w, f, lineups[f.id]!!, record = shouldRecord(w, f), resume = resume?.takeIf { it.fixtureId == f.id }, quick = quick(f))
             val outcomes: List<SeriesOutcome> = if (fixtures.size == 1 || cores == 1) fixtures.map { sim(it) }
             else pool.invokeAll(fixtures.map { f -> Callable { sim(f) } }).map { it.get() }
             for (o in outcomes) apply(w, o)

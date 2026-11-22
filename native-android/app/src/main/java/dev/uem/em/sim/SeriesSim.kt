@@ -91,6 +91,8 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
     val coachComms: Boolean get() = t.isMoba && (comp.coachComms == 1 || (comp.coachComms == -1 && t.id in w.coachCommsTitles))
     fun coachQ(i: Int) = dev.uem.em.mgmt.Economy.coachQuality(w, teams[i])
     private var lastLoserBefore = -1
+    /** Fast simulation: games that keep no replay use the quick model. */
+    var quick = false
 
     /** Undo the last game (to replay it, e.g. with a timeout the user called). */
     fun undoLast() {
@@ -122,7 +124,8 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
             // Map-side order: the blue team is simulated as side 0.
             val order = if (s.blue == 0) intArrayOf(0, 1) else intArrayOf(1, 0)
             val sideCtx = order.mapIndexed { si, sx -> TeamCtx(ctx[sx].team, si, ctx[sx].players, ctx[sx].phase, ctx[sx].overall, ctx[sx].aggression) }
-            val out = MobaEngine.simulate(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), grng, patch, rec,
+            val out = if (quick && rec == null) QuickSim.moba(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), grng)
+                else MobaEngine.simulate(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), grng, patch, rec,
                 MobaEngine.Opts(coachComms, doubleArrayOf(coachQ(order[0]), coachQ(order[1]))))
             winnerSeries = order[out.winner]
             // Recorded events use series team indexes.
@@ -135,7 +138,8 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>) {
             g = GameRecord(winnerSeries, out.duration, s.mapId, s.blue, intArrayOf(s.chooser, s.choice, if (s.byLoser) 1 else 0, s.firstPick), draft.bans, draft.picks[0] + draft.picks[1], score, lines, draftOrder = draft.order)
         } else {
             val firstAttack = if (grng.chance(0.5)) 0 else 1
-            val out = TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, grng, patch, rec, s.mapId, timeouts ?: TimeoutPlan(timeoutsAllowed, booleanArrayOf(true, true), emptyList(), doubleArrayOf(coachQ(0), coachQ(1))))
+            val out = if (quick && rec == null) QuickSim.shooter(t, ctx.toList(), evals, firstAttack, grng)
+                else TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, grng, patch, rec, s.mapId, timeouts ?: TimeoutPlan(timeoutsAllowed, booleanArrayOf(true, true), emptyList(), doubleArrayOf(coachQ(0), coachQ(1))))
             winnerSeries = out.winner
             g = GameRecord(winnerSeries, out.duration, s.mapId, firstAttack, IntArray(0), emptyList(), draft.picks[0] + draft.picks[1], out.score, out.book.lines)
         }
@@ -185,8 +189,9 @@ object SeriesSim {
      * watched live (the same map veto, draft session and engine), so watching a match never changes
      * its result; `record` keeps every game's replay.
      */
-    fun run(w: World, f: Fixture, lineups: Array<List<Int>>, record: Boolean = false, resume: dev.uem.em.model.LiveState? = null): SeriesOutcome {
+    fun run(w: World, f: Fixture, lineups: Array<List<Int>>, record: Boolean = false, resume: dev.uem.em.model.LiveState? = null, quick: Boolean = false): SeriesOutcome {
         val s = LiveSeries(w, f, lineups)
+        s.quick = quick && !record
         if (resume != null) s.restore(resume)
         else if (s.t.engine == Engine.TACTICAL) { val v = VetoSession(s); while (!v.done) v.aiAct() }
         while (!s.done) {

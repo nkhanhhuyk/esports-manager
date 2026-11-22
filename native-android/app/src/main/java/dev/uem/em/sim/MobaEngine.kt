@@ -45,6 +45,11 @@ object MobaEngine {
         "dota2" to Rules(20f, 0, 4, 0, 30, 50.0, 100f, 4400f, 6000f, 290f, 60, intArrayOf(6, 12, 18), false, true, 1f, 1.4, 1.15, 2.3f),
     )
 
+    /** Section timings for profiling (off unless a test turns it on; single-threaded use only). */
+    @JvmField var profile = false
+    val prof = LongArray(8)
+    val PROF_NAMES = listOf("waves", "objectives spawn", "plan", "vision", "heroes", "structures", "objectives", "fights")
+
     /** Match rules for the engine: coach comms allowed, and each side's head coach (0..100). */
     class Opts(val coachComms: Boolean = false, val coachQ: DoubleArray = doubleArrayOf(50.0, 50.0))
 
@@ -159,7 +164,9 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         var atkV = 0f; var asV = 0f; var apV = 0f; var resV = 0f; var powV = 0f
         /** Recompute combat stats (once per tick). */
         /** Item count with diminishing returns (a gold lead helps, but less and less). */
-        val itemsEff get() = Math.pow(items.toDouble(), 0.8).toFloat()
+        private var ieItems = -1
+        private var ieV = 0f
+        val itemsEff: Float get() { if (items != ieItems) { ieItems = items; ieV = Math.pow(items.toDouble(), 0.8).toFloat() }; return ieV }
         fun refresh() {
             resV = ((if (tank) 0.32f else if (assassin || mage || marksman) 0.14f else 0.22f) + 0.025f * items + 0.006f * level).coerceAtMost(0.62f)
             atkV = atkCalc(); asV = asCalc(); apV = apCalc()
@@ -441,7 +448,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             var anyHero = false
             for (h in bySide[ks]) if (v.dmgBy[h.gi] >= now - 10) anyHero = true
             if (!anyHero) {
-                ev(Ev(now, "kill", -1, -1, v.pc.p.id, locCode(v.x, v.y), n = v.deadUntil))
+                if (ev != null) ev(Ev(now, "kill", -1, -1, v.pc.p.id, locCode(v.x, v.y), n = v.deadUntil))
                 return
             }
         }
@@ -463,7 +470,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             addXp(killer, 0.35)
         }
         for (h in assisters) { stat(h, A, 1.0); addGold(h, bounty * 0.35f / max(1, assisters.size)); addXp(h, 0.18) }
-        ev(Ev(now, "kill", ks, killer?.pc?.p?.id ?: -1, v.pc.p.id, locCode(v.x, v.y), m = mask, n = v.deadUntil))
+        if (ev != null) ev(Ev(now, "kill", ks, killer?.pc?.p?.id ?: -1, v.pc.p.id, locCode(v.x, v.y), m = mask, n = v.deadUntil))
         fightKill(ks, v.x, v.y)
     }
 
@@ -471,7 +478,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         val bounty = (gpmPerSec() * 60f * 0.42f) * (1f + (v.kills - v.deaths).coerceIn(0, 6) * 0.12f)
         stat(killer, K, 1.0); killer.kills++; addGold(killer, bounty); addXp(killer, 0.35)
         for (h in assisters) { stat(h, A, 1.0); addGold(h, bounty * 0.35f / max(1, assisters.size)); addXp(h, 0.18) }
-        ev(Ev(now, "kill", ks, killer.pc.p.id, v.pc.p.id, locCode(v.x, v.y), m = mask, n = v.deadUntil))
+        if (ev != null) ev(Ev(now, "kill", ks, killer.pc.p.id, v.pc.p.id, locCode(v.x, v.y), m = mask, n = v.deadUntil))
         fightKill(ks, v.x, v.y)
     }
 
@@ -615,7 +622,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         } else if (fightStart >= 0 && now - fightLast > 5) {
             if (fightKills[0] + fightKills[1] > 0) {
                 val w = if (fightKills[0] >= fightKills[1]) 0 else 1
-                ev(Ev(fightStart, "fight", w, x = locCode(fightX, fightY), a = fightKills[w], b = fightKills[1 - w], m = fightLast - fightStart, n = MobaEngine.packPos(fightX, fightY)))
+                if (ev != null) ev(Ev(fightStart, "fight", w, x = locCode(fightX, fightY), a = fightKills[w], b = fightKills[1 - w], m = fightLast - fightStart, n = MobaEngine.packPos(fightX, fightY)))
             }
             fightStart = -1
         }
@@ -666,19 +673,24 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             if (now % 60 < DT) for (sd in 0..1) teamForm[sd] = (1.0 + rng.normal(0.0, 0.09) * (1.2 - (teams[sd].phase[Phase.CLUTCH.ordinal] - 60) / 100)).toFloat().coerceIn(0.8f, 1.2f)
             for (sd in 0..1) { avgLevel[sd] = bySide[sd].sumOf { it.level }.toDouble() / max(1, bySide[sd].size); var gsum = 0f; for (h in bySide[sd]) gsum += h.earned; teamGold[sd] = gsum }
             for (h in heroes) h.refresh()
-            tickWaves()
-            tickObjectivesSpawn()
+            val pf = MobaEngine.profile
+            var t0 = if (pf) System.nanoTime() else 0L
+            fun lap(i: Int) { if (pf) { val t1 = System.nanoTime(); MobaEngine.prof[i] += t1 - t0; t0 = t1 } }
+            tickWaves(); lap(0)
+            tickObjectivesSpawn(); lap(1)
             if (tick % 2 == 0) planTeams()
-            updateVision()
+            lap(2)
+            updateVision(); lap(3)
             // Alternate which team acts first each second (no first-strike bias).
             // Heroes act interleaved (blue, red, blue, …) with a seeded coin deciding who starts,
             // so neither side gets a systematic first strike within a step.
             val first = if (rng.chance(0.5)) 0 else 1
             val a = bySide[first]; val b = bySide[1 - first]
             for (k in 0 until max(a.size, b.size)) { if (k < a.size) tickHero(a[k]); if (k < b.size) tickHero(b[k]) }
-            tickStructures()
-            tickObjectives()
-            trackFights()
+            lap(4)
+            tickStructures(); lap(5)
+            tickObjectives(); lap(6)
+            trackFights(); lap(7)
             if (now % MobaEngine.SAMPLE_STEP == 0) sample()
             MobaEngine.debug?.let { d -> if (now % 60 == 0) d("${now / 60}' plan ${plan.toList()} lane ${planLane.toList()} obj ${planObj.toList()} | " + heroes.joinToString(" ") { h ->
                 "${h.side}${h.pc.roleId.take(3)}@${h.x.toInt()},${h.y.toInt()} t${h.task} hp${(h.hpPct() * 100).toInt()} L${h.level} i${h.items} m${h.mana.toInt()}${if (!h.alive(now)) " DEAD" else ""}" }) }

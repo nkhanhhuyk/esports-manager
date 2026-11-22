@@ -37,15 +37,16 @@ object Draft {
         val sup = chars.any { SUPPORT.containsMatchIn(it.cls.lowercase()) }
         val coverage = (if (hasFront) 0.25 else -0.35) + (if (dmg >= minOf(2, chars.size - 1)) 0.2 else -0.3) + (if (sup) 0.1 else -0.15)
         // Matchups on this patch (lane opponents count double), synergy and kit strength.
+        val cv = Counters.view(t, patch)
         var counter = 0.0
         if (enemy.isNotEmpty()) {
             var wsum = 0.0
-            for ((i, c) in chars.withIndex()) for ((j, e) in enemy.withIndex()) { val wt = if (i == j) 2.0 else 1.0; counter += Counters.score(t, patch, c.id, e.id) * wt; wsum += wt }
+            for ((i, c) in chars.withIndex()) for ((j, e) in enemy.withIndex()) { val wt = if (i == j) 2.0 else 1.0; counter += cv.score(c.id, e.id) * wt; wsum += wt }
             counter = clamp(counter / maxOf(1.0, wsum) * 2.2, -1.0, 1.0)
         }
         var syn = 0.0
-        if (chars.size > 1) { var n = 0; for (i in chars.indices) for (j in i + 1 until chars.size) { syn += Counters.synergy(t, chars[i].id, chars[j].id); n++ }; syn /= maxOf(1, n) }
-        val power = chars.sumOf { Counters.power(t, it.id) } / chars.size
+        if (chars.size > 1) { var n = 0; for (i in chars.indices) for (j in i + 1 until chars.size) { syn += cv.synergy(chars[i].id, chars[j].id); n++ }; syn /= maxOf(1, n) }
+        val power = chars.sumOf { cv.power(it.id) } / chars.size
         val comfort = if (players.isEmpty()) 0.5 else players.indices.sumOf { i -> chars.getOrNull(i)?.let { (players[i].profChar[it.id] ?: 25.0) / 100 } ?: 0.0 } / players.size
         val total = 0.30 * meta + 0.18 * style + 0.16 * coverage + 0.16 * counter + 0.10 * (comfort - 0.6) * 2 + 0.06 * (syn - 0.3) * 2 + 0.04 * (power - 0.5) * 2
         return CompEval(total, counter, profile)
@@ -135,6 +136,9 @@ class DraftSession(
         t.characters.associate { it.id to ((patch.charMeta[it.id] ?: 0.0) - mean) / sd }
     }
     private val comfortOf = Array(2) { s -> lineups[s].map { Draft.comfort(t, it) } }
+    /** The patch's ten strongest characters (ban candidates), sorted once per draft. */
+    private val topMeta: List<CharDef> by lazy { t.characters.sortedByDescending { patch.charMeta[it.id] ?: 0.0 }.take(10) }
+    private val cv = Counters.view(t, patch)
 
     private fun nextPickIsMine(team: Int): Boolean {
         var k = step + 1
@@ -157,8 +161,8 @@ class DraftSession(
         val wTarget = when (style) { 1 -> 1.7; 0 -> 0.5; else -> 1.0 }
         val cand = LinkedHashSet<CharDef>()
         for (i in open[enemy].ifEmpty { lineups[enemy].indices.toList() }) cand.addAll(prefs[enemy][i].take(6))
-        cand.addAll(t.characters.sortedByDescending { metaZ[it.id] ?: 0.0 }.take(10))
-        if (know[team] > 0.5) for (i in open[team]) prefs[team][i].firstOrNull()?.let { mp -> Counters.countersOf(t, patch, mp.id, 2).first.forEach { (cid, _) -> t.charIndex[cid]?.let { cand.add(it) } } }
+        cand.addAll(topMeta)
+        if (know[team] > 0.5) for (i in open[team]) prefs[team][i].firstOrNull()?.let { mp -> cv.countersTo(mp.id, 2).forEach { cid -> t.charIndex[cid]?.let { cand.add(it) } } }
         val mineNext = nextPickIsMine(team)
         var best: CharDef? = null; var bv = -9.0
         for (c in cand) {
@@ -176,10 +180,10 @@ class DraftSession(
             for (i in open[team]) if (c in prefs[team][i].take(4)) mine = maxOf(mine, comfortOf[team][i](c) / 100)
             // A counter we are comfortable on: the overpowered pick can stay open (we answer it).
             var answer = 0.0
-            for (i in open[team]) for (x in prefs[team][i].take(8)) if (legal(team, false, x.id) && x.id != c.id) answer = maxOf(answer, Counters.score(t, patch, x.id, c.id) * comfortOf[team][i](x) / 100)
+            if (op > 0.0) for (i in open[team]) for (x in prefs[team][i].take(8)) if (legal(team, false, x.id) && x.id != c.id) answer = maxOf(answer, cv.score(x.id, c.id) * comfortOf[team][i](x) / 100)
             // It counters what we want to play: ban it to protect our comfort picks.
             var threat = 0.0
-            for (i in open[team]) prefs[team][i].firstOrNull { legal(team, false, it.id) && it.id != c.id }?.let { mp -> threat = maxOf(threat, Counters.score(t, patch, c.id, mp.id) * comfortOf[team][i](mp) / 100) }
+            for (i in open[team]) prefs[team][i].firstOrNull { legal(team, false, it.id) && it.id != c.id }?.let { mp -> threat = maxOf(threat, cv.score(c.id, mp.id) * comfortOf[team][i](mp) / 100) }
             var v = wMeta * op + wTarget * target * 1.4 + know[team] * (threat * 0.9 - answer * 0.8 * minOf(1.0, op)) + rng.normal(0.0, 0.3)
             // Handshake: a power pick we can take with our next pick stays open.
             if (mineNext && (style == 3 || style == 2) && mine > 0.45 && op > 0.3) v -= 1.2 + mine
@@ -241,10 +245,10 @@ class DraftSession(
                 if (++legalSeen > 6) break
                 var v = (14 - idx) / 14.0 * 3.0
                 // Counter-pick: the lane opponent first, then the rest of their picks.
-                enemyBySlot[i]?.let { v += k * 1.6 * Counters.score(t, patch, c.id, it) }
-                if (picks[enemy].isNotEmpty()) v += k * 0.9 * picks[enemy].sumOf { Counters.score(t, patch, c.id, it) } / picks[enemy].size
-                if (picks[team].isNotEmpty()) v += k * 0.7 * picks[team].sumOf { Counters.synergy(t, c.id, it) } / picks[team].size
-                v += k * 0.5 * (Counters.power(t, c.id) - 0.5)
+                enemyBySlot[i]?.let { v += k * 1.6 * cv.score(c.id, it) }
+                if (picks[enemy].isNotEmpty()) v += k * 0.9 * picks[enemy].sumOf { cv.score(c.id, it) } / picks[enemy].size
+                if (picks[team].isNotEmpty()) v += k * 0.7 * picks[team].sumOf { cv.synergy(c.id, it) } / picks[team].size
+                v += k * 0.5 * (cv.power(c.id) - 0.5)
                 v += rng.next() * 0.45
                 if (v > best) { best = v; bc = c; bi = i }
             }

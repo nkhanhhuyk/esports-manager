@@ -43,10 +43,13 @@ class MobaMap(val id: String, val name: String) {
         }
 
         /** Fraction of the lane closest to a point. */
+        private val sx by lazy { FloatArray(101) { x(it / 100f) } }
+        private val sy by lazy { FloatArray(101) { y(it / 100f) } }
         fun fractionOf(px: Float, py: Float): Float {
             var best = 0f
             var bd = Float.MAX_VALUE
-            for (k in 0..100) { val f = k / 100f; val dx = x(f) - px; val dy = y(f) - py; val dd = dx * dx + dy * dy; if (dd < bd) { bd = dd; best = f } }
+            val ax = sx; val ay = sy
+            for (k in 0..100) { val dx = ax[k] - px; val dy = ay[k] - py; val dd = dx * dx + dy * dy; if (dd < bd) { bd = dd; best = k / 100f } }
             return best
         }
     }

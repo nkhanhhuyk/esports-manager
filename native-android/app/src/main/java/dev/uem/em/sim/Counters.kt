@@ -24,9 +24,47 @@ object Counters {
         val poke get() = range * (1f - mob * 0.5f)
     }
 
-    private class Table(val ids: List<String>, val index: Map<String, Int>, val profiles: Array<Profile>)
+    private class Table(val chars: List<CharDef>, val ids: List<String>, val index: Map<String, Int>, val profiles: Array<Profile>) {
+        /** Patch-independent matchups from kits and classes (computed once per character list). */
+        val base: FloatArray by lazy {
+            val n = ids.size
+            val xm = IntArray(n); val ym = IntArray(n)
+            for (i in 0 until n) { val c = chars[i].cls.lowercase(); for ((r, rule) in CLASS_RULES.withIndex()) { if (rule.first.containsMatchIn(c)) xm[i] = xm[i] or (1 shl r); if (rule.second.containsMatchIn(c)) ym[i] = ym[i] or (1 shl r) } }
+            val out = FloatArray(n * n)
+            for (i in 0 until n) for (j in i + 1 until n) {
+                var ce = 0f
+                for (r in CLASS_RULES.indices) { val bit = 1 shl r; if (xm[i] and bit != 0 && ym[j] and bit != 0) ce += CLASS_RULES[r].third; if (xm[j] and bit != 0 && ym[i] and bit != 0) ce -= CLASS_RULES[r].third }
+                val v = (edge(profiles[i], profiles[j]) - edge(profiles[j], profiles[i])) / 0.7f + ce * 0.5f
+                out[i * n + j] = v; out[j * n + i] = -v
+            }
+            out
+        }
+    }
+
+    /** A fast deterministic normal draw from integer keys (SplitMix64 + Box–Muller). */
+    private fun gauss(a: Long, b: Long, c: Long, d: Long): Float {
+        fun mix(x0: Long): Long { var x = x0 + -7046029254386353131L; x = (x xor (x ushr 30)) * -4658895280553007687L; x = (x xor (x ushr 27)) * -7723592293110705685L; return x xor (x ushr 31) }
+        val h = mix(mix(mix(mix(a) xor b) xor c) xor d)
+        val u1 = ((h ushr 11).toDouble() / (1L shl 53)).coerceIn(1e-12, 1.0)
+        val u2 = (mix(h).ushr(11).toDouble() / (1L shl 53))
+        return (kotlin.math.sqrt(-2.0 * kotlin.math.ln(u1)) * kotlin.math.cos(2 * Math.PI * u2)).toFloat()
+    }
+    /** Per game: the table for the current character list (rebuilt when a patch adds characters). */
     private val tables = ConcurrentHashMap<String, Table>()
-    private val matrices = ConcurrentHashMap<Patch, FloatArray>()
+    private val views = ConcurrentHashMap<Patch, View>()
+
+    /** Fast lookups for one game and patch (used in drafts, where thousands of matchups are read). */
+    class View internal constructor(private val index: Map<String, Int>, private val n: Int, private val m: FloatArray, private val profiles: Array<Profile>, private val ids: List<String> = emptyList()) {
+        private val counterCache = ConcurrentHashMap<String, List<String>>()
+        /** The best counters to a character on this patch (cached). */
+        fun countersTo(id: String, k: Int = 2): List<String> = counterCache.getOrPut("$id|$k") {
+            val j = index[id] ?: return@getOrPut emptyList()
+            ids.indices.filter { it != j && m[it * n + j] > 0.15f }.sortedByDescending { m[it * n + j] }.take(k).map { ids[it] }
+        }
+        fun score(a: String, b: String): Double { val i = index[a] ?: return 0.0; val j = index[b] ?: return 0.0; return m[i * n + j].toDouble() }
+        fun power(a: String): Double = index[a]?.let { profiles[it].power.toDouble() } ?: 0.5
+        fun synergy(a: String, b: String): Double { val i = index[a] ?: return 0.0; val j = index[b] ?: return 0.0; return synergyOf(profiles[i], profiles[j]) }
+    }
 
     private val TANKY = Regex("tank|guardian|vanguard|sentinel|defender|front|brawler|fighter|warrior|bruiser|str")
     private val CLASS_RULES = listOf(
@@ -80,9 +118,10 @@ object Counters {
     }
 
     private fun table(t: TitleDef): Table {
-        val key = t.id + "|" + t.characters.size + "|" + (t.characters.lastOrNull()?.id ?: "")
-        return tables.getOrPut(key) {
-            val chars = t.characters
+        val current = t.characters
+        tables[t.id]?.let { if (it.chars === current) return it }
+        return run {
+            val chars = current
             val raws = chars.map { raw(t, it) }
             // Percentiles within the game for each feature.
             val pct = Array(chars.size) { FloatArray(11) }
@@ -97,7 +136,7 @@ object Counters {
                 val power = (p[5] * 1f + p[0] * 0.8f + p[4] * 0.6f + p[2] * 0.4f + p[9] * 0.5f + p[6] * 0.5f) / 3.8f
                 Profile(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], power)
             }
-            Table(chars.map { it.id }, chars.withIndex().associate { it.value.id to it.index }, profiles)
+            Table(chars, chars.map { it.id }, chars.withIndex().associate { it.value.id to it.index }, profiles).also { tables[t.id] = it }
         }
     }
 
@@ -125,20 +164,30 @@ object Counters {
         return s
     }
 
+    /** Lookups for a game and patch (cached per patch). */
+    fun view(t: TitleDef, patch: Patch): View {
+        val (tb, m) = matrix(t, patch)
+        return views[patch]?.takeIf { viewSize[patch] == tb.ids.size } ?: View(tb.index, tb.ids.size, m, tb.profiles, tb.ids).also { views[patch] = it; viewSize[patch] = tb.ids.size }
+    }
+    private val viewSize = ConcurrentHashMap<Patch, Int>()
+    private val matrices = ConcurrentHashMap<Patch, FloatArray>()
+
     /** All matchups of a game for a patch: m[a * n + b] = how well a plays into b (−1..1). */
     private fun matrix(t: TitleDef, patch: Patch): Pair<Table, FloatArray> {
         val tb = table(t)
         val n = tb.ids.size
         val m = matrices[patch]?.takeIf { it.size == n * n } ?: run {
-            if (matrices.size > 48) matrices.clear()
+            if (matrices.size > 48) { matrices.clear(); views.clear(); viewSize.clear() }
             val out = FloatArray(n * n)
-            val chars = t.characters
+            val base = tb.base
+            val seed = (patch.seedKey.hashCode().toLong() shl 32) xor t.id.hashCode().toLong()
+            val idh = LongArray(n) { tb.ids[it].hashCode().toLong() }
             for (i in 0 until n) for (j in i + 1 until n) {
-                val base = (edge(tb.profiles[i], tb.profiles[j]) - edge(tb.profiles[j], tb.profiles[i])) / 0.7f + classEdge(chars[i], chars[j]) * 0.5f
                 // Patch drift: part changes every patch, part every few patches.
-                val r1 = Rng.derive(patch.seedKey, "ctr", t.id, patch.n, tb.ids[i], tb.ids[j]).normal(0.0, 0.16).toFloat()
-                val r2 = Rng.derive(patch.seedKey, "ctr3", t.id, patch.n / 3, tb.ids[i], tb.ids[j]).normal(0.0, 0.12).toFloat()
-                val v = (base + r1 + r2).coerceIn(-1f, 1f)
+                val pair = (idh[i] shl 32) xor (idh[j] and 0xffffffffL)
+                val r1 = gauss(seed, 1L + patch.n, pair, 11L) * 0.16f
+                val r2 = gauss(seed, 100_000L + patch.n / 3, pair, 13L) * 0.12f
+                val v = (base[i * n + j] + r1 + r2).coerceIn(-1f, 1f)
                 out[i * n + j] = v; out[j * n + i] = -v
             }
             matrices[patch] = out
@@ -168,6 +217,10 @@ object Counters {
     fun synergy(t: TitleDef, a: String, b: String): Double {
         val pa = profile(t, a) ?: return 0.0
         val pb = profile(t, b) ?: return 0.0
+        return synergyOf(pa, pb)
+    }
+
+    internal fun synergyOf(pa: Profile, pb: Profile): Double {
         fun one(x: Profile, y: Profile) = 0.5f * x.engage * y.aoe + 0.45f * x.sustain * y.range * y.squishy + 0.35f * x.hardCc * y.burst + 0.25f * x.tanky * y.range
         return ((one(pa, pb) + one(pb, pa)) / 1.1f).coerceIn(0f, 1f).toDouble()
     }

@@ -108,6 +108,13 @@ fun ScheduleScreen(vm: GameVm, w: World) {
 fun SettingsScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
+            Card("Simulation detail") {
+                Muted("Full: every match is played on the 2D engines (most detailed, slowest). Fast: matches without your team or a followed team, and that keep no replay, use a quick model (results, drafts and box scores, no replay) — several times faster on a phone. Matches you watch or play always use the full engines.", 11)
+                Tabs(listOf("Full", "Fast"), if (w.simDetail == "fast") 1 else 0) { w.simDetail = if (it == 1) "fast" else "full"; vm.edit() }
+            }
+        }
+        item { DatabaseEditorCard(vm, w) }
+        item {
             Card("Career") {
                 KV("Save", w.name)
                 KV("Seed", w.seed)
@@ -299,6 +306,34 @@ fun FollowedCard(vm: GameVm, w: World) {
                     Muted(listOfNotNull(last?.let { "last: ${if (it.winner == tid) "W" else "L"} ${it.scoreA}-${it.scoreB} vs ${w.teams[if (it.a == tid) it.b else it.a].short}" }, next?.let { "next: ${Dates.short(it.day)} vs ${w.teams[if (it.a == tid) it.b else it.a].short}" }).joinToString(" · "), 11)
                 }
             }
+        }
+    }
+}
+
+
+/** Export the database to a spreadsheet, edit it (Google Sheets, Excel), import it back. */
+@Composable
+fun DatabaseEditorCard(vm: GameVm, w: World) {
+    var forNew by remember { mutableStateOf(true) }
+    val exporter = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) { uri -> if (uri != null) vm.exportDatabase(uri) }
+    val importer = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.importDatabase(uri, forNew) }
+    Card("Database editor") {
+        Muted("Export every player, team, organisation, league, competition, staff member and character picture to a spreadsheet. Open it in Google Sheets (File → Import → Upload) or Excel, fill in what is missing — names, IGNs, nationalities, dates of birth, roles, attributes, potential, teams, picture links — then download it as .xlsx and import it here. Every value is checked; problems are listed.", 11)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { exporter.launch("esports-manager-database-S${w.season}.xlsx") }) { Text("Export spreadsheet…", color = Ui.accent) }
+            TextButton(onClick = { importer.launch(arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv", "text/comma-separated-values", "*/*")) }) { Text("Import edited file…", color = Ui.accent) }
+        }
+        Tabs(listOf("Apply to this save and new games", "This save only"), if (forNew) 0 else 1) { forNew = it == 0 }
+        if (vm.hasDatabaseEdits()) Row(verticalAlignment = Alignment.CenterVertically) {
+            Muted("New real-world games use your edited database.", 11)
+            TextButton(onClick = { vm.clearDatabaseEdits() }) { Text("Use the original", color = Ui.muted, fontSize = 12.sp) }
+        }
+        vm.dbReport?.let { r ->
+            Gap(4)
+            Text("Last import: " + r.text(), color = if (r.errors.isEmpty()) Ui.win else Ui.gold, fontSize = 12.sp)
+            for (e in r.errors.take(12)) Muted("• $e", 10)
+            if (r.errors.size > 12) Muted("… and ${r.errors.size - 12} more", 10)
+            for (n in r.notes.take(5)) Muted("• $n", 10)
         }
     }
 }

@@ -118,7 +118,10 @@ class GameVm(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val w = withContext(Dispatchers.Default) {
                 BoxStore.clear()
-                WorldGen.create(src, "${System.currentTimeMillis()}", name.ifBlank { "Career" }, Dates.today(), fictional = fictional)
+                WorldGen.create(src, "${System.currentTimeMillis()}", name.ifBlank { "Career" }, Dates.today(), fictional = fictional).also { nw ->
+                    // Your database edits apply to every new real-world game (matched by name).
+                    if (!fictional && dbFile.exists()) runCatching { dev.uem.em.mgmt.Database.import(nw, dev.uem.em.data.Xlsx.read(dbFile.inputStream()), byKey = true) }.onSuccess { dbReport = it }
+                }
             }
             // A new file: never overwrite an existing save with the same name.
             slot = store.freeSlot(name.ifBlank { "Career" })
@@ -170,6 +173,52 @@ class GameVm(app: Application) : AndroidViewModel(app) {
                 toast = "Import failed: ${e.message}"
             }
             done()
+        }
+    }
+
+    // ------------------------------------------------------------------ database editor
+
+    /** The edited spreadsheet applied to every new real-world game (kept on the phone). */
+    private val dbFile = File(app.filesDir, "database-edits.xlsx")
+    fun hasDatabaseEdits() = dbFile.exists()
+    fun clearDatabaseEdits() { dbFile.delete(); toast = "New games use the original database again" }
+
+    /** Write the world's database to a spreadsheet the user picked (.xlsx for Google Sheets / Excel). */
+    fun exportDatabase(uri: android.net.Uri) {
+        val w = world ?: return
+        if (busy != null) return
+        busy = Busy("Writing the spreadsheet…", 0, 0)
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { getApplication<Application>().contentResolver.openOutputStream(uri)?.use { dev.uem.em.mgmt.Database.export(w, it) } ?: error("Cannot write the file") }
+                toast = "Database exported: open it in Google Sheets or Excel, edit, and import it back"
+            } catch (e: Exception) { toast = "Export failed: ${e.message}" }
+            busy = null
+        }
+    }
+
+    /** Last import's report (shown in Settings). */
+    var dbReport by mutableStateOf<dev.uem.em.mgmt.Database.Report?>(null)
+
+    /** Read an edited spreadsheet (.xlsx or a .csv sheet) into this save, and optionally keep it for new games. */
+    fun importDatabase(uri: android.net.Uri, forNewGames: Boolean) {
+        val w = world ?: return
+        if (busy != null) return
+        busy = Busy("Reading the spreadsheet…", 0, 0)
+        viewModelScope.launch {
+            try {
+                val app = getApplication<Application>()
+                val bytes = withContext(Dispatchers.IO) { app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Cannot read the file") }
+                val isZip = bytes.size > 4 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte()
+                val book = withContext(Dispatchers.Default) { if (isZip) dev.uem.em.data.Xlsx.read(bytes.inputStream()) else linkedMapOf("Sheet" to dev.uem.em.data.Xlsx.readCsv(String(bytes))) }
+                val rep = withContext(Dispatchers.Default) { dev.uem.em.mgmt.Database.import(w, book, byKey = false) }
+                if (forNewGames && isZip) withContext(Dispatchers.IO) { dbFile.writeBytes(bytes) }
+                dbReport = rep
+                unsaved = true
+                touch()
+                toast = "Imported: " + rep.text() + if (forNewGames && isZip) " Kept for new games." else ""
+            } catch (e: Exception) { toast = "Import failed: ${e.message}" }
+            busy = null
         }
     }
 

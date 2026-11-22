@@ -66,6 +66,30 @@ flat (no must-ban), the HoK and Dota 2 patches have one or two outliers.
 is about 70–75 %. Honor of Kings is higher in this test because the strongest and weakest HoK rosters are
 far apart.
 
+## Second follow-up: management depth, tools and faster simulation
+
+| Request | What was built |
+|---|---|
+| Links on every page | Names of teams, organisations, competitions, leagues and players in any text (news, inbox, info rows, descriptions, commentary) open their page (`ui/Links.kt`); lists and headers link directly. New organisation page (all its teams, supporters, trophies). |
+| Pictures for fictional characters and guns | Generated portraits by class (helmet, hood, visor, mask, circlet, horned helm; sword, daggers, bow, staff, shield, orb) and generated weapons by category (rifle, SMG, sniper, shotgun, LMG, pistol, knife) with seeded finishes (`ui/GenArt2.kt`). |
+| Draft recap | Every game records its ban/pick order (`GameRecord.draftOrder`); the match report shows it step by step. |
+| Match report order | Result, then draft and box score, then team comparison and analysis. |
+| Unlimited save files | Save (current file), Save as new file (any number; each file has its own box-score folder, hard-linked so copies take no extra space), rename, delete, file details (club, season, date). |
+| Solo queue | Ladders for every game and server with each game's ranks (Challenger LP, Mythical Immortal stars, Immortal #, Radiant RR, Premier rating, ...). The ladder reflects individual skill and hours played, not teamwork or macro, so ladder and pro level differ; players have queue habits. Weekly play gives practice (character pool, mechanics) and fatigue; teams choose light / normal / heavy queue practice. Amateurs appear on the ladders for scouting (inbox tips). Player page card and ladder screen (`mgmt/SoloQueue.kt`). |
+| Counters | Matchups from kits (lockdown vs mobility, dive vs immobile carries, range vs short range, sustain vs poke, reveal vs stealth, burst vs fragile) and classes, shifting every patch (`sim/Counters.kt`). Character pages show countered by / strong against / works well with. The engine applies them (fight damage edge, lane matchups). |
+| Smarter draft AI | Counter-picks (lane opponent first), synergy, kit strength, weighted by the coaching staff's patch knowledge; bans protect the team's comfort picks and leave an overpowered pick open when the team has a comfortable counter; teams have a seasonal ban tendency. |
+| Scouting report | On the match preview: the opponent's bans, first picks, bans against them, players' most played and most comfortable characters, side and map records, form, the analysts' read of their ban approach and ideas from the current patch. |
+| Tactical timeouts (shooters) | CS2 3 and Valorant 2 per map by default (competitions can change it). AI coaches call them after losing streaks or at map point; in your live maps you call them from the viewer and the map is replayed from the next round (earlier rounds stay identical: each round has its own random stream). A timeout breaks the opponent's momentum and gives a short coached boost. |
+| Coach comms (MOBAs) | A major patch can introduce (or withdraw) coaches joining voice during fights: three times per game for 45 seconds. Each competition follows the game's rule, allows or bans it (custom competition editor and commissioner). Coaches use it in big fights; better coaches help more. |
+| Commentary | Caster-style lines under both 2D viewers: first blood, streaks, multi-kills by each game's names, shutdowns, teamfights, objectives and steals, towers, coach comms, gold lead every five minutes; buys, opening duels, multi-kills, clutches, plants, defuses, timeouts and round ends. |
+| Chemistry | Pairs of teammates: time together, shared language or a language barrier, big egos, loyalty, settled duos; lineup chemistry (pairs and drilled cohesion) affects match play; team page shows the strongest and weakest pairs. |
+| Sponsors, merchandise, streaming | Sponsorship offers to accept, decline or negotiate (ask +10 % / +25 %, longer deal; sponsors may meet you halfway or walk away), trophy bonuses; players' streaming (revenue share and fans vs fatigue, some players dislike a ban); merchandise range (sales vs running cost). Commercial work can be delegated. |
+| Import limits | Each league allows a number of imports in a lineup (2 by default; none in CS2; the commissioner can change it); imports joining from another region wait 14 days for a work visa. |
+| Tuning | Valorant attack 50 % and CS2 47 % of rounds (120 maps); LoL about 30 kills per game. |
+| Faster simulation | Settings → Simulation detail → Fast: matches without your or a followed team that keep no replay use a quick statistical model (results, drafts, full box scores; no replay). 60 days of the full seven-game calendar (831 series): 0.9 s instead of 3.5 s (warmed desktop JVM). Full mode also got faster: counter tables built with precomputed class bits and an integer hash instead of per-pair string hashing, cached ban candidates, lane lookups, item scaling, events built only when recorded. Phones are several times slower per core. |
+| Database editor | Export / import spreadsheets (.xlsx for Google Sheets / Excel, .csv): players, teams, organisations, leagues, competitions, staff, character pictures; picture links; applied to this save and optionally every new game. See `docs/DATABASE_EDITOR.md` (columns and what data is missing per game). |
+| Dota 2 objectives | Wisdom runes and Tormentors now spawn on both sides and Roshan alternates pits (all used only their first pit before, favouring Radiant). |
+
 ## Tests and results (JVM, `./gradlew testDebugUnitTest`)
 
 All suites pass (23 classes, including `DraftVarietyTest`, `MobaSideTest`, `WorldIsolationTest`). New or extended:

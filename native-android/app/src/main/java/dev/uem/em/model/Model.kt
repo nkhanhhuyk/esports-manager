@@ -82,6 +82,10 @@ class World(
     val importRules: MutableMap<Int, Int> = HashMap(),
     /** Games whose rules allow coach comms in fights (introduced by a patch). */
     val coachCommsTitles: MutableList<String> = ArrayList(),
+    /** Picture links you set in the database editor: "player:12", "team:3", "org:5", "league:2", "comp:9", "char:lol-ahri". */
+    val images: MutableMap<String, String> = HashMap(),
+    /** Simulation detail: "full" (every match on the 2D engines) or "fast" (unwatched matches use a quick model). */
+    var simDetail: String = "full",
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -296,7 +300,7 @@ class Competition(
     var startDay: Int = 0,
     var placements: MutableList<Int> = ArrayList(),
     val circuitPoints: List<Int> = emptyList(),
-    val prizePool: Double = 0.0,
+    var prizePool: Double = 0.0,
     val prestige: Int = 50,
     var fearless: Boolean = false,
     var realName: Boolean = false,

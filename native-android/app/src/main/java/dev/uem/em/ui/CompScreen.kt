@@ -108,7 +108,7 @@ fun CompsScreen(vm: GameVm, w: World) {
 private fun CompRow(vm: GameVm, w: World, c: Competition) {
     val mine = c.teamIds.firstOrNull { w.isUserTeam(it) }
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp).background(Ui.card, RoundedCornerShape(10.dp)).clickable { vm.go(Screen.Comp(c.id)) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Pic(c.leagueId.takeIf { it >= 0 }?.let { Pics.league(w.leagues[it]) }, c.short, 34.dp)
+        Pic(Pics.comp(c) ?: c.leagueId.takeIf { it >= 0 }?.let { Pics.league(w.leagues[it]) }, c.short, 34.dp)
         HGap(10)
         Column(Modifier.weight(1f)) {
             Text(c.name, color = if (c.tier == CompTier.WORLDS) Ui.gold else Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 2)
@@ -140,7 +140,7 @@ fun CompScreen(vm: GameVm, w: World, id: Int) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Pic(c.leagueId.takeIf { it >= 0 }?.let { Pics.league(w.leagues[it]) }, c.short, 52.dp)
+                Pic(Pics.comp(c) ?: c.leagueId.takeIf { it >= 0 }?.let { Pics.league(w.leagues[it]) }, c.short, 52.dp)
                 HGap(12)
                 Column(Modifier.weight(1f)) {
                     Text(c.name, color = if (c.tier == CompTier.WORLDS) Ui.gold else Ui.text, fontWeight = FontWeight.Bold, fontSize = 19.sp)

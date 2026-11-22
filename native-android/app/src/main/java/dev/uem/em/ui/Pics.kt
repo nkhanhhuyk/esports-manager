@@ -56,13 +56,16 @@ object Pics {
     }
 
     private fun norm(s: String) = Normalizer.normalize(s.lowercase(), Normalizer.Form.NFKD).replace(Regex("[^a-z0-9]"), "")
-    fun char(id: String?) = id?.let { chars[it] }
+    /** A picture link set in the database editor (overrides the snapshot's). */
+    private fun ov(key: String): String? = Sheets.world?.images?.get(key)
+    fun char(id: String?) = id?.let { ov("char:$it") ?: chars[it] }
     fun weapon(id: String) = weapons[id]
-    fun player(p: Player) = if (p.real) players["${p.titleId}|${norm(p.handle)}"] else null
+    fun player(p: Player) = ov("player:${p.id}") ?: if (p.real) players["${p.titleId}|${norm(p.handle)}"] else null
     /** Team logo; national teams show their country's flag (flagcdn.com). */
-    fun team(t: Team) = if (t.nationalOf.isNotEmpty()) flagUrl(t.nationalOf) else if (t.real) teams["${t.titleId}|${norm(t.name)}"] else null
+    fun team(t: Team) = ov("team:${t.id}") ?: Sheets.world?.let { w -> w.orgs.getOrNull(t.orgId)?.let { ov("org:${it.id}") } } ?: if (t.nationalOf.isNotEmpty()) flagUrl(t.nationalOf) else if (t.real) teams["${t.titleId}|${norm(t.name)}"] else null
     fun flagUrl(cc: String) = "https://flagcdn.com/w160/${cc.lowercase().let { if (it == "uk") "gb" else it }}.png"
-    fun league(l: League) = if (l.real) leagues["${l.titleId}|${norm(l.name)}"] ?: leagues["${l.titleId}|${norm(l.short)}"] else null
+    fun league(l: League) = ov("league:${l.id}") ?: if (l.real) leagues["${l.titleId}|${norm(l.name)}"] ?: leagues["${l.titleId}|${norm(l.short)}"] else null
+    fun comp(c: dev.uem.em.model.Competition) = ov("comp:${c.id}")
 
     /** Every picture URL for the given games (characters, team and league logos, real players). */
     fun allFor(w: dev.uem.em.model.World, titles: Set<String>): List<String> {
