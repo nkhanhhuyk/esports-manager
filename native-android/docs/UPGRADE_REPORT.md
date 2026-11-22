@@ -132,6 +132,19 @@ far apart.
 | Top lane deaths | Measured over real league matches: the top / EXP / Baron / Clash lane died 1.2-1.3 times a game in every MOBA (others 3.5-5). Causes found: junglers almost never ganked successfully outside mid (laners did not join, junglers ganked on low health), split-pushers were never collapsed on, the top laner stayed out of most team fights, and tanks looked twice as dangerous as they were. All changed; top-lane deaths rose to about 1.5-1.6 a game (LoL 1.21 to 1.57, Wild Rift 1.20 to 1.60), total kills stay realistic and the balance tests pass. The rest of the gap comes from how much tanks and bruisers survive in fights, which needs a broader combat-balance pass. |
 | Solo queue | Solo queue ladders added to the More menu. |
 
+## Sixth follow-up: deaths, items, economy, objectives, runes, leagues, data audit
+
+| Request | What was built / found |
+|---|---|
+| Fewer deaths for the other roles | League-match deaths per game (LoL): mid 5.2 → 3.3, ADC 4.6 → 3.0, support 4.1 → 3.2, jungle 3.9 → 2.5, top 1.6 → 1.4; kills a game ~39 → ~27 (pro LCK ~25, LPL ~30). Found: junglers died chasing ganked laners under their tower (no dives now unless the dive kills); after laning, skirmishes need a clearer edge and the back line does not start them; carries and mages fight from behind their front line (less damage lands, more skill shots miss, the front line shields them in target choice); damage builds gain armour / magic penetration so tanks are no longer near-unkillable. Per-game tuning for the mobile MOBAs and Dota 2. The role test now checks no position dies more than 4.2 times a game and the top lane dies at least 45% as often as the other cores. |
+| Fearless and best-of-sevens | Soft Fearless from 100 characters, Fearless from 120, Insane Fearless from 150; a rule the pool is too small for steps down (Wild Rift 143, MLBB 133, Dota 2 127: up to Fearless; HoK 118: Soft Fearless; LoL 173: all). |
+| Items | Real items for all five MOBAs (Data Dragon, Wild Rift / MLBB / HoK wikis, dotaconstants), built one by one during the match by class and game state (hybrid and full-damage or tank builds), patched and newly released (fictional, with generated art), shown in the box score. A snowballing tank may now take up to two damage items. |
+| Valorant economy, CS2 loadouts | Per-player banks with the real prices, round rewards, loss bonus, kill rewards per weapon, plant / defuse money; pistol / eco / force / full buys; Valorant abilities and shields, CS2 grenades and kits; round-by-round loadouts in the match screen. |
+| Neutral objectives | Every objective's real buff, applied as stats: LoL's six elemental drakes (and the rift rule), Dragon Souls, Elder (only after a soul), Baron, Herald, Voidgrubs; Wild Rift's (approximate); MLBB Turtle / Turtle's Blessing / Lord; HoK Tyrant, Overlord, Shadow Tyrant, Shadow Overlord, Tempest Dragon; Dota 2 Roshan's drops by kill, Tormentors, Wisdom Runes. Patches buff / nerf them and can add fictional kinds (a new elemental drake with its own soul, a new form of an objective). Meta screen card; commentary names drakes and souls. |
+| Runes and equivalents | LoL runes (Data Dragon), Wild Rift runes (summaries), MLBB emblem sets and talents, HoK arcana, Dota 2 talents and facets; each hero takes a page that fits its class; stats in the engine; box-score column; patches and fictional additions; meta-screen card. |
+| LJL, PCS, VCS | Real teams of the three leagues (official LoL Esports feed) as tier-2 leagues under the LCP; real academies tied to their LCP teams; each October an LCP Promotion tournament: the LCP's last two against the lower leagues' best; the top two play the LCP next season, the others go to the lower league of their region. |
+| Database audit | The main cause of wrong nationalities was matching by handle alone (a fact belonging to another player with the same handle); such facts are now refused when they contradict the roster source. More real birth dates (Valorant wiki table + redirects, Leaguepedia redirects), Dota 2 positions from lanes and farm in pro matches, Dota 2 nationalities by agreement of three sources (Valve's unset "af" no longer reads as Afghanistan), CS2 same-nickname mix-ups settled by team. See DATA_PROVENANCE.md for what is still estimated (MLBB birth dates, CS2 positions: no open source). |
+
 ## Tests and results (JVM, `./gradlew testDebugUnitTest`)
 
 All suites pass (23 classes, including `DraftVarietyTest`, `MobaSideTest`, `WorldIsolationTest`). New or extended:
@@ -207,8 +220,9 @@ rather than invented heatmaps.
 * Not run on a phone or emulator here (no hardware acceleration in this environment): frame rate,
   battery and ANR behaviour on devices are unmeasured. The viewer's toggles (abilities, minions,
   paths, names) serve as a reduced-effects mode.
-* Kills in LoL (~34 per game) are still a little above the pro average (~25–30); Dota 2 games are a
-  few minutes longer than average. Occasional outlier games (a hero dying very often) remain and are
+* Kills in LoL (~27 per game in league matches) match the pro average (~25–30); the top lane still
+  dies less than the other positions (about half as often; in pro play it is about the same). Dota 2
+  games are a few minutes longer than average. Occasional outlier games (a hero dying very often) remain and are
   logged by the tuning tests (`MobaTraceTest`, `MobaDiagTest`, `MobaCharBalanceTest`, env-gated).
 * Valorant attackers win 43 % of rounds in the seeded sample (pro play is close to 48–50 %).
 * Character win rates spread roughly 35–65 % (10th–90th percentile) in random drafts; the draft AI
