@@ -100,6 +100,8 @@ object Imports {
     /** Visa wait for a player joining a team (days; 0 when none is needed). */
     fun onJoin(w: World, p: Player, team: Team) {
         p.visaUntil = if (isImport(w, p, team) && GameData.regionOf(p.nat) != (GameData.expand(team.region).firstOrNull() ?: "")) w.day + 14 else 0
+        // Joining a club ends any development-club registration the same day.
+        Circuits.leaveClubs(w, p, team)
     }
 
     fun ruleText(w: World, team: Team): String {

@@ -223,9 +223,12 @@ object Circuits {
         var dirty = false
         for (team in w.teams) {
             if (!team.active || team.kind.isEmpty()) continue
-            val before = team.roster.size
-            team.roster.removeAll { pid -> val p = w.players[pid]; p.retired || (p.teamId >= 0 && p.teamId != team.id) || (team.kind == COLLEGIATE && (p.enrolled.isBlank() || Dates.ageAt(p.birth, w.day) > 25)) }
-            if (team.roster.size != before) { team.lineup = Lineups.auto(w, team); dirty = true }
+            val gone = team.roster.filter { pid -> val p = w.players[pid]; p.retired || (p.teamId >= 0 && p.teamId != team.id) || (team.kind == COLLEGIATE && (p.enrolled.isBlank() || Dates.ageAt(p.birth, w.day) > 25)) }
+            if (gone.isNotEmpty()) {
+                team.roster.removeAll(gone.toSet())
+                for (pid in gone) dropRegistrations(w, team, pid)
+                team.lineup = Lineups.auto(w, team); dirty = true
+            }
         }
         if (!dirty && Dates.dow(w.day) != 1) return
         val rng = Rng.derive(w.seed, "circuit-fill", w.day)
@@ -233,6 +236,21 @@ object Circuits {
         for (team in w.teams) if (team.active && team.kind.isNotEmpty() && team.roster.size < Catalogue.get(team.titleId).teamSize) {
             if (ctx.handles.isEmpty()) for (p in w.players) ctx.handles.add(p.handle.lowercase())
             fill(w, ctx, team, rng)
+        }
+    }
+
+    /** A player leaving a development club (signed, graduated, too old) leaves its event registrations too. */
+    private fun dropRegistrations(w: World, team: Team, pid: Int) {
+        for (c in w.comps) if (c.status != 2 && c.circuit.isNotBlank()) c.registrations[team.id]?.players?.remove(pid)
+    }
+
+    /** A player joining any club leaves the development clubs of the old registration, that same day. */
+    fun leaveClubs(w: World, p: Player, joining: Team) {
+        for (team in w.teams) {
+            if (team.kind.isEmpty() || team.id == joining.id || p.id !in team.roster) continue
+            team.roster.remove(p.id)
+            team.lineup.replaceAll { if (it == p.id) -1 else it }
+            dropRegistrations(w, team, p.id)
         }
     }
 

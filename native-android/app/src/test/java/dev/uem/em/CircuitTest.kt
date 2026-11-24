@@ -46,7 +46,9 @@ class CircuitTest {
         assertTrue(events.size > 40)
         assertTrue("circuit events finished: ${events.filter { !it.done }.take(5).map { it.name }}", events.all { it.done })
         // Eligibility was applied when rosters were registered.
-        for (c in events) for ((tid, reg) in c.registrations) for (pid in reg.players) assertTrue("${w.players[pid].handle} eligible for ${c.name}", Circuits.eligible(w, c, w.players[pid]) == null || c.circuit == "amateur")
+        // Eligibility is a rule of the event's own dates: running events drop a player who becomes ineligible (signed,
+        // too old) the next day; a finished event is not judged by a birthday or a signing that came after it.
+        for (c in events) if (c.status != 2) for ((tid, reg) in c.registrations) for (pid in reg.players) assertTrue("${w.players[pid].handle} eligible for ${c.name}: ${Circuits.eligible(w, c, w.players[pid])}", Circuits.eligible(w, c, w.players[pid]) == null || c.circuit == "amateur")
         // Promotions: a champion moved up into an independent lower league, as one entry.
         val promoted = events.flatMap { c -> c.entries.filter { it.route.startsWith("promotion:") } }
         val sb = StringBuilder("events ${events.size}, promotions ${promoted.size}\n")

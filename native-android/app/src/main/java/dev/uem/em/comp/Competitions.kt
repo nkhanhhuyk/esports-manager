@@ -753,7 +753,10 @@ object Progress {
                     val all = p.getOrNull(5) == "all"
                     val invited = if (main != null) w.invites.filter { it.compId == main && it.status != "declined" }.map { it.teamId }.toSet() else emptySet()
                     // One regional open qualifier per event: a team already entered in another region's qualifier for the same event stays there.
-                    val elsewhere = w.comps.filter { o -> o.id != c.id && o.season == c.season && o.titleId == c.titleId && o.status == 1 && o.entrants.any { r -> r.startsWith("open:") && r.split(':').getOrNull(4) == p.getOrNull(4) } }.flatMap { it.teamIds }.toSet()
+                    val elsewhere = w.comps.filter { o -> o.id != c.id && o.season == c.season && o.titleId == c.titleId && o.status == 1 && o.entrants.any { r -> r.startsWith("open:") && r.split(':').getOrNull(4) == p.getOrNull(4) } }.flatMap { it.teamIds }.toHashSet()
+                    // Teams still playing another event over these days (a league's playoffs) do not enter: no team plays twice on a day.
+                    for (o in w.comps) if (o.id != c.id && o.status == 1 && o.titleId == c.titleId && o.circuit.isBlank() &&
+                        maxOf(dev.uem.em.mgmt.Rankings.endDay(w, o), (o.stages.lastOrNull()?.startDay ?: o.startDay) + 10) >= c.startDay) elsewhere.addAll(o.teamIds)
                     w.teams.filter { it.titleId == p[1] && it.active && it.nationalOf.isEmpty() && it.parentId < 0 && (it.kind.isEmpty() || it.kind == "amateur") && it.id !in invited && it.id !in elsewhere && (league == null || all || it.leagueId != league.id) && Ecosystem.inRegion(w, it, league) && it.roster.size >= Catalogue.get(it.titleId).teamSize }
                         .sortedByDescending { it.elo }.take(cap).forEach { add(it.id, rule, "open qualifier entry") }
                 }
