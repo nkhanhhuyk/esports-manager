@@ -2,6 +2,7 @@ package dev.uem.em.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -65,19 +69,19 @@ fun KV(label: String, value: String, color: Color = Ui.text, faded: Boolean = fa
 @Composable
 fun KV(label: String, faded: Boolean = false, value: @Composable () -> Unit) {
     Column(Modifier.alpha(if (faded) 0.45f else 1f)) {
-        Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(label, color = Ui.muted, fontSize = 13.sp, modifier = Modifier.weight(1f).padding(end = 8.dp), maxLines = 2, overflow = TextOverflow.Ellipsis)
             value()
         }
-        HorizontalDivider(color = Ui.line, thickness = 0.5.dp)
+        HorizontalDivider(color = Ui.line.copy(alpha = 0.6f), thickness = 0.5.dp)
     }
 }
 
 /** A bar 0..max. */
 @Composable
 fun Bar(v: Double, max: Double = 100.0, color: Color = Ui.accent, modifier: Modifier = Modifier, h: Dp = 6.dp) {
-    Box(modifier.height(h).background(Ui.card2, RoundedCornerShape(3.dp))) {
-        Box(Modifier.fillMaxWidth((v / max).toFloat().coerceIn(0.01f, 1f)).height(h).background(color, RoundedCornerShape(3.dp)))
+    Box(modifier.height(h).background(Ui.card3, RoundedCornerShape(50))) {
+        Box(Modifier.fillMaxWidth((v / max).toFloat().coerceIn(0.01f, 1f)).height(h).background(color, RoundedCornerShape(50)))
     }
 }
 
@@ -88,9 +92,11 @@ class Tile(val label: String, val value: String, val sub: String? = null, val co
 @Composable
 fun Tiles(tiles: List<Tile>, perRow: Int = 3) {
     FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp), maxItemsInEachRow = perRow) {
-        for (t in tiles) Column(Modifier.weight(1f).padding(4.dp).background(Ui.card, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 8.dp)) {
-            Text(t.label.uppercase(), color = Ui.muted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, letterSpacing = 0.5.sp)
-            Text(t.value, color = t.color, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        for (t in tiles) Column(
+            Modifier.weight(1f).padding(4.dp).background(Ui.card, RoundedCornerShape(14.dp)).border(1.dp, Ui.line.copy(alpha = 0.7f), RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Text(t.label.uppercase(), color = Ui.muted, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, letterSpacing = 0.6.sp)
+            Text(t.value, color = t.color, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
             if (t.sub != null) Text(t.sub, color = Ui.muted, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -98,7 +104,7 @@ fun Tiles(tiles: List<Tile>, perRow: Int = 3) {
 
 @Composable
 fun Tag(text: String, color: Color = Ui.card2, fg: Color = Ui.text) =
-    Text(text, color = fg, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(end = 4.dp).background(color, RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp))
+    Text(text, color = fg, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp, maxLines = 1, modifier = Modifier.padding(end = 5.dp).background(color, RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 2.dp))
 
 private val TITLE_COLORS = mapOf("mlbb" to Color(0xFF3B6FD8), "wildrift" to Color(0xFF1FA3A3), "hok" to Color(0xFFC9932E), "lol" to Color(0xFF1E8FB8), "dota2" to Color(0xFFB03A2E), "valorant" to Color(0xFFE0485A), "cs2" to Color(0xFFD9822B))
 
@@ -110,12 +116,12 @@ fun TitleTag(id: String) = Tag(Catalogue.get(id).short, TITLE_COLORS[id] ?: Ui.c
 fun Select(label: String, options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box(Modifier.padding(end = 6.dp, bottom = 6.dp)) {
-        Row(Modifier.background(Ui.card2, RoundedCornerShape(8.dp)).clickable { open = true }.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (label.isNotEmpty()) Text("$label: ", color = Ui.muted, fontSize = 12.sp)
+        Row(Modifier.clip(RoundedCornerShape(10.dp)).background(Ui.card2).border(1.dp, Ui.line, RoundedCornerShape(10.dp)).clickable { open = true }.padding(start = 12.dp, end = 8.dp, top = 7.dp, bottom = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (label.isNotEmpty()) Text("$label  ", color = Ui.muted, fontSize = 12.sp)
             Text(options.getOrElse(selected) { "—" }, color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Text(" ▾", color = Ui.muted, fontSize = 12.sp)
+            androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Rounded.KeyboardArrowDown, null, tint = Ui.muted, modifier = Modifier.padding(start = 2.dp).size(16.dp))
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = Ui.card2) {
             options.forEachIndexed { i, o -> DropdownMenuItem(text = { Text(o, fontWeight = if (i == selected) FontWeight.Bold else FontWeight.Normal) }, onClick = { open = false; onSelect(i) }) }
         }
     }
@@ -185,10 +191,10 @@ fun <T> SortTable(rows: List<T>, cols: List<SCol<T>>, initialSort: Int = -1, lim
     }
     Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
         Column {
-            Row(Modifier.padding(vertical = 4.dp)) {
+            Row(Modifier.background(Ui.card2, RoundedCornerShape(8.dp)).padding(vertical = 6.dp)) {
                 cols.forEachIndexed { i, c ->
                     Text(
-                        c.title + if (i == sort) (if (desc) " ▾" else " ▴") else "", color = if (i == sort) Ui.accent else Ui.muted, fontSize = 11.sp, maxLines = 1,
+                        c.title.uppercase() + if (i == sort) (if (desc) " ▾" else " ▴") else "", color = if (i == sort) Ui.accent else Ui.muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp, maxLines = 1,
                         textAlign = if (c.alignEnd) TextAlign.End else TextAlign.Start,
                         modifier = Modifier.width(c.width).padding(horizontal = 4.dp).let { m -> if (c.key != null) m.clickable { if (sort == i) desc = !desc else { sort = i; desc = true } } else m },
                     )
@@ -196,11 +202,12 @@ fun <T> SortTable(rows: List<T>, cols: List<SCol<T>>, initialSort: Int = -1, lim
             }
             for (r in sorted.take(limit)) {
                 Row(
-                    Modifier.background(if (highlight(r)) Ui.card2 else Color.Transparent).let { if (onRow != null) it.clickable { onRow(r) } else it }.padding(vertical = 5.dp),
+                    Modifier.background(if (highlight(r)) Ui.rowHi else Color.Transparent, RoundedCornerShape(8.dp)).let { if (onRow != null) it.clickable { onRow(r) } else it }.padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     for (c in cols) Box(Modifier.width(c.width).padding(horizontal = 4.dp), contentAlignment = if (c.alignEnd) Alignment.CenterEnd else Alignment.CenterStart) { c.cell(r) }
                 }
+                Box(Modifier.height(0.5.dp).width(cols.fold(0.dp) { s, c -> s + c.width }).background(Ui.line.copy(alpha = 0.5f)))
             }
             if (sorted.size > limit) Muted("… and ${sorted.size - limit} more", 11)
         }
@@ -253,10 +260,10 @@ fun <T> androidx.compose.foundation.lazy.LazyListScope.lazySortTable(state: Tabl
     }
     val sorted = state.cache as List<T>
     item(key = "table-header") {
-        Row(Modifier.fillMaxWidth().background(Ui.card).horizontalScroll(state.scroll).padding(horizontal = 8.dp, vertical = 6.dp)) {
+        Row(Modifier.fillMaxWidth().background(Ui.card2).horizontalScroll(state.scroll).padding(horizontal = 8.dp, vertical = 8.dp)) {
             cols.forEachIndexed { i, c ->
                 Text(
-                    c.title + if (i == state.sort) (if (state.desc) " ▾" else " ▴") else "", color = if (i == state.sort) Ui.accent else Ui.muted, fontSize = 11.sp, maxLines = 1,
+                    c.title.uppercase() + if (i == state.sort) (if (state.desc) " ▾" else " ▴") else "", color = if (i == state.sort) Ui.accent else Ui.muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp, maxLines = 1,
                     textAlign = if (c.alignEnd) TextAlign.End else TextAlign.Start,
                     modifier = Modifier.width(c.width).padding(horizontal = 4.dp).let { m -> if (c.key != null) m.clickable { if (state.sort == i) state.desc = !state.desc else { state.sort = i; state.desc = true } } else m },
                 )
@@ -269,10 +276,13 @@ fun <T> androidx.compose.foundation.lazy.LazyListScope.lazySortTable(state: Tabl
 
 @Composable
 private fun <T> TableRow(state: TableState, r: T, cols: List<SCol<T>>, onRow: ((T) -> Unit)?, highlight: (T) -> Boolean) {
-    Row(
-        Modifier.fillMaxWidth().background(if (highlight(r)) Ui.card2 else Color.Transparent).let { if (onRow != null) it.clickable { onRow(r) } else it }.horizontalScroll(state.scroll).padding(horizontal = 8.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        for (c in cols) Box(Modifier.width(c.width).padding(horizontal = 4.dp), contentAlignment = if (c.alignEnd) Alignment.CenterEnd else Alignment.CenterStart) { c.cell(r) }
+    Column {
+        Row(
+            Modifier.fillMaxWidth().background(if (highlight(r)) Ui.rowHi else Color.Transparent).let { if (onRow != null) it.clickable { onRow(r) } else it }.horizontalScroll(state.scroll).padding(horizontal = 8.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            for (c in cols) Box(Modifier.width(c.width).padding(horizontal = 4.dp), contentAlignment = if (c.alignEnd) Alignment.CenterEnd else Alignment.CenterStart) { c.cell(r) }
+        }
+        HorizontalDivider(color = Ui.line.copy(alpha = 0.45f), thickness = 0.5.dp)
     }
 }

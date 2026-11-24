@@ -109,7 +109,6 @@ fun TierScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                Text("Tier lists", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Muted("${t.name} · patch ${patch?.version ?: "launch"} · from the patch's balance (what the matches use) and this season's results. Tap any icon for its stats and skills.", 11)
             }
         }

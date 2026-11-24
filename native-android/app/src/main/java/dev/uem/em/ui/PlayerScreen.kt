@@ -1,5 +1,6 @@
 package dev.uem.em.ui
 
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -81,7 +82,7 @@ fun PlayerScreen(vm: GameVm, w: World, id: Int) {
     val sgp = seasonLines.sumOf { it.gp }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.Top) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(if (own) Ui.heroGold else Ui.hero).padding(16.dp), verticalAlignment = Alignment.Top) {
                 PlayerPic(p, 76.dp, round = true)
                 HGap(14)
                 Column(Modifier.weight(1f)) {

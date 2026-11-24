@@ -55,7 +55,6 @@ fun ScheduleScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                Text("Schedule", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Muted("${upcoming.size} upcoming · ${recent.size} recent", 12)
             }
         }

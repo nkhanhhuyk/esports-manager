@@ -2,8 +2,12 @@ package dev.uem.em.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,14 +15,32 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.List
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.ShoppingCart
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,16 +53,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.uem.em.core.Dates
+import dev.uem.em.model.World
 import kotlinx.coroutines.delay
 
 @Composable
 fun AppRoot(vm: GameVm, exit: () -> Unit) {
-    MaterialTheme(colorScheme = Ui.scheme) {
+    MaterialTheme(colorScheme = Ui.scheme, typography = Ui.typography, shapes = Ui.shapes) {
         BackHandler { if (!vm.back()) exit() }
         Box(Modifier.fillMaxSize().background(Ui.bg)) {
             val w = vm.world
@@ -101,7 +127,15 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
             if (sheet != null && w != null && busy == null) InfoSheet(w, sheet.first, sheet.second) { Sheets.open = null }
             vm.toast?.let { msg ->
                 LaunchedEffect(msg) { delay(3500); if (vm.toast == msg) vm.toast = null }
-                Text(msg, color = Color.White, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 90.dp, start = 24.dp, end = 24.dp).background(Color(0xEE222B40), RoundedCornerShape(10.dp)).padding(horizontal = 16.dp, vertical = 10.dp))
+                Row(
+                    Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp, start = 20.dp, end = 20.dp).widthIn(max = 520.dp)
+                        .background(Ui.card3, RoundedCornerShape(14.dp)).border(1.dp, Ui.line, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.Info, null, tint = Ui.accent, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(msg, color = Color.White, fontSize = 13.sp)
+                }
             }
         }
     }
@@ -109,66 +143,157 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
 
 @Composable
 private fun BusyScreen(vm: GameVm, b: Busy) {
-    Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(b.label, color = Ui.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(16.dp))
-        if (b.total > 0) {
-            LinearProgressIndicator(progress = { b.done.toFloat() / b.total }, modifier = Modifier.fillMaxWidth(), color = Ui.accent, trackColor = Ui.card2)
-            Spacer(Modifier.height(8.dp))
-            Muted(if (b.label.contains("picture", true)) "${b.done} / ${b.total} pictures" else "${b.done} / ${b.total} days")
-            Spacer(Modifier.height(16.dp))
-            TextButton(onClick = { vm.stop() }) { Text("Stop here", color = Ui.muted) }
-        } else LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = Ui.accent, trackColor = Ui.card2)
+    Box(Modifier.fillMaxSize().background(Ui.bg).padding(24.dp), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier.fillMaxWidth().widthIn(max = 520.dp).background(Ui.card, Ui.shape).border(1.dp, Ui.line, Ui.shape).padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            IconBadge(Icons.Rounded.PlayArrow, Ui.accent, 52.dp)
+            Gap(14)
+            Text(b.label, color = Ui.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Gap(16)
+            if (b.total > 0) {
+                LinearProgressIndicator(progress = { b.done.toFloat() / b.total }, modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)), color = Ui.accent, trackColor = Ui.card2, drawStopIndicator = {})
+                Gap(10)
+                Muted(if (b.label.contains("picture", true)) "${b.done} / ${b.total} pictures" else "${b.done} / ${b.total} days", 13)
+                Gap(14)
+                TextButton(onClick = { vm.stop() }) { Text("Stop here", color = Ui.muted) }
+            } else LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)), color = Ui.accent, trackColor = Ui.card2)
+        }
     }
 }
 
+/** The name shown in the top bar for each screen (where you are at a glance). */
+fun screenTitle(w: World, s: Screen): String = when (s) {
+    Screen.Home -> if (w.userOrg >= 0) "Home" else "Spectator"
+    Screen.Comps -> "Events"
+    Screen.Teams -> "Teams"
+    Screen.Players -> "Players"
+    Screen.More -> "More"
+    Screen.Squad -> "Squad"
+    Screen.Market -> "Transfer market"
+    Screen.Inbox -> "Inbox"
+    Screen.Finances -> "Finances"
+    Screen.Board -> "Board"
+    Screen.History -> "History & awards"
+    Screen.Patches -> "Patch notes"
+    Screen.Schedule -> "Schedule"
+    Screen.Stats -> "Stats hub"
+    Screen.Settings -> "Settings"
+    is Screen.Comp -> w.comps.getOrNull(s.id)?.name ?: "Event"
+    is Screen.Team -> w.teams.getOrNull(s.id)?.name ?: "Team"
+    is Screen.Org -> w.orgs.getOrNull(s.id)?.name ?: "Organisation"
+    is Screen.Player -> w.players.getOrNull(s.id)?.handle ?: "Player"
+    is Screen.Match -> w.fixtures.getOrNull(s.id)?.let { f -> "${w.teams.getOrNull(f.a)?.short ?: "TBD"} vs ${w.teams.getOrNull(f.b)?.short ?: "TBD"}" } ?: "Match"
+    is Screen.Compare -> "Compare players"
+    Screen.World -> "World & nations"
+    Screen.Watch -> "Match centre"
+    Screen.Tiers -> "Tier lists"
+    Screen.CompEditor -> "Create a competition"
+    Screen.SoloQ -> "Solo queue ladders"
+    Screen.Rankings -> "World rankings"
+    is Screen.Library -> when (s.kind) { "items" -> "Items"; "runes" -> "Runes, emblems & arcana"; "spells" -> "Spells"; else -> "Neutral objectives" }
+    Screen.Social -> "Social media"
+    is Screen.Road -> "Road · ${w.teams.getOrNull(s.teamId)?.short ?: ""}"
+    is Screen.Prepare -> "Prepare for match"
+    Screen.Circuits -> "Development circuits"
+    is Screen.Replay -> "Replay"
+    Screen.Start -> "Esports Manager"
+    Screen.PickOrg -> "Choose your job"
+}
+
 @Composable
-private fun TopBar(vm: GameVm, w: dev.uem.em.model.World, openMenu: () -> Unit = {}) {
+private fun TopBar(vm: GameVm, w: World, openMenu: () -> Unit = {}) {
     var menu by remember { mutableStateOf(false) }
     var years by remember { mutableStateOf<GameVm.Span?>(null) }
-    Row(Modifier.fillMaxWidth().background(Ui.card).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = openMenu) { Text("☰", color = Ui.text, fontSize = 20.sp) }
-        if (vm.stack.size > 1) TextButton(onClick = { vm.back() }) { Text("←", color = Ui.text, fontSize = 18.sp) }
-        Column(Modifier.weight(1f)) {
-            Text(Dates.format(w.day, true), color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            Muted("Season ${w.season}${if (vm.unsaved) " · unsaved" else ""}", 11)
-        }
-        Button(onClick = { vm.advance(GameVm.Span.NEXT_MATCH) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent), shape = RoundedCornerShape(10.dp)) { Text("Continue ▸") }
-        Box {
-            TextButton(onClick = { menu = true }) { Text("▾", color = Ui.text, fontSize = 18.sp) }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                for ((label, span) in listOf("1 day" to GameVm.Span.DAY, "1 week" to GameVm.Span.WEEK, "1 month" to GameVm.Span.MONTH, "To World Championships" to GameVm.Span.WORLDS, "To end of season" to GameVm.Span.SEASON_END)) {
-                    DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; vm.advance(span) })
+    val deep = vm.stack.size > 1
+    Column(Modifier.fillMaxWidth().background(Ui.card)) {
+        Row(Modifier.fillMaxWidth().padding(start = 2.dp, end = 6.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = openMenu) { Icon(Icons.Rounded.Menu, contentDescription = "Menu", tint = Ui.text) }
+            if (deep) IconButton(onClick = { vm.back() }, modifier = Modifier.padding(start = 0.dp)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Ui.text) }
+            Column(Modifier.weight(1f).padding(start = 2.dp, end = 6.dp)) {
+                Text(screenTitle(w, vm.screen), color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(Dates.format(w.day, true), color = Ui.muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    val due = dev.uem.em.game.Advance.userFixtureDue(w)
+                    if (due != null) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (due.day <= w.day) "MATCH DAY" else "MATCH TOMORROW", color = Ui.gold, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, maxLines = 1,
+                            modifier = Modifier.background(Ui.goldSoft, RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp))
+                    } else if (vm.unsaved) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(Modifier.size(6.dp).background(Ui.gold, CircleShape))
+                        Text(" unsaved", color = Ui.gold, fontSize = 10.sp, maxLines = 1)
+                    }
                 }
-                for (span in listOf(GameVm.Span.YEARS_2, GameVm.Span.YEARS_5, GameVm.Span.YEARS_10)) {
-                    DropdownMenuItem(text = { Text("${span.years} seasons") }, onClick = { menu = false; years = span })
+            }
+            Button(
+                onClick = { vm.advance(GameVm.Span.NEXT_MATCH) }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent, contentColor = Color.White),
+                shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(start = 10.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+            ) {
+                Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Continue", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = "Simulate further and save", tint = Ui.text) }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = Ui.card2) {
+                    Text("SIMULATE", color = Ui.muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                    for ((label, span) in listOf("1 day" to GameVm.Span.DAY, "1 week" to GameVm.Span.WEEK, "1 month" to GameVm.Span.MONTH, "To World Championships" to GameVm.Span.WORLDS, "To end of season" to GameVm.Span.SEASON_END)) {
+                        DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; vm.advance(span) })
+                    }
+                    for (span in listOf(GameVm.Span.YEARS_2, GameVm.Span.YEARS_5, GameVm.Span.YEARS_10)) {
+                        DropdownMenuItem(text = { Text("${span.years} seasons…") }, onClick = { menu = false; years = span })
+                    }
+                    HorizontalDivider(color = Ui.line)
+                    DropdownMenuItem(text = { Text("Save now") }, onClick = { menu = false; vm.save() })
+                    DropdownMenuItem(text = { Text("Save as new file…") }, onClick = { menu = false; vm.saveAsOpen = true })
                 }
-                DropdownMenuItem(text = { Text("Save now") }, onClick = { menu = false; vm.save() })
-                DropdownMenuItem(text = { Text("Save as new file…") }, onClick = { menu = false; vm.saveAsOpen = true })
             }
         }
+        HorizontalDivider(color = Ui.line, thickness = 0.5.dp)
     }
-    years?.let { span ->
-        val last = w.season + span.years - 1
-        AlertDialog(onDismissRequest = { years = null },
-            confirmButton = { TextButton(onClick = { years = null; vm.advance(span) }) { Text("Simulate") } },
-            dismissButton = { TextButton(onClick = { years = null }) { Text("Cancel") } },
-            title = { Text("Simulate ${span.years} seasons?") },
-            text = { Text("Plays every match to the end of season $last. " + (if (w.userOrg >= 0) "Your staff pick lineups, train the team, sign and renew players, hire staff and upgrade facilities meanwhile. " else "") + "The game is saved after each season and you can stop at any time.") })
-    }
+    years?.let { span -> YearsDialog(vm, w, span) { years = null } }
 }
+
+/** Confirmation before simulating several seasons (top bar menu and sidebar). */
+@Composable
+fun YearsDialog(vm: GameVm, w: World, span: GameVm.Span, close: () -> Unit) {
+    val last = w.season + span.years - 1
+    AlertDialog(onDismissRequest = close, containerColor = Ui.card2,
+        confirmButton = { TextButton(onClick = { close(); vm.advance(span) }) { Text("Simulate", color = Ui.accent) } },
+        dismissButton = { TextButton(onClick = close) { Text("Cancel", color = Ui.muted) } },
+        title = { Text("Simulate ${span.years} seasons?") },
+        text = { Text("Plays every match to the end of season $last. " + (if (w.userOrg >= 0) "Your staff pick lineups, train the team, sign and renew players, hire staff and upgrade facilities meanwhile. " else "") + "The game is saved after each season and you can stop at any time.") })
+}
+
+private class NavItem(val label: String, val icon: ImageVector, val screen: Screen, val badge: Int = 0)
 
 @Composable
 private fun BottomBar(vm: GameVm) {
     val unread = vm.world?.inbox?.count { !it.read } ?: 0
     val spectator = (vm.world?.userOrg ?: 0) < 0
-    val items = if (spectator) listOf("Home" to Screen.Home, "Watch" to Screen.Watch, "Events" to Screen.Comps, "Teams" to Screen.Teams, "More" to Screen.More)
-    else listOf("Home" to Screen.Home, "Events" to Screen.Comps, "Squad" to Screen.Squad, "Market" to Screen.Market, (if (unread > 0) "More ($unread)" else "More") to Screen.More)
-    Row(Modifier.fillMaxWidth().background(Ui.card).padding(vertical = 4.dp)) {
-        val root = vm.stack.first()
-        for ((label, s) in items) {
-            TextButton(onClick = { vm.tab(s) }, modifier = Modifier.weight(1f)) {
-                Text(label, color = if (root == s) Ui.accent else Ui.muted, fontSize = 12.sp, fontWeight = if (root == s) FontWeight.Bold else FontWeight.Normal)
+    val items = if (spectator) listOf(NavItem("Home", Icons.Rounded.Home, Screen.Home), NavItem("Watch", Icons.Rounded.PlayArrow, Screen.Watch), NavItem("Events", Icons.Rounded.Star, Screen.Comps), NavItem("Teams", Icons.Rounded.AccountCircle, Screen.Teams), NavItem("More", Icons.AutoMirrored.Rounded.List, Screen.More))
+    else listOf(NavItem("Home", Icons.Rounded.Home, Screen.Home), NavItem("Events", Icons.Rounded.Star, Screen.Comps), NavItem("Squad", Icons.Rounded.Person, Screen.Squad), NavItem("Market", Icons.Rounded.ShoppingCart, Screen.Market), NavItem("More", Icons.AutoMirrored.Rounded.List, Screen.More, unread))
+    Column(Modifier.fillMaxWidth().background(Ui.card)) {
+        HorizontalDivider(color = Ui.line, thickness = 0.5.dp)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            val root = vm.stack.first()
+            for (it in items) {
+                val on = root == it.screen
+                Column(
+                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable { vm.tab(it.screen) }.padding(vertical = 2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(width = 54.dp, height = 28.dp).background(if (on) Ui.accentSoft else Color.Transparent, RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
+                            Icon(it.icon, contentDescription = it.label, tint = if (on) Ui.accent else Ui.muted, modifier = Modifier.size(22.dp))
+                        }
+                        if (it.badge > 0) Box(Modifier.align(Alignment.TopEnd).padding(end = 6.dp)) { CountBubble(it.badge) }
+                    }
+                    Spacer(Modifier.height(2.dp))
+                    Text(it.label, color = if (on) Ui.text else Ui.muted, fontSize = 11.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+                }
             }
         }
     }
@@ -184,11 +309,11 @@ private fun busy0(vm: GameVm) = vm.busy == null
 
 /** Save to a new file with a name (the current file stays as it is). */
 @Composable
-fun SaveAsDialog(vm: GameVm, w: dev.uem.em.model.World) {
+fun SaveAsDialog(vm: GameVm, w: World) {
     var label by remember { mutableStateOf(vm.defaultSaveLabel(w)) }
-    AlertDialog(onDismissRequest = { vm.saveAsOpen = false },
-        confirmButton = { TextButton(onClick = { vm.saveAsOpen = false; vm.saveAs(label) }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = { vm.saveAsOpen = false }) { Text("Cancel") } },
+    AlertDialog(onDismissRequest = { vm.saveAsOpen = false }, containerColor = Ui.card2,
+        confirmButton = { TextButton(onClick = { vm.saveAsOpen = false; vm.saveAs(label) }) { Text("Save", color = Ui.accent) } },
+        dismissButton = { TextButton(onClick = { vm.saveAsOpen = false }) { Text("Cancel", color = Ui.muted) } },
         title = { Text("Save as a new file") },
         text = {
             Column {

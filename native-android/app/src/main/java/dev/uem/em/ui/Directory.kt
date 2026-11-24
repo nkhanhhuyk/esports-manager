@@ -54,7 +54,6 @@ fun TeamsScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                Text("Teams", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Muted("Your divisions and every active team", 12)
             }
         }
@@ -137,7 +136,6 @@ fun PlayersScreen(vm: GameVm, w: World) {
         item {
             Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Players", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Muted("${list.size}${if (list.size == 400) "+" else ""} players match · tick two to compare", 12)
                 }
                 if (sel.size >= 2) Pill("Compare ${sel.size}", Ui.accent, Color.White) { vm.go(Screen.Compare(sel[0], sel[1])) }
@@ -244,7 +242,6 @@ fun HistoryScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                Text("History", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Muted("${w.comps.map { it.season }.distinct().size} seasons · ${w.comps.count { it.done }} competitions finished", 12)
             }
         }
@@ -347,7 +344,6 @@ fun WorldScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                Text("World", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Muted("Games, national scenes, rankings and organisations", 12)
             }
         }

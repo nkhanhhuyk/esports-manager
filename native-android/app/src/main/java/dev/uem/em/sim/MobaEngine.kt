@@ -34,10 +34,13 @@ object MobaEngine {
      */
     val DEATH_CAL = mapOf(
         // Pro seasons: carries (bot lane, mid) die least, supports most, top and jungle in between.
-        "mlbb" to floatArrayOf(1.16f, 0.9f, 0.88f, 0.76f, 1.1f),
-        "hok" to floatArrayOf(1.18f, 0.97f, 0.88f, 0.74f, 1.0f),
-        "lol" to floatArrayOf(1.04f, 1.05f, 0.86f, 0.76f, 0.98f),
-        "wildrift" to floatArrayOf(1.06f, 1.0f, 0.86f, 0.78f, 0.98f),
+        // With heroes stepping out of tower range the divers (often the solo laner) stopped dying under towers:
+        // the solo lane is calibrated up and the carry down to keep the order above (HoK's Clash lane less, as
+        // more Clash-lane deaths made the winners die nearly as often as the losers there).
+        "mlbb" to floatArrayOf(1.42f, 1.0f, 0.82f, 0.64f, 1.08f),
+        "hok" to floatArrayOf(1.18f, 0.97f, 0.86f, 0.64f, 1.0f),
+        "lol" to floatArrayOf(1.3f, 1.08f, 0.84f, 0.66f, 0.96f),
+        "wildrift" to floatArrayOf(1.3f, 1.04f, 0.82f, 0.66f, 0.88f),
         "dota2" to floatArrayOf(0.88f, 0.86f, 0.96f, 1.04f, 1.08f),
     )
     /** How strongly teams hand kills to their carry, per title (tuning). */
@@ -80,11 +83,11 @@ object MobaEngine {
     )
 
     val RULES = mapOf(
-        "mlbb" to Rules(27f, 25, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 70, intArrayOf(4, 8, 12), true, false, 1f, 1.0, 1.35, 1f, 0.05f, lateCaution = 0.22f, backGuard = 0.86f, soloStance = -0.06f, topGroup = 2),
-        "wildrift" to Rules(26f, 30, 5, 5, 15, 17.0, 80f, 2900f, 4400f, 270f, 90, intArrayOf(5, 9, 13), true, false, 1f, 1.0, 1.35, 1f, 0.05f, lateCaution = 0.22f, backGuard = 0.86f, soloStance = -0.06f, topGroup = 2),
-        "hok" to Rules(27f, 30, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 75, intArrayOf(4, 8, 12), true, false, 1f, 1.1, 1.35, 1f, 0.12f, lateCaution = 0.12f, backGuard = 0.9f, peel = 0.3f, soloStance = -0.06f, topGroup = 2),
-        "lol" to Rules(22f, 65, 6, 8, 18, 34.0, 80f, 4200f, 5400f, 300f, 120, intArrayOf(6, 11, 16), true, false, 1f, 0.7, 1.7, 1f, 0.55f),
-        "dota2" to Rules(20f, 0, 4, 0, 30, 50.0, 100f, 4400f, 6000f, 290f, 60, intArrayOf(6, 12, 18), false, true, 1f, 1.4, 1.15, 2.3f, lateCaution = 0.15f, backGuard = 0.9f),
+        "mlbb" to Rules(27f, 25, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 70, intArrayOf(4, 8, 12), true, false, 1f, 1.0, 1.8, 1f, 0.05f, lateCaution = 0.22f, backGuard = 0.86f, soloStance = -0.06f, topGroup = 2),
+        "wildrift" to Rules(26f, 30, 5, 5, 15, 17.0, 80f, 2900f, 4400f, 270f, 90, intArrayOf(5, 9, 13), true, false, 1f, 1.0, 2.0, 1f, 0.05f, lateCaution = 0.22f, backGuard = 0.86f, soloStance = -0.06f, topGroup = 2),
+        "hok" to Rules(27f, 30, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 75, intArrayOf(4, 8, 12), true, false, 1f, 1.1, 2.6, 1f, 0.12f, lateCaution = 0.12f, backGuard = 0.9f, peel = 0.3f, soloStance = -0.06f, topGroup = 2),
+        "lol" to Rules(22f, 65, 6, 8, 18, 34.0, 80f, 4200f, 5400f, 300f, 120, intArrayOf(6, 11, 16), true, false, 1f, 0.7, 2.0, 1f, 0.55f),
+        "dota2" to Rules(20f, 0, 4, 0, 30, 50.0, 100f, 4400f, 6000f, 290f, 60, intArrayOf(6, 12, 18), false, true, 1f, 1.4, 1.3, 2.3f, lateCaution = 0.15f, backGuard = 0.9f),
     )
 
     /** Section timings for profiling (off unless a test turns it on; single-threaded use only). */
@@ -222,6 +225,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         /** The slot of a ready spell with this effect, or -1. */
         fun spellOf(effect: String): Int { for (i in spells.indices) if (spells[i].effect == effect && spellReady[i] <= nowF) return i; return -1 }
         var recallUntil = 0; var lastCombat = -99; var lastHitBy = -1; var engagedAt = 0
+        /** Last second an enemy tower shot this hero. */
+        var towerAt = -99
         val dmgBy = IntArray(10) { -99 } // last time each enemy (gi) damaged or controlled this hero
         var targetX = 0f; var targetY = 0f
         var task = 0 // 0 lane, 1 jungle, 2 group, 3 objective, 4 recall, 5 roam/gank
@@ -1072,9 +1077,10 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
                 if (h.side == 0) at0++ else at1++
                 if (o.capture) continue
                 if (tank == null || h.hp > tank.hp) tank = h
-                // Only uncontested heroes hit it (contested ones fight each other).
+                // Only uncontested heroes hit it: with an enemy next to them they deal with the threat first, so a team
+                // has to win the fight around an objective to take it (not take it while losing the fight).
                 val enemyNear = bySide[1 - h.side].any { it.alive(now) && it.visible && dist(it, h) < 50f }
-                if (enemyNear && h.focus >= 0) continue
+                if (enemyNear) continue
                 val dps = (h.atk() * h.attackSpeed() + h.apPower() * 20f) * (1f + 0.04f * h.z(Phase.OBJECTIVE))
                 o.hp -= dps * DTF; o.dmgBy[h.side] += dps * DTF
                 h.lastCombat = now - 3
@@ -1202,7 +1208,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
                 val diving = h.lastCombat >= now - 2 && bySide[side].any { it.alive(now) && it.dmgBy[h.gi] >= now - 2 && hypot(it.x - st.s.x, it.y - st.s.y) < rng0 + 10f }
                 if (enemyPacket == null || diving) { target = h; break }
             }
-            if (target != null) damage(null, side, target, R.towerDps * (1f + now / 1800f) * 0.75f * DTF, 2)
+            if (target != null) { target.towerAt = now; damage(null, side, target, R.towerDps * (1f + now / 1800f) * 0.75f * DTF, 2) }
             else if (enemyPacket != null) enemyPacket.n -= 0.7f * DTF
         }
         // Minions and heroes damage exposed structures.
@@ -1290,6 +1296,21 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         }
     }
 
+    /**
+     * With the enemy at an objective: go and fight for it unless our own target is worth more, or worth as much
+     * and we are already standing at it (then the objectives are traded, as teams do when the map splits).
+     */
+    /** How much a team wants an objective: the major ones most, then those that push lanes (Overlord, Herald), then the rest. */
+    private fun objValue(o: Obj) = if (o.o.major) 2.0 else if (o.o.kind == "push") 1.4 else 1.0
+
+    private fun contestRather(side: Int, enemyObj: Obj, myBest: Int): Boolean {
+        if (myBest < 0 || myBest == enemyObj.k) return true
+        val mine = objs.firstOrNull { it.k == myBest } ?: return true
+        if (objValue(enemyObj) != objValue(mine)) return objValue(enemyObj) > objValue(mine)
+        val atMine = bySide[side].count { it.alive(now) && hypot(it.x - mine.x, it.y - mine.y) < 90f } >= 2
+        return !atMine
+    }
+
     fun planTeams() {
         val m = now / 60.0
         pow[0] = teamPower(0); pow[1] = teamPower(1)
@@ -1312,7 +1333,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             var bestVal = 0.0
             for (o in objs) {
                 if (!o.alive && !(o.next - now in 0..20)) continue
-                val value = (if (o.o.major) 2.0 else 1.0) * (if (m < cfg.laneEnd) 0.75 else 1.0)
+                val value = objValue(o) * (if (m < cfg.laneEnd) 0.75 else 1.0)
                 val adv = (alive - enemyAlive) * 0.8 + (ratio - 1) * 2.2 + macro * 0.2 + (tc.aggression - 50) / 150.0
                 // Nearer objectives first (each side's own Wisdom shrine and Tormentor).
                 val near = hypot(o.x - fountain(side)[0], o.y - fountain(side)[1]) / 1000f
@@ -1320,7 +1341,11 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
                 if (score > bestVal) { bestVal = score; bestObj = o.k }
             }
             val old = plan[side]
+            // The enemy is taking an objective: a team that is not clearly weaker goes to contest it (the fight decides who gets it).
+            val enemyObj = if (plan[1 - side] == 2) objs.firstOrNull { it.k == planObj[1 - side] && it.alive } else null
+            val enemyThere = enemyObj != null && bySide[1 - side].count { it.alive(now) && hypot(it.x - enemyObj.x, it.y - enemyObj.y) < 90f } >= 2
             if (threatened >= 0 && m > 2.5 && ratio > 0.45) { plan[side] = 3; planLane[side] = threatened }
+            else if (enemyThere && alive >= 3 && ratio > 0.8 - macro * 0.03 && (m >= cfg.laneEnd * 0.4) && contestRather(side, enemyObj!!, bestObj)) { plan[side] = 2; planObj[side] = enemyObj.k }
             else if (bestObj >= 0 && bestVal > 0.85 - macro * 0.06 && alive >= 3 && (m >= cfg.laneEnd * 0.4)) { plan[side] = 2; planObj[side] = bestObj }
             else if (m >= cfg.laneEnd && alive >= 3 && (ratio > 1.0 - macro * 0.03 || alive > enemyAlive + 1 || pushUntil[side] > now || m > cfg.avgLength * 1.1)) {
                 // Group and push: keep the lane until its front structure falls (or a minute passes).
@@ -1336,7 +1361,12 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
                     }
                     planLane[side] = best; planSince[side] = now
                 }
-                plan[side] = 1
+                // The high ground (last lane towers, base towers, the core shoot too in MLBB / HoK): pro teams go up
+                // with a numbers advantage, a buffed wave or a clear lead, not into full defences and respawning defenders.
+                val target = frontStruct(1 - side, planLane[side]) ?: (baseStructs[1 - side].firstOrNull { !it.dead } ?: cores[1 - side])
+                val highGround = target.s.lane == null || target.s.tier >= 3
+                val canDive = alive > enemyAlive || (pushUntil[side] > now && alive >= enemyAlive) || ratio > 1.25 || m > cfg.avgLength * 1.6
+                plan[side] = if (highGround && !canDive) 0 else 1
             } else plan[side] = 0
             if (plan[side] != old) planSince[side] = now
             if (plan[side] <= 1) huntCheck(side)
@@ -1381,6 +1411,14 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         if (h.recallUntil > 0) {
             if (h.lastCombat >= now - DT) h.recallUntil = 0
             else if (now >= h.recallUntil) { val f = fountain(h.side); h.x = f[0]; h.y = f[1]; h.recallUntil = 0; ev(Ev(now, "recall", h.side, h.pc.p.id)) }
+            return
+        }
+        // Shot by an enemy tower with no wave to take its attention and not healthy enough to stay: step out
+        // of its range (pro players rarely die to towers; only a dive for a sure kill stays in).
+        if (h.towerAt >= now - DT * 2 && h.hpPct() < (if (now / 60.0 < cfg.laneEnd) 0.65f else 0.55f)) {
+            val f = fountain(h.side)
+            h.focus = -1
+            moveTo(h, f[0], f[1])
             return
         }
         // Fight or flight.

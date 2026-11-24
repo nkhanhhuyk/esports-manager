@@ -141,11 +141,11 @@ class StatBook(teams: List<TeamCtx>, val t: TitleDef) {
          * the full engines, `RoleDeathsTest`): ratings divide by it.
          */
         val ROLE_NORM = mapOf(
-            "lol" to doubleArrayOf(1.12, 1.08, 1.08, 1.1, 0.76),
-            "wildrift" to doubleArrayOf(1.1, 1.04, 1.12, 1.14, 0.75),
-            "mlbb" to doubleArrayOf(1.05, 1.03, 1.11, 1.16, 0.78),
-            "hok" to doubleArrayOf(1.08, 1.05, 1.12, 1.16, 0.68),
-            "dota2" to doubleArrayOf(1.3, 1.37, 0.77, 1.12, 0.73),
+            "lol" to doubleArrayOf(1.06, 1.07, 1.1, 1.16, 0.75),
+            "wildrift" to doubleArrayOf(1.05, 1.01, 1.13, 1.23, 0.74),
+            "mlbb" to doubleArrayOf(1.01, 1.0, 1.15, 1.22, 0.76),
+            "hok" to doubleArrayOf(1.08, 1.02, 1.16, 1.21, 0.66),
+            "dota2" to doubleArrayOf(1.43, 1.37, 0.79, 1.08, 0.68),
         )
     }
     val lines = ArrayList<Line>()

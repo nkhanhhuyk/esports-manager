@@ -41,7 +41,6 @@ fun CircuitsScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                Text("Amateur & development circuits", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Muted("Community clubs of unsigned players, university teams and VALORANT Game Changers, with their own events. A roster place there is not a contract: professional teams can sign any of these players. Results are scouting evidence (with how much they say), not hidden ratings.", 11)
             }
         }

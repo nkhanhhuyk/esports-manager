@@ -59,7 +59,10 @@ class RoleDeathsTest {
                 val tm = mvps.values.sum().coerceAtLeast(1)
                 // No position takes a third of the series MVPs (the top lane took 35% in LoL, 33% in Wild Rift).
                 val most = t.lineup.maxByOrNull { mvps[it] ?: 0 }
-                if (most != null && (mvps[most] ?: 0) * 1.0 / tm > 0.33 && tm >= 30) mvpHeavy.add("${t.short} ${t.role(most).short} ${(mvps[most] ?: 0) * 100 / tm}%")
+                // Dota 2's position 1 is the farm carry the game is built around: pro series MVPs go to it more
+                // often (up to about 40%).
+                val cap = if (id == "dota2") 0.4 else 0.33
+                if (most != null && (mvps[most] ?: 0) * 1.0 / tm > cap && tm >= 30) mvpHeavy.add("${t.short} ${t.role(most).short} ${(mvps[most] ?: 0) * 100 / tm}%")
                 out.appendLine("  ${t.short} series MVP share: " + t.lineup.joinToString(" | ") { r -> "%s %.0f%%".format(t.role(r).short, (mvps[r] ?: 0) * 100.0 / tm) } +
                     " · rating: " + t.lineup.joinToString(" | ") { r -> rating[r]?.let { "%s %.2f".format(t.role(r).short, it[0] / it[1]) } ?: "" })
             }

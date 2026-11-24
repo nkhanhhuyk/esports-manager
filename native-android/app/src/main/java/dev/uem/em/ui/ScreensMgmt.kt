@@ -345,7 +345,6 @@ fun MarketScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                Text("Transfer market", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Muted(Market.windowLabel(w) + " (23 Nov – 12 Jan and 25 May – 20 Jun) · free agents can be signed any time", 12)
                 Pill("Scout the solo queue ladders (unsigned talent)") { vm.go(Screen.SoloQ) }
             }
@@ -552,7 +551,6 @@ fun InboxScreen(vm: GameVm, w: World) {
         item {
             Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Inbox", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Muted("${all.count { !it.read }} unread · ${all.size} messages", 12)
                 }
                 Pill("Mark all read") { w.inbox.forEach { it.read = true }; vm.edit() }
@@ -602,7 +600,6 @@ fun FinancesScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text("Finances", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Muted("${org.name} — organisation-wide accounts", 12)
             }
             Tiles(listOf(

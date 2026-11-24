@@ -42,7 +42,6 @@ fun RankingsScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                Text("World rankings", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Muted("Points from results: every finished event scores by placing, scaled by its prestige.", 12)
             }
         }

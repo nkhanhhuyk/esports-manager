@@ -79,8 +79,8 @@ class KdaTest {
             if (tj > 11) problems.add("${t.short}: top+jungle take $tj of the top 20")
             val kd = t.lineup.associate { pos[it] to (byRole[it]?.let(::kda) ?: 0.0) }
             if ((kd["top"] ?: 0.0) > maxOf(kd["bot"] ?: 0.0, kd["mid"] ?: 0.0)) problems.add("${t.short}: top KDA above both carries")
-            // Known limitation, reported not asserted: in Honor of Kings games are still decided by pushing more than by
-            // fights, so winners die about as often as losers and KDA follows results only weakly there.
+            // Reported, not asserted, for Honor of Kings: objectives still decide its games more than fights do, so
+            // KDA follows results more weakly there (r ≈ 0.3; winners now die ~12% less than losers, before: as often).
             if (r < 0.3 && id != "hok") problems.add("${t.short}: KDA barely follows results (r=%.2f)".format(r))
         }
         println(out); java.io.File("build/kda.txt").writeText(out.toString())

@@ -1,5 +1,6 @@
 package dev.uem.em.ui
 
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -91,7 +92,6 @@ fun WatchScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                Text("Match centre", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Muted("Watch any match live: both coaches draft (shown step by step), then every game plays on the 2D map. The result counts — it is the same simulation as when you do not watch.", 12)
             }
         }
@@ -146,11 +146,16 @@ fun SpectatorHome(vm: GameVm, w: World) {
     val today = w.fixtures.filter { !it.done && it.day <= w.day + 1 && it.a >= 0 && it.b >= 0 }.sortedByDescending { weight(w, it) }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            Column(Modifier.padding(16.dp)) {
-                Text("Spectator", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                Muted("Season ${w.season} · ${Dates.format(w.day)} · following ${followed.size} team(s)")
+            Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconBadge(androidx.compose.material.icons.Icons.Rounded.PlayArrow, Ui.accent, 48.dp)
+                HGap(12)
+                Column {
+                    Text("Spectator", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Muted("Season ${w.season} · ${Dates.format(w.day)} · following ${followed.size} team(s)")
+                }
             }
         }
+        item { QuickActions(vm, w, spectator = true) }
         item {
             Tiles(listOf(
                 Tile("Matches today & tomorrow", "${today.size}", "watch any of them live"),
@@ -160,7 +165,7 @@ fun SpectatorHome(vm: GameVm, w: World) {
         }
         item { ResumeLiveCard(vm, w) }
         if (today.isNotEmpty()) item {
-            Card("Watch now", right = { TextButton(onClick = { vm.go(Screen.Watch) }) { Text("Match centre ›", color = Ui.accent) } }) {
+            Card("Watch now", right = { CardLink("Match centre") { vm.go(Screen.Watch) } }) {
                 for (f in today.take(6)) Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Match(f.id)) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     TitleTag(f.titleId)
                     Column(Modifier.weight(1f)) {

@@ -1,5 +1,7 @@
 package dev.uem.em.ui
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -51,7 +53,7 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
     val staffPay = staff.sumOf { it.salary }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(if (w.isUserTeam(id)) Ui.heroGold else Ui.hero).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 TeamPic(team, 60.dp)
                 HGap(12)
                 Column(Modifier.weight(1f)) {

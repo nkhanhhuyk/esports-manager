@@ -170,5 +170,5 @@ New world lists: `invites`, `mentorships`, `devPlans`, `preps`; new competition 
   series on a day, 154 circuit events a season, new lists bounded (preparation plans ≤ 2,829, ended
   mentorships pruned, invitations ≤ 578). Per season on the test machine: 43 s in 2027 rising to 83 s
   in 2046; save 9.0 MB → 51 MB; heap 0.2–1.0 GB.
-- Honor of Kings: winners still die about as often as losers, so KDA follows results only weakly there
-  (`KdaTest` reports it; not asserted).
+- Honor of Kings: winners died about as often as losers (fixed in the twelfth follow-up of
+  `UPGRADE_REPORT.md`: winners now die about 15% less; `FightOutcomeTest` checks every MOBA).

@@ -58,7 +58,6 @@ fun SocialScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                Text("Social media", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Muted("What fans, analysts, the press and team accounts are saying about the last ten days and the matches coming up. Fictional networks and fans; it changes with every result, transfer and patch.", 11)
             }
         }
