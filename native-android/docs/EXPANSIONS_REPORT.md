@@ -158,3 +158,17 @@ New world lists: `invites`, `mentorships`, `devPlans`, `preps`; new competition 
   five, with every season's editions finished, one ledger entry per entrant, no contract on two
   rosters, no player in two series on a day, circuits running and the new lists bounded. Results are in
   the reply for this phase and `build/soak.txt` when run.
+
+### Results of the last full run (24 Nov 2026)
+
+- `./gradlew assembleDebug testDebugUnitTest` with `UEM_SOAK=20`: 73 tests, 72 passed and 1 failed
+  (MgmtTest: an amateur club one player short on the day a player left it for a professional team).
+  Fixed — clubs refill the next day; MgmtTest checks professional rosters — and MgmtTest, MigrationTest
+  and SaveTest re-run and pass.
+- 20-season soak (2027–2046, saved and reloaded every five seasons, managed career on autopilot): every
+  season's editions finished, one ledger entry per entrant, no contract on two rosters, no player in two
+  series on a day, 154 circuit events a season, new lists bounded (preparation plans ≤ 2,829, ended
+  mentorships pruned, invitations ≤ 578). Per season on the test machine: 43 s in 2027 rising to 83 s
+  in 2046; save 9.0 MB → 51 MB; heap 0.2–1.0 GB.
+- Honor of Kings: winners still die about as often as losers, so KDA follows results only weakly there
+  (`KdaTest` reports it; not asserted).

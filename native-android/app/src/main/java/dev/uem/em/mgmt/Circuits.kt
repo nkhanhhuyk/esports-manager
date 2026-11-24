@@ -230,7 +230,8 @@ object Circuits {
                 team.lineup = Lineups.auto(w, team); dirty = true
             }
         }
-        if (!dirty && Dates.dow(w.day) != 1) return
+        // Clubs left short (a player signed by a professional team, graduated, too old) refill the next day.
+        if (!dirty && Dates.dow(w.day) != 1 && w.teams.none { it.active && it.kind.isNotEmpty() && it.roster.size < Catalogue.get(it.titleId).teamSize }) return
         val rng = Rng.derive(w.seed, "circuit-fill", w.day)
         val ctx = GenCtx(w, rng)
         for (team in w.teams) if (team.active && team.kind.isNotEmpty() && team.roster.size < Catalogue.get(team.titleId).teamSize) {
