@@ -67,6 +67,8 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
                         if (team.real) "real team" else null,
                     ).joinToString(" · "), 12)
                     if (team.dataNote.isNotBlank()) Text(team.dataNote, color = if (team.dataNote.startsWith("Fictional") || team.dataNote.contains("historical") || team.dataNote.startsWith("Academy")) Ui.gold else Ui.muted, fontSize = 11.sp)
+                    if (team.kind.isEmpty() && team.nationalOf.isEmpty()) Muted("Organisation strategy: ${dev.uem.em.mgmt.Ambitions.STRATEGY_LABEL[dev.uem.em.mgmt.Ambitions.strategy(w, team)]}", 11)
+                    if (dev.uem.em.mgmt.Ambitions.rebuilding(w, team)) Text("Rebuilding the roster: ${team.rebuildNote}", color = Ui.loss, fontSize = 11.sp)
                     dev.uem.em.mgmt.Academies.parent(w, team)?.let { par -> Row(verticalAlignment = Alignment.CenterVertically) { Muted("Academy of ", 12); TeamChip(w, par.id, vm, 16.dp) } }
                     dev.uem.em.mgmt.Academies.of(w, team)?.let { ac -> Row(verticalAlignment = Alignment.CenterVertically) { Muted("Academy: ", 12); TeamChip(w, ac.id, vm, 16.dp) } }
                 }

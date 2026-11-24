@@ -67,3 +67,29 @@ Characters: 724 champions / heroes / agents from game data sources (Riot Data Dr
 - Still estimated (shown as such on player pages): other current MLBB players' nationalities (taken
   from the league's country, so Filipino imports in MPL ID can show as Indonesian) and all MLBB
   birth dates — no open source the project may use lists them.
+
+## Competition rules (five expansions, 22 Nov 2026)
+
+Each competition edition records the ruleset it was planned with (`Competition.rules`), shown on its
+Entrants tab and on the Road screen with what is official and what is the game's:
+
+- **League of Legends 2026** — official in part, from the LoL Esports 2026 handbook
+  (https://lolesports.com/en-SG/season/115547545029543948/handbook): First Stand takes each region's
+  Split 1 winner plus the LCK and LPL runners-up; MSI takes CBLOL's top team and the top two of every
+  other region; the MSI winner qualifies directly for Worlds and the runner-up's region gets an extra
+  seed. Worlds slots per region and split formats are the game's. Later seasons: the same rules,
+  labelled as a fictional continuation.
+- **VALORANT 2027** — official announcement (Riot, 8 Apr 2026,
+  https://valorantesports.com/en-US/news/the-new-valorant-champions-tour): open qualifiers feed two
+  Cups per territory that replace league play; Kickoff, Masters Seoul, Masters Valencia, Champions
+  Austin; Champions = top two per territory on points plus Cup 2's top two; partner teams seeded into
+  later qualifier rounds with no automatic international place. Masters slot counts are the game's.
+  2026 keeps a fictional split-league preset; 2029 onwards is a labelled fictional continuation.
+- **Counter-Strike 2** — method from Valve's published Regional Standings
+  (https://github.com/ValveSoftware/counter-strike_regional_standings): standings invite teams to the
+  later stages, everyone else plays open qualifiers. The standings formula is the game's approximation.
+- **Dota 2, MLBB, Honor of Kings, Wild Rift** — fictional presets modelled on public structures;
+  no official rulebook was used.
+- **Development circuits** (amateur, university, Game Changers clubs and events) are fictional.
+
+No Liquipedia or Fandom pages were requested for this phase; no roster or player data was changed.

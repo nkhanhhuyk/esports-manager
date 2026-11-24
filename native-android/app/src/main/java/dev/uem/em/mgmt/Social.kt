@@ -176,6 +176,11 @@ object Social {
         val moba = t.isMoba
         val board = "a/${t.short.lowercase().filter { it.isLetterOrDigit() }}"
 
+        // What this series offers to talk about (stat lines, characters, game lengths, map scores, storylines).
+        val talk = SocialTalk.ctx(w, t, f, win, lose, rng)
+        val facts = SocialTalk.facts(talk)
+        fun talkAbout(fs: List<SocialTalk.Fact>, n: Int, wgt: Double) = SocialTalk.comments(talk, fs, n, { tm -> fan(rng, t, tm) }, { rng.pick(ANALYSTS) }, { rng.pick(MEMES) }) { x -> engagement(w, rng, wgt * x * imp, win, lose) }
+
         // Agora: the post-match thread.
         val cm = ArrayList<Comment>()
         fun cmt(a: Author, text: String, weight: Double, replies: List<Comment> = emptyList()) = Comment(a, text, (engagement(w, rng, 0.08 * weight * imp, win, lose)), replies)
@@ -206,9 +211,11 @@ object Social {
         if (loserStar != null && loserStar.value[0] > 1.1) cm.add(cmt(fan(rng, t, lose), "Credit to ${handle(w, loserStar.key)} (${kda(loserStar.value)}), carried as hard as anyone could in a loss.", 1.0))
         cm.add(cmt(rng.pick(MEMES), if (moba) rng.pick(listOf("${lose.short} objective calls continue to be a comedy show 💀", "Me watching ${lose.short} fight 4v5 for the third time today: 🍿",
             "Patch notes: ${win.short} buffed, ${lose.short} nerfed.")) else rng.pick(listOf("${lose.short} eco rounds again 💀", "${lose.short} saving 4 rifles to lose them all next round 🍿", "Somebody tell ${lose.short} the bomb has to be planted to count.")), 0.9))
-        out.add(Post("pm${f.id}", AGORA, f.day, base + 0.9, fan(rng, t, null), "[Post-Match] ${win.short} $score ${lose.short} | $stage",
-            "${win.name} beat ${lose.name} $score.${if (mvpName != null) " Series MVP: $mvpName$mvpStats." else ""}${if (upset) " Upset of the week." else ""}", "reaction", t.id,
-            listOf(win.id, lose.id), listOfNotNull(mvp.takeIf { it >= 0 }), engagement(w, rng, 1.0 * imp, win, lose), 0, IntArray(6), cm, place = board))
+        // With the series' own facts the thread talks about this series; the generic lines are kept only when there is little to go on.
+        val pmt = if (facts.size >= 4) talkAbout(facts, 9 + rng.int(0, 5), 0.08) else cm
+        out.add(Post("pm${f.id}", AGORA, f.day, base + 0.9, fan(rng, t, null), "[PMT] ${win.short} $score ${lose.short} | $stage",
+            (if (talk.games.isNotEmpty()) SocialTalk.pmtBody(talk, mvp) else "${win.name} beat ${lose.name} $score.${if (mvpName != null) " Series MVP: $mvpName$mvpStats." else ""}") + (if (upset) "\nUpset of the week." else ""), "reaction", t.id,
+            listOf(win.id, lose.id), listOfNotNull(mvp.takeIf { it >= 0 }), engagement(w, rng, 1.0 * imp, win, lose), 0, IntArray(6), pmt, place = board))
 
         // Agora: player ratings.
         if (ln.isNotEmpty() && imp >= 2.5) {
@@ -229,7 +236,7 @@ object Social {
         out.add(Post("cl${f.id}", CHIRP, f.day, base + 0.5, teamAccount(lose), null,
             rng.pick(listOf("Not our day. GG ${win.short}, we'll be back stronger.", "Tough $sl–$sw loss to ${win.short}. Heads up, back to work.", "GG ${win.short}. Thank you for the support today.")),
             "news", t.id, listOf(lose.id, win.id), emptyList(), engagement(w, rng, 0.6 * imp, lose), engagement(w, rng, 0.08 * imp, lose), IntArray(6),
-            listOf(Comment(fan(rng, t, lose), rng.pick(listOf("We believe 🙏", "Changes needed. Now.", "Same message every week...")), engagement(w, rng, 0.05 * imp, lose)))))
+            talkAbout(facts.filter { it.about == -1 }, 2, 0.05).ifEmpty { listOf(Comment(fan(rng, t, lose), rng.pick(listOf("We believe 🙏", "Changes needed. Now.", "Same message every week...")), engagement(w, rng, 0.05 * imp, lose))) }))
         if (mvpName != null && imp >= 2.0) out.add(Post("ca${f.id}", CHIRP, f.day, base + 0.6, rng.pick(ANALYSTS), null,
             "$mvpName in ${win.short} $score ${lose.short}: ${ln[mvp]?.let { kda(it) } ?: ""} K/D/A, ${ln[mvp]?.let { "%.2f".format(it[0]) } ?: ""} average rating. " +
                 rng.pick(listOf("Best performance of the week so far.", "That's how you close out a series.", "Numbers don't lie.")),
@@ -247,8 +254,7 @@ object Social {
         if (imp >= 1.8) {
             out.add(Post("lw${f.id}", LENS, f.day, base + 0.7, teamAccount(win), null, rng.pick(listOf("$score. On to the next one.", "WIN 🏆 $score vs ${lose.short}", "That feeling. $score.")),
                 "news", t.id, listOf(win.id, lose.id), emptyList(), engagement(w, rng, 2.0 * imp, win), 0, IntArray(6),
-                listOf(Comment(fan(rng, t, win), rng.pick(listOf("LETS GOOOO", "Proud of this team 💙", "${mvpName ?: win.short} 🐐")), engagement(w, rng, 0.08 * imp, win)),
-                    Comment(fan(rng, t, lose), rng.pick(listOf("Enjoy it while it lasts.", "Rematch in playoffs, see you there.")), engagement(w, rng, 0.03 * imp, lose))),
+                talkAbout(facts.filter { it.about == 1 && it.good }, 2, 0.08) + listOf(Comment(fan(rng, t, lose), rng.pick(listOf("Enjoy it while it lasts.", "Rematch in playoffs, see you there.", "Wait until ${lose.short} get their lineup sorted.", "Lucky draft, that's all.")), engagement(w, rng, 0.03 * imp, lose))),
                 image = Image("score", win.id, lose.id, caption = score)))
             if (mvp >= 0) out.add(Post("lm${f.id}", LENS, f.day, base + 0.3, Author("${win.short} Fanclub", "${win.short.lowercase().filter { it.isLetterOrDigit() }}.fanclub", "fan", win.id), null,
                 "$mvpName tonight$mvpStats. Frame it.", "appreciation", t.id, listOf(win.id), listOf(mvp), engagement(w, rng, 1.0 * imp, win), 0, IntArray(6),
@@ -260,14 +266,14 @@ object Social {
         out.add(Post("fw${f.id}", FANBASE, f.day, base + 0.6, fan(rng, t, win), null,
             rng.pick(listOf("WE WON 🎉 $score against ${lose.short}! Who else was screaming at the screen?", "What a night to be a ${win.short} fan. $score!", "Never doubted them for a second (I doubted them several times).")),
             "reaction", t.id, listOf(win.id), emptyList(), 0, 0, reactions(rng, joyTotal, "joy"),
-            listOf(Comment(fan(rng, t, win), rng.pick(listOf("Best team in the league, don't @ me", "${mvpName ?: "Everyone"} deserves a statue", "Group chat is going crazy")), engagement(w, rng, 0.06 * imp, win))),
+            talkAbout(facts.filter { it.about >= 0 }, 3, 0.06).ifEmpty { listOf(Comment(fan(rng, t, win), rng.pick(listOf("Best team in the league, don't @ me", "${mvpName ?: "Everyone"} deserves a statue", "Group chat is going crazy")), engagement(w, rng, 0.06 * imp, win))) },
             place = "${win.name} Fans"))
         val sad = engagement(w, rng, 0.8 * imp, lose)
         out.add(Post("fl${f.id}", FANBASE, f.day, base + 0.2, fan(rng, t, lose), null,
             rng.pick(listOf("$sl–$sw. I don't even know what to say anymore.", "Another loss. Let's stay together, it's a long season.", "Who's to blame for today? Honest answers only.")),
             if (rng.chance(0.5)) "criticism" else "reaction", t.id, listOf(lose.id), emptyList(), 0, 0, reactions(rng, sad, if (rng.chance(0.5)) "sad" else "angry"),
-            listOf(Comment(fan(rng, t, lose), rng.pick(listOf("The coaching staff, every time.", "Still my team. Always.", "${flop?.let { handle(w, it.key) } ?: "The draft"}, sorry not sorry.")), engagement(w, rng, 0.05 * imp, lose),
-                listOf(Comment(fan(rng, t, lose), "Blaming one person is easy. It's the whole team.", engagement(w, rng, 0.02 * imp, lose))))),
+            talkAbout(facts.filter { it.about <= 0 }, 3, 0.05).ifEmpty { listOf(Comment(fan(rng, t, lose), rng.pick(listOf("The coaching staff, every time.", "Still my team. Always.", "${flop?.let { handle(w, it.key) } ?: "The draft"}, sorry not sorry.")), engagement(w, rng, 0.05 * imp, lose),
+                listOf(Comment(fan(rng, t, lose), "Blaming one person is easy. It's the whole team.", engagement(w, rng, 0.02 * imp, lose))))) },
             place = "${lose.name} Fans"))
     }
 
@@ -317,17 +323,16 @@ object Social {
             val fee = if (tr.fee > 0) " for ${dev.uem.em.core.formatMoney(tr.fee)}" else if (from == null) " as a free agent" else ""
             val big = p.ca >= 75
             val imp = (if (big) 3.0 else 1.6) * (1 + sqrt(fansOf(w, to) / 2e6))
+            val tf = SocialTalk.transferFacts(w, t, p, to, from, tr.fee)
+            fun talkT(n: Int, wgt: Double) = SocialTalk.comments(rng, to, from ?: to, tf, n, { tm -> fan(rng, t, tm) }, { rng.pick(ANALYSTS) }, { rng.pick(MEMES) }) { x -> engagement(w, rng, wgt * x * imp, to) }
             out.add(Post("tw${tr.day}-${tr.playerId}", CHIRP, tr.day, tr.day * 10.0 + imp, rng.pick(PRESS), null,
                 "${if (big) "BREAKING: " else ""}${p.handle} joins ${to.name}${from?.let { " from ${it.name}" } ?: ""}$fee.", "news", t.id, listOfNotNull(to.id, from?.id), listOf(p.id),
                 engagement(w, rng, 0.8 * imp, to), engagement(w, rng, 0.2 * imp, to), IntArray(6),
-                listOf(Comment(fan(rng, t, to), rng.pick(listOf("HUGE pickup.", "Welcome home ${p.handle} 💙", "Didn't see that coming.")), engagement(w, rng, 0.05 * imp, to)),
-                    Comment(fan(rng, t, null), rng.pick(listOf("Overpaid. Calling it now.", "Good player, wrong team.", "This only works if the rest of the roster steps up.")), engagement(w, rng, 0.03 * imp, to)))))
+                talkT(2, 0.05).ifEmpty { listOf(Comment(fan(rng, t, to), rng.pick(listOf("HUGE pickup.", "Didn't see that coming.")), engagement(w, rng, 0.05 * imp, to))) }))
             out.add(Post("ta${tr.day}-${tr.playerId}", AGORA, tr.day, tr.day * 10.0 + imp - 0.1, fan(rng, t, null), "[Transfer] ${p.handle} → ${to.short}${from?.let { " (from ${it.short})" } ?: ""}",
                 "${role(w, t, p.id)}. ${if (big) "One of the biggest moves of the window." else "Thoughts?"}", "debate", t.id, listOfNotNull(to.id, from?.id), listOf(p.id),
                 engagement(w, rng, 0.5 * imp, to), 0, IntArray(6),
-                listOf(Comment(fan(rng, t, to), rng.pick(listOf("Exactly what ${to.short} needed.", "This makes ${to.short} title contenders.")), engagement(w, rng, 0.05 * imp, to),
-                    listOf(Comment(fan(rng, t, null), "Title contenders is a stretch. Top four maybe.", engagement(w, rng, 0.03 * imp, to)))),
-                    Comment(fan(rng, t, from ?: to), if (from != null) rng.pick(listOf("Sad to see ${p.handle} leave ${from.short}. Thanks for everything.", "${from.short} will regret this.")) else "Free agent pickups like this win splits.", engagement(w, rng, 0.03 * imp, to))),
+                talkT(4 + rng.int(0, 3), 0.05).ifEmpty { listOf(Comment(fan(rng, t, to), "Exactly what ${to.short} needed.", engagement(w, rng, 0.05 * imp, to))) },
                 place = "a/${t.short.lowercase().filter { it.isLetterOrDigit() }}"))
             if (big || w.isUserTeam(to.id)) out.add(Post("tl${tr.day}-${tr.playerId}", LENS, tr.day, tr.day * 10.0 + imp - 0.2, teamAccount(to), null, "Welcome to the family, ${p.handle}. ✍️",
                 "news", t.id, listOfNotNull(to.id, from?.id), listOf(p.id), engagement(w, rng, 1.6 * imp, to), 0, IntArray(6),

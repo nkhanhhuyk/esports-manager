@@ -83,7 +83,8 @@ class ShooterRound(
     val def = 1 - attack
 
     inner class U(val side: Int, val i: Int, val pc: PlayerCtx) {
-        val gi = side * 5 + i
+        // Index in [units] (side 0 first), also for a side with fewer than five players.
+        val gi = if (side == 0) i else teams[0].players.size + i
         var x = 0f; var y = 0f
         var node = 0
         var path: List<Int> = emptyList(); var pathIdx = 0

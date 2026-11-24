@@ -110,6 +110,8 @@ object Advance {
                 BoxStore.pageOut(w)
                 dev.uem.em.mgmt.Development.weekly(w)
                 dev.uem.em.mgmt.Mentoring.weekly(w)
+                dev.uem.em.mgmt.Ambitions.ensure(w)
+                dev.uem.em.mgmt.Ambitions.weekly(w)
                 dev.uem.em.mgmt.Extras.weeklyBreaks(w)
                 dev.uem.em.mgmt.Extras.weeklyScouting(w)
                 dev.uem.em.mgmt.Deals.weeklyScrims(w)
@@ -171,9 +173,17 @@ object Advance {
         for (i in out.indices) {
             if (out[i] !in busy) continue
             val role = t.lineupRoles.getOrNull(i) ?: continue
-            out[i] = team.roster.filter { it !in busy && it !in out && Lineups.available(w, w.players[it]) }.maxByOrNull { dev.uem.em.sim.Ratings.effectiveness(w.players[it], t, role) } ?: -1
+            out[i] = team.roster.filter { it !in busy && it !in out && Lineups.available(w, w.players[it]) }.maxByOrNull { dev.uem.em.sim.Ratings.effectiveness(w.players[it], t, role) }
+                ?: standIn(w, team, role, busy, out) ?: -1
         }
         return out
+    }
+
+    /** No free roster player: the best available unsigned player of the game stands in for the day. */
+    private fun standIn(w: World, team: dev.uem.em.model.Team, role: dev.uem.em.titles.RoleDef, busy: Set<Int>, taken: List<Int>): Int? {
+        val t = Catalogue.get(team.titleId)
+        val pool = w.players.filter { it.titleId == team.titleId && it.teamId < 0 && !it.retired && it.id !in busy && it.id !in taken && Lineups.available(w, it) }
+        return pool.maxByOrNull { dev.uem.em.sim.Ratings.effectiveness(it, t, role) }?.id
     }
 
     /** Apply one series: fixture result, player and competition stats, learning, Elo, competition progress. */
@@ -271,6 +281,9 @@ object Advance {
         dev.uem.em.mgmt.Career.awards(w)
         dev.uem.em.mgmt.Extras.seasonReview(w)
         dev.uem.em.mgmt.Career.seasonEnd(w)
+        // Expensive rosters that failed may be blown up (by each organisation's strategy).
+        dev.uem.em.mgmt.Ambitions.ensure(w)
+        dev.uem.em.mgmt.Ambitions.seasonReview(w, rng)
         for (p in w.players) if (!p.retired) p.caHistory.add(p.ca.toFloat())
         BoxStore.pruneReplays(w, w.day - 700)
         w.season++

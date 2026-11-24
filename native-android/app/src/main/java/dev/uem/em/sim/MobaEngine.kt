@@ -33,14 +33,15 @@ object MobaEngine {
      * positions (EXP / Clash laners died least, MLBB junglers and Dota mids most).
      */
     val DEATH_CAL = mapOf(
-        "mlbb" to floatArrayOf(1.16f, 0.86f, 0.98f, 0.98f, 1.10f),
-        "hok" to floatArrayOf(1.18f, 0.95f, 0.98f, 0.93f, 0.98f),
-        "lol" to floatArrayOf(1.02f, 1.03f, 0.97f, 1.0f, 0.95f),
-        "wildrift" to floatArrayOf(1.06f, 0.98f, 0.97f, 1.02f, 0.96f),
-        "dota2" to floatArrayOf(1.04f, 0.9f, 0.9f, 1.0f, 1.0f),
+        // Pro seasons: carries (bot lane, mid) die least, supports most, top and jungle in between.
+        "mlbb" to floatArrayOf(1.16f, 0.9f, 0.88f, 0.76f, 1.1f),
+        "hok" to floatArrayOf(1.18f, 0.97f, 0.88f, 0.74f, 1.0f),
+        "lol" to floatArrayOf(1.04f, 1.05f, 0.86f, 0.76f, 0.98f),
+        "wildrift" to floatArrayOf(1.06f, 1.0f, 0.86f, 0.78f, 0.98f),
+        "dota2" to floatArrayOf(0.88f, 0.86f, 0.96f, 1.04f, 1.08f),
     )
     /** How strongly teams hand kills to their carry, per title (tuning). */
-    val CREDIT = mapOf("lol" to 1.7f, "wildrift" to 1.0f, "mlbb" to 2.1f, "hok" to 1.15f, "dota2" to 3.4f)
+    val CREDIT = mapOf("lol" to 2.5f, "wildrift" to 1.8f, "mlbb" to 2.4f, "hok" to 1.9f, "dota2" to 3.4f)
     /** MLBB and Honor of Kings have no wards (vision comes from heroes, towers and bushes). */
     fun hasWards(titleId: String) = titleId != "mlbb" && titleId != "hok"
     /** Tuning counters (tests only): ganks per lane 0..2, hunts per lane 3..5. */
@@ -81,7 +82,7 @@ object MobaEngine {
     val RULES = mapOf(
         "mlbb" to Rules(27f, 25, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 70, intArrayOf(4, 8, 12), true, false, 1f, 1.0, 1.35, 1f, 0.05f, lateCaution = 0.22f, backGuard = 0.86f, soloStance = -0.06f, topGroup = 2),
         "wildrift" to Rules(26f, 30, 5, 5, 15, 17.0, 80f, 2900f, 4400f, 270f, 90, intArrayOf(5, 9, 13), true, false, 1f, 1.0, 1.35, 1f, 0.05f, lateCaution = 0.22f, backGuard = 0.86f, soloStance = -0.06f, topGroup = 2),
-        "hok" to Rules(27f, 30, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 75, intArrayOf(4, 8, 12), true, false, 1f, 1.1, 1.55, 1f, 0.12f, lateCaution = 0.12f, backGuard = 0.9f, peel = 0.3f, soloStance = -0.06f, topGroup = 2),
+        "hok" to Rules(27f, 30, 4, 6, 15, 16.0, 85f, 2600f, 4200f, 260f, 75, intArrayOf(4, 8, 12), true, false, 1f, 1.1, 1.35, 1f, 0.12f, lateCaution = 0.12f, backGuard = 0.9f, peel = 0.3f, soloStance = -0.06f, topGroup = 2),
         "lol" to Rules(22f, 65, 6, 8, 18, 34.0, 80f, 4200f, 5400f, 300f, 120, intArrayOf(6, 11, 16), true, false, 1f, 0.7, 1.7, 1f, 0.55f),
         "dota2" to Rules(20f, 0, 4, 0, 30, 50.0, 100f, 4400f, 6000f, 290f, 60, intArrayOf(6, 12, 18), false, true, 1f, 1.4, 1.15, 2.3f, lateCaution = 0.15f, backGuard = 0.9f),
     )
@@ -658,6 +659,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         for (h in bySide[ks]) if (h !== killer && v.dmgBy[h.gi] >= now - 10) { assisters.add(h); mask = mask or (1 shl h.idx) }
         // Healers / shielders of the killer's team near the fight assist too.
         for (h in bySide[ks]) if (h !== killer && h !in assisters && h.alive(now) && h.supportCls && hypot(h.x - v.x, h.y - v.y) < 70f && h.lastCombat >= now - 6) { assisters.add(h); mask = mask or (1 shl h.idx) }
+        // As the games count it, everyone fighting there takes part in the kill (crowd control, buffs, zoning).
+        for (h in bySide[ks]) if (h !== killer && h !in assisters && h.alive(now) && h.lastCombat >= now - (if (h.supportCls) 9 else 6) && hypot(h.x - v.x, h.y - v.y) < (if (h.supportCls) 125f else 95f)) { assisters.add(h); mask = mask or (1 shl h.idx) }
         // Teams let their carry take the last hit when it helped (the patch's role meta says who the carry is).
         val k0 = killer
         if (k0 != null) {
@@ -885,7 +888,9 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             tick++
             nowF = now.toFloat()
             sideBuff[0] = computeBuff(0); sideBuff[1] = computeBuff(1)
-            if (now % 60 < DT) for (sd in 0..1) teamForm[sd] = (1.0 + rng.normal(0.0, 0.09) * (1.2 - (teams[sd].phase[Phase.CLUTCH.ordinal] - 60) / 100)).toFloat().coerceIn(0.8f, 1.2f)
+            // Momentum: a team's sharpness carries over from minute to minute (a team in form wins its fights
+            // and the game), instead of being drawn afresh every minute.
+            if (now % 60 < DT) for (sd in 0..1) teamForm[sd] = (1.0 + 0.75 * (teamForm[sd] - 1.0) + rng.normal(0.0, 0.045) * (1.2 - (teams[sd].phase[Phase.CLUTCH.ordinal] - 60) / 100)).toFloat().coerceIn(0.8f, 1.2f)
             for (sd in 0..1) { avgLevel[sd] = bySide[sd].sumOf { it.level }.toDouble() / max(1, bySide[sd].size); var gsum = 0f; for (h in bySide[sd]) gsum += h.earned; teamGold[sd] = gsum }
             for (h in heroes) h.refresh()
             // Caught alone: a hero with no ally near him who is being hit by two or more enemies.
@@ -1591,8 +1596,10 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
                 laneXY(h.laneMap, (f + back).coerceIn(0.02f, 0.98f), tmp)
                 h.task = 0; h.targetX = tmp[0]; h.targetY = tmp[1]
                 // After laning: roam to mid / farm the side lane. The top / EXP laner splits its time:
-                // side-lane farming, then a spell with the team (and its fights) in the middle.
-                if (!laning && !h.marksman && (h.lane != 0 || (now / 40 + h.gi) % 5 < R.topGroup)) {
+                // side-lane farming, then a spell with the team (and its fights) in the middle; the carry
+                // groups with the team most of the time too (pro carries take part in most fights) and farms
+                // the side wave in between.
+                if (!laning && (h.lane != 0 || (now / 40 + h.gi) % 5 < R.topGroup) && (!h.marksman || (now / 40 + h.gi) % 5 < 4)) {
                     laneXY("mid", (laneFront(1, side) + back).coerceIn(0.05f, 0.95f), tmp); h.targetX = tmp[0]; h.targetY = tmp[1]
                 }
             }

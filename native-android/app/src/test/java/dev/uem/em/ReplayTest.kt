@@ -39,7 +39,15 @@ class ReplayTest {
         Supporters.lineupFor(w, w.comps[f.compId], w.teams[f.b], Lineups.ensure(w, w.teams[f.b]).toList()),
     )
 
-    private fun next(w: World, title: String) = w.fixtures.first { !it.done && it.titleId == title && it.a >= 0 && it.b >= 0 && it.day <= w.day + 6 }
+    /** The next series of a game within a week (the calendar moves on until there is one). */
+    private fun next(w: World, title: String, pred: (Fixture) -> Boolean = { true }): Fixture {
+        var guard = 0
+        while (guard++ < 120) {
+            w.fixtures.firstOrNull { !it.done && it.titleId == title && it.a >= 0 && it.b >= 0 && it.day <= w.day + 6 && pred(it) }?.let { return it }
+            Advance.run(w, 1)
+        }
+        error("no $title series in 120 days")
+    }
 
     private fun signature(o: SeriesOutcome) = o.wins.joinToString("-") + "|" + o.record.games.joinToString(";") { g ->
         "${g.winner},${g.duration},${g.mapId},${g.score.joinToString("/")}," + g.lines.joinToString(",") { l -> "${l.playerId}:${l.charId}:${l.rating}:${l.s.joinToString("/")}" }
@@ -50,6 +58,8 @@ class ReplayTest {
         val w = world()
         for (title in listOf("lol", "mlbb", "dota2", "valorant", "cs2")) {
             val f = next(w, title)
+            // Both sides' preparation is locked when the match starts, as the calendar and the live screen do.
+            dev.uem.em.mgmt.Prep.lock(w, f)
             val lu = lineups(w, f)
             val plain = SeriesSim.run(w, f, lu)
             val recorded = SeriesSim.run(w, f, lu, record = true)
@@ -140,7 +150,8 @@ class ReplayTest {
     fun interruptedLiveSeriesResumesToTheSameResult() {
         val w = world()
         for (title in listOf("lol", "valorant")) {
-            val f = w.fixtures.first { !it.done && it.titleId == title && it.a >= 0 && it.b >= 0 && it.bestOf >= 3 }
+            val f = next(w, title) { it.bestOf >= 3 }
+            dev.uem.em.mgmt.Prep.lock(w, f)
             val lu = lineups(w, f)
             val whole = SeriesSim.run(w, f, lu)
             // Watch the first game live, then "close the app": only World.live survives.

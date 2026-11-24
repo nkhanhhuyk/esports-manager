@@ -114,6 +114,8 @@ object Ecosystem {
 
     /** Each day: ranking invitations go out before their events; AI teams answer; unanswered ones of the user lapse into acceptance. */
     fun daily(w: World) {
+        // Answered invitations of long-finished events are dropped (each event's ledger keeps who entered and why).
+        if (w.invites.size > 600) w.invites.removeAll { it.status != "pending" && it.day < w.day - 400 }
         for (c in w.comps) {
             if (c.status != 0 || c.season < w.season - 1) continue
             for (rule in c.entrants) if (rule.startsWith("invite:") && w.day >= c.startDay - INVITE_LEAD && w.invites.none { it.compId == c.id && it.route == rule }) issue(w, c, rule)

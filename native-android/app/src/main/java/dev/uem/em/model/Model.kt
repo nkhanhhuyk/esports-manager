@@ -211,6 +211,10 @@ class Player(
     var enrolled: String = "",
     /** Specialized circuits the player is registered as eligible for ("gc": VALORANT Game Changers; fictional players only). */
     var circuits: String = "",
+    /** What the player wants from a team, weights summing to 100 in [dev.uem.em.mgmt.Ambitions.KEYS] order (empty: not set yet). */
+    @ProtoPacked var ambitions: IntArray = IntArray(0),
+    /** Day the player asked to leave (0: settled). */
+    var wantsOutDay: Int = 0,
 ) {
     val retired get() = retiredSeason != 0
     /** Every nationality (the first is the main one). */
@@ -277,6 +281,10 @@ class Team(
     var scrimPatch: Int = -1,
     /** "" professional / academy / national; "amateur" (community club), "collegiate" (university team), "gc" (VALORANT Game Changers). */
     var kind: String = "",
+    /** A roster being rebuilt ("blown up") until this day: the club sells, releases and signs more than usual. */
+    var rebuildUntil: Int = 0,
+    /** Why the last rebuild began (for news and the team page). */
+    var rebuildNote: String = "",
 )
 
 /** One scrim block against a partner: games won and lost, and (for teams you follow) the picks of every game. */
@@ -316,6 +324,8 @@ class Org(
     var streamPolicy: Int = 1,
     /** Merchandise range: 0 basic, 1 standard, 2 premium, 3 global (costs to run, sells more). */
     var merchLevel: Int = 1,
+    /** How the organisation builds teams (see [dev.uem.em.mgmt.Ambitions.STRATEGIES]); blank until set. */
+    var strategy: String = "",
 )
 
 @Serializable

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -105,4 +106,32 @@ fun TeamDevelopment(vm: GameVm, w: World, team: Team) {
     }
     val gaps = Mentoring.opportunityGaps(w, team)
     if (gaps.isNotEmpty()) Card("Opportunity gaps") { for (g in gaps) Text("⚠ $g", color = Ui.gold, fontSize = 11.sp) }
+}
+
+/** On a player's page: what he wants from a team (weights), and how his club measures up. */
+@Composable
+fun AmbitionsCard(w: World, p: Player, knowledge: Int) {
+    val mine = p.teamId >= 0 && w.isUserTeam(p.teamId)
+    Card("Ambitions") {
+        if (!mine && knowledge < 40) { Muted("Unknown: scout this player to learn what they want from a team.", 11); return@Card }
+        for ((key, pct) in dev.uem.em.mgmt.Ambitions.ranked(w, p)) {
+            if (pct < 3) continue
+            Row(Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(dev.uem.em.mgmt.Ambitions.LABEL[key] ?: key, color = Ui.text, fontSize = 12.sp, modifier = Modifier.width(110.dp))
+                Bar(pct.toDouble(), 60.0, modifier = Modifier.weight(1f))
+                Text(" $pct%", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(40.dp))
+            }
+        }
+        val m = dev.uem.em.mgmt.Ambitions.mood(w, p)
+        if (m != null) {
+            val (good, bad) = dev.uem.em.mgmt.Ambitions.reasons(w, p)
+            Gap(4)
+            KV("Fit at the club", "%.0f / 100".format(m.total), if (m.total >= 55) Ui.win else if (m.total < 40) Ui.loss else Ui.text)
+            if (good.isNotEmpty()) Muted("Happy with: ${good.joinToString(", ").lowercase()}", 11)
+            if (bad.isNotEmpty()) Muted("Unhappy with: ${bad.joinToString(", ").lowercase()}", 11)
+            if (p.wantsOutDay > 0) Text("Has asked to leave (${Dates.short(p.wantsOutDay)})", color = Ui.loss, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            else if (p.unhappy >= 35) Muted("Growing unhappy (%.0f): may ask to leave.".format(p.unhappy), 11)
+        }
+        Muted("The weights decide the asking salary, whether the player renews, and which team is chosen when several are interested.", 10)
+    }
 }

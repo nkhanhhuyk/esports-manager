@@ -98,7 +98,7 @@ object Mentoring {
         val g = goal(goalId)
         val why = cannot(w, mentee, if (staff) null else w.players[mentorId], if (staff) w.staff[mentorId] else null, g)
         if (why != null) return why
-        val m = Mentorship(w.mentorships.size, mentorId, staff, mentee.id, g.id, w.day, w.day + WEEKS * 7)
+        val m = Mentorship((w.mentorships.maxOfOrNull { it.id } ?: -1) + 1, mentorId, staff, mentee.id, g.id, w.day, w.day + WEEKS * 7)
         val compat = compatibility(w, m)
         m.relation = clamp(45 + compat * 20, 20.0, 80.0)
         m.log.add("${Dates.short(w.day)}: started (${g.label}); first impression ${if (compat > 0.3) "good" else if (compat < -0.3) "uneasy" else "neutral"}")
@@ -188,6 +188,9 @@ object Mentoring {
             else m.reviewDay = w.day + WEEKS * 7
         }
         aiMentoring(w)
+        // Ended relationships are kept a year (yours three), and each log keeps its latest entries.
+        if (w.mentorships.size > 1500) w.mentorships.removeAll { m -> !m.active && m.endedDay < w.day - (if (w.isUserTeam(w.players[m.menteeId].teamId)) 3 * 365 else 365) }
+        for (m in w.mentorships) if (m.log.size > 40) m.log.subList(0, m.log.size - 40).clear()
     }
 
     fun relationText(r: Double) = when { r >= 75 -> "close"; r >= 55 -> "good"; r >= 35 -> "workable"; else -> "strained" }

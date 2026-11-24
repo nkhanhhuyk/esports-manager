@@ -644,6 +644,11 @@ object Progress {
         fun add(id: Int, rule: String, how: String, src: Int = -1, place: Int = -1, note: String = ""): Boolean {
             if (id in ids) return false
             if (!w.teams[id].active) { out.add(QualEntry(id, rule, src, place, how, "team no longer active — place passed on", "withdrawn", w.day)); return false }
+            // A team that declined this event's invitation does not come in by another route either (e.g. its open qualifier).
+            if (w.invites.any { it.compId == c.id && it.teamId == id && it.status == "declined" }) {
+                if (out.none { it.teamId == id && it.status == "declined" } && c.entries.none { it.teamId == id && it.status == "declined" }) out.add(QualEntry(id, rule, src, place, how, "declined the invitation — place passed on", "declined", w.day))
+                return false
+            }
             ids.add(id); out.add(QualEntry(id, rule, src, place, how, note, "in", w.day)); return true
         }
         for (rule in c.entrants) {
@@ -747,7 +752,9 @@ object Progress {
                     // "all": league teams play it too (CS2, Dota 2); otherwise the league's teams are seeded past it (VALORANT partners).
                     val all = p.getOrNull(5) == "all"
                     val invited = if (main != null) w.invites.filter { it.compId == main && it.status != "declined" }.map { it.teamId }.toSet() else emptySet()
-                    w.teams.filter { it.titleId == p[1] && it.active && it.nationalOf.isEmpty() && it.parentId < 0 && (it.kind.isEmpty() || it.kind == "amateur") && it.id !in invited && (league == null || all || it.leagueId != league.id) && Ecosystem.inRegion(w, it, league) && it.roster.size >= Catalogue.get(it.titleId).teamSize }
+                    // One regional open qualifier per event: a team already entered in another region's qualifier for the same event stays there.
+                    val elsewhere = w.comps.filter { o -> o.id != c.id && o.season == c.season && o.titleId == c.titleId && o.status == 1 && o.entrants.any { r -> r.startsWith("open:") && r.split(':').getOrNull(4) == p.getOrNull(4) } }.flatMap { it.teamIds }.toSet()
+                    w.teams.filter { it.titleId == p[1] && it.active && it.nationalOf.isEmpty() && it.parentId < 0 && (it.kind.isEmpty() || it.kind == "amateur") && it.id !in invited && it.id !in elsewhere && (league == null || all || it.leagueId != league.id) && Ecosystem.inRegion(w, it, league) && it.roster.size >= Catalogue.get(it.titleId).teamSize }
                         .sortedByDescending { it.elo }.take(cap).forEach { add(it.id, rule, "open qualifier entry") }
                 }
                 // Development circuits: a region's amateur clubs (strongest first), the best on amateur points, or every team of a kind.
@@ -827,6 +834,24 @@ object Progress {
         finish(w, c)
     }
 
+    /**
+     * Competition MVP, as event awards go: a player of a team that went deep (the top four of the final
+     * standings, the top two in events with few teams), who played most of his team's games, by average
+     * rating with a bonus for the placing — never a player whose team went out early.
+     */
+    fun mvpOf(c: Competition): Int {
+        if (c.pstats.isEmpty()) return -1
+        val order = c.placements
+        val deep = if (order.size >= 6) 4 else 2
+        val rank = HashMap<Int, Int>().also { m -> order.forEachIndexed { i, t -> m.putIfAbsent(t, i) } }
+        val teamGp = HashMap<Int, Int>().also { m -> for (st in c.pstats.values) m[st.teamId] = maxOf(m[st.teamId] ?: 0, st.gp) }
+        fun bonus(r: Int) = when (r) { 0 -> 0.12; 1 -> 0.07; 2, 3 -> 0.03; else -> 0.0 }
+        val pool = c.pstats.entries.filter { (_, st) -> st.gp > 0 && (rank[st.teamId] ?: 99) < deep && st.gp * 10 >= (teamGp[st.teamId] ?: 0) * 6 }
+            .ifEmpty { c.pstats.entries.filter { it.value.gp > 0 && (rank[it.value.teamId] ?: 99) < deep } }
+            .ifEmpty { c.pstats.entries.filter { it.value.gp > 0 } }
+        return pool.maxByOrNull { (_, st) -> st.r / st.gp + bonus(rank[st.teamId] ?: 99) }?.key ?: -1
+    }
+
     fun finish(w: World, c: Competition) {
         if (c.done) return
         val order = ArrayList<Int>()
@@ -838,9 +863,7 @@ object Progress {
             w.teams[champ].trophies.add(Trophy(c.season, c.id, c.name))
             if (c.tier != CompTier.CHALLENGER) w.news.add(dev.uem.em.model.News(w.day, "${w.teams[champ].name} win ${c.name}", "${w.teams[champ].name} are champions of ${c.name}.", listOf(champ)))
         }
-        // Competition MVP: best average rating with at least half the games of the most active player.
-        val maxGp = c.pstats.values.maxOfOrNull { it.gp } ?: 0
-        c.pstats.entries.filter { it.value.gp * 2 >= maxGp && it.value.gp > 0 }.maxByOrNull { it.value.r / it.value.gp }?.let { c.mvp = it.key }
+        c.mvp = mvpOf(c)
         dev.uem.em.mgmt.Economy.onCompetitionFinished(w, c)
         if (c.name.startsWith(Season.EWC)) Season.ewcClubPayout(w, c.season)
         dev.uem.em.mgmt.Career.onCompetitionFinished(w, c)

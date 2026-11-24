@@ -37,8 +37,6 @@ object Market {
 
     fun windowLabel(w: World): String = if (frozen(w)) "No transfers in the first season" else if (inWindow(w)) "Transfer window open" else if (Dates.month(w.day) in 1..5) "Window opens 25 May" else "Window opens 23 Nov"
 
-    private fun teamRep(w: World, team: Team) = w.orgs[team.orgId].rep
-
     /** Would this player start for the team (at his main position)? */
     fun wouldStart(w: World, team: Team, p: Player): Boolean {
         val t = Catalogue.get(team.titleId)
@@ -47,13 +45,18 @@ object Market {
         return p.ca >= w.players[cur].ca - 1
     }
 
-    /** Salary the player asks from this team (higher from small clubs, lower for a starting place at a big one). */
+    /**
+     * Salary the player asks from this team: the market rate, more for a money-minded player, less from a
+     * team that gives him what else he wants (winning, a starting place, prestige... see [Ambitions]).
+     */
     fun asking(w: World, team: Team, p: Player): Double {
         val base = Economy.expectedSalary(p, team.titleId, team.region)
-        val repGap = (p.rep - teamRep(w, team)) / 100
-        val playing = if (wouldStart(w, team, p)) 0.95 else 1.15
-        return (base * (1 + repGap * 0.4) * playing / 500).roundToInt() * 500.0
+        return (base * Ambitions.askFactor(w, p, team) / 500).roundToInt() * 500.0
     }
+
+    /** A player who joined a club recently is not sold on again (no flipping within the same months). */
+    const val SETTLE_DAYS = 150
+    fun settled(w: World, p: Player) = w.day - p.joinedDay >= SETTLE_DAYS || (p.listed && w.day - p.joinedDay >= 60)
 
     class Reply(val ok: Boolean, val text: String)
 
@@ -70,6 +73,7 @@ object Market {
         if (!renewal && !inWindow(w) && team.roster.size >= Catalogue.get(team.titleId).teamSize + 2) return Reply(false, "Outside a transfer window you can only sign free agents when your roster is short.")
         if (!renewal && org.balance < salary * 0.25) return Reply(false, "Not enough money for the signing.")
         val ask = asking(w, team, p) * (if (renewal) (1.0 + p.unhappy / 300) else 1.0)
+        Ambitions.refusal(w, p, team, salary, renewal)?.let { return Reply(false, it) }
         val rng = Rng.derive(w.seed, "contract", playerId, teamId, w.day, salary.toInt())
         val ratio = salary / ask
         val accept = ratio >= 1.0 || (ratio >= 0.85 && rng.chance((ratio - 0.85) / 0.15 * 0.8))
@@ -96,6 +100,7 @@ object Market {
         val p = w.players[o.playerId]
         val team = w.teams[o.fromTeam]
         val ask = asking(w, team, p)
+        Ambitions.refusal(w, p, team, salary, false)?.let { return Reply(false, it) }
         if (salary < ask * 0.92) return Reply(false, "${p.handle} wants about ${formatMoney(ask)} per season.")
         transfer(w, p, team, o.fee, salary, years)
         o.status = "done"
@@ -151,6 +156,7 @@ object Market {
         p.salary = salary
         p.contractEnd = w.season + years - 1
         p.unhappy = 0.0
+        p.wantsOutDay = 0
         p.listed = false
         Economy.ledger(w, w.orgs[team.orgId], "signing", -salary * 0.05, "Signing bonus: ${p.handle}")
         if (w.isUserTeam(team.id) || p.rep >= 60) w.news.add(News(w.day, "${p.handle} ${if (type == "renewed") "renews with" else "joins"} ${team.name}", "${p.handle} (${Catalogue.get(p.titleId).short}) ${if (type == "renewed") "extends" else "signs"} until the end of ${p.contractEnd}.", listOf(team.id)))
@@ -170,6 +176,8 @@ object Market {
         p.salary = salary
         p.contractEnd = w.season + years - 1
         p.unhappy = 0.0
+        p.wantsOutDay = 0
+        p.listed = false
         p.career.add(CareerEntry(w.season, w.day, buyer.id, "transferred"))
         w.transfers.add(Transfer(w.day, w.season, p.id, seller?.id ?: -1, buyer.id, fee, "transfer"))
         w.news.add(News(w.day, "${p.handle} moves to ${buyer.name}", "${buyer.name} sign ${p.handle}${seller?.let { " from ${it.name}" } ?: ""} for ${formatMoney(fee)}.", listOfNotNull(buyer.id, seller?.id)))
@@ -221,7 +229,7 @@ object Market {
             if (frozen(w) && team.roster.count { !w.players[it].retired && w.players[it].injuryUntil <= w.day } >= t.teamSize) continue
             val short = team.roster.count { !w.players[it].retired } < t.teamSize + 1
             val missing = missingRoles(w, team).isNotEmpty()
-            if (!short && !missing && !(window && rng.chance(1.0 / 40))) continue
+            if (!short && !missing && !(window && rng.chance(Ambitions.marketChance(w, team)))) continue
             if (missing && Academies.aiPromote(w, team)) continue
             aiTeamMarket(w, team, rng, short || missing)
         }
@@ -259,7 +267,7 @@ object Market {
         val missing = missingRoles(w, team)
         val role = missing.firstOrNull() ?: if (weakSlot >= 0) t.lineup[weakSlot] else rng.pick(t.lineup)
         if (missing.isNotEmpty()) weakCa = 0.0
-        val budget = org.balance * 0.35
+        val budget = org.balance * Ambitions.budgetShare(w, team)
         // Free agents first.
         val academy = Academies.isAcademy(team)
         val fa = w.players.asSequence().filter { it.teamId < 0 && !it.retired && it.titleId == team.titleId && it.mainRole == role && it.ca > weakCa + (if (short) -15.0 else 3.5) && (!academy || dev.uem.em.core.Dates.ageAt(it.birth, w.day) <= 21) }
@@ -267,7 +275,8 @@ object Market {
         for (p in fa) {
             val sal = asking(w, team, p)
             if (sal * 1.2 > budget && !short) continue
-            if (p.rep > org.rep + 25 && rng.chance(0.6)) continue
+            // A free agent waits for a team that suits him (less and less choosy the longer he is unsigned).
+            if (!short && !Ambitions.acceptsOffer(w, p, team, sal)) continue
             sign(w, p, team, sal, rng.int(1, 3), 0.0, "signed")
             if (team.roster.size > t.teamSize + 3) releaseWorst(w, team)
             return
@@ -282,12 +291,19 @@ object Market {
         if (!inWindow(w) || academy) return
         // Bid for a better player at a weaker club (never a club of the same organisation).
         val myElo = team.elo
-        val targets = w.players.asSequence().filter { p -> p.teamId >= 0 && p.loanFrom < 0 && w.teams[p.teamId].orgId != team.orgId && !(w.isUserTeam(team.id) && w.isUserTeam(p.teamId)) && p.titleId == team.titleId && p.mainRole == role && p.ca > weakCa + 4.5 && w.teams[p.teamId].elo < myElo + 40 }
-            .sortedByDescending { it.ca }.take(4).toList()
+        // Second divisions and academies included (their best players move up); a listed player even from a
+        // stronger club; nobody who joined his club only recently.
+        val targets = w.players.asSequence().filter { p -> p.teamId >= 0 && p.loanFrom < 0 && w.teams[p.teamId].orgId != team.orgId && w.teams[p.teamId].kind.isEmpty() && w.teams[p.teamId].nationalOf.isEmpty() &&
+                !(w.isUserTeam(team.id) && w.isUserTeam(p.teamId)) && p.titleId == team.titleId && p.mainRole == role && p.ca > weakCa + 4.5 && (w.teams[p.teamId].elo < myElo + 40 || p.listed) && settled(w, p) }
+            .sortedByDescending { Ambitions.targetScore(w, team, it) }.take(4).toList()
         for (p in targets) {
             val value = Economy.marketValue(w, p)
             if (value > budget) continue
             val seller = w.teams[p.teamId]
+            val salary = asking(w, team, p)
+            // He must want the move: the new team suits him, and better than his club unless he asked to leave.
+            if (Ambitions.refusal(w, p, team, salary, false) != null) continue
+            if (p.wantsOutDay == 0 && !p.listed && Ambitions.fit(w, p, team, salary).total < (Ambitions.mood(w, p)?.total ?: 0.0) - 3) continue
             val fee = (value * rng.float(0.95, 1.2) / 1000).roundToInt() * 1000.0
             if (w.isUserTeam(seller.id)) {
                 w.offers.add(Offer(w.offers.size, w.day, p.id, team.id, seller.id, "bid", fee, 0.0, 2, expiresDay = w.day + 5))
@@ -295,8 +311,9 @@ object Market {
                 return
             }
             val starter = p.id in seller.lineup
-            if (fee >= value * (if (starter) 1.15 else 0.9) || rng.chance(0.15)) {
-                transfer(w, p, team, fee, asking(w, team, p), rng.int(1, 3))
+            val keen = (if (p.listed) 0.8 else 1.0) * (if (Ambitions.rebuilding(w, seller)) 0.85 else 1.0) * (if (Ambitions.strategy(w, seller) == "moneyball") 0.9 else 1.0)
+            if (fee >= value * (if (starter) 1.15 else 0.9) * keen || rng.chance(if (p.listed) 0.35 else 0.12)) {
+                transfer(w, p, team, fee, salary, if (Ambitions.weight(w, p, "loyalty") >= 25) rng.int(2, 3) else rng.int(1, 2))
                 if (team.roster.size > t.teamSize + 3) releaseWorst(w, team)
                 return
             }
@@ -315,7 +332,7 @@ object Market {
         if (userTeams.isEmpty()) return
         val mine = userTeams.flatMap { t -> t.roster.map { w.players[it] } }.filter { it.ca >= 60 && it.loanFrom < 0 }
         if (mine.isEmpty()) return
-        val p = rng.weighted(mine) { it.ca - 50 + (if (it.listed) 30.0 else 0.0) }
+        val p = rng.weighted(mine) { it.ca - 50 + (if (it.listed) 30.0 else 0.0) + (if (it.wantsOutDay > 0) 25.0 else 0.0) }
         val buyers = w.teams.filter { it.active && !w.isUserTeam(it.id) && it.titleId == p.titleId && w.orgs[it.orgId].balance > Economy.marketValue(w, p) }
         if (buyers.isEmpty()) return
         val buyer = rng.pick(buyers)
@@ -336,9 +353,12 @@ object Market {
                 leave(w, p, "contract ended")
                 continue
             }
-            val age = Dates.ageAt(p.birth, w.day)
-            if (rng.chance(if (p.ca >= 60) 0.75 else 0.5) && age < 31) p.contractEnd = w.season + rng.int(0, 2)
-            else leave(w, p, "contract ended")
+            // The club must want him and he must want to stay (ambitions); loyal players sign longer deals.
+            val years = Ambitions.renewal(w, p, team, rng)
+            if (years > 0) {
+                p.contractEnd = w.season + years - 1
+                p.career.add(CareerEntry(w.season, w.day, team.id, "renewed"))
+            } else leave(w, p, "contract ended")
         }
         for (s in w.staff) if (s.teamId >= 0 && s.contractEnd < w.season) {
             val team = w.teams[s.teamId]

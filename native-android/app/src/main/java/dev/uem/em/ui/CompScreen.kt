@@ -347,12 +347,17 @@ private fun CompPlayerStats(vm: GameVm, w: World, c: Competition) {
     val cols = gs[g.coerceIn(0, gs.size - 1)].second
     val idx: (String) -> Int = { t.statIndex[it] ?: -1 }
     val teams = c.pstats.values.map { it.teamId }.distinct().filter { it >= 0 }.sortedBy { w.teams[it].name }
-    val rows = c.pstats.entries.filter { it.value.gp > 0 && (team < 0 || it.value.teamId == team) }.toList()
+    // A team that went out early has few games: rates like KDA are noise there, so a minimum applies (40% of the most games by default).
+    var minIdx by remember { mutableIntStateOf(1) }
+    val maxGp = c.pstats.values.maxOfOrNull { it.gp } ?: 0
+    val minNeeded = listOf(1, (maxGp * 0.4).toInt(), (maxGp * 0.6).toInt())[minIdx.coerceIn(0, 2)].coerceAtLeast(1)
+    val rows = c.pstats.entries.filter { it.value.gp >= (if (team >= 0) 1 else minNeeded) && (team < 0 || it.value.teamId == team) }.toList()
     Card("Player stats", right = { Muted("${rows.size} players", 11) }) {
         Row {
             Select("Stats", gs.map { it.first }, g) { g = it }
             Select("Team", listOf("All teams") + teams.map { w.teams[it].short }, if (team < 0) 0 else teams.indexOf(team) + 1) { team = if (it == 0) -1 else teams[it - 1] }
         }
+        if (team < 0) Select("Min. games", listOf("any", "${(maxGp * 0.4).toInt().coerceAtLeast(1)}+ (40%)", "${(maxGp * 0.6).toInt().coerceAtLeast(1)}+ (60%)"), minIdx) { minIdx = it }
         if (rows.isEmpty()) Muted("No games played yet.")
         else SortTable(rows, listOf<SCol<Map.Entry<Int, CompStats>>>(
             SCol("Player", 140.dp, false) { e -> Column { PlayerChip(w.players[e.key], vm, 18.dp); Muted("${w.teams.getOrNull(e.value.teamId)?.short ?: "—"} · ${Catalogue.get(c.titleId).role(w.players[e.key].roles[0]).short}", 10) } },

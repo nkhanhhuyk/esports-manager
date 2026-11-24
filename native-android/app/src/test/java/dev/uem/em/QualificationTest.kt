@@ -119,6 +119,10 @@ class QualificationTest {
         for (f in w.fixtures) if (f.done) for (t in intArrayOf(f.a, f.b)) if (t >= 0) byTeamDay.merge(t.toLong() * 100000 + f.day, 1, Int::plus)
         val clashes = byTeamDay.count { it.value > 1 }
         out.appendLine("same-day double bookings: $clashes")
+        for ((key, _) in byTeamDay.filter { it.value > 1 }.entries.take(6)) {
+            val tid = (key / 100000).toInt(); val day = (key % 100000).toInt()
+            out.appendLine("  ${w.teams[tid].name} (${w.teams[tid].kind.ifBlank { "pro" }}) ${Dates.format(day)}: " + w.fixtures.filter { it.done && it.day == day && (it.a == tid || it.b == tid) }.joinToString { "${w.comps[it.compId].name} [${w.comps[it.compId].stages[it.stageIdx].name}]" })
+        }
         // Older editions keep their ruleset; later VALORANT seasons use the evolved structure.
         // (development circuits keep their own presets)
         val vct27 = w.comps.filter { it.titleId == "valorant" && it.season == 2027 && it.circuit.isBlank() }
@@ -126,7 +130,7 @@ class QualificationTest {
         val vct29 = w.comps.filter { it.titleId == "valorant" && it.season == 2029 && it.circuit.isBlank() }
         assertTrue("2029 VALORANT rules: ${vct29.filter { it.rules != "vct-2027-evolved" }.take(3).map { it.name + "=" + it.rules }}", vct29.all { it.rules == "vct-2027-evolved" })
         println(out); java.io.File("build/qualification.txt").writeText(out.toString())
-        assertEquals("teams booked twice on one day", 0, clashes)
+        assertEquals("teams booked twice on one day: ${out.lines().filter { it.startsWith("  ") }.take(3)}", 0, clashes)
     }
 
     @Test

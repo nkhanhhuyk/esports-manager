@@ -77,7 +77,7 @@ class MentorTest {
         store.save("m", w)
         val w2 = store.load("m")
         assertEquals(w.mentorships.size, w2.mentorships.size)
-        assertEquals(m.sessions, w2.mentorships[m.id].sessions)
+        assertEquals(m.sessions, w2.mentorships.first { it.id == m.id }.sessions)
         assertEquals("draft", w2.devPlans.first { it.playerId == prospect.id }.focus)
         // Two seasons: AI organisations mentor and promote academy players — some, not all.
         val sb = StringBuilder()

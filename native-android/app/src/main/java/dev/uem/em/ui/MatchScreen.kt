@@ -99,6 +99,14 @@ fun MatchScreen(vm: GameVm, w: World, id: Int) {
                         PlayerChip(w.players[f.mvp], vm, 22.dp)
                     }
                 }
+                // What each side prepared (the plans locked when the series started).
+                if (f.done) {
+                    val plans = listOf(f.a, f.b).mapNotNull { tid -> dev.uem.em.mgmt.Prep.planFor(w, f.id, tid)?.takeIf { it.locked }?.let { tid to it } }
+                    if (plans.isNotEmpty()) {
+                        Gap(6)
+                        Muted("Preparation: " + plans.joinToString(" · ") { (tid, p) -> "${w.teams[tid].short} ${dev.uem.em.mgmt.Prep.LABEL[p.emphasis] ?: p.emphasis}${if (p.style.isNotBlank()) " (${p.style})" else ""} at %.0f%%".format(p.effect * 100) }, 10)
+                    }
+                }
             }
         }
         if (!f.done) item { MatchPreview(vm, w, f, t) }

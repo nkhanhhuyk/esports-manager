@@ -41,6 +41,11 @@ class SocialTest {
         val all = feed.flatMap { p -> listOf(p.title ?: "", p.text) + p.comments.flatMap { c -> listOf(c.text) + c.replies.map { it.text } } }
         val bad = all.filter { Regex("""\b(he|his|him|she|her)\b""", RegexOption.IGNORE_CASE).containsMatchIn(it) || it.contains("null") || it.contains("\${") }
         assertTrue("bad texts: ${bad.take(5)}", bad.isEmpty())
+        // Different series are talked about differently: few comments repeat word for word across post-match threads.
+        val pmtComments = feed.filter { it.key.startsWith("pm") }.flatMap { p -> p.comments.map { it.text } }
+        val repeats = pmtComments.size - pmtComments.toSet().size
+        println("post-match threads: ${feed.count { it.key.startsWith("pm") }}, comments ${pmtComments.size}, repeated word for word $repeats")
+        assertTrue("comments repeat across threads: $repeats of ${pmtComments.size}", pmtComments.isNotEmpty() && repeats * 10 <= pmtComments.size)
         // A game filter and a team filter narrow the feed.
         val lol = Social.feed(w, "lol")
         assertTrue(lol.isNotEmpty() && lol.all { it.titleId == "lol" })

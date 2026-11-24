@@ -125,19 +125,30 @@ object Extras {
      * his ability. A player with few games this season is judged on last season's form too.
      */
     fun selectionScore(w: World, p: Player): Double {
-        var gp = 0.0; var rs = 0.0; var lvl = 0.0
+        var gp = 0.0; var perf = 0.0; var lvl = 0.0
         for (l in p.stats) {
             if (l.titleId != p.titleId || l.gp == 0) continue
             val wt = when (l.season) { w.season -> 1.0; w.season - 1 -> 0.4; else -> 0.0 }
             if (wt == 0.0) continue
-            gp += l.gp * wt; rs += l.ratingSum * wt
-            lvl += (w.teams.getOrNull(l.teamId)?.takeIf { it.nationalOf.isEmpty() }?.elo ?: 1500.0) * l.gp * wt
+            val team = w.teams.getOrNull(l.teamId)?.takeIf { it.nationalOf.isEmpty() }
+            // Form in a second division, an academy league or a community circuit says less (weaker opposition).
+            val (gap, trust) = levelOf(w, team)
+            gp += l.gp * wt
+            perf += (l.ratingSum / l.gp - 1.0) * 30.0 * trust * l.gp * wt
+            lvl += gap * l.gp * wt
         }
-        if (gp <= 0.0) return p.ca - 3.0
-        val avg = rs / gp
+        val club = levelOf(w, w.teams.getOrNull(p.teamId)?.takeIf { it.nationalOf.isEmpty() }).first
+        if (gp <= 0.0) return p.ca - 3.0 + club
         val conf = gp / (gp + 8.0)
-        val level = ((lvl / gp) - 1500.0) / 45.0
-        return p.ca + conf * ((avg - 1.0) * 30.0 + level * 0.6)
+        return p.ca + conf * (perf / gp) + 0.5 * (lvl / gp) + 0.5 * club
+    }
+
+    /** Level gap (in ability points) and how much form counts, by the club's division. */
+    private fun levelOf(w: World, team: dev.uem.em.model.Team?): Pair<Double, Double> {
+        if (team == null) return -4.0 to 0.6
+        val tier = w.leagues.getOrNull(team.leagueId)?.tier ?: 3
+        val base = when { team.kind.isNotEmpty() -> -12.0 to 0.3; team.parentId >= 0 -> -7.0 to 0.5; tier == 1 -> 0.0 to 1.0; tier == 2 -> -6.0 to 0.5; else -> -9.0 to 0.4 }
+        return (base.first + (team.elo - 1500.0) / 45.0 * 0.6) to base.second
     }
 
     /** Whether a player may be called up by a nation: his main nationality, or his second one when his first country would not pick him. */
