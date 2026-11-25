@@ -65,7 +65,7 @@ object Academies {
             p.salary = Economy.expectedSalary(p, region = team.region) * 0.6
             if (w.isUserTeam(team.id)) w.scouting[p.id] = 100
         }
-        Economy.hire(w, Economy.newStaff(w, rng, "head-coach", org.country, t.id, team.coach), team, 2)
+        Staffing.fill(w, team, rng, news = false)
         team.lineup = Lineups.auto(w, team)
         val where = if (league != null) "It joins ${league.name} (Challengers) — fixtures start with the next split." else "Your region has no Challengers league, so it trains and scrims as a development squad."
         return Result(true, "${team.name} founded. $where", team)

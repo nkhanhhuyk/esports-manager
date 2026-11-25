@@ -232,7 +232,7 @@ fun CompareScreen(vm: GameVm, w: World, a: Int, b: Int) {
 
 // ---------------------------------------------------------------------------------------- history
 
-private val HISTORY_TABS = listOf("Champions by season", "GOAT rankings", "Hall of Fame", "Dynasties", "Retired archive", "Before the save")
+private val HISTORY_TABS = listOf("Champions by season", "GOAT rankings", "Hall of Fame", "Dynasties", "Retired archive", "Before the save", "Coach GOAT", "Coach Hall of Fame")
 
 /** A legacy table row: a player of this world, or a real legend who retired before the save. */
 private class LegacyRow(val p: Player?, val legend: dev.uem.em.mgmt.HistoryBook.Legend?, val name: String, val titleId: String, val score: Legacy.Score, val trophies: Int, val awards: Int, val status: String)
@@ -329,6 +329,7 @@ fun HistoryScreen(vm: GameVm, w: World) {
                     }
                 }
             }
+            6, 7 -> item { CoachLegacy(vm, w, title, hof = tab == 7) }
             5 -> {
                 val evs = dev.uem.em.mgmt.HistoryBook.champions(title)
                 item {

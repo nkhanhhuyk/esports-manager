@@ -38,18 +38,28 @@ object Development {
             val age = Dates.ageFloat(p.birth, w.day)
             val focus = team?.focus ?: "balanced"
             val intensity = team?.intensity ?: 45
-            val coachQ = team?.let { Economy.coachQuality(w, it) } ?: 35.0
-            val assist = team?.let { Economy.staffOf(w, it, "assistant-coach").maxOfOrNull { s -> s.quality } } ?: 30.0
-            // Academy players train with the academy facility and develop a little faster.
+            // Training staff: the head coach and assistant teach everyone, a positional coach the players of that position.
+            val (coachQ, assist, posCoach) = team?.let { Staffing.teaching(w, it, p.mainRole) } ?: Triple(35.0, 30.0, 0.0)
+            // Academy players train with the academy facility and develop a little faster (more with an academy director).
             val academy = team != null && team.parentId >= 0
             val facility = team?.let { w.orgs[it.orgId].facilities[if (academy) 2 else 0] } ?: 2
-            val trainMult = (0.75 + intensity / 200.0) * (0.85 + coachQ / 300 + assist / 600 + facility / 50.0) * (if (team != null) 1.0 else 0.6) * (if (academy) 1.1 else 1.0)
+            val director = if (academy) (Staffing.academy(w, team!!.orgId) - 25).coerceAtLeast(0.0) / 400 else 0.0
+            val trainMult = (0.75 + intensity / 200.0) * (0.85 + coachQ / 300 + assist / 600 + posCoach / 500 + facility / 50.0 + director) * (if (team != null) 1.0 else 0.6) * (if (academy) 1.1 else 1.0)
             var delta = 0.0
             if (age < p.dev.peakAge) delta = max(0.0, p.pa - p.ca) * 0.05 * p.dev.growthRate * (0.6 + p.attrs[Attrs.LEARNING] / 125) * trainMult
             else if (age > p.dev.declineAge) delta = -0.22 * p.dev.declineRate * (1 + (age - p.dev.declineAge) * 0.25) * (1.15 - min1(trainMult) * 0.15)
             delta += rng.normal(0.0, 0.15)
             if (team != null) {
                 p.fatigue = clamp(p.fatigue + (intensity - 60) * 0.15, 0.0, 100.0)
+                // A positional coach widens and deepens the player's character pool.
+                if (posCoach > 0 && t.characters.isNotEmpty()) {
+                    for (e in p.profChar.entries.sortedByDescending { it.value }.take(4)) p.profChar[e.key] = clamp(e.value + 0.25 * posCoach / 100 * trainMult, 0.0, 99.0)
+                    if (rng.chance(posCoach / 100 * 0.12)) {
+                        val role = t.role(p.mainRole)
+                        val fresh = t.characters.filter { it.fits(role) && it.id !in p.profChar }.let { if (it.isEmpty()) null else rng.pick(it) }
+                        if (fresh != null) p.profChar[fresh.id] = 30.0
+                    }
+                }
                 if (focus == "characters") {
                     val top = p.profChar.entries.sortedByDescending { it.value }.take(6)
                     for (e in top) p.profChar[e.key] = clamp(e.value + 0.8 * trainMult, 0.0, 99.0)
@@ -88,14 +98,16 @@ object Development {
             if (!team.active || team.nationalOf.isNotEmpty()) continue
             val wn = wins[team.id]
             val ls = losses[team.id]
-            val psych = Economy.staffOf(w, team, "psychologist").maxOfOrNull { it.quality } ?: 30.0
+            // The psychologist, the head coach's man management and the team manager (see Staffing.moraleCare).
+            val psych = Staffing.moraleCare(w, team)
+            val calm = 1.15 - 0.5 * Staffing.discipline(w, team) / 100
             for (pid in team.roster) {
                 val p = w.players[pid]
                 val starter = pid in team.lineup
                 var d = (wn - ls) * 1.5 + (if (starter) 0.8 else -1.2 + (if (p.ca < 60) 0.8 else 0.0))
                 d += (65 - p.morale) * 0.05 * (0.5 + psych / 100)
                 p.morale = clamp(p.morale + d, 5.0, 100.0)
-                p.unhappy = clamp(p.unhappy + (if (!starter && p.ca >= 65 && p.pers[0] > 60) 2.0 else -1.0), 0.0, 100.0)
+                p.unhappy = clamp(p.unhappy + (if (!starter && p.ca >= 65 && p.pers[0] > 60) 2.0 * calm else -1.0), 0.0, 100.0)
             }
             val settled = team.roster.count { w.day - w.players[it].joinedDay > 120 }
             team.chemistry = clamp(team.chemistry + (settled - team.roster.size / 2.0) * 0.15 + 0.1, 20.0, 99.0)

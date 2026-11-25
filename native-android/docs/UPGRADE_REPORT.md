@@ -270,6 +270,64 @@ The new drafts change which heroes are played, and Honor of Kings' Clash lane ed
 (33 %, the highest average game rating, 1.03); its rating scale moved from 1.08 to 1.11 (`Context.ROLE_NORM`):
 29 % of MVPs, average rating 1.01, KDA by role unchanged (`RoleDeathsTest`, `KdaTest`).
 
+## Sixteenth follow-up: staff and coaching staff
+
+Clubs now run with a full staff (`mgmt/Staffing.kt`); each person has 14 attributes (tactics, drafting, teaching,
+motivation, discipline, analysis, judgement, fitness, medicine, psychology, negotiation, commercial, media,
+adaptability) and the role decides which count:
+
+| Role | What it changes |
+|---|---|
+| Head coach | Match strength (45% of the staff level), in-game calls and shooter timeouts (tactics), the draft read, morale, training |
+| Assistant coach | Training, match preparation; covers a missing head coach |
+| Draft coach (MOBAs) / Tactical coach (shooters) | The draft and veto read, preparation, how fast the team adapts after a patch |
+| Positional coach (one per position: "Jungle coach", "AWPer coach"...) | Faster development and a deeper, wider character pool for that position's players; a little match sharpness |
+| Analyst | Preparation, the draft read, patch adaptation |
+| Sports psychologist | Morale, fewer breaks |
+| Performance coach | Daily fatigue recovery |
+| Physiotherapist | Fewer and shorter injuries |
+| Scout | Your scouting knowledge of players |
+| Team manager | Less unhappiness in the squad, morale |
+| General manager (organisation) | Wages asked of the club (up to −8%), fees when buying and selling (±6%) |
+| Academy director (organisation) | Academy players develop faster |
+| Media & content manager (organisation) | Streaming income and fan growth (up to +12%) |
+| Partnerships manager (organisation) | Sponsor offers (up to +15%) |
+
+How much it matters (`StaffTest`): the same roster with an elite staff (88) against a poor one (30) wins 67% of
+MLBB games and 68% of LoL games (the staff lift every player's ratings by about −3% to +6%, centred on a typical staff,
+and the draft read goes from 0.60 to 0.82); six months of training with an elite staff gave a prospect +6.9 ability
+against +5.7 with a poor one, and its four best characters +8.2 comfort against +1.9. Bigger clubs employ more and
+better staff (12.4 people at big clubs, 6.2 at small ones).
+
+The market: **Market → Staff** lists everyone by game (support and organisation roles work in any game), filters
+by role, status (available, all, under contract, real people) and name. On a staff page you offer a job (role,
+position, salary, years); free agents answer at once (wage against their ask, your club's standing against their
+reputation, the role — a known head coach only takes head coach jobs); for staff under contract their club wants
+compensation (most of the remaining contract, more for a big name) and the person wants a step up (a bigger role,
+a bigger club or clearly more money). Extend, change role (a head coach may refuse to step down) and release
+(half of the remaining contract as severance) from the same page; **Squad → Staff** shows your staff by group,
+what they add in numbers, hiring by role, and approaches from bigger clubs for your staff (accept for the
+compensation or keep them). Contracts end at the season's end: yours leave unless extended (a reminder comes in
+September); AI clubs keep the staff they rate, ambitious staff leave for bigger jobs, struggling clubs sack the head
+coach mid-season, and each summer the big clubs replace a weaker head coach with a clearly better one, paying
+compensation (42 of about 520 head coaches changed club in one tested summer). Staff improve with experience in
+their role and decline late; titles raise their reputation; they retire in their sixties. Retiring players can
+move into staff work, by their attributes (tactical minds coach or analyse, others scout, coach a position or run
+media): 22 of 80 retiring players did in the test, and the player's page links to the staff page.
+
+Real staff (`staff.json`, see DATA_PROVENANCE.md): 616 people — League of Legends from Leaguepedia (every team's latest
+coaching staff and every finalist's coaches since 2011), MLBB and VALORANT from the collected team pages, Wild Rift,
+and a compiled list of CS2, Dota 2 and VALORANT coaches. Former and retired coaches start as free agents (kkOma,
+with five Worlds as head coach, is in the market). Clubs without real staff data get generated staff.
+
+**History → Coach GOAT / Coach Hall of Fame**: titles as head coach count in full, as an assistant, draft or
+positional coach 40%; real titles before the save count (kkOma 152, Homme 97, Dylan Falco 70, Daeny 64 at the start).
+The Hall of Fame takes coaches with a legacy of 45+ who retired, or whose real careers ended before the save.
+
+Saves: `Staff` gained appended fields (attributes, handle, position, reputation, career, real titles), and
+`World.staffVersion`, `World.staffBids`. An older save keeps its own staff (given attributes), real coaches join
+the AI clubs (your own staff untouched), and every AI club fills its plan.
+
 ## Tests and results (JVM, `./gradlew testDebugUnitTest`)
 
 All suites pass (23 classes, including `DraftVarietyTest`, `MobaSideTest`, `WorldIsolationTest`). New or extended:
@@ -288,6 +346,11 @@ All suites pass (23 classes, including `DraftVarietyTest`, `MobaSideTest`, `Worl
   old result kept; drafts and editions survive save/load.
 * `IntegrityTest.twentySeasonSoak` (UEM_SOAK=1) — now also checks a recurring custom event is played
   exactly once per season and fixture ids stay unique.
+* `StaffTest` — real coaches at their clubs (T1: Tom; Vitality: XTQZZZ; Spirit: Silent) and former coaches
+  free (kkOma with five Worlds); staff win matches (elite vs poor staff, same roster) and develop players;
+  hiring, refusals, buy-outs with compensation, renewals, releases, approaches; the summer carousel and retiring
+  players becoming staff; coach legacy (kkOma first; a title in the save counts more for the head coach);
+  saves and older saves.
 * `DraftAdaptTest` — drafts adapt within a series (bans on what won, dropped bans, winner keeps / loser
   switches, measured against the same series without memory), league bans follow each opponent's recent
   picks, the real series path records readable notes, same inputs give the same draft, the memory stays small.
@@ -339,7 +402,7 @@ Replays → "Important" (default) or "Off" keeps the page storage down.
 ## Saves and migration
 
 All schema changes are appended fields (`Replay.per/step/posN/pos/posT`, `Competition.finalBo/
-customId`, `World.customComps`, `CompTier.CUSTOM` at the end, `GameRecord.draftNotes`, `Team.shown`), so existing saves load. Replays made
+customId`, `World.customComps`, `CompTier.CUSTOM` at the end, `GameRecord.draftNotes`, `Team.shown`, the staff fields, `World.staffVersion` / `staffBids`), so existing saves load. Replays made
 before this upgrade (v1) still play in the previous event view; their analysis shows "unavailable"
 rather than invented heatmaps.
 

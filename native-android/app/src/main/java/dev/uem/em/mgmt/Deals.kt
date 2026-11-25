@@ -166,7 +166,8 @@ object Deals {
             if (!team.active || team.nationalOf.isNotEmpty()) continue
             val n = team.scrims.coerceIn(0, 6)
             team.chemistry = clamp(team.chemistry + n * 0.12, 20.0, 99.0)
-            team.metaAdapt = clamp(team.metaAdapt + (n - 2) * 0.4, 30.0, 99.0)
+            // Scrims and the staff who read the patch (analysts, draft coach) bring the team back up to speed.
+            team.metaAdapt = clamp(team.metaAdapt + (n - 2) * 0.4 + 0.5 * ((Staffing.adaptLevel(w, team) - 30) / 70).coerceAtLeast(0.0), 30.0, 99.0)
             for (pid in team.lineup) if (pid >= 0) w.players[pid].fatigue = clamp(w.players[pid].fatigue + n * 1.4, 0.0, 100.0)
         }
         // The blocks themselves: picks, results, what works on this patch.

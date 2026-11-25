@@ -111,3 +111,23 @@ Compiled entries were not checked against a live source in this export and may c
 in real-data worlds: a fictional world has no real history. Scoring: world titles 12 points, international titles
 5–9, league titles 2–4, cups 1.5, a lost final 30% of the title; compiled events count double because only the
 biggest events of those games are recorded.
+
+## Real staff (staff.json, 25 Nov 2026)
+
+`src/data/real/staff.json`, built by `scripts/data/staff.py` and read by `mgmt/Staffing.loadReal`: 616 people.
+
+| Part | Source | Coverage |
+|---|---|---|
+| League of Legends | Leaguepedia Cargo API (lol.fandom.com): `TournamentPlayers` joined with `Tournaments` (coach, head coach, assistant and positional coach entries of 2025–2026 events and of every champion and runner-up in honours.json), `TeamRedirects` (team names), `Players` (name, nationality, birth date, retired). Read-only queries, three seconds apart, responses cached. | 164 staff at 78 of the 80 LoL teams of the snapshot (each team's most recent tournament roster; "Head Coach" where marked, otherwise the first coach listed leads), 309 former coaches, 1,293 coaching credits at finals since 2011. |
+| MLBB | Official MPL Indonesia / Philippines team pages (already in rosters.json) | 37 coaches, assistant coaches and analysts. |
+| VALORANT | vlr.gg team pages (already in rosters.json) | 87 head coaches, coaches, assistants, performance coaches, analysts and managers. |
+| Wild Rift | Wild Rift Esports Wiki pages (wildrift.json, early 2021) | 2 head coaches. |
+| CS2, Dota 2, VALORANT titles | Compiled from public records (`scripts/data/compiled_staff.json`) | Head coaches whose role and titles are well documented: XTQZZZ, B1ad3, hally, sycrone, maaRaa, zonic, RobbaN, valens, dastan (CS); Silent, Blitz, Aui_2000 (Dota 2); bonkar, alecks, Potter, bzkA, kaplan, mini, Chet (VALORANT) with their Major / TI / Champions / Masters titles. |
+| Not included | — | Honor of Kings (fictional players and staff); CS2 and Dota 2 coaches beyond the compiled list (Liquipedia, HLTV and the fan wikis were not used: refused automated access or protected). Those clubs get generated staff. |
+
+Coaches are matched to teams by game and team name; a coach whose club is not in the game (or who has no club)
+starts as a free agent in the staff market, as do retired coaches. Their ability is not real data: it is estimated
+from their club's level and their titles (head coach titles in full, other coaching credits 40%; compiled titles
+count double, as for players). One note on the fetch: a re-run of the script lost its cache (a hashing bug, since
+fixed) and Leaguepedia answered "rate limited"; the script stopped there and the earlier complete result was
+reused — nothing was retried or worked around.

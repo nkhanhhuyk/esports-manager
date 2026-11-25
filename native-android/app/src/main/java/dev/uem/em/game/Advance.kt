@@ -101,7 +101,8 @@ object Advance {
             if (Dates.dom(d) == 1) {
                 dev.uem.em.mgmt.Development.monthly(w)
                 dev.uem.em.mgmt.Economy.monthTick(w)
-                if (Dates.month(d) == 9) dev.uem.em.mgmt.Market.contractReminders(w)
+                dev.uem.em.mgmt.Staffing.monthly(w)
+                if (Dates.month(d) == 9) { dev.uem.em.mgmt.Market.contractReminders(w); dev.uem.em.mgmt.Staffing.reminders(w) }
             dev.uem.em.mgmt.Deals.monthly(w)
             dev.uem.em.mgmt.Supporters.monthly(w)
             dev.uem.em.mgmt.SoloQueue.monthlyAmateurs(w)
@@ -258,9 +259,12 @@ object Advance {
     }
 
     private fun daily(w: World) {
+        // Performance coaches: faster recovery (up to about +0.8 a day).
+        val extra = DoubleArray(w.teams.size)
+        for (team in w.teams) if (team.active && team.staffIds.isNotEmpty()) extra[team.id] = 0.012 * (dev.uem.em.mgmt.Staffing.fitness(w, team) - 30).coerceAtLeast(0.0)
         for (p in w.players) {
             if (p.retired) continue
-            if (p.fatigue > 0) p.fatigue = maxOf(0.0, p.fatigue - (2.5 + p.attrs[Attrs.idxRecovery] / 40))
+            if (p.fatigue > 0) p.fatigue = maxOf(0.0, p.fatigue - (2.5 + p.attrs[Attrs.idxRecovery] / 40 + (if (p.teamId >= 0) extra[p.teamId] else 0.0)))
             p.form *= 0.98
         }
     }
@@ -294,6 +298,8 @@ object Advance {
         dev.uem.em.mgmt.Deals.executePreContracts(w)
         dev.uem.em.mgmt.Market.seasonEnd(w, rng)
         for (p in w.players) if (!p.retired && p.teamId < 0 && Dates.ageAt(p.birth, w.day) >= 33 && rng.chance(0.4)) p.retiredSeason = w.season
+        // Staff: growth, reputation, contracts, the coaching carousel; retired players may join the staff.
+        dev.uem.em.mgmt.Staffing.seasonEnd(w, rng)
         dev.uem.em.mgmt.Career.youthIntake(w)
         dev.uem.em.mgmt.Academies.aiFound(w)
         fillRosters(w)

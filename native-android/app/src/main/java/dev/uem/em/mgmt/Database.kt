@@ -299,7 +299,11 @@ object Database {
         cell("last name").takeIf { it.isNotBlank() && it != s.last }?.let { s.last = it; ch = true }
         cell("nationality").uppercase().takeIf { it.isNotBlank() && it != s.nat }?.let { if (it in GameData.countries) { s.nat = it; ch = true } else r.errors.add("$where: unknown nationality '$it'") }
         cell("date of birth").takeIf { it.isNotBlank() }?.let { v -> parseDate(v)?.let { d -> if (d != s.birth) { s.birth = d; ch = true } } ?: r.errors.add("$where: date '$v' is not YYYY-MM-DD") }
-        cell("quality").toDoubleOrNull()?.let { v -> val c = clamp(v, 1.0, 99.0); if (c != s.quality) { s.quality = c; ch = true } }
+        cell("quality").toDoubleOrNull()?.let { v -> val c = clamp(v, 1.0, 99.0); if (c != s.quality) {
+            // The role's attributes move with the new ability, so the edit holds.
+            val shift = c - s.quality
+            if (s.attrs.size == Staffing.ATTRS.size) for ((i, _) in Staffing.def(s.role).weights) s.attrs[i] = (s.attrs[i] + shift).roundToInt().coerceIn(1, 99)
+            s.quality = c; ch = true } }
         val tm = teamRef(w, s.titleId, if (byKey) "" else cell("team id"), cell("team"))
         if (tm != null && tm.id != s.teamId) { w.teams.getOrNull(s.teamId)?.staffIds?.remove(s.id); tm.staffIds.add(s.id); s.teamId = tm.id; s.orgId = tm.orgId; ch = true }
         if (ch) r.updated++

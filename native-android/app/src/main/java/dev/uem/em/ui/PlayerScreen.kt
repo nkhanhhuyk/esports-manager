@@ -98,6 +98,8 @@ fun PlayerScreen(vm: GameVm, w: World, id: Int) {
                     }
                     Gap(2)
                     if (p.teamId >= 0) TeamChip(w, p.teamId, vm, 18.dp) else Muted(if (p.retired) "Retired ${p.retiredSeason}" else "Free agent")
+                    // A retired player who moved into staff work.
+                    w.staff.firstOrNull { it.playerId == p.id }?.let { s -> Text("Now: ${dev.uem.em.mgmt.Staffing.label(s).lowercase()}${w.teams.getOrNull(s.teamId)?.let { " at ${it.name}" } ?: " (free agent)"} ›", color = Ui.accent, fontSize = 12.sp, modifier = Modifier.clickable { vm.go(Screen.Staff(s.id)) }) }
                     Muted("Age ${Dates.ageAt(p.birth, w.day)} (born ${Dates.format(p.birth)}) · ${p.nats().joinToString(" / ") { GameData.countries[it]?.name ?: it }}", 12)
                     if (p.nat2.isEmpty() && p.resYears in 1..2 && p.resCountry.isNotEmpty() && p.resCountry != p.nat) Muted("${p.resYears} of 3 seasons in ${GameData.countries[p.resCountry]?.name ?: p.resCountry} toward a second nationality", 11)
                     val notes = buildList {

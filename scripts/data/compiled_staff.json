@@ -1,0 +1,485 @@
+{
+ "note": "Compiled from public records; only coaches whose role and titles are well documented. Team names as in rosters.json; empty team = no team in the snapshot.",
+ "staff": [
+  {
+   "title": "cs2",
+   "handle": "XTQZZZ",
+   "name": "Rémy Quoniam",
+   "nat": "FR",
+   "birth": null,
+   "team": "Vitality",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2023,
+     "label": "BLAST.tv Paris Major 2023",
+     "team": "Team Vitality",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    },
+    {
+     "y": 2025,
+     "label": "BLAST.tv Austin Major 2025",
+     "team": "Team Vitality",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "cs2",
+   "handle": "B1ad3",
+   "name": "Andrey Gorodenskiy",
+   "nat": "UA",
+   "birth": null,
+   "team": "Natus Vincere",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2021,
+     "label": "PGL Major Stockholm 2021",
+     "team": "Natus Vincere",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    },
+    {
+     "y": 2024,
+     "label": "PGL Major Copenhagen 2024",
+     "team": "Natus Vincere",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "cs2",
+   "handle": "hally",
+   "name": "Sergey Shavaev",
+   "nat": "RU",
+   "birth": null,
+   "team": "Spirit",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2024,
+     "label": "Perfect World Shanghai Major 2024",
+     "team": "Team Spirit",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "cs2",
+   "handle": "sycrone",
+   "name": "Dennis Nielsen",
+   "nat": "DK",
+   "birth": null,
+   "team": "MOUZ",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [],
+   "retired": false
+  },
+  {
+   "title": "cs2",
+   "handle": "maaRaa",
+   "name": "Erdenetsogt Gantulga",
+   "nat": "MN",
+   "birth": null,
+   "team": "The MongolZ",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [],
+   "retired": false
+  },
+  {
+   "title": "cs2",
+   "handle": "zonic",
+   "name": "Danny Sørensen",
+   "nat": "DK",
+   "birth": null,
+   "team": "",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2017,
+     "label": "ELEAGUE Major: Atlanta 2017",
+     "team": "Astralis",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    },
+    {
+     "y": 2018,
+     "label": "FACEIT Major: London 2018",
+     "team": "Astralis",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    },
+    {
+     "y": 2019,
+     "label": "IEM Katowice Major 2019",
+     "team": "Astralis",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    },
+    {
+     "y": 2019,
+     "label": "StarLadder Major: Berlin 2019",
+     "team": "Astralis",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "cs2",
+   "handle": "RobbaN",
+   "name": "Robert Dahlström",
+   "nat": "SE",
+   "birth": null,
+   "team": "",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2022,
+     "label": "PGL Major Antwerp 2022",
+     "team": "FaZe Clan",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "cs2",
+   "handle": "valens",
+   "name": "Soham Chowdhury",
+   "nat": "US",
+   "birth": null,
+   "team": "",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2018,
+     "label": "ELEAGUE Major: Boston 2018",
+     "team": "Cloud9",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "cs2",
+   "handle": "dastan",
+   "name": "Dastan Akbayev",
+   "nat": "KZ",
+   "birth": null,
+   "team": "",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2022,
+     "label": "IEM Rio Major 2022",
+     "team": "Outsiders",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "dota2",
+   "handle": "Silent",
+   "name": "Airat Gaziev",
+   "nat": "RU",
+   "birth": null,
+   "team": "Team Spirit",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2021,
+     "label": "The International 2021",
+     "team": "Team Spirit",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    },
+    {
+     "y": 2023,
+     "label": "The International 2023",
+     "team": "Team Spirit",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "dota2",
+   "handle": "Blitz",
+   "name": "William Lee",
+   "nat": "US",
+   "birth": null,
+   "team": "Team Liquid",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2024,
+     "label": "The International 2024",
+     "team": "Team Liquid",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "dota2",
+   "handle": "Aui_2000",
+   "name": "Kurtis Ling",
+   "nat": "CA",
+   "birth": null,
+   "team": "",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2022,
+     "label": "The International 2022",
+     "team": "Tundra Esports",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "valorant",
+   "handle": "bonkar",
+   "name": "",
+   "nat": "",
+   "birth": null,
+   "team": "NRG",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2025,
+     "label": "VALORANT Champions 2025",
+     "team": "NRG",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "valorant",
+   "handle": "alecks",
+   "name": "Alexandre Sallé",
+   "nat": "FR",
+   "birth": null,
+   "team": "Paper Rex",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2025,
+     "label": "Masters Toronto 2025",
+     "team": "Paper Rex",
+     "tier": "international",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "valorant",
+   "handle": "Potter",
+   "name": "Christine Chi",
+   "nat": "US",
+   "birth": null,
+   "team": "",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2023,
+     "label": "VALORANT Champions 2023",
+     "team": "Evil Geniuses",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "valorant",
+   "handle": "bzkA",
+   "name": "Matheus Tarasconi",
+   "nat": "BR",
+   "birth": null,
+   "team": "",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2022,
+     "label": "VALORANT Champions 2022",
+     "team": "LOUD",
+     "tier": "worlds",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "valorant",
+   "handle": "kaplan",
+   "name": "Adam Kaplan",
+   "nat": "US",
+   "birth": null,
+   "team": "",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2024,
+     "label": "Masters Madrid 2024",
+     "team": "Sentinels",
+     "tier": "international",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "valorant",
+   "handle": "mini",
+   "name": "Jacob Harris",
+   "nat": "GB",
+   "birth": null,
+   "team": "",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2023,
+     "label": "LOCK//IN São Paulo 2023",
+     "team": "Fnatic",
+     "tier": "international",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    },
+    {
+     "y": 2023,
+     "label": "Masters Tokyo 2023",
+     "team": "Fnatic",
+     "tier": "international",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  },
+  {
+   "title": "valorant",
+   "handle": "Chet",
+   "name": "Chet Singh",
+   "nat": "US",
+   "birth": null,
+   "team": "",
+   "role": "head-coach",
+   "spec": "",
+   "src": "compiled",
+   "past": [
+    {
+     "y": 2022,
+     "label": "Masters Reykjavík 2022",
+     "team": "OpTic Gaming",
+     "tier": "international",
+     "pr": 1.0,
+     "won": true,
+     "head": true
+    }
+   ],
+   "retired": false
+  }
+ ]
+}

@@ -27,7 +27,7 @@ object Commerce {
     private val A = listOf("Nexa", "Volta", "Orion", "Helix", "Kairo", "Vanta", "Lumen", "Strata", "Quanta", "Zentra", "Arcus", "Polaris", "Meridian", "Atlas", "Cobalt", "Vertex", "Northwind", "Pinnacle", "Summit", "Bluewave")
 
     /** A sponsor's monthly value for this organisation (reputation, divisions, fans). */
-    fun value(w: World, org: Org): Double = org.teams.sumOf { Economy.divisionValue(w, w.teams[it]) } * 0.065 * (0.5 + org.rep / 100) / 3
+    fun value(w: World, org: Org): Double = org.teams.sumOf { Economy.divisionValue(w, w.teams[it]) } * 0.065 * (0.5 + org.rep / 100) / 3 * Staffing.sponsorFactor(w, org.id)
 
     /** Monthly: the user's organisation receives offers instead of automatic deals (unless delegated). */
     fun offers(w: World, org: Org, rng: Rng) {
@@ -115,7 +115,7 @@ object Commerce {
         if (org.streamPolicy <= 0) return 0.0
         val econ = GameData.economy(org.region)
         val share = 0.3 * (if (org.streamPolicy >= 2) 1.8 else 1.0)
-        return org.teams.filter { w.teams[it].active }.sumOf { tid -> w.teams[tid].roster.sumOf { streamValue(w, w.players[it], econ) } } * share
+        return org.teams.filter { w.teams[it].active }.sumOf { tid -> w.teams[tid].roster.sumOf { streamValue(w, w.players[it], econ) } } * share * Staffing.mediaFactor(w, org.id)
     }
 
     fun merchFactor(org: Org) = MERCH_SALES[org.merchLevel.coerceIn(0, 3)]
@@ -132,7 +132,7 @@ object Commerce {
                     0 -> if (p.pers.getOrElse(4) { 50 } > 70) p.unhappy = clamp(p.unhappy + 1.0, 0.0, 100.0)
                 }
             }
-            if (org.streamPolicy > 0) org.fans *= 1 + 0.0008 * org.streamPolicy
+            if (org.streamPolicy > 0) org.fans *= 1 + 0.0008 * org.streamPolicy * Staffing.mediaFactor(w, org.id)
         }
     }
 }

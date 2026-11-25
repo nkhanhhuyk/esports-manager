@@ -50,7 +50,7 @@ object Search {
     /** Screens and menu destinations by name and keywords. */
     val SCREENS = listOf(
         Triple("Home", "home dashboard next match", Screen.Home), Triple("Squad, tactics, training, staff", "squad lineup tactics training staff contracts", Screen.Squad),
-        Triple("Transfer market", "market transfer free agents sign buy sell scout", Screen.Market), Triple("Inbox", "inbox messages mail offers", Screen.Inbox),
+        Triple("Market (players and staff)", "market transfer free agents sign buy sell scout staff coach hire", Screen.Market), Triple("Inbox", "inbox messages mail offers", Screen.Inbox),
         Triple("Finances & facilities", "finances money budget facilities sponsors", Screen.Finances), Triple("Business", "business sponsors sponsorship creators streaming venue arena fan events merch", Screen.Business),
         Triple("Board", "board objectives confidence job", Screen.Board), Triple("Events", "events competitions leagues standings brackets", Screen.Comps),
         Triple("Match centre", "watch live match replays", Screen.Watch), Triple("Schedule", "schedule calendar fixtures", Screen.Schedule),
@@ -78,6 +78,12 @@ object Search {
             val team = w.teams.getOrNull(p.teamId)
             val boost = (if (p.retired) 0 else 6) + (p.ca / 20).toInt()
             out.add(Hit("Player", p.handle, listOfNotNull(Catalogue.get(p.titleId).short, team?.name ?: if (p.retired) "retired" else "free agent", realName(p).takeIf { it.isNotBlank() }).joinToString(" · "), sc + boost, { vm.go(Screen.Player(p.id)) }) { PlayerPic(p, 30.dp) })
+        }
+        for (s in w.staff) {
+            if (s.retired && s.past.isEmpty()) continue
+            val sc = maxOf(score(s.name(), q), score(s.fullName(), q) - 10)
+            if (sc <= 0) continue
+            out.add(Hit("Staff", s.name(), listOfNotNull(Catalogue.get(s.titleId).short, dev.uem.em.mgmt.Staffing.label(s), w.teams.getOrNull(s.teamId)?.name ?: if (s.retired) "retired" else "free agent").joinToString(" · "), sc + (if (s.real) 6 else 0) + (s.rep / 25).toInt(), { vm.go(Screen.Staff(s.id)) }))
         }
         for (t in w.teams) {
             val sc = maxOf(score(t.name, q), score(t.short, q))

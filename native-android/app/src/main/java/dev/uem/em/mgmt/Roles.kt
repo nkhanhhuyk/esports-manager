@@ -108,11 +108,11 @@ object Roles {
                     .sortedByDescending { it.ca + (w.scouting[it.id] ?: 0) * -0.1 }.take(maxOf(0, 6 - w.scoutQueue.size)).toList()
                 for (p in targets) w.scoutQueue.add(p.id)
             }
-            if (!handles(w, "staff")) for (team in teams) for (role in listOf("head-coach", "analyst", "scout")) {
-                if (Economy.staffOf(w, team, role).isNotEmpty()) continue
-                val cand = w.staff.filter { it.teamId < 0 && !it.retired && it.role == role }.maxByOrNull { it.quality + if (it.titleId == team.titleId) 5 else 0 } ?: continue
-                Economy.hire(w, cand, team, 2)
-                w.inbox.add(Message(w.day, "Director", "Hired: ${cand.name()}", "${cand.name()} joins ${team.name} as ${Economy.ROLE_LABEL[role]}."))
+            // Delegated: the director keeps the staff plan filled (from the market first).
+            if (!handles(w, "staff")) for (team in teams) {
+                val before = team.staffIds.toSet()
+                Staffing.fill(w, team, Rng.derive(w.seed, "delegate-staff", team.id, w.day))
+                for (sid in team.staffIds) if (sid !in before) w.staff[sid].let { s -> w.inbox.add(Message(w.day, "Director", "Hired: ${s.name()}", "${s.name()} joins ${team.name} as ${Staffing.label(s).lowercase()}.")) }
             }
         }
         if (!handles(w, "facilities") && Dates.dom(w.day) == 15) {

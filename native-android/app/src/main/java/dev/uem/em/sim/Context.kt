@@ -102,7 +102,12 @@ object TeamContexts {
     fun build(w: World, team: Team, lineup: List<Int>, idx: Int, chars: Map<Int, String>?, mapId: String?, pressure: Double, rng: Rng?): TeamCtx {
         val t = dev.uem.em.titles.Catalogue.get(team.titleId)
         val players = lineup.mapIndexedNotNull { i, pid -> if (pid >= 0) player(w, t, pid, t.lineupRoles[i], chars?.get(pid), mapId, pressure, rng) else null }
-        val coach = (0.985 + 0.03 * (dev.uem.em.mgmt.Economy.coachQuality(w, team) / 100)) * dev.uem.em.mgmt.Economy.prepFactor(w, team) * (1 + (team.scrims.coerceIn(0, 6) - 2) * 0.002)
+        // The staff: head coach, preparation (analysts, assistant, draft coach), positional coaches (see Staffing).
+        // It works through every player (the engines play from the players' ratings), centred on a typical
+        // staff so the overall level, and the kill and death calibration, stay where they were.
+        val staff = dev.uem.em.mgmt.Staffing.matchFactor(w, team)
+        for (pc in players) for (i in pc.phase.indices) pc.phase[i] *= staff
+        val coach = 1 + (team.scrims.coerceIn(0, 6) - 2) * 0.002
         val chem = 0.93 + 0.14 * (dev.uem.em.mgmt.Chemistry.lineup(w, team, lineup) / 100)
         val meta = 0.97 + 0.04 * (team.metaAdapt / 100)
         val form = if (rng != null) 1 + rng.normal(0.0, TEAM_FORM_SD) else 1.0

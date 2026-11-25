@@ -116,6 +116,11 @@ class World(
     val devPlans: MutableList<DevPlan> = ArrayList(),
     /** Pre-match preparation plans (one per team and fixture), locked when the match starts. */
     val preps: MutableList<PrepPlan> = ArrayList(),
+    /** Staff system version (0: the first staff model; see mgmt.Staffing.migrate). */
+    var staffVersion: Int = 0,
+    /** Approaches for staff under contract (compensation offers between clubs). */
+    val staffBids: MutableList<StaffBid> = ArrayList(),
+    var nextStaffBid: Int = 1,
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -580,7 +585,8 @@ class Staff(
     var last: String,
     var nat: String,
     var birth: Int,
-    val role: String,
+    var role: String,
+    /** Ability in the current role (0-100), from the attributes (see mgmt.Staffing.quality). */
     var quality: Double,
     var titleId: String,
     var teamId: Int = -1,
@@ -588,9 +594,39 @@ class Staff(
     var salary: Double = 0.0,
     var contractEnd: Int = 0,
     var retired: Boolean = false,
+    /** The name the scene knows (real coaches, former players); empty for others. */
+    var handle: String = "",
+    /** Positional coaches: the lineup role they coach. */
+    var spec: String = "",
+    /** Attributes 0-100 in mgmt.Staffing.ATTRS order. */
+    @ProtoPacked var attrs: IntArray = IntArray(0),
+    /** Reputation 0-100: titles, clubs, years in the job. */
+    var rep: Double = 0.0,
+    var real: Boolean = false,
+    var realSrc: String = "",
+    /** A former player (id in World.players), or -1. */
+    var playerId: Int = -1,
+    /** Clubs and roles, oldest first. */
+    val spells: MutableList<StaffSpell> = ArrayList(),
+    /** Real honours from before the save: "year|event|team|tier|prestige|won(1/0)|head coach(1/0)". */
+    val past: MutableList<String> = ArrayList(),
+    var joinedDay: Int = 0,
+    /** 0-100: how much a bigger club or a bigger role tempts them; loyalty keeps them. */
+    var ambition: Int = 50,
+    var loyalty: Int = 50,
+    var retiredSeason: Int = 0,
 ) {
-    fun name() = "$first $last"
+    fun name() = handle.ifEmpty { "$first $last".trim() }
+    fun fullName() = "$first $last".trim()
 }
+
+/** A stint at a club: team, role, from day to day (-1 while there), and how it ended. */
+@Serializable
+class StaffSpell(val teamId: Int, var role: String, val from: Int, var to: Int = -1, var why: String = "")
+
+/** A club's approach for staff under contract elsewhere: compensation to the current club, the role offered. */
+@Serializable
+class StaffBid(val id: Int, val staffId: Int, val fromTeam: Int, val toTeam: Int, val fee: Double, val role: String, val day: Int, var status: String = "pending", val salary: Double = 0.0, val years: Int = 2)
 
 @Serializable
 class Sponsor(val name: String, val perMonth: Double, val untilSeason: Int, val bonus: Double = 0.0, val industry: String = "")

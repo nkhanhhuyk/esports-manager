@@ -27,10 +27,12 @@ object Extras {
         for (pid in playerIds) {
             val p = w.players[pid]
             if (p.injuryUntil > w.day) continue
-            if (!rng.chance(0.0025 * (1 + p.fatigue / 40))) continue
+            // The physio (and performance coach) prevent injuries and shorten them.
+            val med = w.teams.getOrNull(p.teamId)?.let { Staffing.medicine(w, it) } ?: 30.0
+            if (!rng.chance(0.0025 * (1 + p.fatigue / 40) * (1.15 - 0.5 * med / 100))) continue
             val (name, range) = rng.pick(INJURIES)
             p.injury = name
-            p.injuryUntil = w.day + rng.int(range.first, range.last)
+            p.injuryUntil = w.day + (rng.int(range.first, range.last) * (1.12 - 0.4 * med / 100)).roundToInt().coerceAtLeast(2)
             if (w.isUserTeam(p.teamId)) w.inbox.add(Message(w.day, "Medical staff", "${p.handle}: ${name.lowercase()}", "${p.handle} is out until ${Dates.format(p.injuryUntil)} (${name.lowercase()})."))
         }
     }
@@ -41,7 +43,7 @@ object Extras {
         for (p in w.players) {
             if (p.retired || p.teamId < 0 || p.injuryUntil > w.day) continue
             val strain = (p.fatigue - 80).coerceAtLeast(0.0) / 20 + (25 - p.morale).coerceAtLeast(0.0) / 25
-            if (strain <= 0 || !rng.chance(0.12 * strain)) continue
+            if (strain <= 0 || !rng.chance(0.12 * strain * (1.15 - 0.5 * Staffing.psychology(w, w.teams[p.teamId]) / 100))) continue
             p.injury = if (p.fatigue > 80) "Break: burnout" else "Break: personal reasons"
             p.injuryUntil = w.day + rng.int(7, 14)
             p.fatigue *= 0.4
@@ -52,7 +54,8 @@ object Extras {
 
     // ------------------------------------------------------------------ scouting
 
-    fun scoutQuality(w: World): Double = w.orgs.getOrNull(w.userOrg)?.teams?.flatMap { tid -> w.teams[tid].staffIds.map { w.staff[it] } }?.filter { it.role == "scout" }?.maxOfOrNull { it.quality } ?: 25.0
+    /** The user's scouting: the best scout's judgement (the general manager's helps). */
+    fun scoutQuality(w: World): Double = if (w.userOrg < 0) 25.0 else Staffing.scouting(w, w.userOrg)
 
     /** How well the user knows a player (0-100): own players fully, others through scouting. */
     fun knowledge(w: World, p: Player): Int = when {

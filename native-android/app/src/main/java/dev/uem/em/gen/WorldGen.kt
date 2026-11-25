@@ -163,7 +163,7 @@ object WorldGen {
             team.lineup = Lineups.auto(world, team)
             team.elo = (1500 + (Lineups.strength(world, team) - 65) * 18).roundToInt().toDouble()
         }
-        dev.uem.em.mgmt.Economy.ensureSetup(world)
+        dev.uem.em.mgmt.Economy.ensureSetup(world, src)
         seedAcademies(world)
         for (id in titles) world.poolTarget[id] = world.players.count { !it.retired && it.titleId == id }
         Season.plan(world, season)

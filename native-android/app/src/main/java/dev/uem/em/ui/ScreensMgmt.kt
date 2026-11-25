@@ -91,7 +91,7 @@ fun SquadScreen(vm: GameVm, w: World) {
                 0 -> SquadLineup(vm, w, team, t) { if (coach && Roles.handles(w, "lineups")) pickSlot = it else vm.toast = if (!coach) Roles.denyReason(w, "tactics") else "Lineups are delegated to your head coach (Settings → Delegation)" }
                 1 -> Box(if (coach) Modifier else Modifier.alpha(0.6f)) { SquadTactics(vm, w, team, t); if (!coach) Box(Modifier.matchParentSize().clickable(enabled = true) {}) }
                 2 -> Box(if (coach) Modifier else Modifier.alpha(0.6f)) { SquadTraining(vm, w, team, t); if (!coach) Box(Modifier.matchParentSize().clickable(enabled = true) {}) }
-                3 -> SquadStaff(vm, w, team) { if (Roles.can(w, "staff")) hireRole = it else vm.toast = Roles.denyReason(w, "staff") }
+                3 -> SquadStaffPanel(vm, w, team)
                 else -> SquadContracts(vm, w, team)
             }
             Gap(16)
@@ -323,6 +323,9 @@ private fun SquadContracts(vm: GameVm, w: World, team: Team) {
 
 private val MARKET_TABS = listOf("Free agents", "Transfer list", "Shortlist", "Player search", "Offers", "Transfer history")
 
+/** The market page last open (players or staff), kept while the app runs. */
+object MarketMode { var mode = 0 }
+
 @Composable
 fun MarketScreen(vm: GameVm, w: World) {
     val teams = userTeams(w)
@@ -342,7 +345,20 @@ fun MarketScreen(vm: GameVm, w: World) {
     }
     val pendingIn = w.offers.count { it.status == "pending" && w.isUserTeam(it.toTeam) && !w.isUserTeam(it.fromTeam) }
     val table = rememberTableState(4)
+    // Players or staff: the same market screen, two pages.
+    var mode by remember { mutableIntStateOf(MarketMode.mode) }
+    val staffTable = rememberTableState(4)
+    var staffRole by remember { mutableIntStateOf(0) }
+    var staffStatus by remember { mutableIntStateOf(0) }
+    var staffQ by remember { mutableStateOf("") }
     LazyColumn(Modifier.fillMaxSize()) {
+        item { Tabs(listOf("Players", "Staff"), mode) { mode = it; MarketMode.mode = it } }
+        if (mode == 1) {
+            item { Tabs(Catalogue.IDS.map { Catalogue.get(it).short }, Catalogue.IDS.indexOf(title)) { title = Catalogue.IDS[it] } }
+            item { Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { Muted("Free agents sign at once; staff under contract need their club to accept compensation. Former and retired coaches are free agents. Coaching roles are for one game; support and organisation roles work in any.", 11) } }
+            staffMarket(vm, w, title, staffTable, staffRole, staffStatus, staffQ, { staffRole = it }, { staffStatus = it }, { staffQ = it })
+            return@LazyColumn
+        }
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
                 Muted(Market.windowLabel(w) + " (23 Nov – 12 Jan and 25 May – 20 Jun) · free agents can be signed any time", 12)

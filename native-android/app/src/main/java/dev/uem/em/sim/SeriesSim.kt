@@ -98,7 +98,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
     val timeoutsAllowed: Int get() = comp.timeouts.takeIf { it >= 0 } ?: TacticalEngine.defaultTimeouts(t.id)
     /** Coach comms in MOBA fights under this competition's rules. */
     val coachComms: Boolean get() = t.isMoba && (comp.coachComms == 1 || (comp.coachComms == -1 && t.id in w.coachCommsTitles))
-    fun coachQ(i: Int) = dev.uem.em.mgmt.Economy.coachQuality(w, teams[i])
+    fun coachQ(i: Int) = dev.uem.em.mgmt.Staffing.inGame(w, teams[i])
     private var lastLoserBefore = -1
     /** Fast simulation: games that keep no replay use the quick model. */
     var quick = false

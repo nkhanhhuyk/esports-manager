@@ -93,7 +93,7 @@ object Draft {
         DraftSession(t, patch, lineups, styles, firstPick, locked, rng, know, banPref).runAll()
 
     /** How well a team reads the patch: meta adaptation and the head coach. */
-    fun knowledge(w: dev.uem.em.model.World, team: dev.uem.em.model.Team) = clamp((team.metaAdapt * 0.6 + team.coach * 0.4) / 100.0, 0.3, 1.0)
+    fun knowledge(w: dev.uem.em.model.World, team: dev.uem.em.model.Team) = clamp((team.metaAdapt * 0.6 + dev.uem.em.mgmt.Staffing.draftRead(w, team) * 0.4) / 100.0, 0.3, 1.0)
 
     /** A team's usual ban approach this season (meta threats, comfort targeting, balanced, handshake): scouts can read it. */
     fun banTendency(w: dev.uem.em.model.World, team: dev.uem.em.model.Team) = Math.floorMod(team.id * 7 + w.season * 3 + team.style.length, 4)

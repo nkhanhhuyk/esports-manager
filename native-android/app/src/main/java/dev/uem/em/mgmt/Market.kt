@@ -51,7 +51,8 @@ object Market {
      */
     fun asking(w: World, team: Team, p: Player): Double {
         val base = Economy.expectedSalary(p, team.titleId, team.region)
-        return (base * Ambitions.askFactor(w, p, team) / 500).roundToInt() * 500.0
+        // The club's general manager talks wages down (Staffing.wageFactor).
+        return (base * Ambitions.askFactor(w, p, team) * Staffing.wageFactor(w, team) / 500).roundToInt() * 500.0
     }
 
     /** A player who joined a club recently is not sold on again (no flipping within the same months). */
@@ -209,7 +210,7 @@ object Market {
                 val seller = w.teams.getOrNull(p.teamId)
                 if (seller == null || seller.id != o.toTeam) { o.status = "withdrawn"; continue }
                 val key = p.id in seller.lineup && Lineups.strength(w, seller) > 0
-                val need = value * (if (key) 1.25 else 0.95) * (if (p.listed) 0.8 else 1.0)
+                val need = value * (if (key) 1.25 else 0.95) * (if (p.listed) 0.8 else 1.0) * Staffing.feeFactor(w, seller, w.teams.getOrNull(o.fromTeam))
                 if (o.fee >= need || (o.fee >= need * 0.9 && rng.chance(0.4))) {
                     o.status = "accepted"
                     w.inbox.add(Message(w.day, seller.name, "Bid accepted: ${p.handle}", "${seller.name} accept ${formatMoney(o.fee)} for ${p.handle}. Agree personal terms from the player's page.", offerId = o.id))
@@ -360,19 +361,7 @@ object Market {
                 p.career.add(CareerEntry(w.season, w.day, team.id, "renewed"))
             } else leave(w, p, "contract ended")
         }
-        for (s in w.staff) if (s.teamId >= 0 && s.contractEnd < w.season) {
-            val team = w.teams[s.teamId]
-            if (w.isUserTeam(team.id) || rng.chance(0.3)) { team.staffIds.remove(s.id); s.teamId = -1; s.orgId = -1 } else s.contractEnd = w.season + rng.int(0, 2)
-        }
-        // AI clubs without a head coach or analyst hire from the pool.
-        for (team in w.teams) {
-            if (!team.active || w.isUserTeam(team.id)) continue
-            for (role in listOf("head-coach", "analyst")) {
-                if (Economy.staffOf(w, team, role).isNotEmpty()) continue
-                val cand = w.staff.filter { it.teamId < 0 && !it.retired && it.role == role }.maxByOrNull { it.quality + if (it.titleId == team.titleId) 5 else 0 } ?: continue
-                Economy.hire(w, cand, team, rng.int(1, 3))
-            }
-        }
+        // Staff contracts are handled with the rest of the staff year (Staffing.seasonEnd).
     }
 
     /** September: warn the user about expiring contracts. */

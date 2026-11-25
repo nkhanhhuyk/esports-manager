@@ -120,6 +120,7 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                         is Screen.Team -> TeamScreen(vm, w, s.id)
                         is Screen.Org -> OrgScreen(vm, w, s.id)
                         is Screen.Player -> PlayerScreen(vm, w, s.id)
+                        is Screen.Staff -> StaffScreen(vm, w, s.id)
                         is Screen.Match -> MatchScreen(vm, w, s.id)
                         is Screen.Compare -> CompareScreen(vm, w, s.a, s.b)
                         Screen.World -> WorldScreen(vm, w)
@@ -244,7 +245,7 @@ fun screenTitle(w: World, s: Screen): String = when (s) {
     Screen.Players -> "Players"
     Screen.More -> "More"
     Screen.Squad -> "Squad"
-    Screen.Market -> "Transfer market"
+    Screen.Market -> "Market"
     Screen.Inbox -> "Inbox"
     Screen.Finances -> "Finances"
     Screen.Board -> "Board"
@@ -257,6 +258,7 @@ fun screenTitle(w: World, s: Screen): String = when (s) {
     is Screen.Team -> w.teams.getOrNull(s.id)?.name ?: "Team"
     is Screen.Org -> w.orgs.getOrNull(s.id)?.name ?: "Organisation"
     is Screen.Player -> w.players.getOrNull(s.id)?.handle ?: "Player"
+    is Screen.Staff -> w.staff.getOrNull(s.id)?.name() ?: "Staff"
     is Screen.Match -> w.fixtures.getOrNull(s.id)?.let { f -> "${w.teams.getOrNull(f.a)?.short ?: "TBD"} vs ${w.teams.getOrNull(f.b)?.short ?: "TBD"}" } ?: "Match"
     is Screen.Compare -> "Compare players"
     Screen.World -> "World & nations"

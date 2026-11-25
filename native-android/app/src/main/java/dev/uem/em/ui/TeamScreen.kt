@@ -228,24 +228,8 @@ private fun TeamStats(vm: GameVm, w: World, team: Team, t: TitleDef) {
 
 @Composable
 private fun TeamStaff(vm: GameVm, w: World, team: Team) {
-    val staff = team.staffIds.map { w.staff[it] }
-    Card("Staff") {
-        if (staff.isEmpty()) Muted("No staff recorded (coaching quality ${team.coach.toInt()}).")
-        for (s in staff.sortedBy { Economy.STAFF_ROLES.indexOf(it.role) }) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(flag(s.nat).ifEmpty { "·" }, fontSize = 14.sp, modifier = Modifier.width(24.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(s.name(), color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Muted("${Economy.ROLE_LABEL[s.role] ?: s.role} · age ${Dates.ageAt(s.birth, w.day)} · until ${s.contractEnd}", 11)
-                }
-                Column(horizontalAlignment = Alignment.End) { Rating(s.quality); Muted(formatMoney(s.salary), 10) }
-            }
-        }
-        Gap(4)
-        KV("Coaching quality", "%.0f".format(Economy.coachQuality(w, team)))
-        KV("Match preparation", "×%.2f".format(Economy.prepFactor(w, team)))
-        KV("Staff payroll", formatMoney(staff.sumOf { it.salary }))
-    }
+    Card("Staff") { StaffList(vm, w, team, manage = false) }
+    Card("What the staff add") { StaffEffects(w, team) }
 }
 
 @Composable

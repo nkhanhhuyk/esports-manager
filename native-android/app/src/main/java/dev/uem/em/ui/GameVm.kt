@@ -51,6 +51,7 @@ sealed class Screen {
     data class Team(val id: Int) : Screen()
     data class Org(val id: Int) : Screen()
     data class Player(val id: Int) : Screen()
+    data class Staff(val id: Int) : Screen()
     data class Match(val id: Int) : Screen()
     data class Compare(val a: Int, val b: Int) : Screen()
     data object World : Screen()
@@ -312,7 +313,7 @@ class GameVm(app: Application) : AndroidViewModel(app) {
                     store.load(slotName).also { lw ->
                         // Saves from the first native version: add staff, sponsors, salaries and a board.
                         Catalogue.applyCustom(lw)
-                        dev.uem.em.mgmt.Economy.ensureSetup(lw)
+                        dev.uem.em.mgmt.Economy.ensureSetup(lw, src)
                         if (lw.userOrg >= 0 && lw.board == null) dev.uem.em.mgmt.Career.setupBoard(lw)
                     }
                 }

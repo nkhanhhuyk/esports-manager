@@ -60,9 +60,10 @@ object Economy {
         return (sal * 1.4 * youth * contract / 1000).roundToInt() * 1000.0
     }
 
-    fun staffSalary(s: Staff, region: String): Double {
+    fun staffSalary(s: Staff, region: String, role: String = s.role): Double {
         val base = Catalogue.BY_ID[s.titleId]?.baseSalary ?: 150000.0
-        return (max(5000.0, base * 0.11 * (0.4 + GameData.economy(region) * 0.6) * exp((s.quality - 55) / 15)) / 500).roundToInt() * 500.0
+        val q = if (role == s.role || s.attrs.size != Staffing.ATTRS.size) s.quality else Staffing.qualityOf(role, s.attrs)
+        return (max(4000.0, base * 0.11 * (0.4 + GameData.economy(region) * 0.6) * exp((q - 55) / 15) * Staffing.def(role).wage * (0.85 + s.rep / 300)) / 500).roundToInt() * 500.0
     }
 
     fun ledger(w: World, org: Org, kind: String, amount: Double, note: String = "") {
@@ -176,64 +177,31 @@ object Economy {
 
     // ------------------------------------------------------------------------- staff
 
-    val STAFF_ROLES = listOf("head-coach", "assistant-coach", "analyst", "psychologist", "performance-coach", "scout")
-    val ROLE_LABEL = mapOf("head-coach" to "Head coach", "assistant-coach" to "Assistant coach", "analyst" to "Analyst", "psychologist" to "Sports psychologist", "performance-coach" to "Performance coach", "scout" to "Scout")
+    val STAFF_ROLES get() = Staffing.ROLES.map { it.id }
+    val ROLE_LABEL get() = Staffing.ROLES.associate { it.id to it.label }
 
-    fun newStaff(w: World, rng: Rng, role: String, nat: String, titleId: String, quality: Double): Staff {
-        val (first, last) = GameData.personName(rng, nat)
-        val s = Staff(w.staff.size, first, last, nat, w.day - ((rng.int(28, 55)) * 365.25).toInt(), role, clamp(quality, 20.0, 95.0).roundToInt().toDouble(), titleId)
-        w.staff.add(s)
-        return s
-    }
+    fun newStaff(w: World, rng: Rng, role: String, nat: String, titleId: String, quality: Double): Staff = Staffing.create(w, rng, role, nat, titleId, quality)
 
-    fun hire(w: World, s: Staff, team: Team, years: Int = 2, salary: Double = staffSalary(s, team.region)) {
-        s.teamId = team.id
-        s.orgId = team.orgId
-        s.salary = salary
-        s.contractEnd = w.season + years - 1
-        if (s.id !in team.staffIds) team.staffIds.add(s.id)
-    }
+    fun hire(w: World, s: Staff, team: Team, years: Int = 2, salary: Double = staffSalary(s, team.region)) = Staffing.hire(w, s, team, s.role, years, salary, quiet = true)
 
-    fun fire(w: World, s: Staff) {
-        val team = w.teams.getOrNull(s.teamId) ?: return
-        val org = w.orgs[team.orgId]
-        val remaining = max(0, s.contractEnd - w.season) + 0.5
-        ledger(w, org, "severance", -s.salary * remaining * 0.5, "Released ${s.name()}")
-        team.staffIds.remove(s.id)
-        s.teamId = -1
-        s.orgId = -1
-        s.salary = 0.0
-    }
+    fun fire(w: World, s: Staff) = Staffing.release(w, s, "released")
 
-    fun staffOf(w: World, team: Team, role: String) = team.staffIds.map { w.staff[it] }.filter { it.role == role }
+    fun staffOf(w: World, team: Team, role: String) = Staffing.members(w, team).filter { it.role == role }
 
-    /** Head coach factor for team contexts (0.985..1.015, as in the web version). */
-    fun coachQuality(w: World, team: Team): Double = staffOf(w, team, "head-coach").maxOfOrNull { it.quality } ?: (team.coach.takeIf { team.staffIds.isEmpty() } ?: 35.0)
+    /** Head coach level for team contexts (see Staffing.coachLevel). */
+    fun coachQuality(w: World, team: Team): Double = Staffing.coachLevel(w, team)
 
-    /** Preparation: analyst + assistant coach + analytics facility. */
-    fun prepFactor(w: World, team: Team): Double {
-        val a = staffOf(w, team, "analyst").maxOfOrNull { it.quality } ?: 30.0
-        val ac = staffOf(w, team, "assistant-coach").maxOfOrNull { it.quality } ?: 30.0
-        val fac = w.orgs[team.orgId].facilities.getOrElse(1) { 3 }
-        return 1 + 0.008 * (a / 100) + 0.004 * (ac / 100) + 0.004 * (fac / 10.0)
-    }
+    /** Preparation: analysts, assistant, draft coach and the analytics facility. */
+    fun prepFactor(w: World, team: Team): Double = Staffing.prepFactor(w, team)
 
-    /** Older saves and new worlds: staff, sponsors and salaries for every team. */
-    fun ensureSetup(w: World) {
-        if (w.staff.isNotEmpty()) return
+    /** Older saves and new worlds: staff (real where known), sponsors and salaries for every team. */
+    fun ensureSetup(w: World, src: dev.uem.em.data.DataSource? = null) {
+        if (w.staff.isNotEmpty()) { Staffing.migrate(w, src); return }
         val rng = Rng.derive(w.seed, "staff-setup")
+        Staffing.setup(w, src)
         for (team in w.teams) {
             if (!team.active) continue
-            val org = w.orgs[team.orgId]
-            hire(w, newStaff(w, rng, "head-coach", org.country, team.titleId, team.coach), team, rng.int(1, 3))
-            hire(w, newStaff(w, rng, "analyst", org.country, team.titleId, rng.normal(team.coach - 4, 8.0)), team, rng.int(1, 3))
-            if (rng.chance(0.5)) hire(w, newStaff(w, rng, "assistant-coach", org.country, team.titleId, rng.normal(team.coach - 6, 8.0)), team, rng.int(1, 2))
             for (pid in team.roster) { val p = w.players[pid]; if (p.salary <= 0) p.salary = expectedSalary(p, region = team.region) }
-        }
-        // Free staff pool.
-        repeat(maxOf(40, w.teams.count { it.active } / 3)) {
-            val nat = rng.pick(GameData.countries.keys.toList())
-            newStaff(w, rng, rng.pick(STAFF_ROLES), nat, rng.pick(w.titles), rng.normal(48.0, 11.0))
         }
         for (p in w.players) if (p.teamId >= 0) p.salary = expectedSalary(p, region = w.teams[p.teamId].region) * rng.float(0.85, 1.15)
     }

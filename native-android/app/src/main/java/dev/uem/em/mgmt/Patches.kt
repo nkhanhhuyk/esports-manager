@@ -171,6 +171,9 @@ object Patches {
             }
         }
         w.patches.add(PatchRec(t.id, "${t.short} $version", w.day, kind, notes, delta, style, obj))
+        // Every team has to relearn part of the game; good analysts and draft coaches lose less.
+        val drop = when (kind) { "major" -> 8.0; "medium" -> 4.0; else -> 1.5 }
+        for (team in w.teams) if (team.active && team.titleId == t.id) team.metaAdapt = dev.uem.em.core.clamp(team.metaAdapt - drop * (1.15 - 0.6 * Staffing.adaptLevel(w, team) / 100), 30.0, 99.0)
         val label = when (kind) { "major" -> "Major patch"; "medium" -> "Patch"; else -> "Minor patch" }
         w.news.add(News(w.day, "$label ${t.short} $version", notes.take(3).joinToString("; ") + if (notes.size > 3) "; …" else ""))
         if (w.userOrg >= 0 && w.orgs[w.userOrg].teams.any { w.teams[it].titleId == t.id }) w.inbox.add(Message(w.day, "${t.short} patch notes", "$label ${t.short} $version", notes.joinToString("\n")))
