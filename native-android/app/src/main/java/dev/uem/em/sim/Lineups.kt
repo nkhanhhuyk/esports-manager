@@ -38,7 +38,7 @@ object Lineups {
         val cap = dev.uem.em.mgmt.Imports.cap(w, team)
         var imports = 0
         // Main positions first, then second positions, then (only for a slot nobody can play) anyone.
-        for (tier in 0..2) {
+        fun pass(tier: Int) {
             for (pr in pairs.filter { it.tier <= tier }.sortedWith(compareBy<Pair> { it.tier }.thenByDescending { it.e })) {
                 if (slots[pr.ri] >= 0 || pr.p.id in used) continue
                 val imp = cap >= 0 && dev.uem.em.mgmt.Imports.isImport(w, pr.p, team)
@@ -48,6 +48,34 @@ object Lineups {
                 if (imp) imports++
             }
         }
+        pass(0); pass(1)
+        // A slot still empty: move a placed player who also plays it (main or second position) and refill his
+        // slot the same way, before anyone is put out of position (a second-position pick taking a main
+        // player's slot left the main player's partner position to an out-of-position player).
+        if (slots.any { it < 0 }) {
+            val byId = players.associateBy { it.id }
+            fun plays(p: Player, ri: Int) = p.roles[0] == roles[ri].id || p.roles.getOrNull(1) == roles[ri].id
+            fun eff(p: Player, ri: Int) = pairs.firstOrNull { it.p.id == p.id && it.ri == ri }?.e ?: 0.0
+            fun fill(ri: Int, seen: BooleanArray): Boolean {
+                val free = players.filter { it.id !in used && plays(it, ri) && !(cap >= 0 && imports >= cap && dev.uem.em.mgmt.Imports.isImport(w, it, team)) }.maxByOrNull { eff(it, ri) }
+                if (free != null) {
+                    slots[ri] = free.id; used.add(free.id)
+                    if (cap >= 0 && dev.uem.em.mgmt.Imports.isImport(w, free, team)) imports++
+                    return true
+                }
+                for (j in slots.indices) {
+                    val pid = slots[j]
+                    if (j == ri || seen[j] || pid < 0 || !plays(byId[pid] ?: continue, ri)) continue
+                    seen[j] = true
+                    slots[ri] = pid; slots[j] = -1
+                    if (fill(j, seen)) return true
+                    slots[j] = pid; slots[ri] = -1
+                }
+                return false
+            }
+            for (i in slots.indices) if (slots[i] < 0) fill(i, BooleanArray(slots.size))
+        }
+        pass(2)
         // A slot nobody local can fill still gets the best remaining player (an empty seat is worse).
         for (i in slots.indices) if (slots[i] < 0) pairs.filter { it.ri == i && it.p.id !in used }.minWithOrNull(compareBy<Pair> { it.tier }.thenByDescending { it.e })?.let { slots[i] = it.p.id; used.add(it.p.id) }
         return slots.toMutableList()

@@ -85,7 +85,9 @@ object Nations {
         val t = Catalogue.get(team.titleId)
         val nat = team.nationalOf
         val base = pool0 ?: w.players.filter { (it.nat == nat || it.nat2 == nat) && it.titleId == team.titleId && !it.retired }
-        val pool = base.filter { !it.retired && it.injuryUntil <= w.day && (it.nat == nat || it.nat2 == nat) && eligible(w, it, nat, pools) }
+        // Old enough to play on the day the squad is named (its lineup is set then): a 15-year-old picked at a
+        // position could not take the seat, and the lineup put someone else there out of position.
+        val pool = base.filter { !it.retired && it.injuryUntil <= w.day && (it.nat == nat || it.nat2 == nat) && Dates.ageAt(it.birth, w.day) >= t.minAge && eligible(w, it, nat, pools) }
         val score = HashMap<Int, Double>()
         fun sc(p: Player) = score.getOrPut(p.id) { Extras.selectionScore(w, p) }
         val picked = ArrayList<Player>()

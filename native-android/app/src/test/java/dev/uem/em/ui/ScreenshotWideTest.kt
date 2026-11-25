@@ -70,7 +70,11 @@ class ScreenshotWideTest {
         if (!light) {
             LiveDefaults.autoplay = false
             LiveDefaults.startFraction = 0.45f
-            val fx = w.fixtures.first { !it.done && it.titleId == "lol" && it.a >= 0 && it.b >= 0 && !w.isUserTeam(it.a) && !w.isUserTeam(it.b) && it.day <= w.day + 1 }
+            // The world is shared by the tests and each one plays a match: move to the next match day when today's are used up.
+            fun next() = w.fixtures.firstOrNull { !it.done && it.titleId == "lol" && it.a >= 0 && it.b >= 0 && !w.isUserTeam(it.a) && !w.isUserTeam(it.b) && it.day <= w.day + 1 }
+            var tries = 0
+            while (next() == null && tries++ < 10) rule.runOnIdle { Advance.run(w, 1) }
+            val fx = next()!!
             rule.runOnIdle { vm.startLive(fx.id, spectate = true); vm.live!!.aiFinish(); vm.live!!.startGame() }
             shot("live-moba")
             rule.runOnIdle { vm.live!!.simRest(); vm.endLive() }

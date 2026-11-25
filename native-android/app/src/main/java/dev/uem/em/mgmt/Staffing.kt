@@ -583,7 +583,12 @@ object Staffing {
     }
 
     /** Real staff from staff.json: placed at their teams, the rest (former and retired coaches) free. */
-    fun loadReal(w: World, src: DataSource, onlyAi: Boolean = false): Int {
+    /**
+     * [special]: false loads staff.json (with special.json's moves of people already in it); true adds the people
+     * special.json brings in, at their teams only, in place of a generated member in the same role (run after the
+     * teams' plans are filled, so the other staff come out as without them).
+     */
+    fun loadReal(w: World, src: DataSource, onlyAi: Boolean = false, special: Boolean = false): Int {
         if (w.fictional) return 0
         val text = runCatching { src.read("staff.json") }.getOrNull() ?: return 0
         val root = Json.parseToJsonElement(text).jsonObject
@@ -593,7 +598,7 @@ object Staffing {
         fun key(o: JsonObject) = "${o.s("title")}|${norm(o.s("handle") ?: "")}"
         val over = extra.associateBy { key(it) }
         val base = (root["staff"]?.jsonArray ?: return 0).map { it.jsonObject }
-        val list = base.map { o -> over[key(o)]?.let { JsonObject(o + it) } ?: o } + extra.filter { e -> base.none { key(it) == key(e) } }
+        val list = if (special) extra.filter { e -> base.none { key(it) == key(e) } } else base.map { o -> over[key(o)]?.let { JsonObject(o + it) } ?: o }
         val seen = HashSet<String>()
         for (s in w.staff) if (s.real) seen.add("${s.titleId}|${norm(s.handle)}")
         var n = 0
@@ -604,6 +609,7 @@ object Staffing {
             if (!seen.add("$title|${norm(handle)}")) continue
             val teamName = o.s("team").orEmpty()
             val team = if (teamName.isEmpty()) null else w.teams.firstOrNull { it.titleId == title && it.real && norm(it.name) == norm(teamName) }
+            if (special && team == null) continue
             val rng = Rng.of("realstaff|$title|${norm(handle)}")
             val past = o["past"]?.jsonArray?.map { pe -> val p = pe.jsonObject
                 listOf(p["y"]!!.jsonPrimitive.int, p.s("label"), p.s("team"), p.s("tier"), p["pr"]?.jsonPrimitive?.doubleOrNull ?: 1.0,
@@ -613,7 +619,7 @@ object Staffing {
             val pts = pastPts(past) * (if (o.s("src") == "compiled") 2.0 else 1.0)
             var role = o.s("role") ?: "assistant-coach"
             if (role !in BY_ID) role = "assistant-coach"
-            if (team != null && role == "head-coach" && members(w, team).any { it.role == "head-coach" && it.real }) role = "assistant-coach"
+            if (!special && team != null && role == "head-coach" && members(w, team).any { it.role == "head-coach" && it.real }) role = "assistant-coach"
             val teamBonus = team?.let { (it.elo - 1500) / 14 } ?: 0.0
             val q = clamp(47 + teamBonus * 0.8 + kotlin.math.min(24.0, sqrt(pts) * 2.7) + rng.normal(0.0, 3.5) - (if (role == "head-coach") 0 else 3), 35.0, 90.0)
             val nat = o.s("nat")?.takeIf { it.length == 2 } ?: team?.let { w.orgs[it.orgId].country } ?: GameData.pickCountry(rng, w.leagues.firstOrNull { it.titleId == title }?.region ?: "NA")
@@ -630,7 +636,7 @@ object Staffing {
             st.ambition = rng.int(25, 90); st.loyalty = rng.int(25, 90)
             w.staff.add(st)
             if (team != null && !(onlyAi && w.isUserTeam(team.id))) {
-                if (onlyAi) members(w, team).filter { !it.real && it.role == role && (role != "position-coach" || it.spec == st.spec) }.forEach { release(w, it, "replaced", severance = false) }
+                if (onlyAi || special) members(w, team).filter { (special || !it.real) && it.role == role && (role != "position-coach" || it.spec == st.spec) }.forEach { release(w, it, "replaced", severance = false) }
                 hire(w, st, team, role, rng.int(1, 3), demand(w, st, team.region) * rng.float(0.95, 1.1), quiet = true)
             }
             n++
@@ -645,6 +651,7 @@ object Staffing {
         val rng = Rng.derive(w.seed, "staff-setup2")
         for (team in w.teams) if (team.active) fill(w, team, rng)
         pool(w, rng)
+        if (src != null) loadReal(w, src, special = true)
         w.staffVersion = 2
     }
 

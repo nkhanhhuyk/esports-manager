@@ -146,8 +146,11 @@ object WorldGen {
         // Special additions (special.json): teams added at the player's request, labelled on their team page.
         val special = runCatching { Json.parseToJsonElement(src.read("special.json")).jsonObject["teams"]!!.jsonArray.map { it.jsonObject } }.getOrDefault(emptyList())
         for (st in special) st["team_rating"]?.jsonPrimitive?.doubleOrNull?.let { b.teamRating["${st.str("title_id")}|${st.str("name")!!.lowercase()}"] = it }
-        val snapTeams = rosters["teams"]!!.jsonArray.map { it.jsonObject } + wrTeams.filter { it.str("league_id") != null } +
-            special.filter { sp -> rosters["teams"]!!.jsonArray.none { it.jsonObject.str("title_id") == sp.str("title_id") && it.jsonObject.str("name").equals(sp.str("name"), ignoreCase = true) } }
+        val snapTeams = rosters["teams"]!!.jsonArray.map { it.jsonObject } + wrTeams.filter { it.str("league_id") != null }
+        // Added after everything else, so the rest of the world is generated exactly as without them.
+        val extra = if (fictional) emptyList() else special.filter { sp -> sp.str("title_id") in titles && snapTeams.none { it.str("title_id") == sp.str("title_id") && it.str("name").equals(sp.str("name"), ignoreCase = true) } }
+        val extraTeams = extra.map { "${it.str("title_id")}|${it.str("name")!!.lowercase()}" }.toSet()
+        val extraPlayers = extra.flatMap { st -> st["roster"]!!.jsonArray.mapNotNull { r -> r.jsonObject.str("handle")?.let { "${st.str("title_id")}|${it.lowercase()}" } } }.toSet()
         for (id in titles) {
             val t = Catalogue.get(id)
             val pop = Catalogue.POPULARITY[id]!!
@@ -160,9 +163,10 @@ object WorldGen {
             regions.forEachIndexed { idx, (region, strength0) -> fictionalLeague(b, id, region, strength0, idx == 0 || (fictional && idx == 1)) }
             if (t.characters.isEmpty() && !t.isMoba) Unit
         }
-        if (!fictional) addHistory(b, wrTeams.filter { it.str("league_id") == null })
+        if (!fictional) addHistory(b, wrTeams.filter { it.str("league_id") == null }, extraTeams, extraPlayers)
         fillShortRosters(b)
         freeAgents(b)
+        for (st in extra) addSpecialTeam(b, st, snapLeagues)
         for (team in world.teams) {
             team.lineup = Lineups.auto(world, team)
             team.elo = (1500 + (Lineups.strength(world, team) - 65) * 18).roundToInt().toDouble()
@@ -600,8 +604,23 @@ object WorldGen {
 
     private val HIST_REGION = mapOf("AMER" to AMER, "EMEA" to EMEA, "APN" to "APN-KR.JP.PCS.VN.TH.ID.PH.MYSG.SA.OCE")
 
+    /**
+     * A team added at the player's request (special.json) in its league, after the rest of the world: the other
+     * teams, players and coaches come out the same as without it. Players already in the world stay where they are.
+     */
+    private fun addSpecialTeam(b: Build, st: JsonObject, snapLeagues: List<JsonObject>) {
+        val titleId = st.str("title_id")!!
+        val lname = snapLeagues.firstOrNull { it.str("league_id") == st.str("league_id") }?.str("name") ?: return
+        val league = b.world.leagues.firstOrNull { it.titleId == titleId && it.tier == 1 && it.name == lname } ?: return
+        val taken = b.world.players.filter { it.titleId == titleId && it.real }.map { it.handle.lowercase() }.toHashSet()
+        val roster = st["roster"]!!.jsonArray.filter { it.jsonObject.str("handle")?.lowercase() !in taken }
+        val obj = JsonObject(st + ("roster" to kotlinx.serialization.json.JsonArray(roster)))
+        val mean = b.teamRating["$titleId|${st.str("name")!!.lowercase()}"] ?: 68.0
+        createRealTeam(b, obj, league, mean)
+    }
+
     /** Real teams without a league place stay dormant; their former players are free agents. */
-    private fun addHistory(b: Build, wrDormant: List<JsonObject>) {
+    private fun addHistory(b: Build, wrDormant: List<JsonObject>, skipTeams: Set<String> = emptySet(), skipPlayers: Set<String> = emptySet()) {
         val h = Json.parseToJsonElement(b.src.read("history.json")).jsonObject
         val w = b.world
         val titles = w.titles.toSet()
@@ -616,7 +635,7 @@ object WorldGen {
         val liveTeamNames = w.teams.map { "${it.titleId}|${it.name.lowercase()}" }.toHashSet()
         val dormant = HashMap<String, Team>()
         for ((ht, titleId, name) in histTeams) {
-            if (titleId !in titles || "$titleId|${name.lowercase()}" in liveTeamNames) continue
+            if (titleId !in titles || "$titleId|${name.lowercase()}" in liveTeamNames || "$titleId|${name.lowercase()}" in skipTeams) continue
             val r = ht.str("region")
             val region = if (r != null) HIST_REGION[r] ?: r else if (titleId == "cs2" || titleId == "dota2") EMEA else "NA"
             val key = orgKey(name)
@@ -644,7 +663,7 @@ object WorldGen {
         // Real players only (fictional leagues differ per save; real ratings must not).
         val avg = titles.associateWith { id -> w.players.filter { it.titleId == id && it.teamId >= 0 && it.real }.map { it.ca }.ifEmpty { listOf(62.0) }.average() }
         for (hp in histPlayers) {
-            if (hp.title !in titles) continue
+            if (hp.title !in titles || "${hp.title}|${hp.handle.lowercase()}" in skipPlayers) continue
             val set = live.getOrPut(hp.title) { HashSet() }
             if (!set.add(hp.handle.lowercase())) continue
             val t = Catalogue.get(hp.title)
