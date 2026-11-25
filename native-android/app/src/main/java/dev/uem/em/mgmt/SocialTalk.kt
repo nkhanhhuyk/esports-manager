@@ -177,8 +177,121 @@ internal object SocialTalk {
      * Up to [n] comments for a thread: facts drawn by weight (never the same fact or phrasing twice),
      * spoken by fans of either side, neutrals, analysts and the odd troll, some with replies.
      */
-    fun comments(c: Ctx, facts: List<Fact>, n: Int, fan: (Team?) -> Social.Author, analyst: () -> Social.Author, troll: () -> Social.Author, score: (Double) -> Int): List<Social.Comment> =
-        comments(c.rng, c.win, c.lose, facts, n, fan, analyst, troll, score)
+    fun comments(c: Ctx, facts: List<Fact>, n: Int, fan: (Team?) -> Social.Author, analyst: () -> Social.Author, troll: () -> Social.Author, score: (Double) -> Int): List<Social.Comment> {
+        // About half the thread reacts to the series' facts; the other half brings something of its own
+        // (a matchup, a record, the coach, the ladder, a fee, a prediction), so no two comments say the same thing.
+        val own = angles(c).shuffled(java.util.Random(c.rng.int(0, Int.MAX_VALUE - 1).toLong()))
+        val nOwn = minOf(own.size, (n + 1) / 2)
+        val base = comments(c.rng, c.win, c.lose, facts, n - nOwn, fan, analyst, troll, score).toMutableList()
+        for ((i, a) in own.take(nOwn).withIndex()) {
+            val author = when (a.who) { 2 -> analyst(); 1 -> fan(c.win); -1 -> fan(c.lose); else -> fan(null) }
+            val at = minOf(base.size, 1 + i * 2)
+            base.add(at, Social.Comment(author, a.text, score(a.weight)))
+        }
+        return base
+    }
+
+    /** A comment with content of its own: [who] 1 winner's fan, -1 loser's fan, 0 neutral, 2 analyst. */
+    class Angle(val who: Int, val text: String, val weight: Double)
+
+    /**
+     * Comments that each add a different piece of information: the closest lane matchup, a character's
+     * record this season, a player's season numbers and age, the head coach, a solo queue rank, a transfer
+     * fee, the home scene, a prediction from the table, a lineup suggestion. One of each kind at most.
+     */
+    fun angles(c: Ctx): List<Angle> {
+        val out = ArrayList<Angle>()
+        val w = c.w; val t = c.t; val rng = c.rng
+        if (c.games.isEmpty()) return out
+        val ki = t.statIndex["k"]; val di = t.statIndex["d"]; val ai = t.statIndex["a"]
+        fun st(l: dev.uem.em.model.Line, i: Int?) = i?.let { l.s.getOrNull(it) } ?: 0.0
+        class Tot(val pid: Int, val team: Int, val role: String) { var k = 0.0; var d = 0.0; var a = 0.0; var r = 0.0; var g = 0; val chars = ArrayList<String>() }
+        val tot = LinkedHashMap<Int, Tot>()
+        for (g in c.games) for (l in g.lines) tot.getOrPut(l.playerId) { Tot(l.playerId, l.team, l.roleId) }.let { x -> x.k += st(l, ki); x.d += st(l, di); x.a += st(l, ai); x.r += l.rating; x.g++; if (l.charId.isNotEmpty()) x.chars.add(l.charId) }
+        fun side(team: Int) = if (team == c.winIdx) 1 else -1
+        fun kda(x: Tot) = "${x.k.roundToInt()}/${x.d.roundToInt()}/${x.a.roundToInt()}"
+        fun pl(pid: Int) = w.players.getOrNull(pid)
+        val teamOf = { side: Int -> if (side == 1) c.win else c.lose }
+        // 1. The lane matchup with the widest gap (or the closest one).
+        val pairs = t.lineup.mapNotNull { r -> val a = tot.values.firstOrNull { it.role == r && it.team == c.winIdx }; val b = tot.values.firstOrNull { it.role == r && it.team != c.winIdx }; if (a == null || b == null) null else Triple(r, a, b) }
+        pairs.maxByOrNull { (_, a, b) -> a.r / a.g - b.r / b.g }?.let { (r, a, b) ->
+            val role = t.role(r).name.lowercase()
+            out.add(Angle(0, rng.pick(listOf(
+                "The $role matchup decided more than the scoreboard shows: ${pl(a.pid)?.handle} ${kda(a)} against ${pl(b.pid)?.handle} ${kda(b)}.",
+                "Watch the $role lane on the vod. ${pl(a.pid)?.handle} had ${pl(b.pid)?.handle} under pressure all series (${kda(a)} vs ${kda(b)}).",
+                "${pl(b.pid)?.handle} lost the $role duel to ${pl(a.pid)?.handle} and the series went with it.")), 1.4))
+        }
+        pairs.minByOrNull { (_, a, b) -> kotlin.math.abs(a.r / a.g - b.r / b.g) }?.takeIf { pairs.size >= 3 }?.let { (r, a, b) ->
+            out.add(Angle(2, "Even matchup of the series: ${pl(a.pid)?.handle} and ${pl(b.pid)?.handle} at ${t.role(r).short} were level all the way (${kda(a)} and ${kda(b)}).", 1.0))
+        }
+        // 2. A character's record this season.
+        tot.values.flatMap { x -> x.chars.map { it to x } }.groupBy { it.first }.maxByOrNull { it.value.size }?.let { (cid, uses) ->
+            val name = t.charIndex[cid]?.name ?: return@let
+            val u = w.charStats["${w.season}|$cid"]
+            if (u != null && u[0] >= 5) {
+                val wr = 100 * u[1] / maxOf(1, u[0])
+                out.add(Angle(2, rng.pick(listOf(
+                    "$name this season: ${u[0]} games, $wr% wins, ${u[2]} bans. ${if (wr >= 55) "Still nobody has an answer." else if (wr <= 45) "Picked a lot, wins little." else "A coin flip, but a popular one."}",
+                    "Funny how $name keeps showing up (${uses.size} times here). League-wide it's at $wr% over ${u[0]} games.")), 1.1))
+            }
+        }
+        // 3. Season numbers and age of the series' best player.
+        tot.values.maxByOrNull { it.r / it.g }?.let { x ->
+            val p = pl(x.pid) ?: return@let
+            val age = dev.uem.em.core.Dates.ageAt(p.birth, w.day)
+            val line = p.stats.lastOrNull { it.season == w.season && it.titleId == t.id && it.teamId == p.teamId }
+            val tm = teamOf(side(x.team))
+            if (line != null && line.gp >= 6) {
+                val avg = line.ratingSum / line.gp
+                out.add(Angle(side(x.team), rng.pick(listOf(
+                    "${p.handle} is on %.2f rating over ${line.gp} games this season. That is not a hot streak any more, that's the level.".format(avg),
+                    "People still sleep on ${p.handle}: ${line.w}–${line.l} in games this season and %.2f average rating.".format(avg))), 1.3))
+            }
+            if (age <= 19) out.add(Angle(side(x.team), "${p.handle} is $age. Let that sink in.", 1.0))
+            else if (age >= 27) out.add(Angle(0, "${p.handle} at $age still doing this. Longevity is underrated.", 0.9))
+            // 4. The home scene.
+            val country = dev.uem.em.data.GameData.countries[p.nat]?.name
+            if (country != null && tm.region != dev.uem.em.data.GameData.regionOf(p.nat))
+                out.add(Angle(0, "Big night for $country: ${p.handle} carrying ${tm.short} abroad.", 0.9))
+        }
+        // 5. The head coach of each side.
+        for (sd in listOf(1, -1)) {
+            val tm = teamOf(sd)
+            val hc = Staffing.members(w, tm).firstOrNull { it.role == "head-coach" } ?: continue
+            out.add(Angle(sd, if (sd == 1) rng.pick(listOf("Credit to ${hc.name()}. The adjustments between ${if (t.isMoba) "games" else "maps"} were clear.", "${hc.name()} has ${tm.short} prepared. You can see the scrim work."))
+                else rng.pick(listOf("Questions for ${hc.name()} after that one. Same plan every ${if (t.isMoba) "game" else "map"}.", "${hc.name()} needs answers before the next match. Nothing changed when it went wrong.")), 1.0))
+            break
+        }
+        // 6. A solo queue rank.
+        tot.values.mapNotNull { x -> pl(x.pid)?.takeIf { it.soloMmr > 0 }?.let { it to x } }.maxByOrNull { it.first.soloMmr }?.let { (p, x) ->
+            out.add(Angle(side(x.team), "${p.handle} is ${SoloQueue.rank(p.titleId, p.soloMmr)} on the ladder right now. The hours show.", 0.8))
+        }
+        // 7. A fee that looks good or bad now.
+        for (x in tot.values.sortedByDescending { kotlin.math.abs(it.r / it.g - 1.0) }) {
+            val p = pl(x.pid) ?: continue
+            val tr = w.transfers.lastOrNull { it.playerId == p.id && it.toTeam == p.teamId && it.fee > 0 } ?: continue
+            val good = x.r / x.g >= 1.0
+            out.add(Angle(side(x.team), if (good) "${dev.uem.em.core.formatMoney(tr.fee)} for ${p.handle} looks cheap today." else "${dev.uem.em.core.formatMoney(tr.fee)} for ${p.handle}, and that was the return?", 1.1))
+            break
+        }
+        // 8. A prediction from the table, and a lineup suggestion for the losing side.
+        val stage = w.comps[c.f.compId].stages.getOrNull(c.f.stageIdx)
+        val rows = stage?.standings?.sortedByDescending { it.w * 2 - it.l }
+        val pos = rows?.indexOfFirst { it.teamId == c.win.id } ?: -1
+        if (rows != null && pos >= 0 && rows.size >= 6) out.add(Angle(1, if (pos < 3) "Calling it now: ${c.win.short} finish top two. Screenshot this." else "${c.win.short} are ${pos + 1}th and climbing. Playoffs are realistic.", 0.9))
+        val worst = tot.values.filter { it.team != c.winIdx }.minByOrNull { it.r / it.g }
+        if (worst != null) {
+            val sub = c.lose.roster.mapNotNull { pl(it) }.firstOrNull { it.id !in tot.keys && it.roles.firstOrNull() == worst.role && !it.retired }
+            if (sub != null) out.add(Angle(-1, "Not saying bench ${pl(worst.pid)?.handle}, but ${sub.handle} is sitting right there.", 1.0))
+        }
+        // 9. The patch: what this series' drafts kept going back to.
+        val picks = c.games.flatMap { g -> g.lines.map { it.charId } }.filter { it.isNotEmpty() }.groupingBy { it }.eachCount().maxByOrNull { it.value }
+        val pa = w.patches.lastOrNull { it.titleId == t.id }
+        if (picks != null && picks.value >= 2 && pa != null) t.charIndex[picks.key]?.name?.let { name ->
+            out.add(Angle(0, "Patch ${pa.version} in one sentence: $name in ${picks.value} of ${c.games.size} ${if (t.isMoba) "games" else "maps"} here.", 0.7))
+        }
+        return out
+    }
 
     /** The same for any pair of sides: [win] is the side +1 facts are about, [lose] the side of -1 facts. */
     fun comments(rng: Rng, win: Team, lose: Team, facts: List<Fact>, n: Int, fan: (Team?) -> Social.Author, analyst: () -> Social.Author, troll: () -> Social.Author, score: (Double) -> Int): List<Social.Comment> {

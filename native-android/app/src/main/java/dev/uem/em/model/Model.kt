@@ -228,6 +228,10 @@ class Player(
     var wantsOutDay: Int = 0,
     /** Country where three straight seasons made the player a local (not an import) — residency, not nationality. */
     var residency: String = "",
+    /** Solo queue kills, deaths and assists this season (totals). */
+    var soloK: Double = 0.0,
+    var soloD: Double = 0.0,
+    var soloA: Double = 0.0,
 ) {
     val retired get() = retiredSeason != 0
     /** Every nationality (the first is the main one). */
@@ -635,6 +639,8 @@ class Staff(
     var ambition: Int = 50,
     var loyalty: Int = 50,
     var retiredSeason: Int = 0,
+    /** Weights (percent) of what the person wants from a job, like a player's ambitions (Staffing.AMB_KEYS). */
+    @ProtoPacked var ambitions: IntArray = IntArray(0),
 ) {
     fun name() = handle.ifEmpty { "$first $last".trim() }
     fun fullName() = "$first $last".trim()

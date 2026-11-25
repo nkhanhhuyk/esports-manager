@@ -254,9 +254,10 @@ object Nations {
     /** Daily: selectors name squads for national events starting within [SELECT_DAYS] days. */
     fun daily(w: World) {
         for (c in w.comps) {
-            if (c.status != 0 || c.startDay - w.day !in 0..SELECT_DAYS || !national(c)) continue
+            if (c.done || !national(c) || (c.status == 0 && c.startDay - w.day !in 0..SELECT_DAYS)) continue
             val teams = nationsFor(w, c) ?: continue
-            val todo = teams.filter { it.squadFor != c.id }
+            // An event already under way (an older save, a late entrant) names any squad it is missing at once.
+            val todo = teams.filter { it.squadFor != c.id && (c.status == 0 || it.roster.isEmpty()) }
             if (todo.isEmpty()) continue
             val all = w.players.filter { it.titleId == c.titleId && !it.retired }
             val byNat = all.groupBy { it.nat }

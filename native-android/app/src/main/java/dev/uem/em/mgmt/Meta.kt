@@ -247,9 +247,16 @@ object TierList {
         return ((h % 1000) / 1000.0) * 1.6 + siteBonus
     }
 
-    fun characters(w: World, t: TitleDef, role: RoleDef?, mapId: String? = null): List<Pair<String, List<Entry>>> {
+    /** A character's classes (a champion can be both, e.g. Fighter and Tank). */
+    fun classesOf(c: dev.uem.em.titles.CharDef): List<String> = c.classes.ifEmpty { listOf(c.cls) }.filter { it.isNotBlank() }
+
+    /** Classes among a pool, the most common first. */
+    fun classList(t: TitleDef, role: RoleDef? = null): List<String> =
+        t.characters.filter { role == null || it.fits(role) }.flatMap { classesOf(it) }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
+
+    fun characters(w: World, t: TitleDef, role: RoleDef?, mapId: String? = null, cls: String? = null): List<Pair<String, List<Entry>>> {
         val patch = Patch.of(w, t)
-        val pool = t.characters.filter { role == null || it.fits(role) }
+        val pool = t.characters.filter { (role == null || it.fits(role)) && (cls == null || cls in classesOf(it)) }
         return tiers(pool.map { c -> val (s, n) = charScore(w, t, patch, c, mapId); Entry(c.id, c.name, s, n) })
     }
 

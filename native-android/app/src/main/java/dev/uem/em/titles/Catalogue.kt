@@ -107,6 +107,7 @@ object Catalogue {
         loaded = true
         // Real esports history before the save (honours, GOAT, Hall of Fame): once, after the core data.
         runCatching { dev.uem.em.mgmt.HistoryBook.init(src) }
+        dev.uem.em.mgmt.Careers.init(src) // real career moves: read on first use
     }
 
     private val base = HashMap<String, List<CharDef>>()

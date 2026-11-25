@@ -103,6 +103,7 @@ object SoloQueue {
                 val net = ((p.soloMmr - before) / 20.0).roundToInt()
                 val wins = ((games + net) / 2).coerceIn(0, games)
                 p.soloGames += games; p.soloWins += wins
+                soloKda(Catalogue.get(p.titleId), p, games, wins, rng)?.let { (k, d, a) -> p.soloK += k; p.soloD += d; p.soloA += a }
                 // Practice: character pool and a little mechanics; long sessions tire.
                 if (p.teamId >= 0) p.fatigue = clamp(p.fatigue + games * 0.12, 0.0, 100.0)
                 val t = Catalogue.get(p.titleId)
@@ -122,14 +123,47 @@ object SoloQueue {
         }
     }
 
+    /**
+     * A week of ranked games in kills, deaths and assists: by position (carries kill, supports assist), by skill
+     * (better players kill more and die less) and by the week's results. Games without a K/D/A have none.
+     */
+    private fun soloKda(t: dev.uem.em.titles.TitleDef, p: Player, games: Int, wins: Int, rng: Rng): Triple<Double, Double, Double>? {
+        if (games <= 0 || t.statIndex["k"] == null || t.statIndex["d"] == null) return null
+        val role = t.role(p.mainRole)
+        val pos = dev.uem.em.titles.RoleMeta.pos(p.mainRole)
+        val base = when {
+            !t.isMoba -> doubleArrayOf(16.5, 15.0, 4.5)
+            role.isSupport -> doubleArrayOf(2.6, 5.6, 13.0)
+            pos == "jungle" -> doubleArrayOf(6.0, 5.2, 8.5)
+            pos == "top" -> doubleArrayOf(5.6, 5.4, 5.5)
+            else -> doubleArrayOf(7.4, 5.0, 6.5)
+        }
+        val len = if (t.id == "dota2") 1.35 else 1.0
+        val wr = wins.toDouble() / games
+        val skill = ((p.ca - 55) / 100.0).coerceIn(-0.25, 0.35)
+        val k = base[0] * len * (1 + skill) * (0.8 + 0.4 * wr) * games * rng.float(0.9, 1.1)
+        val d = base[1] * len * (1 - skill * 0.8) * (1.2 - 0.4 * wr) * games * rng.float(0.9, 1.1)
+        val a = base[2] * len * (1 + skill * 0.5) * (0.8 + 0.4 * wr) * games * rng.float(0.9, 1.1)
+        return Triple(k, d, a)
+    }
+
+    /** "6.1 / 4.0 / 7.2 · KDA 3.3" per game this season ("" without games or K/D/A). */
+    fun kdaText(p: Player, short: Boolean = false): String {
+        if (p.soloGames <= 0 || p.soloD + p.soloK <= 0.0) return ""
+        val g = p.soloGames.toDouble()
+        val ratio = (p.soloK + p.soloA) / maxOf(1.0, p.soloD)
+        return if (short) "KDA %.1f".format(ratio) else "%.1f / %.1f / %.1f · KDA %.2f".format(p.soloK / g, p.soloD / g, p.soloA / g, ratio)
+    }
+
     /** Season change: history line and a soft reset toward the middle of the top tiers. */
     fun rollover(w: World) {
         for (p in w.players) {
             if (p.soloMmr <= 0.0) continue
-            if (p.soloGames > 0) p.soloHistory.add("${w.season - 1}|${p.soloMmr.roundToInt()}|${p.soloGames}|${p.soloWins}|${p.soloPeak.roundToInt()}")
+            if (p.soloGames > 0) p.soloHistory.add("${w.season - 1}|${p.soloMmr.roundToInt()}|${p.soloGames}|${p.soloWins}|${p.soloPeak.roundToInt()}|${p.soloK.roundToInt()}|${p.soloD.roundToInt()}|${p.soloA.roundToInt()}")
             if (p.soloHistory.size > 12) p.soloHistory.removeAt(0)
             p.soloMmr = p.soloMmr * 0.8 + 2000 * 0.2
             p.soloGames = 0; p.soloWins = 0; p.soloPeak = p.soloMmr; p.soloDelta = 0.0
+            p.soloK = 0.0; p.soloD = 0.0; p.soloA = 0.0
         }
     }
 

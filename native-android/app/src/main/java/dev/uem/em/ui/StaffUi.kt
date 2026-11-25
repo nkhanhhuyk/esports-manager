@@ -118,6 +118,23 @@ fun StaffScreen(vm: GameVm, w: World, id: Int) {
             }
         }
         item {
+            Card("Ambitions") {
+                Muted("What ${s.name()} wants from a job: weighs every offer, renewal and move (like a player's ambitions).", 11)
+                Gap(4)
+                val amb = Staffing.ambitions(w, s)
+                for (k in Staffing.AMB_KEYS.indices.sortedByDescending { amb[it] }) {
+                    val v = amb[k]
+                    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(Staffing.AMB_LABEL[Staffing.AMB_KEYS[k]]!!, color = if (v >= 20) Ui.text else Ui.muted, fontSize = 12.sp, fontWeight = if (v >= 20) FontWeight.SemiBold else FontWeight.Normal, modifier = Modifier.width(130.dp))
+                        Bar(v.toDouble() * 2.5, modifier = Modifier.weight(1f), color = if (v >= 20) Ui.accent else Ui.muted)
+                        Text("$v%", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(38.dp).padding(start = 6.dp))
+                    }
+                }
+                Gap(2)
+                Muted("Above all: " + Staffing.topAmbitions(w, s, 2).joinToString(" and ") { Staffing.AMB_HINT[it.first]!! } + ".", 11)
+            }
+        }
+        item {
             Card("Best roles") {
                 val fits = Staffing.ROLES.map { it to Staffing.qualityOf(it.id, s.attrs.takeIf { a -> a.size == Staffing.ATTRS.size } ?: IntArray(Staffing.ATTRS.size) { s.quality.toInt() }) }.sortedByDescending { it.second }.take(5)
                 for ((d, q) in fits) Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -140,8 +157,10 @@ fun StaffScreen(vm: GameVm, w: World, id: Int) {
             }
         }
         item {
-            Card("Career") {
-                if (s.spells.isEmpty()) Muted(if (s.past.isNotEmpty()) "No club in the save yet." else "No clubs yet.")
+            val before = remember(id) { if (s.real) dev.uem.em.mgmt.Careers.of(s.titleId, s.handle.ifEmpty { s.name() }) else emptyList() }
+            if (before.isNotEmpty()) Card("Career before the save") { CareerSpells(vm, w, s.titleId, before) }
+            Card(if (before.isNotEmpty()) "Career in the save" else "Career") {
+                if (s.spells.isEmpty()) Muted(if (s.past.isNotEmpty() || before.isNotEmpty()) "No club in the save yet." else "No clubs yet.")
                 for (sp in s.spells.reversed()) Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         TeamChip(w, sp.teamId, vm, 16.dp)

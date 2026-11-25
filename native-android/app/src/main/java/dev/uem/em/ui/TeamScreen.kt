@@ -437,7 +437,12 @@ private fun TeamChemistryCard(vm: GameVm, w: World, team: Team) {
 /** The roster of every season: the current one, then each season's roster at its end (and who left during it). */
 @Composable
 private fun TeamPastRosters(vm: GameVm, w: World, team: Team, t: TitleDef) {
-    @Composable fun roster(title: String, ids: List<Int>, sub: String?, leftDuring: List<Int>) = Card(title, right = { if (sub != null) Muted(sub, 11) }) {
+    // National teams: only players of the nationality; day stand-ins from older versions are listed apart.
+    val nat = team.nationalOf
+    fun eligible(pid: Int) = nat.isEmpty() || w.players.getOrNull(pid)?.let { it.nat == nat || it.nat2 == nat } == true
+    @Composable fun roster(title: String, ids0: List<Int>, sub: String?, leftDuring: List<Int>) = Card(title, right = { if (sub != null) Muted(sub, 11) }) {
+        val ids = ids0.filter { eligible(it) }
+        val old = ids0.filterNot { eligible(it) }
         if (ids.isEmpty()) Muted("No players recorded.", 11)
         for (pid in ids.sortedBy { t.lineup.indexOf(w.players[it].roles.firstOrNull()).let { i -> if (i < 0) 9 else i } }) {
             val p = w.players.getOrNull(pid) ?: continue
@@ -453,6 +458,7 @@ private fun TeamPastRosters(vm: GameVm, w: World, team: Team, t: TitleDef) {
             }
         }
         if (leftDuring.isNotEmpty()) { Gap(4); Muted("Left during the season: " + leftDuring.joinToString { w.players[it].handle }, 11) }
+        if (old.isNotEmpty()) { Gap(4); Muted("Day stand-ins from an older version (not of this nationality; no longer possible): " + old.joinToString { "${w.players[it].handle} ${flag(w.players[it].nat)}" }, 11) }
     }
     val seasonsOut = w.transfers.filter { it.fromTeam == team.id }.groupBy { it.season }
     roster("Season ${w.season} (current)", team.roster.toList(), team.leagueId.takeIf { it >= 0 }?.let { w.leagues[it].short }, seasonsOut[w.season].orEmpty().map { it.playerId }.distinct().filter { it !in team.roster })

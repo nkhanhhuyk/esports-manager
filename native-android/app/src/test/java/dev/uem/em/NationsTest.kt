@@ -66,6 +66,9 @@ class NationsTest {
         assertTrue("event over", c.done)
         assertTrue("squads step down after the event", played.all { it.roster.isEmpty() && it.squadFor == -1 })
         assertTrue("the history keeps the squads", played.all { tm -> tm.history.any { it.compId == c.id && it.roster.isNotEmpty() } })
+        // Nobody of another nationality ever played for a national team (no day stand-ins from elsewhere either).
+        val foreign = w.players.filter { p -> p.stats.any { s -> w.teams.getOrNull(s.teamId)?.nationalOf?.let { n -> n.isNotEmpty() && p.nat != n && p.nat2 != n } == true } }
+        assertTrue("foreign players in national teams: " + foreign.take(5).joinToString { it.handle }, foreign.isEmpty())
     }
 
     @Test

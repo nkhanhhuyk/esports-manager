@@ -174,17 +174,26 @@ object Advance {
         for (i in out.indices) {
             if (out[i] !in busy) continue
             val role = t.lineupRoles.getOrNull(i) ?: continue
-            out[i] = team.roster.filter { it !in busy && it !in out && Lineups.available(w, w.players[it]) }.maxByOrNull { dev.uem.em.sim.Ratings.effectiveness(w.players[it], t, role) }
+            // Someone who plays the position (main, then second) first; only then anyone else on the roster.
+            out[i] = team.roster.filter { it !in busy && it !in out && Lineups.available(w, w.players[it]) }
+                .minWithOrNull(compareBy<Int>({ posTier(w.players[it], role.id) }, { -dev.uem.em.sim.Ratings.effectiveness(w.players[it], t, role) }))
                 ?: standIn(w, team, role, busy, out) ?: -1
         }
         return out
     }
 
-    /** No free roster player: the best available unsigned player of the game stands in for the day. */
+    private fun posTier(p: dev.uem.em.model.Player, role: String) = if (p.roles.firstOrNull() == role) 0 else if (p.roles.getOrNull(1) == role) 1 else 2
+
+    /**
+     * No free roster player: an available unsigned player stands in for the day, one who plays the position
+     * first. A national team only ever takes a player of its nationality (first or second).
+     */
     private fun standIn(w: World, team: dev.uem.em.model.Team, role: dev.uem.em.titles.RoleDef, busy: Set<Int>, taken: List<Int>): Int? {
         val t = Catalogue.get(team.titleId)
-        val pool = w.players.filter { it.titleId == team.titleId && it.teamId < 0 && !it.retired && it.id !in busy && it.id !in taken && Lineups.available(w, it) }
-        return pool.maxByOrNull { dev.uem.em.sim.Ratings.effectiveness(it, t, role) }?.id
+        val nat = team.nationalOf
+        val pool = w.players.filter { it.titleId == team.titleId && it.teamId < 0 && !it.retired && it.id !in busy && it.id !in taken && Lineups.available(w, it) &&
+            (nat.isEmpty() || it.nat == nat || it.nat2 == nat) }
+        return pool.minWithOrNull(compareBy<dev.uem.em.model.Player>({ posTier(it, role.id) }, { -dev.uem.em.sim.Ratings.effectiveness(it, t, role) }))?.id
     }
 
     /** Apply one series: fixture result, player and competition stats, learning, Elo, competition progress. */

@@ -72,7 +72,8 @@ private fun LadderRow(vm: GameVm, w: World, p: Player, place: Int) {
         Column(horizontalAlignment = Alignment.End) {
             Text(SoloQueue.rank(p.titleId, p.soloMmr, place), color = Ui.text, fontSize = 11.sp, maxLines = 1)
             val wr = if (p.soloGames > 0) " · ${100 * p.soloWins / p.soloGames}%" else ""
-            Text("${p.soloGames} games$wr ${if (p.soloDelta >= 1) "▲" else if (p.soloDelta <= -1) "▼" else ""}", color = if (p.soloDelta >= 1) Ui.win else if (p.soloDelta <= -1) Ui.loss else Ui.muted, fontSize = 10.sp)
+            val kda = SoloQueue.kdaText(p, short = true).let { if (it.isEmpty()) "" else " · $it" }
+            Text("${p.soloGames} games$wr$kda ${if (p.soloDelta >= 1) "▲" else if (p.soloDelta <= -1) "▼" else ""}", color = if (p.soloDelta >= 1) Ui.win else if (p.soloDelta <= -1) Ui.loss else Ui.muted, fontSize = 10.sp)
         }
     }
 }
@@ -87,13 +88,15 @@ fun SoloQueueCard(vm: GameVm, w: World, p: Player) {
         KV("Rank", SoloQueue.rank(p.titleId, p.soloMmr, place))
         KV("Server", "${GameData.regionName(server)} · #$place")
         KV("This season", "${p.soloGames} games · ${if (p.soloGames > 0) "${100 * p.soloWins / p.soloGames}% wins" else "—"} · peak ${SoloQueue.rank(p.titleId, p.soloPeak)}")
+        SoloQueue.kdaText(p).takeIf { it.isNotEmpty() }?.let { KV("K / D / A per game", it) }
         KV("Last week", "%+.0f".format(p.soloDelta), if (p.soloDelta >= 0) Ui.win else Ui.loss)
         KV("Queue habits", when { p.soloGrind > 0.4 -> "grinds a lot"; p.soloGrind < -0.4 -> "rarely queues"; else -> "regular" })
         Muted(SoloQueue.comparison(w, p), 11)
         if (p.amateur) Text("Amateur: has never played professionally.", color = Ui.gold, fontSize = 11.sp)
         if (p.soloHistory.isNotEmpty()) {
             Gap(4)
-            for (h in p.soloHistory.takeLast(5).reversed()) { val x = h.split('|'); if (x.size >= 5) Muted("Season ${x[0]}: ${SoloQueue.rank(p.titleId, x[1].toDouble())} · ${x[2]} games · ${if (x[2].toInt() > 0) 100 * x[3].toInt() / x[2].toInt() else 0}% · peak ${SoloQueue.rank(p.titleId, x[4].toDouble())}", 10) }
+            for (h in p.soloHistory.takeLast(5).reversed()) { val x = h.split('|'); if (x.size >= 5) Muted("Season ${x[0]}: ${SoloQueue.rank(p.titleId, x[1].toDouble())} · ${x[2]} games · ${if (x[2].toInt() > 0) 100 * x[3].toInt() / x[2].toInt() else 0}% · peak ${SoloQueue.rank(p.titleId, x[4].toDouble())}" +
+                (if (x.size >= 8 && x[2].toInt() > 0 && x[6].toInt() + x[5].toInt() > 0) " · KDA %.2f".format((x[5].toDouble() + x[7].toDouble()) / maxOf(1.0, x[6].toDouble())) else ""), 10) }
         }
     }
 }

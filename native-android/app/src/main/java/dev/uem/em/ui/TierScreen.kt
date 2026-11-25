@@ -77,25 +77,32 @@ fun TierScreen(vm: GameVm, w: World) {
     var title by remember { mutableStateOf(w.orgs.getOrNull(w.userOrg)?.teams?.firstOrNull()?.let { w.teams[it].titleId } ?: "lol") }
     var view by remember(title) { mutableIntStateOf(0) }
     var pick by remember(title, view) { mutableIntStateOf(0) }
+    var clsPick by remember(title, view, pick) { mutableIntStateOf(0) }
     val t = Catalogue.get(title)
     val views = when (title) {
         "valorant" -> listOf("Agents by role", "Agents by map", "Guns by role", "Guns by map", "Guns by type")
         "cs2" -> listOf("Overall", "Guns by role", "Loadouts by role", "Guns by map", "Guns by type")
-        else -> listOf("By role", "Overall")
+        else -> listOf("By role", "By class", "Overall")
     }
     val cats = Release.weaponsOf(w, title).map { it.category }.distinct().sorted()
     val options: List<String> = when (views.getOrNull(view)) {
         "By role", "Agents by role", "Guns by role", "Loadouts by role" -> t.lineupRoles.map { it.name }
         "Agents by map", "Guns by map" -> t.maps.map { it.name }
         "Guns by type" -> cats
+        "By class" -> TierList.classList(t)
         else -> emptyList()
     }
     val sel = pick.coerceIn(0, maxOf(0, options.size - 1))
-    val rows = remember(title, view, sel, vm.version) {
+    // By role, split by class too: the role's classes (a champion with two classes is in both).
+    val roleClasses = if (views.getOrNull(view) == "By role") listOf("All classes") + TierList.classList(t, t.lineupRoles.getOrNull(sel)) else emptyList()
+    val csel = clsPick.coerceIn(0, maxOf(0, roleClasses.size - 1))
+    val rows = remember(title, view, sel, csel, vm.version) {
         val role = t.lineupRoles.getOrNull(sel)
         val map = t.maps.getOrNull(sel)?.id
         when (views[view]) {
-            "By role", "Agents by role" -> TierList.characters(w, t, role)
+            "By role" -> TierList.characters(w, t, role, cls = roleClasses.getOrNull(csel)?.takeIf { csel > 0 })
+            "By class" -> TierList.characters(w, t, null, cls = options.getOrNull(sel))
+            "Agents by role" -> TierList.characters(w, t, role)
             "Overall" -> if (title == "cs2") TierList.weapons(w, t) else TierList.characters(w, t, null)
             "Agents by map" -> TierList.characters(w, t, null, map)
             "Guns by role" -> TierList.weapons(w, t, role)
@@ -115,6 +122,7 @@ fun TierScreen(vm: GameVm, w: World) {
         item { Tabs(Catalogue.IDS.map { Catalogue.get(it).short }, Catalogue.IDS.indexOf(title)) { title = Catalogue.IDS[it] } }
         item { Tabs(views, view) { view = it; pick = 0 } }
         if (options.isNotEmpty()) item { Tabs(options, sel) { pick = it } }
+        if (roleClasses.size > 2) item { Tabs(roleClasses, csel) { clsPick = it } }
         item {
             Card {
                 val isWeapon = views[view].startsWith("Guns") || (title == "cs2" && views[view] == "Overall")

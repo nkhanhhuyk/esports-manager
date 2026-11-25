@@ -310,7 +310,12 @@ private fun PlayerProficiency(w: World, p: Player, t: TitleDef) {
 
 @Composable
 private fun PlayerCareer(vm: GameVm, w: World, p: Player) {
-    Card("Career timeline") {
+    // Before the save: the real career (team spells with months and positions where the wikis record them).
+    val before = remember(p.id) { if (p.real) dev.uem.em.mgmt.Careers.of(p.titleId, p.handle) else emptyList() }
+    if (before.isNotEmpty()) Card("Career before the save") {
+        CareerSpells(vm, w, p.titleId, before)
+    }
+    Card(if (before.isNotEmpty()) "Moves in the save" else "Career timeline") {
         if (p.career.isEmpty()) Muted("No moves recorded.")
         for (e in p.career.reversed()) {
             val fee = w.transfers.firstOrNull { it.playerId == p.id && it.day == e.day && it.toTeam == e.teamId }?.fee ?: 0.0
@@ -514,4 +519,29 @@ private fun ProvenanceCard(w: World, p: Player) {
         KV("Ratings & attributes", "Game estimates, not real measurements", Ui.muted)
         if (p.realSrc.isNotBlank()) Muted("Source: ${p.realSrc}", 10)
     }
+}
+
+
+/** Real team spells before the save, newest first; a team in this world opens its page. */
+@Composable
+fun CareerSpells(vm: GameVm, w: World, titleId: String, spells: List<dev.uem.em.mgmt.Careers.Spell>) {
+    val t = Catalogue.get(titleId)
+    for (sp in spells.reversed()) {
+        val team = remember(sp.team, titleId) { dev.uem.em.mgmt.HistoryBook.norm(sp.team).let { n -> w.teams.firstOrNull { it.titleId == titleId && (dev.uem.em.mgmt.HistoryBook.norm(it.name) == n || dev.uem.em.mgmt.HistoryBook.norm(it.short) == n) } } }
+        Row(Modifier.fillMaxWidth().then(if (team != null) Modifier.clickable { vm.go(Screen.Team(team.id)) } else Modifier).padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(sp.period(), color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(128.dp))
+            Column(Modifier.weight(1f)) {
+                Text(sp.team, color = if (team != null) Ui.accent else Ui.text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val role = when {
+                    sp.role.isEmpty() -> ""
+                    sp.isStaff -> dev.uem.em.mgmt.Staffing.roleLabel(if (sp.role == "coach") "assistant-coach" else if (sp.role == "positional-coach") "position-coach" else if (sp.role == "manager") "team-manager" else sp.role, titleId).let { if (sp.role == "coach") "Coach" else it }
+                    sp.role == "sub" -> "Substitute"
+                    else -> t.lineupRoles.firstOrNull { it.id == sp.role || dev.uem.em.titles.RoleMeta.pos(it.id) == sp.role }?.name ?: sp.role.replaceFirstChar { it.uppercase() }
+                }
+                if (role.isNotEmpty()) Muted(role, 10)
+            }
+        }
+    }
+    Gap(4)
+    Muted(dev.uem.em.mgmt.Careers.sourceNote(spells), 10)
 }

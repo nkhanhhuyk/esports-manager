@@ -348,6 +348,56 @@ object Staffing {
     class Reply(val ok: Boolean, val text: String)
 
     /** Why [s] would not take [role] at [team] (null: open to it). */
+    // ------------------------------------------------------------------ ambitions (like players')
+
+    val AMB_KEYS = listOf("winning", "money", "loyalty", "legacy", "prestige", "role", "growth", "home")
+    val AMB_LABEL = mapOf("winning" to "Winning", "money" to "Money", "loyalty" to "Loyalty", "legacy" to "Legacy", "prestige" to "Prestige",
+        "role" to "A bigger role", "growth" to "Developing players", "home" to "Home region")
+    val AMB_HINT = mapOf("winning" to "a team that can win now", "money" to "the salary", "loyalty" to "staying with the same club",
+        "legacy" to "a club with trophies to add to", "prestige" to "a big club in a top league", "role" to "a step up: head coach, or a bigger job",
+        "growth" to "young players, an academy, a project", "home" to "working in the home region")
+    private val RANK = mapOf("head-coach" to 5, "general-manager" to 5, "strategic-coach" to 4, "assistant-coach" to 3, "academy-director" to 3, "position-coach" to 2, "analyst" to 2)
+    private fun rank(role: String) = RANK[role] ?: 1
+
+    /** What this person wants from a job (weights summing to about 100), from ambition, loyalty, age and role. */
+    fun ambitions(w: World, s: Staff): IntArray {
+        if (s.ambitions.size == AMB_KEYS.size) return s.ambitions
+        val rng = Rng.derive(w.seed, "staff-ambitions", s.id)
+        val age = age(w, s)
+        val raw = doubleArrayOf(
+            8 + s.ambition * 0.25 + rng.float(0.0, 20.0),
+            5 + rng.float(0.0, 24.0),
+            1 + s.loyalty * 0.4 + rng.float(0.0, 14.0),
+            2 + (if (age >= 38) 10.0 else 0.0) + rng.float(0.0, 14.0),
+            3 + s.ambition * 0.18 + rng.float(0.0, 16.0),
+            if (s.role == "head-coach" || s.role == "general-manager") 1 + rng.float(0.0, 5.0) else 4 + s.ambition * 0.22 + rng.float(0.0, 16.0),
+            (if (s.role in setOf("academy-director", "position-coach", "assistant-coach")) 10.0 else 2.0) + rng.float(0.0, 16.0),
+            rng.float(0.0, 20.0),
+        ).map { max(0.5, it).let { v -> Math.pow(v, 1.7) } }
+        val sum = raw.sum()
+        s.ambitions = IntArray(raw.size) { (raw[it] * 100 / sum).roundToInt() }
+        return s.ambitions
+    }
+
+    fun amb(w: World, s: Staff, key: String) = ambitions(w, s)[AMB_KEYS.indexOf(key)]
+    fun topAmbitions(w: World, s: Staff, n: Int = 3): List<Pair<String, Int>> = ambitions(w, s).let { a -> AMB_KEYS.indices.sortedByDescending { a[it] }.take(n).map { AMB_KEYS[it] to a[it] } }
+
+    /** A move that goes against what the person wants most (only a strong pull in that direction says no). */
+    private fun ambitionRefusal(w: World, s: Staff, team: Team, role: String): String? {
+        if (team.nationalOf.isNotEmpty() || s.teamId == team.id) return null
+        val org = w.orgs[team.orgId]
+        val cur = w.teams.getOrNull(s.teamId)
+        val curOrg = cur?.let { w.orgs[it.orgId] }
+        val promotion = rank(role) > rank(s.role)
+        if (amb(w, s, "role") >= 28 && cur != null && rank(role) < rank(s.role)) return "${s.name()} wants a bigger role, not a smaller one."
+        if (amb(w, s, "home") >= 28 && !promotion && GameData.regionOf(s.nat) != team.region && (cur == null || cur.region == GameData.regionOf(s.nat)))
+            return "${s.name()} wants to work in ${GameData.regionName(GameData.regionOf(s.nat))}."
+        if (amb(w, s, "winning") >= 28 && cur != null && !promotion && team.elo < cur.elo - 60) return "${s.name()} wants a team that can win now: ${team.name} are well behind ${cur.name}."
+        if (amb(w, s, "prestige") >= 28 && curOrg != null && !promotion && org.rep < curOrg.rep - 8) return "${s.name()} would only move to a bigger club than ${cur.name}."
+        if (amb(w, s, "loyalty") >= 30 && cur != null && !promotion && (s.spells.lastOrNull { it.to < 0 }?.let { w.day - it.from } ?: 0) < 700) return "${s.name()} is loyal to ${cur.name} and is not looking to move."
+        return null
+    }
+
     fun refusal(w: World, s: Staff, team: Team, role: String): String? {
         val org = w.orgs[team.orgId]
         if (s.retired && age(w, s) >= 62) return "${s.name()} has retired."
@@ -355,7 +405,7 @@ object Staffing {
         if (s.teamId == team.id && s.role == role && (role != "position-coach")) return null
         if (s.role == "head-coach" && role != "head-coach" && s.rep >= 55 && s.teamId != team.id) return "${s.name()} only takes head coach jobs."
         if (role in COACHING && s.rep > org.rep + 28 && s.teamId != team.id) return "${s.name()} is not interested: ${org.name} is not ambitious enough for them (reputation ${org.rep.roundToInt()} vs ${s.rep.roundToInt()})."
-        return null
+        return ambitionRefusal(w, s, team, role)
     }
 
     /** A contract offer: free agents decide at once; staff under contract need their club to accept compensation. */
@@ -390,8 +440,9 @@ object Staffing {
     fun renew(w: World, s: Staff, salary: Double, years: Int): Reply {
         val team = w.teams.getOrNull(s.teamId) ?: return Reply(false, "Not at a club.")
         val org = w.orgs[team.orgId]
-        val ask = demand(w, s, team.region) * wageFactor(w, team) * (1 + max(0.0, s.rep - org.rep) / 200)
+        val ask = demand(w, s, team.region) * wageFactor(w, team) * (1 + max(0.0, s.rep - org.rep) / 200) * (1 + (amb(w, s, "money") - amb(w, s, "loyalty")) / 250.0)
         if (s.ambition >= 75 && s.rep > org.rep + 15) return Reply(false, "${s.name()} wants a bigger challenge and will not extend.")
+        if (amb(w, s, "role") >= 30 && rank(s.role) < 5 && s.quality >= 64) return Reply(false, "${s.name()} wants to take the next step (a head coach job or a bigger role) and will not extend.")
         if (salary < ask * 0.92) return Reply(false, "${s.name()} wants about ${formatMoney(ask)} per season to extend.")
         s.salary = salary
         s.contractEnd = w.season + years - 1
@@ -690,8 +741,10 @@ object Staffing {
         for (s in w.staff) if (!s.retired && s.teamId >= 0 && s.contractEnd < w.season) {
             val team = w.teams[s.teamId]
             val org = w.orgs[team.orgId]
-            val wantsOut = s.ambition >= 70 && s.rep > org.rep + 12 && rng.chance(0.6)
-            if (w.isUserTeam(team.id) || wantsOut || s.quality < 35 || rng.chance(0.2)) release(w, s, if (wantsOut) "left for a bigger challenge" else "contract ended", severance = false)
+            val stepUp = amb(w, s, "role") >= 30 && rank(s.role) < 5 && s.quality >= 64 && rng.chance(0.5)
+            val wantsOut = (s.ambition >= 70 && s.rep > org.rep + 12 && rng.chance(0.6)) || stepUp
+            val loyal = amb(w, s, "loyalty") >= 28
+            if (w.isUserTeam(team.id) || wantsOut || s.quality < 35 || (!loyal && rng.chance(0.2))) release(w, s, if (stepUp) "left to look for a bigger role" else if (wantsOut) "left for a bigger challenge" else "contract ended", severance = false)
             else s.contractEnd = w.season + rng.int(0, 2)
         }
         // The coaching carousel: big clubs replace a weaker head coach with a clearly better one.

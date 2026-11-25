@@ -64,9 +64,9 @@ internal object SocialVoice {
         return when (h % 7) {
             0 -> text // plain
             1 -> CASUAL_OPEN[r % CASUAL_OPEN.size] + lower(strip(text)).lowercase() + CASUAL_CLOSE[(r / 3) % CASUAL_CLOSE.size]
-            2 -> text + " " + EMOJI[r % EMOJI.size] + (if (r % 3 == 0) EMOJI[(r / 5) % EMOJI.size] else "")
+            2 -> text + " " + EMOJI[r % EMOJI.size]
             3 -> MEASURED_OPEN[r % MEASURED_OPEN.size] + lower(text)
-            4 -> if (text.length < 70) strip(text).uppercase() + HYPE_CLOSE[r % HYPE_CLOSE.size] else strip(text) + HYPE_CLOSE[r % HYPE_CLOSE.size]
+            4 -> if (text.length < 40) strip(text).uppercase() + HYPE_CLOSE[r % HYPE_CLOSE.size] else text
             5 -> text + TAIL[r % TAIL.size]
             else -> if (r % 2 == 0) lower(strip(text)) + "." else text
         }
