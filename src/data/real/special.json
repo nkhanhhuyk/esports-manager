@@ -1,0 +1,31 @@
+{
+  "note": "Additions made at the player's request, not taken from a data source. Each one is labelled in the game (team page note). Teams join the real-data snapshot; staff entries add a person or move one from staff.json (same title and handle).",
+  "teams": [
+    {
+      "team_id": "lol-los-ratones",
+      "title_id": "lol",
+      "league_id": "lol-lec",
+      "name": "Los Ratones",
+      "short": "LR",
+      "org": "Los Ratones",
+      "country": null,
+      "region": "EUW",
+      "source_url": "https://lol.fandom.com/wiki/Los_Ratones",
+      "special": "Special addition: Los Ratones in the LEC as an eleventh team, with the line-up of their 2025-26 run (Baus, Velja, Nemesis, Crownie, Rekkles). The real club has no LEC place.",
+      "team_rating": 72,
+      "org_rep": 80,
+      "record": { "w": 5, "l": 4 },
+      "roster": [
+        { "handle": "Baus", "real_name": "Simon Hofverberg", "first_name": "Simon", "last_name": "Hofverberg", "nationality": "SE", "role": "top", "status": "player", "starter": true },
+        { "handle": "Velja", "real_name": "Veljko Čamdžić", "first_name": "Veljko", "last_name": "Čamdžić", "nationality": "RS", "role": "jungle", "status": "player", "starter": true },
+        { "handle": "Nemesis", "real_name": "Tim Lipovšek", "first_name": "Tim", "last_name": "Lipovšek", "nationality": "SI", "role": "mid", "status": "player", "starter": true },
+        { "handle": "Crownie", "real_name": "Juš Marušič", "first_name": "Juš", "last_name": "Marušič", "nationality": "SI", "role": "bot", "status": "player", "starter": true },
+        { "handle": "Rekkles", "real_name": "Carl Martin Erik Larsson", "first_name": "Carl Martin Erik", "last_name": "Larsson", "nationality": "SE", "role": "support", "status": "player", "starter": true }
+      ]
+    }
+  ],
+  "staff": [
+    { "title": "lol", "handle": "Caedrel", "name": "Marc Lamont", "nat": "GB", "birth": null, "team": "Los Ratones", "role": "head-coach", "spec": "", "src": "special", "past": [], "retired": false },
+    { "title": "lol", "handle": "Shaves", "team": "Los Ratones", "role": "assistant-coach" }
+  ]
+}

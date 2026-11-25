@@ -69,7 +69,7 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
                         if (team.nationalOf.isNotEmpty()) "national team of ${GameData.countries[team.nationalOf]?.name ?: team.nationalOf}" else null,
                         if (team.real) "real team" else null,
                     ).joinToString(" · "), 12)
-                    if (team.dataNote.isNotBlank()) Text(team.dataNote, color = if (team.dataNote.startsWith("Fictional") || team.dataNote.contains("historical") || team.dataNote.startsWith("Academy")) Ui.gold else Ui.muted, fontSize = 11.sp)
+                    if (team.dataNote.isNotBlank()) Text(team.dataNote, color = if (team.dataNote.startsWith("Fictional") || team.dataNote.startsWith("Special") || team.dataNote.contains("historical") || team.dataNote.startsWith("Academy")) Ui.gold else Ui.muted, fontSize = 11.sp)
                     if (team.kind.isEmpty() && team.nationalOf.isEmpty()) Muted("Organisation strategy: ${dev.uem.em.mgmt.Ambitions.STRATEGY_LABEL[dev.uem.em.mgmt.Ambitions.strategy(w, team)]}", 11)
                     if (dev.uem.em.mgmt.Ambitions.rebuilding(w, team)) Text("Rebuilding the roster: ${team.rebuildNote}", color = Ui.loss, fontSize = 11.sp)
                     dev.uem.em.mgmt.Academies.parent(w, team)?.let { par -> Row(verticalAlignment = Alignment.CenterVertically) { Muted("Academy of ", 12); TeamChip(w, par.id, vm, 16.dp) } }
@@ -464,13 +464,68 @@ private fun TeamPastRosters(vm: GameVm, w: World, team: Team, t: TitleDef) {
     roster("Season ${w.season} (current)", team.roster.toList(), team.leagueId.takeIf { it >= 0 }?.let { w.leagues[it].short }, seasonsOut[w.season].orEmpty().map { it.playerId }.distinct().filter { it !in team.roster })
     // Earlier seasons: the end-of-season snapshot, or (older saves) the players who played for the team that season.
     val seasons = (team.history.map { it.season } + w.players.flatMap { p -> p.stats.filter { it.teamId == team.id }.map { it.season } }).filter { it < w.season }.distinct().sortedDescending()
-    if (seasons.isEmpty()) Card { Muted("Past rosters appear here from the end of the first season.") }
+    if (seasons.isEmpty()) Card { Muted("Rosters of the seasons you play appear here from the end of the first season.") }
     for (s in seasons) {
         val h = team.history.lastOrNull { it.season == s }
         val ids = h?.roster?.toList()?.takeIf { it.isNotEmpty() } ?: w.players.filter { p -> p.stats.any { it.teamId == team.id && it.season == s && it.gp > 0 } }.map { it.id }
         val left = seasonsOut[s].orEmpty().map { it.playerId }.distinct().filter { it !in ids }
         roster("Season $s", ids, h?.let { hh -> listOfNotNull(w.leagues.getOrNull(hh.leagueId)?.short, if (hh.position > 0) "#${hh.position}" else null).joinToString(" · ").ifBlank { null } }, left)
     }
+    if (team.real && nat.isEmpty()) RealPastRosters(vm, w, team, t)
+}
+
+/** The real rosters of the team before the save, year by year (pastRosters.json). */
+@Composable
+private fun RealPastRosters(vm: GameVm, w: World, team: Team, t: TitleDef) {
+    val years = remember(team.id, team.name) { dev.uem.em.mgmt.PastRosters.of(team.titleId, team.name).filter { it.year < w.firstSeason } }
+    if (years.isEmpty()) return
+    var showAll by remember(team.id) { mutableStateOf(false) }
+    val people = remember(team.titleId) { w.players.filter { it.real && it.titleId == team.titleId }.groupBy { dev.uem.em.mgmt.Careers.norm(it.handle) } }
+    val staffBy = remember(team.titleId) { w.staff.filter { it.real && it.titleId == team.titleId }.groupBy { dev.uem.em.mgmt.Careers.norm(it.handle) } }
+    Gap(8)
+    Text("Before the save: real rosters", color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+    Muted("${years.size} year(s), ${years.last().year}–${years.first().year}: who played for ${team.name} each year (and the staff where known)", 11)
+    Gap(4)
+    for (y in if (showAll) years else years.take(6)) {
+        val srcs = (y.players + y.staff).flatMap { it.sources }.distinct().sorted().map { dev.uem.em.mgmt.PastRosters.sourceName(it) }.filter { it.isNotBlank() }
+        Card("${y.year}" + if (y.names.isNotEmpty()) " · as ${y.names.joinToString(" / ")}" else "", right = { Muted("${y.players.size} player(s)", 11) }) {
+            val sorted = y.players.sortedWith(compareBy({ e -> t.lineup.indexOf(e.role.ifEmpty { people[dev.uem.em.mgmt.Careers.norm(e.handle)]?.firstOrNull()?.roles?.firstOrNull() ?: "" }).let { if (it < 0) 9 else it } }, { it.handle.lowercase() }))
+            for (e in sorted) {
+                val p = people[dev.uem.em.mgmt.Careers.norm(e.handle)]?.let { l -> if (l.size == 1) l[0] else l.firstOrNull { it.nat == e.nat } ?: l[0] }
+                val role = e.role.takeIf { r -> t.roles.any { it.id == r } } ?: p?.roles?.firstOrNull()?.takeIf { e.role.isEmpty() }
+                Row(Modifier.fillMaxWidth().then(if (p != null) Modifier.clickable { vm.go(Screen.Player(p.id)) } else Modifier).padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(role?.let { t.role(it).short } ?: if (e.role == "sub") "Sub" else "", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(40.dp))
+                    if (p != null) { PlayerPic(p, 22.dp, round = true); HGap(6) }
+                    Column(Modifier.weight(1f)) {
+                        Text(e.handle, color = if (p != null) Ui.accent else Ui.text, fontSize = 13.sp)
+                        val natCode = e.nat.ifEmpty { p?.nat ?: "" }
+                        val line = listOfNotNull(natCode.takeIf { it.isNotEmpty() }?.let { flag(it) }, p?.name()?.takeIf { it.isNotBlank() }).joinToString(" ")
+                        if (line.isNotBlank()) Muted(line, 10)
+                    }
+                    val m = e.months()
+                    if (m.isNotEmpty()) Muted(m, 10)
+                }
+            }
+            if (y.staff.isNotEmpty()) {
+                Gap(4)
+                Row(verticalAlignment = Alignment.Top) {
+                    Text("Staff", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(40.dp))
+                    Column(Modifier.weight(1f)) {
+                        for (e in y.staff) {
+                            val s = staffBy[dev.uem.em.mgmt.Careers.norm(e.handle)]?.firstOrNull()
+                            Row(Modifier.fillMaxWidth().then(if (s != null) Modifier.clickable { vm.go(Screen.Staff(s.id)) } else Modifier).padding(vertical = 1.dp)) {
+                                Text(e.handle, color = if (s != null) Ui.accent else Ui.text, fontSize = 12.sp)
+                                Muted("  ${dev.uem.em.mgmt.PastRosters.staffLabel(e.role)}" + e.months().let { if (it.isNotEmpty()) " · $it" else "" }, 11)
+                            }
+                        }
+                    }
+                }
+            }
+            if (srcs.isNotEmpty()) { Gap(2); Muted("Source: " + srcs.joinToString(", "), 10) }
+        }
+    }
+    if (years.size > 6) Pill(if (showAll) "Show fewer years" else "Show all ${years.size} years") { showAll = !showAll }
+    Muted("Real records before the save: League of Legends from Games of Legends season pages and Leaguepedia tenures; Dota 2 from OpenDota pro matches (5+ games); VALORANT from vlr.gg transactions; CS2 from Valve Regional Standings and Major rosters; MLBB from the MPL sites; Wild Rift from the 2021 wiki. Earlier names of the club are joined in. Not every year is complete: smaller teams and early seasons have fewer records.", 10)
 }
 
 /** Transfers in and out of the team, by season. */

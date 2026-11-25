@@ -143,7 +143,11 @@ object WorldGen {
         val wild = Json.parseToJsonElement(src.read("wildrift.json")).jsonObject
         val snapLeagues = (rosters["leagues"]!!.jsonArray + wild["leagues"]!!.jsonArray).map { it.jsonObject }
         val wrTeams = wild["teams"]!!.jsonArray.map { it.jsonObject }
-        val snapTeams = rosters["teams"]!!.jsonArray.map { it.jsonObject } + wrTeams.filter { it.str("league_id") != null }
+        // Special additions (special.json): teams added at the player's request, labelled on their team page.
+        val special = runCatching { Json.parseToJsonElement(src.read("special.json")).jsonObject["teams"]!!.jsonArray.map { it.jsonObject } }.getOrDefault(emptyList())
+        for (st in special) st["team_rating"]?.jsonPrimitive?.doubleOrNull?.let { b.teamRating["${st.str("title_id")}|${st.str("name")!!.lowercase()}"] = it }
+        val snapTeams = rosters["teams"]!!.jsonArray.map { it.jsonObject } + wrTeams.filter { it.str("league_id") != null } +
+            special.filter { sp -> rosters["teams"]!!.jsonArray.none { it.jsonObject.str("title_id") == sp.str("title_id") && it.jsonObject.str("name").equals(sp.str("name"), ignoreCase = true) } }
         for (id in titles) {
             val t = Catalogue.get(id)
             val pop = Catalogue.POPULARITY[id]!!
@@ -589,6 +593,8 @@ object WorldGen {
         val host = Regex("https?://([^/]+)").find(src)?.groupValues?.get(1) ?: "the snapshot"
         team.dataNote = if (src.contains("wildrift-esports.fandom")) "Real team, roster from the Wild Rift Esports Wiki as of early 2021 — a historical roster: no current Wild Rift source could be used"
         else "Real team, roster snapshot of 20 Nov 2026 ($host): $listed player(s) listed"
+        st.str("special")?.let { team.dataNote = it }
+        st["org_rep"]?.jsonPrimitive?.doubleOrNull?.let { r -> org.rep = maxOf(org.rep, r); org.fans = (org.rep.pow(2.2) * 40 * GameData.economy(org.region) + 20000); org.prestige = (org.rep * 0.5).roundToInt().toDouble() }
         team.coach = clamp(Rng.of("realcoach|$titleId|${norm(team.name)}").normal(55 + (teamMean - 64) * 1.2, 7.0), 30.0, 92.0)
     }
 

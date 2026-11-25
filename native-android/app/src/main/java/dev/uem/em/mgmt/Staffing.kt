@@ -587,13 +587,17 @@ object Staffing {
         if (w.fictional) return 0
         val text = runCatching { src.read("staff.json") }.getOrNull() ?: return 0
         val root = Json.parseToJsonElement(text).jsonObject
-        val list = root["staff"]?.jsonArray ?: return 0
         fun JsonObject.s(k: String) = this[k]?.jsonPrimitive?.contentOrNull
+        // Special additions (special.json): a person added, or one of staff.json moved (same title and handle).
+        val extra = runCatching { Json.parseToJsonElement(src.read("special.json")).jsonObject["staff"]!!.jsonArray.map { it.jsonObject } }.getOrDefault(emptyList())
+        fun key(o: JsonObject) = "${o.s("title")}|${norm(o.s("handle") ?: "")}"
+        val over = extra.associateBy { key(it) }
+        val base = (root["staff"]?.jsonArray ?: return 0).map { it.jsonObject }
+        val list = base.map { o -> over[key(o)]?.let { JsonObject(o + it) } ?: o } + extra.filter { e -> base.none { key(it) == key(e) } }
         val seen = HashSet<String>()
         for (s in w.staff) if (s.real) seen.add("${s.titleId}|${norm(s.handle)}")
         var n = 0
-        for (e in list) {
-            val o = e.jsonObject
+        for (o in list) {
             val title = o.s("title") ?: continue
             if (title !in w.titles) continue
             val handle = o.s("handle") ?: continue
@@ -615,7 +619,7 @@ object Staffing {
             val nat = o.s("nat")?.takeIf { it.length == 2 } ?: team?.let { w.orgs[it.orgId].country } ?: GameData.pickCountry(rng, w.leagues.firstOrNull { it.titleId == title }?.region ?: "NA")
             val birth = o.s("birth")?.let { b -> runCatching { java.time.LocalDate.parse(b.take(10)).toEpochDay().toInt() }.getOrNull() }
                 ?: (w.day - ((30 + rng.int(-3, 9) + (past.size.coerceAtMost(8))) * 365.25).toInt())
-            val name = o.s("name").orEmpty().trim()
+            val name = o.s("name").orEmpty().replace("&nbsp;", " ").trim()
             val parts = name.split(' ').filter { it.isNotBlank() }
             val st = Staff(w.staff.size, parts.dropLast(1).joinToString(" "), parts.lastOrNull() ?: "", nat, birth, role, 0.0, title, handle = handle,
                 spec = o.s("spec").orEmpty(), real = true, realSrc = o.s("src").orEmpty())
