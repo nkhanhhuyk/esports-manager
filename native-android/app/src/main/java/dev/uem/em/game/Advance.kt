@@ -249,6 +249,8 @@ object Advance {
         }
         // Ratings: every position's average stays level through meta changes.
         dev.uem.em.sim.StatBook.calibrate(w, t, o.record.games)
+        // Series MVPs: every position near an equal share over a season.
+        dev.uem.em.sim.StatBook.tallyMvp(w, t, o.record.games, o.mvp)
         // What each team showed: the next opponents' drafts read it (MOBAs with a ban / pick draft).
         if (t.isMoba && t.draft.mode == "sequential") for (s in 0..1) if (teamIds[s] >= 0) dev.uem.em.sim.SeriesIntel.remember(w.teams[teamIds[s]].shown, o.record.games, s)
         if (o.mvp >= 0) {

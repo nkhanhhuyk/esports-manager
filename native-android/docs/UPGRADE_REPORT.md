@@ -483,3 +483,36 @@ Full suite: 102 tests, 0 failures (3 skipped).
 
 Saves: appended fields only (`Player.residency`, `Player.soloK/soloD/soloA`, `Team.squadFor`,
 `TeamSeason.compId`, `World.squads`, `World.natFix`, `World.ratingCal`, `Staff.ambitions`, `SquadPick`).
+
+## Eighteenth follow-up: series MVPs split evenly, ratings by position, staff directory
+
+* **Ratings by position (every game).** Each position's ratings now have the same average (1.0) and the
+  same spread. Before, a League of Legends ADC's ratings swung ±0.45 from game to game against about
+  ±0.28 for the other positions, so the ADC was the best-rated winner in 42% of series. A running
+  per-position scale (`StatBook.calibrate`, `World.ratingCal["<game>|sd"]`) now evens the spread. Valorant
+  and CS2 ratings get the per-role level calibration the MOBAs already had: Valorant controllers and flex
+  players had averaged a fifth above the duelists.
+* **Series MVPs.** The MVP is the winner with the best average rating in the series, plus a small
+  per-position correction. A position that has won more than its fifth of MVPs needs a slightly better
+  series next time (`StatBook.tallyMvp`, `World.ratingCal["<game>|mvp"]`). The correction moves quickly at
+  the start of a save, then settles. The MVP is the best-rated winner in 82–91% of series. First two
+  months of a save (`RoleDeathsTest`, every position within 20 ± 8% for each game):
+
+  | Game | Positions | Series MVP share |
+  |---|---|---|
+  | LoL | TOP / JNG / MID / ADC / SUP | 22 / 23 / 20 / 18 / 17% (was ADC 30–39%) |
+  | MLBB | EXP / JNG / MID / GLD / ROM | 18 / 20 / 20 / 18 / 25% |
+  | Wild Rift | BAR / JNG / MID / DRG / SUP | 22 / 19 / 19 / 21 / 19% |
+  | HoK | CLS / JNG / MID / FRM / ROM | 20 / 20 / 20 / 18 / 21% (was roam 10%) |
+  | Dota 2 | P1 / P2 / P3 / P4 / P5 | 22 / 16 / 25 / 17 / 20% (was P5 9%) |
+  | Valorant | DUE / INI / CTL / SEN / FLX | 22 / 18 / 18 / 19 / 24% (was CTL and FLX 28–29%) |
+  | CS2 | ENT / AWP / RIF / SUP / LRK | 20 / 17 / 19 / 22 / 22% |
+
+  The match page shows the MVP's position, average rating and K/D/A for the series.
+* **Staff directory** (More → World → Staff, side menu, search). Every coach, analyst, scout, performance
+  and organisation staff member in every game. Filter by game, role and status (at a club, free agent,
+  real people, retired). Search by name, real name or country code. Sort by ability, reputation, titles
+  (before and during the save), clubs, salary or contract.
+
+Saves: no new fields. `World.ratingCal` gains two keys per game; older saves start them fresh. The
+winners' rating statistics from the seventeenth follow-up are dropped on load.

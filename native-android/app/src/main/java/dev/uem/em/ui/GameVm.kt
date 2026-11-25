@@ -73,6 +73,8 @@ sealed class Screen {
     data object Search : Screen()
     /** Sponsors, content creators, venue and fan events. */
     data object Business : Screen()
+    /** Every coach and staff member of every game (World → Staff). */
+    data object StaffDir : Screen()
 }
 
 class Busy(val label: String, val done: Int, val total: Int)

@@ -150,7 +150,7 @@ object QuickSim {
         return GameOutcome(winner, dur, kills, book, objs = objTakes)
     }
 
-    fun shooter(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, firstAttack: Int, rng: Rng): GameOutcome {
+    fun shooter(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, firstAttack: Int, rng: Rng, world: dev.uem.em.model.World? = null): GameOutcome {
         val cfg = t.tactical!!
         val book = StatBook(teams, t)
         fun idx(k: String) = book.idx(k)
@@ -222,6 +222,7 @@ object QuickSim {
         val winner = if (score[0] > score[1]) 0 else 1
         val rounds = score[0] + score[1]
         book.finalise()
+        book.metaWorld = world
         book.rate(winner) { l ->
             0.4 + book.get(l, K) - book.get(l, D) * 0.55 + book.get(l, A) * 0.3 + book.get(l, KAST) / maxOf(1, rounds) * 2.2 + book.get(l, FK) * 0.4 - book.get(l, FD) * 0.2 + book.get(l, CLUTCH) * 0.9 + book.get(l, MK) * 0.5 + book.get(l, DMG) / 1200
         }

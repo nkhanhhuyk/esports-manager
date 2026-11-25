@@ -66,7 +66,7 @@ object TacticalEngine {
         return out
     }
 
-    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, firstAttack: Int, rng0: Rng, patch: Patch? = null, rec: Recorder? = null, mapId: String? = null, plan: TimeoutPlan? = null): GameOutcome {
+    fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, firstAttack: Int, rng0: Rng, patch: Patch? = null, rec: Recorder? = null, mapId: String? = null, plan: TimeoutPlan? = null, world: dev.uem.em.model.World? = null): GameOutcome {
         // Each round draws from its own stream (map seed + round), so a timeout called before a round
         // replays every earlier round exactly as it was.
         val seedKey = "${rng0.next()}"
@@ -313,6 +313,8 @@ object TacticalEngine {
         val winner = if (score[0] > score[1]) 0 else if (score[1] > score[0]) 1 else if (rng.chance(0.5)) 0 else 1
         val rounds = score[0] + score[1]
         book.finalise()
+        // Each role's ratings are calibrated like the MOBAs' (see StatBook.calibrate).
+        book.metaWorld = world
         book.rate(winner) { l ->
             0.4 + book.get(l, K) - book.get(l, D) * 0.55 + book.get(l, A) * 0.3 + book.get(l, KAST) / maxOf(1, rounds) * 2.2 + book.get(l, FK) * 0.4 - book.get(l, FD) * 0.2 + book.get(l, CLUTCH) * 0.9 + book.get(l, MK) * 0.5 + book.get(l, DMG) / 1200
         }

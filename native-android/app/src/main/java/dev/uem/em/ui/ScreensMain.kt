@@ -616,6 +616,7 @@ fun MoreScreen(vm: GameVm, w: World) {
         "World" to listOf(
             MoreEntry("Teams", "All leagues and teams, team directory", Icons.Rounded.AccountCircle, Screen.Teams),
             MoreEntry("Players", "Search, filter and compare every player", Icons.Rounded.Face, Screen.Players, Ui.accent2),
+            MoreEntry("Staff", "Every coach, analyst, scout and support staff member: clubs, ability, titles", Icons.Rounded.Person, Screen.StaffDir, Ui.win),
             MoreEntry("Stats hub", "Leaderboards, records, head-to-head, season preview & review", Icons.AutoMirrored.Rounded.List, Screen.Stats, Ui.gold),
             MoreEntry("World rankings", "Club and organisation rankings, countries and territories, from results", Icons.Rounded.Star, Screen.Rankings, Ui.gold),
             MoreEntry("World", "Games, national scenes, global rankings, organisations", Icons.Rounded.Place, Screen.World, Ui.win),

@@ -105,6 +105,7 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                         Screen.Comps -> CompsScreen(vm, w)
                         Screen.Teams -> TeamsScreen(vm, w)
                         Screen.Players -> PlayersScreen(vm, w)
+                        Screen.StaffDir -> StaffDirectoryScreen(vm, w)
                         Screen.More -> MoreScreen(vm, w)
                         Screen.Squad -> SquadScreen(vm, w)
                         Screen.Market -> MarketScreen(vm, w)
@@ -243,6 +244,7 @@ fun screenTitle(w: World, s: Screen): String = when (s) {
     Screen.Comps -> "Events"
     Screen.Teams -> "Teams"
     Screen.Players -> "Players"
+    Screen.StaffDir -> "Staff"
     Screen.More -> "More"
     Screen.Squad -> "Squad"
     Screen.Market -> "Market"

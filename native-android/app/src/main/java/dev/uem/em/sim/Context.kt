@@ -155,6 +155,13 @@ class StatBook(teams: List<TeamCtx>, val t: TitleDef) {
         )
 
         /**
+         * Each lineup slot's usual share of the raw impact: measured for the MOBAs, level for the shooters (their
+         * running calibration finds each role's level: a Valorant controller's utility and assists out-rated the
+         * duelists by a fifth before it).
+         */
+        fun normFor(t: TitleDef): DoubleArray? = ROLE_NORM[t.id] ?: if (t.lineup.size >= 2 && t.tactical != null) DoubleArray(t.lineup.size) { 1.0 } else null
+
+        /**
          * The rating level a lineup slot should average: the same for every position (a carry's bigger share of
          * the kills already makes its best games stand out; a higher average on top made it the series MVP four
          * times in ten).
@@ -168,34 +175,67 @@ class StatBook(teams: List<TeamCtx>, val t: TitleDef) {
          * game does not leave that position on top of the ratings and the MVP lists for a whole patch.
          */
         fun calibrate(w: dev.uem.em.model.World, t: TitleDef, games: List<dev.uem.em.model.GameRecord>) {
-            if (ROLE_NORM[t.id] == null || t.lineup.isEmpty()) return
+            if (normFor(t) == null) return
             val cal = w.ratingCal.getOrPut(t.id) { DoubleArray(t.lineup.size) }
             if (cal.size != t.lineup.size) return
-            // Each position's rating in wins, mean and spread (series MVPs come from the winners).
             val n = t.lineup.size
-            val win = w.ratingCal["${t.id}|win"]?.takeIf { it.size == 2 * n } ?: DoubleArray(2 * n) { if (it < n) 1.12 else 0.04 }.also { w.ratingCal["${t.id}|win"] = it }
+            w.ratingCal.remove("${t.id}|win") // older saves: the winners' rating spread, no longer used
+            // Each position's spread of ratings before scaling (see [spreadScale]).
+            val sd = w.ratingCal["${t.id}|sd"]?.takeIf { it.size == n } ?: DoubleArray(n) { SD0 }.also { w.ratingCal["${t.id}|sd"] = it }
+            val sc = spreadScale(sd) ?: return
             for (g in games) for (l in g.lines) {
                 val slot = t.lineup.indexOf(l.roleId)
                 if (slot < 0) continue
                 cal[slot] = (cal[slot] + 0.01 * (l.rating - target(w, t, slot)) / 0.65).coerceIn(-0.5, 0.5)
-                if (l.team == g.winner) { val dl = l.rating - win[slot]; win[slot] += 0.01 * dl; win[n + slot] += 0.01 * (dl * dl - win[n + slot]) }
+                val bonus = if (g.winner >= 0) (if (l.team == g.winner) WIN_BONUS else -WIN_BONUS) else 0.0
+                val dev = (l.rating - 1.0 - bonus) / sc[slot]
+                sd[slot] = (sd[slot] + 0.01 * (dev * dev - sd[slot])).coerceIn(0.002, 0.5)
             }
         }
 
+        private const val SD0 = 0.04
+        private const val WIN_BONUS = 0.06
+
         /**
-         * A series MVP score: how far above that position's usual winning game the player's average was, in that
-         * position's own spread (a carry's ratings swing more from game to game, so a carry tops a single series
-         * more often), keeping 30% of the position's edge in wins. The plain average before any series.
+         * Each position's rating spread is brought to the average spread: a carry's ratings swung far more from
+         * game to game than a support's, so a carry's big game out-rated a support's great one and carries took
+         * most series MVPs. A 1.40 is now as rare for a support as for a carry.
+         */
+        private fun spreadScale(sd: DoubleArray?): DoubleArray? {
+            if (sd == null || sd.isEmpty()) return null
+            val sds = DoubleArray(sd.size) { sqrt(sd[it]) }
+            val mean = sds.average()
+            return DoubleArray(sd.size) { (mean / sds[it].coerceAtLeast(1e-3)).coerceIn(0.6, 1.6) }
+        }
+
+        /**
+         * A series MVP score: the player's average rating in the series, plus the position's running correction
+         * (see [tallyMvp]) that keeps every position near an equal share of series MVPs over a season.
          */
         fun mvpScore(w: dev.uem.em.model.World, t: TitleDef, roleId: String?, avg: Double): Double {
-            val n = t.lineup.size
             val slot = t.lineup.indexOf(roleId)
-            val win = w.ratingCal["${t.id}|win"]?.takeIf { it.size == 2 * n } ?: return avg
             if (slot < 0) return avg
-            val sds = DoubleArray(n) { sqrt(win[n + it]).coerceAtLeast(0.05) }
-            val meanSd = sds.average()
-            val meanWin = (0 until n).sumOf { win[it] } / n
-            return (avg - win[slot]) / sds[slot] * meanSd + 0.3 * (win[slot] - meanWin) + meanWin
+            val off = mvpOffsets(w, t) ?: return avg
+            return avg + off[slot]
+        }
+
+        private fun mvpOffsets(w: dev.uem.em.model.World, t: TitleDef): DoubleArray? =
+            w.ratingCal["${t.id}|mvp"]?.takeIf { it.size == t.lineup.size + 1 }
+
+        /**
+         * After a series is applied: the MVP's position gives up a little of its correction and the others gain,
+         * so a position that wins more than its share of MVPs (1 in 5 in a five-player game) needs a clearly
+         * better series the next time. The step is larger for the first series of a save, then settles.
+         */
+        fun tallyMvp(w: dev.uem.em.model.World, t: TitleDef, games: List<dev.uem.em.model.GameRecord>, mvp: Int) {
+            val n = t.lineup.size
+            if (mvp < 0 || n < 2) return
+            val slot = games.firstNotNullOfOrNull { g -> g.lines.firstOrNull { it.playerId == mvp } }?.let { t.lineup.indexOf(it.roleId) } ?: -1
+            if (slot < 0) return
+            val off = mvpOffsets(w, t) ?: DoubleArray(n + 1).also { w.ratingCal["${t.id}|mvp"] = it }
+            val gain = 0.004 + 0.04 / (1 + off[n] / 50)
+            for (s in 0 until n) off[s] = (off[s] - gain * ((if (s == slot) 1.0 else 0.0) - 1.0 / n)).coerceIn(-0.3, 0.3)
+            off[n] += 1.0
         }
     }
     val lines = ArrayList<Line>()
@@ -221,9 +261,9 @@ class StatBook(teams: List<TeamCtx>, val t: TitleDef) {
     fun rate(winner: Int, impact: (Line) -> Double) {
         // Each MOBA position is rated against what that position usually produces: top laners (towers,
         // damage, assists) no longer out-rate everyone and take most MVPs; supports are not always last.
-        val norm = ROLE_NORM[t.id]
+        val norm = normFor(t)
         // ...while the meta's carries still stand out a little more often than the support (target 0.97-1.03 by kill priority).
-        val prio = if (norm != null) dev.uem.em.titles.RoleMeta.killPriority(metaWorld, t.id) else emptyMap()
+        val prio = if (norm != null && t.tactical == null) dev.uem.em.titles.RoleMeta.killPriority(metaWorld, t.id) else emptyMap()
         // The position's usual level is shifted (not scaled): a support's big-assist games no longer turn into 9.5s.
         val raw = lines.map { maxOf(0.01, impact(it)) }
         val rawAvg = raw.sum() / maxOf(1, raw.size)
@@ -239,9 +279,12 @@ class StatBook(teams: List<TeamCtx>, val t: TitleDef) {
             }
         }
         val avg = vals.sum() / maxOf(1, vals.size)
+        // Every position's spread of ratings is the same (see [spreadScale]).
+        val sc = if (norm != null) spreadScale(metaWorld?.ratingCal?.get("${t.id}|sd")?.takeIf { it.size == t.lineup.size }) else null
         lines.forEachIndexed { i, l ->
-            val bonus = if (winner >= 0) (if (l.team == winner) 0.06 else -0.06) else 0.0
-            l.rating = (clamp(0.35 + 0.65 * (vals[i] / avg) + bonus, 0.15, 2.8) * 100).roundToInt() / 100.0
+            val bonus = if (winner >= 0) (if (l.team == winner) WIN_BONUS else -WIN_BONUS) else 0.0
+            val k = sc?.getOrNull(t.lineup.indexOf(l.roleId)) ?: 1.0
+            l.rating = (clamp(1.0 + 0.65 * (vals[i] / avg - 1) * k + bonus, 0.15, 2.8) * 100).roundToInt() / 100.0
         }
     }
 }

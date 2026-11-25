@@ -149,8 +149,8 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
             g = GameRecord(winnerSeries, out.duration, s.mapId, s.blue, intArrayOf(s.chooser, s.choice, if (s.byLoser) 1 else 0, s.firstPick), draft.bans, draft.picks[0] + draft.picks[1], score, lines, draftOrder = draft.order, objs = objs, draftNotes = draft.notes)
         } else {
             val firstAttack = if (grng.chance(0.5)) 0 else 1
-            val out = if (quick && rec == null) QuickSim.shooter(t, ctx.toList(), evals, firstAttack, grng)
-                else TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, grng, patch, rec, s.mapId, timeouts ?: TimeoutPlan(timeoutsAllowed, booleanArrayOf(true, true), emptyList(), doubleArrayOf(coachQ(0), coachQ(1))))
+            val out = if (quick && rec == null) QuickSim.shooter(t, ctx.toList(), evals, firstAttack, grng, w)
+                else TacticalEngine.simulate(t, ctx.toList(), evals, firstAttack, grng, patch, rec, s.mapId, timeouts ?: TimeoutPlan(timeoutsAllowed, booleanArrayOf(true, true), emptyList(), doubleArrayOf(coachQ(0), coachQ(1))), world = w)
             winnerSeries = out.winner
             g = GameRecord(winnerSeries, out.duration, s.mapId, firstAttack, IntArray(0), emptyList(), draft.picks[0] + draft.picks[1], out.score, out.book.lines, econ = out.econ)
         }

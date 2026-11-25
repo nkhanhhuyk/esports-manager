@@ -54,7 +54,7 @@ object Search {
         Triple("Finances & facilities", "finances money budget facilities sponsors", Screen.Finances), Triple("Business", "business sponsors sponsorship creators streaming venue arena fan events merch", Screen.Business),
         Triple("Board", "board objectives confidence job", Screen.Board), Triple("Events", "events competitions leagues standings brackets", Screen.Comps),
         Triple("Match centre", "watch live match replays", Screen.Watch), Triple("Schedule", "schedule calendar fixtures", Screen.Schedule),
-        Triple("Teams", "teams directory", Screen.Teams), Triple("Players", "players search compare", Screen.Players), Triple("Stats hub", "stats leaderboards records", Screen.Stats),
+        Triple("Teams", "teams directory", Screen.Teams), Triple("Players", "players search compare", Screen.Players), Triple("Staff", "staff coaches analysts scouts directory", Screen.StaffDir),Triple("Stats hub", "stats leaderboards records", Screen.Stats),
         Triple("Tier lists", "tier list meta champions heroes agents", Screen.Tiers), Triple("Patch notes", "patch notes meta balance", Screen.Patches),
         Triple("History & awards", "history awards hall of fame goat champions", Screen.History), Triple("World rankings", "rankings world ranking", Screen.Rankings),
         Triple("World & nations", "world nations countries", Screen.World), Triple("Solo queue ladders", "solo queue ranked ladder", Screen.SoloQ),

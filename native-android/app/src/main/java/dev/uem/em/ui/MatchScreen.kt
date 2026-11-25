@@ -97,6 +97,13 @@ fun MatchScreen(vm: GameVm, w: World, id: Int) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("Series MVP  ", color = Ui.gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         PlayerChip(w.players[f.mvp], vm, 22.dp)
+                        // The MVP's series numbers: average rating and K/D/A over the games played.
+                        val mine = rec?.games?.mapNotNull { g -> g.lines.firstOrNull { it.playerId == f.mvp } } ?: emptyList()
+                        if (mine.isNotEmpty()) {
+                            val ki = t.statIndex["k"]; val di = t.statIndex["d"]; val ai = t.statIndex["a"]
+                            val kda = if (ki != null && di != null && ai != null) " · %d/%d/%d".format(mine.sumOf { it.s[ki] }.toInt(), mine.sumOf { it.s[di] }.toInt(), mine.sumOf { it.s[ai] }.toInt()) else ""
+                            Muted("  ${t.role(mine[0].roleId).short} · rating %.2f over %d game%s$kda".format(mine.sumOf { it.rating } / mine.size, mine.size, if (mine.size == 1) "" else "s"), 11)
+                        }
                     }
                 }
                 // What each side prepared (the plans locked when the series started).

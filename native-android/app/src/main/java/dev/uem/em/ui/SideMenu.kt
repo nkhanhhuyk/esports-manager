@@ -128,6 +128,7 @@ fun SideMenu(vm: GameVm, w: World, content: @Composable (open: () -> Unit) -> Un
                 head("WORLD")
                 item("Teams", Icons.Rounded.AccountCircle, screen = Screen.Teams) { go(Screen.Teams) }
                 item("Players", Icons.Rounded.Face, screen = Screen.Players) { go(Screen.Players) }
+                item("Staff", Icons.Rounded.Person, "coaches, analysts, scouts", Screen.StaffDir) { go(Screen.StaffDir) }
                 item("Stats hub", Icons.AutoMirrored.Rounded.List, screen = Screen.Stats) { go(Screen.Stats) }
                 item("Tier lists", Icons.Rounded.Star, screen = Screen.Tiers) { go(Screen.Tiers) }
                 item("Solo queue ladders", Icons.Rounded.Search, "ranks on every server; unsigned talent", Screen.SoloQ) { go(Screen.SoloQ) }
