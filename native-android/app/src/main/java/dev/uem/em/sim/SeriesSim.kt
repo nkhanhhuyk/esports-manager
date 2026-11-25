@@ -181,10 +181,13 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
 
     fun outcome(): SeriesOutcome {
         val winner = if (wins[0] >= wins[1]) 0 else 1
-        // Series MVP: best average rating on the winning team.
+        // Series MVP: best average rating on the winning team, measured against how that position usually rates
+        // in wins (a carry's good game is not automatically better than a support's great one).
         val sums = HashMap<Int, Pair<Double, Int>>()
-        for (g in games) for (l in g.lines) if (l.team == winner) sums[l.playerId] = (sums[l.playerId]?.let { it.first + l.rating to it.second + 1 } ?: (l.rating to 1))
-        val mvp = sums.maxByOrNull { it.value.first / it.value.second }?.key ?: -1
+        val slotOf = HashMap<Int, String>()
+        for (g in games) for (l in g.lines) if (l.team == winner) { sums[l.playerId] = (sums[l.playerId]?.let { it.first + l.rating to it.second + 1 } ?: (l.rating to 1)); slotOf[l.playerId] = l.roleId }
+        val tdef = dev.uem.em.titles.Catalogue.get(f.titleId)
+        val mvp = sums.maxByOrNull { (pid, v) -> dev.uem.em.sim.StatBook.mvpScore(w, tdef, slotOf[pid], v.first / v.second) }?.key ?: -1
         return SeriesOutcome(f, winner, wins, MatchRecord(f.id, f.day, games), mvp)
     }
 

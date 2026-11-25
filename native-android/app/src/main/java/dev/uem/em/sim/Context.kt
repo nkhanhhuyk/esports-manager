@@ -12,6 +12,7 @@ import dev.uem.em.titles.RoleDef
 import dev.uem.em.titles.TitleDef
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /** A player in one game: ratings by phase after condition, form and day-to-day noise. */
 class PlayerCtx(val p: Player, val role: RoleDef, val charId: String?, val char: CharDef?, val base: Ratings.Base, val mult: Double, val phase: DoubleArray) {
@@ -153,9 +154,13 @@ class StatBook(teams: List<TeamCtx>, val t: TitleDef) {
             "dota2" to doubleArrayOf(1.43, 1.37, 0.79, 1.08, 0.68),
         )
 
-        /** The rating level a lineup slot should average: even, tilted a little toward the meta's carry. */
-        fun target(w: dev.uem.em.model.World?, t: TitleDef, slot: Int): Double =
-            1.0 + 0.04 * ((dev.uem.em.titles.RoleMeta.killPriority(w, t.id)[dev.uem.em.titles.RoleMeta.pos(t.lineup[slot])] ?: 0.6) - 0.6)
+        /**
+         * The rating level a lineup slot should average: the same for every position (a carry's bigger share of
+         * the kills already makes its best games stand out; a higher average on top made it the series MVP four
+         * times in ten).
+         */
+        @Suppress("UNUSED_PARAMETER")
+        fun target(w: dev.uem.em.model.World?, t: TitleDef, slot: Int): Double = 1.0
 
         /**
          * After a series is applied (in order, between game days, so results stay reproducible): each slot's
@@ -166,11 +171,31 @@ class StatBook(teams: List<TeamCtx>, val t: TitleDef) {
             if (ROLE_NORM[t.id] == null || t.lineup.isEmpty()) return
             val cal = w.ratingCal.getOrPut(t.id) { DoubleArray(t.lineup.size) }
             if (cal.size != t.lineup.size) return
+            // Each position's rating in wins, mean and spread (series MVPs come from the winners).
+            val n = t.lineup.size
+            val win = w.ratingCal["${t.id}|win"]?.takeIf { it.size == 2 * n } ?: DoubleArray(2 * n) { if (it < n) 1.12 else 0.04 }.also { w.ratingCal["${t.id}|win"] = it }
             for (g in games) for (l in g.lines) {
                 val slot = t.lineup.indexOf(l.roleId)
                 if (slot < 0) continue
                 cal[slot] = (cal[slot] + 0.01 * (l.rating - target(w, t, slot)) / 0.65).coerceIn(-0.5, 0.5)
+                if (l.team == g.winner) { val dl = l.rating - win[slot]; win[slot] += 0.01 * dl; win[n + slot] += 0.01 * (dl * dl - win[n + slot]) }
             }
+        }
+
+        /**
+         * A series MVP score: how far above that position's usual winning game the player's average was, in that
+         * position's own spread (a carry's ratings swing more from game to game, so a carry tops a single series
+         * more often), keeping 30% of the position's edge in wins. The plain average before any series.
+         */
+        fun mvpScore(w: dev.uem.em.model.World, t: TitleDef, roleId: String?, avg: Double): Double {
+            val n = t.lineup.size
+            val slot = t.lineup.indexOf(roleId)
+            val win = w.ratingCal["${t.id}|win"]?.takeIf { it.size == 2 * n } ?: return avg
+            if (slot < 0) return avg
+            val sds = DoubleArray(n) { sqrt(win[n + it]).coerceAtLeast(0.05) }
+            val meanSd = sds.average()
+            val meanWin = (0 until n).sumOf { win[it] } / n
+            return (avg - win[slot]) / sds[slot] * meanSd + 0.3 * (win[slot] - meanWin) + meanWin
         }
     }
     val lines = ArrayList<Line>()

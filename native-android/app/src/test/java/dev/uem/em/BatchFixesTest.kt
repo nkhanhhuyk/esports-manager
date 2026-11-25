@@ -105,7 +105,9 @@ class BatchFixesTest {
         assertTrue(Imports.isImport(w, viper, team))
         viper.resCountry = w.orgs[team.orgId].country; viper.resYears = 2
         Extras.residency(w)
-        assertEquals(listOf("KR", w.orgs[team.orgId].country), viper.nats())
+        // Residency, not a nationality: a local for import limits, still only Korean (national teams).
+        assertEquals(listOf("KR"), viper.nats())
+        assertEquals(w.orgs[team.orgId].country, viper.residency)
         assertTrue(!Imports.isImport(w, viper, team))
     }
 

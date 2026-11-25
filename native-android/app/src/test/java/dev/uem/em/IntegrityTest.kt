@@ -71,7 +71,8 @@ class IntegrityTest {
         Advance.run(w, 3)
         assertEquals(season + 1, w.season)
         assertEquals(seasonsBefore + 1, w.teams.first().history.size)
-        assertTrue(w.teams.all { tm -> tm.history.groupBy { it.season }.values.all { it.size == 1 } })
+        // One season line per team and season (national teams also keep one line per event they played: compId >= 0).
+        assertTrue(w.teams.all { tm -> tm.history.filter { it.compId < 0 }.groupBy { it.season }.values.all { it.size == 1 } })
         println("reconciled season $season: ${w.comps.count { it.season == season && it.done }} competitions, $finals finals")
     }
 
