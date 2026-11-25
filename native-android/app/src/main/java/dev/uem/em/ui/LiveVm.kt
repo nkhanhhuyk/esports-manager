@@ -218,6 +218,8 @@ class LiveMatch(val w: World, fixtureId: Int, spectatorWanted: Boolean = false, 
 
     /** Simulate the remaining games without watching (same AI and engine). */
     fun simRest() {
+        // Your coach takes over the rest of the series, substitutions included.
+        if (me >= 0) series.aiSides[me] = true
         if (stage == "veto") aiFinish()
         while (!series.done) {
             val s = series.setup()
