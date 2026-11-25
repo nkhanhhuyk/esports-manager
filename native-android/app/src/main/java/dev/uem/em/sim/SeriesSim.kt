@@ -24,12 +24,24 @@ class SeriesOutcome(val fixture: Fixture, val winner: Int, val wins: IntArray, v
  */
 class Ev(val t: Int, val kind: String, val team: Int, val a: Int = -1, val b: Int = -1, val x: Int = 0, val text: String = "", val m: Int = 0, val n: Int = -1)
 
-class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, prepPlans: Array<dev.uem.em.model.PrepPlan?>? = null) {
+class LiveSeries(val w: World, val f: Fixture, lineups0: Array<List<Int>>, prepPlans: Array<dev.uem.em.model.PrepPlan?>? = null, bench0: Array<List<Int>>? = null, notes0: List<String> = emptyList()) {
     val t = Catalogue.get(f.titleId)
+    /** Each side's lineup for the next game (substitutions between games change it). */
+    val lineups: Array<MutableList<Int>> = Array(2) { lineups0[it].toMutableList() }
+    /** The lineups the series started with. */
+    val starting: Array<List<Int>> = Array(2) { lineups0[it].toList() }
     /** Each side's locked match preparation (Prepare for Match), read by the draft and the veto. */
     val prep: Array<dev.uem.em.model.PrepPlan?> = prepPlans ?: Array(2) { dev.uem.em.mgmt.Prep.effective(w, f, it) }
     val comp = w.comps[f.compId]
     val teams = arrayOf(w.teams[f.a], w.teams[f.b])
+    /** Each side's substitutes for this series (registered, available, not playing another series today). */
+    val bench: Array<MutableList<Int>> = Array(2) { si -> (bench0?.getOrNull(si) ?: Subs.bench(w, comp, teams[si], lineups0[si])).filter { it !in lineups0[si] }.toMutableList() }
+    /** Sides whose coach makes the substitutions (not yours when you play live). */
+    val aiSides = booleanArrayOf(true, true)
+    /** Substitutions made for the next game (Subs notes), written on that game's record. */
+    private val pendingSubs = ArrayList<String>(notes0)
+    /** Substitutions so far per side (a coach makes at most two in a series). */
+    private val subsMade = IntArray(2)
     val patch = Patch.of(w, t)
     private val isFinal = f.nodeId.isNotEmpty() && comp.stages[f.stageIdx].bracket.firstOrNull { it.id == f.nodeId }?.isFinal == true
     val pressure = if (isFinal) 1.0 else if (f.nodeId.isNotEmpty()) 0.5 else if (comp.tier == CompTier.WORLDS || comp.tier == CompTier.INTERNATIONAL) 0.4 else 0.0
@@ -41,7 +53,8 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
     val fearlessMode = if (dev.uem.em.comp.Fearless.applies(t)) dev.uem.em.comp.Fearless.effective(t, dev.uem.em.comp.Fearless.modeOf(comp)) else "none"
     val playedBy = arrayOf(HashSet<String>(), HashSet<String>())
     val bannedBefore = HashSet<String>()
-    val players = Array(2) { s -> lineups[s].filter { it >= 0 }.map { w.players[it] } }
+    var players: Array<List<dev.uem.em.model.Player>> = Array(2) { s -> lineups[s].filter { it >= 0 }.map { w.players[it] } }
+        private set
     var maps: List<String> = emptyList()
     var lastLoser = -1
     var gi = 0
@@ -58,6 +71,8 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
     fun setup(): Setup {
         val rng = rngFor(gi)
         val mapId = if (maps.isNotEmpty()) maps[minOf(gi, maps.size - 1)] else t.maps[0].id
+        // Between games, each coach may bring in a substitute (a bad game, the next map, the Fearless pool left).
+        if (gi > 0 && !done) for (side in 0..1) aiSub(side, mapId)
         val byLoser = lastLoser >= 0
         val chooser = if (byLoser) lastLoser else if (rng.chance(0.5)) 0 else 1
         var blue = chooser
@@ -68,6 +83,44 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
             else { choice = 1; firstPick = chooser; blue = if (rng.chance(0.7)) 1 - chooser else chooser }
         }
         return Setup(chooser, blue, firstPick, choice, byLoser, mapId, rng)
+    }
+
+    /** The map of the next game. */
+    fun nextMap(): String = if (maps.isNotEmpty()) maps[minOf(gi, maps.size - 1)] else t.maps[0].id
+
+    /** Substitutions waiting for the next game. */
+    fun pending(): List<Subs.Note> = pendingSubs.mapNotNull { Subs.parse(it) }
+
+    /**
+     * Bring `inPid` from the bench into `slot` for the next game (the player there goes to the bench).
+     * Swapping a player straight back cancels the pending substitution. False when not allowed.
+     */
+    fun substitute(side: Int, slot: Int, inPid: Int, reason: String): Boolean {
+        if (done || slot !in lineups[side].indices || inPid !in bench[side]) return false
+        val role = t.lineupRoles.getOrNull(slot) ?: return false
+        val q = w.players[inPid]
+        if (!Subs.plays(q, role.id) || !Subs.importsAllow(w, teams[side], lineups[side], slot, q)) return false
+        val out = lineups[side][slot]
+        bench[side].remove(inPid)
+        if (out >= 0) bench[side].add(out)
+        lineups[side][slot] = inPid
+        players[side] = lineups[side].filter { it >= 0 }.map { w.players[it] }
+        val prev = pendingSubs.indexOfFirst { n -> Subs.parse(n)?.let { it.side == side && it.slot == slot } == true }
+        if (prev >= 0) {
+            val first = Subs.parse(pendingSubs[prev])!!
+            if (first.out == inPid) { pendingSubs.removeAt(prev); subsMade[side]--; return true }
+            pendingSubs[prev] = "$side|$slot|${first.out}|$inPid|$reason"
+        } else { pendingSubs.add("$side|$slot|$out|$inPid|$reason"); subsMade[side]++ }
+        return true
+    }
+
+    private fun aiSub(side: Int, mapId: String) {
+        if (!aiSides[side] || bench[side].isEmpty() || subsMade[side] >= 2) return
+        val team = teams[side]
+        // Your own lineup, when you pick it yourself, only changes when you change it.
+        if (w.isUserTeam(team.id) && team.manualLineup) return
+        val pick = Subs.suggest(this, side, mapId) ?: return
+        if (Rng.derive(w.seed, f.id, "sub", gi, side).chance(Subs.chance(pick))) substitute(side, pick.slot, pick.inPid, pick.reason)
     }
 
     /** Champions each team may not pick in the next game under the series' Fearless rule. */
@@ -109,6 +162,8 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
         wins[g.winner]--
         gi--
         lastLoser = lastLoserBefore
+        // The game is played again with the same lineups: its substitutions wait for it again.
+        pendingSubs.addAll(0, g.subs)
     }
 
     fun play(s: Setup, draft: Draft.Result, record: Boolean = false, timeouts: TimeoutPlan? = null, mobaCalls: List<Triple<Int, Int, String>> = emptyList()): GameRecord {
@@ -119,7 +174,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
         if (players[0].isEmpty() || players[1].isEmpty()) {
             val wnr = if (players[0].isEmpty()) 1 else 0
             wins[wnr] = need
-            return GameRecord(wnr, 0, s.mapId, lines = emptyList()).also { games.add(it); gi++ }
+            return GameRecord(wnr, 0, s.mapId, lines = emptyList()).also { it.subs = takeSubs(); games.add(it); gi++ }
         }
         val chars = draft.assign
         val evals = Array(2) { si ->
@@ -155,6 +210,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
             g = GameRecord(winnerSeries, out.duration, s.mapId, firstAttack, IntArray(0), emptyList(), draft.picks[0] + draft.picks[1], out.score, out.book.lines, econ = out.econ)
         }
         if (rec != null) g.replay = ReplayCodec.encode(rec)
+        g.subs = takeSubs()
         lastEvents = rec?.events ?: emptyList()
         games.add(g)
         remember(g)
@@ -164,7 +220,9 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
         return g
     }
 
-    /** Continue a series from a saved live state (games already played, maps, Fearless pool). */
+    private fun takeSubs(): List<String> = pendingSubs.toList().also { pendingSubs.clear() }
+
+    /** Continue a series from a saved live state (games already played, maps, Fearless pool, lineups after substitutions). */
     fun restore(st: dev.uem.em.model.LiveState) {
         maps = st.maps
         fearless.addAll(st.fearless)
@@ -174,10 +232,23 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
             wins[g.winner]++
             lastLoser = 1 - g.winner
             gi++
+            for (n in g.subs) Subs.parse(n)?.let { if (it.reason != "stand-in") subsMade[it.side]++ }
         }
+        val n = lineups[0].size
+        if (st.lineups.size == n + lineups[1].size) {
+            val pool = Array(2) { si -> (bench[si] + lineups[si]).distinct() }
+            for (si in 0..1) {
+                val now = st.lineups.subList(if (si == 0) 0 else n, if (si == 0) n else st.lineups.size)
+                lineups[si].clear(); lineups[si].addAll(now)
+                bench[si].clear(); bench[si].addAll(pool[si].filter { it !in now })
+                players[si] = lineups[si].filter { it >= 0 }.map { w.players[it] }
+            }
+        }
+        pendingSubs.clear(); pendingSubs.addAll(st.subs)
+        for (x in st.subs) Subs.parse(x)?.let { if (it.reason != "stand-in") subsMade[it.side]++ }
     }
 
-    fun liveState(spectator: Boolean) = dev.uem.em.model.LiveState(f.id, games.toMutableList(), maps, fearless.toList(), spectator)
+    fun liveState(spectator: Boolean) = dev.uem.em.model.LiveState(f.id, games.toMutableList(), maps, fearless.toList(), spectator, lineups[0] + lineups[1], pendingSubs.toList())
 
     fun outcome(): SeriesOutcome {
         val winner = if (wins[0] >= wins[1]) 0 else 1
@@ -203,8 +274,9 @@ object SeriesSim {
      * watched live (the same map veto, draft session and engine), so watching a match never changes
      * its result; `record` keeps every game's replay.
      */
-    fun run(w: World, f: Fixture, lineups: Array<List<Int>>, record: Boolean = false, resume: dev.uem.em.model.LiveState? = null, quick: Boolean = false, prep: Array<dev.uem.em.model.PrepPlan?>? = null): SeriesOutcome {
-        val s = LiveSeries(w, f, lineups, prep)
+    fun run(w: World, f: Fixture, lineups: Array<List<Int>>, record: Boolean = false, resume: dev.uem.em.model.LiveState? = null, quick: Boolean = false, prep: Array<dev.uem.em.model.PrepPlan?>? = null,
+            bench: Array<List<Int>>? = null, notes: List<String> = emptyList()): SeriesOutcome {
+        val s = LiveSeries(w, f, lineups, prep, bench, if (resume != null) emptyList() else notes)
         s.quick = quick && !record
         if (resume != null) s.restore(resume)
         else if (s.t.engine == Engine.TACTICAL) { val v = VetoSession(s); while (!v.done) v.aiAct() }

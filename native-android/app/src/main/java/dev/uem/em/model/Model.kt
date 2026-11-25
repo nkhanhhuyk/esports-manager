@@ -549,6 +549,8 @@ class GameRecord(
     @ProtoPacked val objs: IntArray = IntArray(0),
     /** Why draft steps happened when earlier games shaped them: "step|kind|n|character" (see sim.DraftNotes). */
     val draftNotes: List<String> = emptyList(),
+    /** Substitutions and stand-ins for this game: "side|slot|out|in|reason" (see sim.Subs). */
+    var subs: List<String> = emptyList(),
 )
 
 /**
@@ -723,6 +725,10 @@ class LiveState(
     val maps: List<String> = emptyList(),
     val fearless: List<String> = emptyList(),
     val spectator: Boolean = false,
+    /** Both sides' lineups for the next game (after substitutions), side 0 first; empty in older saves. */
+    val lineups: List<Int> = emptyList(),
+    /** Substitutions made for the next game, not yet played. */
+    val subs: List<String> = emptyList(),
 )
 
 /** A fictional champion / hero / agent released by a patch (drawn with generated art). */

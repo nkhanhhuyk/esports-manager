@@ -207,6 +207,15 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
             Gap(4)
             Muted(selectionText(t, listOf(w.teams[f.a].short, w.teams[f.b].short), g.sel[0], g.sel[1], g.sel[2] == 1, g.blue, firstPick), 12)
         }
+        // Substitutions before this game and stand-ins.
+        val subs = g.subs.mapNotNull { dev.uem.em.sim.Subs.parse(it) }
+        if (subs.isNotEmpty()) {
+            Gap(4)
+            for (n in subs) Row(Modifier.clickable { vm.go(Screen.Player(n.inPid)) }.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("⇄ ", color = Ui.gold, fontSize = 12.sp)
+                Text("${w.teams[if (n.side == 0) f.a else f.b].short}: " + dev.uem.em.sim.Subs.describe(w, t, n), color = Ui.text, fontSize = 12.sp)
+            }
+        }
     }
     if (t.characters.isNotEmpty() && (g.bans.isNotEmpty() || g.lines.any { it.charId.isNotEmpty() })) Card("Draft") {
         val fm = dev.uem.em.comp.Fearless.played(t, w.comps[f.compId])

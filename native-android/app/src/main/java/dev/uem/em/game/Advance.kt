@@ -137,15 +137,29 @@ object Advance {
             // Lineups are settled first (this writes to teams), then series run in parallel read-only.
             fun prio(f: Fixture): Int { val a = w.teams[f.a]; val b = w.teams[f.b]; return when { a.kind.isNotEmpty() || b.kind.isNotEmpty() || w.comps[f.compId].circuit.isNotBlank() -> 2; a.nationalOf.isNotEmpty() || b.nationalOf.isNotEmpty() -> 1; else -> 0 } }
             val lineups = HashMap<Int, Array<List<Int>>>()
+            val notes = HashMap<Int, List<String>>()
             for (f in fixtures.sortedBy { prio(it) }) {
                 val c = w.comps[f.compId]
-                val la = withoutBusy(w, w.teams[f.a], dev.uem.em.mgmt.Supporters.lineupFor(w, c, w.teams[f.a], Lineups.ensure(w, w.teams[f.a]).toList()), busy)
+                val n = ArrayList<String>()
+                // Nobody out of position while someone who plays it is free: a roster player, else a stand-in for the day.
+                val la = dev.uem.em.sim.Subs.standIns(w, c, w.teams[f.a], withoutBusy(w, w.teams[f.a], dev.uem.em.mgmt.Supporters.lineupFor(w, c, w.teams[f.a], Lineups.ensure(w, w.teams[f.a]).toList()), busy), busy, 0).let { n.addAll(it.second); it.first }
                 busy.addAll(la.filter { it >= 0 })
-                val lb = withoutBusy(w, w.teams[f.b], dev.uem.em.mgmt.Supporters.lineupFor(w, c, w.teams[f.b], Lineups.ensure(w, w.teams[f.b]).toList()), busy)
+                val lb = dev.uem.em.sim.Subs.standIns(w, c, w.teams[f.b], withoutBusy(w, w.teams[f.b], dev.uem.em.mgmt.Supporters.lineupFor(w, c, w.teams[f.b], Lineups.ensure(w, w.teams[f.b]).toList()), busy), busy, 1).let { n.addAll(it.second); it.first }
                 busy.addAll(lb.filter { it >= 0 })
                 lineups[f.id] = arrayOf(la, lb)
+                notes[f.id] = n
                 // Both sides' match preparation is locked now (AI coaches plan theirs); a resumed live series was locked when it began.
                 dev.uem.em.mgmt.Prep.lock(w, f)
+            }
+            // Each side's bench for between-game substitutions: nobody who plays another series today, nobody on two benches.
+            val benches = HashMap<Int, Array<List<Int>>>()
+            val benched = HashSet<Int>()
+            for (f in fixtures.sortedBy { prio(it) }) {
+                val c = w.comps[f.compId]
+                benches[f.id] = Array(2) { si ->
+                    val team = w.teams[if (si == 0) f.a else f.b]
+                    dev.uem.em.sim.Subs.bench(w, c, team, lineups[f.id]!![si]).filter { it !in busy && benched.add(it) }
+                }
             }
             // A series the user started live and left unfinished continues from its saved games.
             val resume = w.live?.takeIf { lv -> fixtures.any { it.id == lv.fixtureId } }
@@ -158,7 +172,7 @@ object Advance {
                 (w.simDetail == "balanced" && w.comps[f.compId].tier.let { tier -> tier == dev.uem.em.model.CompTier.CHALLENGER ||
                     (tier == dev.uem.em.model.CompTier.LEAGUE && mine.isNotEmpty() && f.titleId !in mine) })) &&
                 !w.isUserTeam(f.a) && !w.isUserTeam(f.b) && f.a !in w.followed && f.b !in w.followed
-            fun sim(f: Fixture) = SeriesSim.run(w, f, lineups[f.id]!!, record = shouldRecord(w, f), resume = resume?.takeIf { it.fixtureId == f.id }, quick = quick(f))
+            fun sim(f: Fixture) = SeriesSim.run(w, f, lineups[f.id]!!, record = shouldRecord(w, f), resume = resume?.takeIf { it.fixtureId == f.id }, quick = quick(f), bench = benches[f.id], notes = notes[f.id] ?: emptyList())
             val outcomes: List<SeriesOutcome> = if (fixtures.size == 1 || cores == 1) fixtures.map { sim(it) }
             else pool.invokeAll(fixtures.map { f -> Callable { sim(f) } }).map { it.get() }
             for (o in outcomes) apply(w, o)
@@ -266,6 +280,12 @@ object Advance {
         ta.elo = (ta.elo + dlt).roundToInt().toDouble()
         tb.elo = (tb.elo - dlt).roundToInt().toDouble()
         BoxStore.put(w, o.record)
+        // Your coach's substitutions in a series you did not play live.
+        for ((gn, g) in o.record.games.withIndex()) for (n in g.subs.mapNotNull { dev.uem.em.sim.Subs.parse(it) }) {
+            if (n.reason == "coach" || n.reason == "stand-in" || !w.isUserTeam(teamIds[n.side])) continue
+            w.inbox.add(dev.uem.em.model.Message(w.day, "Head coach", "Substitution: ${w.players[n.inPid].handle}",
+                "Game ${gn + 1} against ${w.teams[teamIds[1 - n.side]].name}: " + dev.uem.em.sim.Subs.describe(w, t, n) + "."))
+        }
         dev.uem.em.mgmt.Extras.afterSeries(w, f.id, o.record.games.flatMap { g -> g.lines.map { it.playerId } }.toSet())
         dev.uem.em.mgmt.Deals.afterSeries(w, f)
         Progress.onFixtureDone(w, f)

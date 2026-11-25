@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -219,12 +221,76 @@ private fun DraftView(live: LiveMatch) {
 
 @Composable
 internal fun WatchDone(live: LiveMatch) {
+    @Suppress("UNUSED_EXPRESSION") live.rev
     val g = live.game ?: return
     val s = live.series
-    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("${s.teams[g.winner].name} win game ${s.gi}", color = Ui.gold, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-        Button(onClick = { live.afterGame() }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text(if (s.done) "Result" else "Next game") }
+    var subs by remember(live) { mutableStateOf(false) }
+    val canSub = live.me >= 0 && !s.done && s.bench[live.me].isNotEmpty()
+    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("${s.teams[g.winner].name} win game ${s.gi}", color = Ui.gold, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            if (canSub) TextButton(onClick = { subs = true }) { Text("Substitutions", color = Ui.accent) }
+            Button(onClick = { live.afterGame() }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text(if (s.done) "Result" else "Next game") }
+        }
+        // Changes made for the next game (yours), shown until it starts.
+        for (n in s.pending().filter { it.side == live.me }) Muted("Next game: " + dev.uem.em.sim.Subs.describe(s.w, s.t, n), 11)
     }
+    if (subs && canSub) SubsDialog(live) { subs = false }
+}
+
+/**
+ * Between games of your series: swap a starter for a bench player who plays the position (main or
+ * second), for the next game. Your coach's suggestion is on top (a bad game, the next map, the champion
+ * pool left under Fearless); tapping a player back in undoes a change.
+ */
+@Composable
+private fun SubsDialog(live: LiveMatch, onClose: () -> Unit) {
+    @Suppress("UNUSED_EXPRESSION") live.rev
+    val s = live.series
+    val w = s.w
+    val t = s.t
+    val me = live.me
+    val last = s.games.lastOrNull()
+    val map = s.nextMap()
+    androidx.compose.material3.AlertDialog(onDismissRequest = onClose, confirmButton = { TextButton(onClick = onClose) { Text("Done", color = Ui.accent) } },
+        title = { Text("Substitutions · game ${s.gi + 1}${if (!t.isMoba && t.maps.size > 1) " · " + (t.maps.firstOrNull { it.id == map }?.name ?: "") else ""}") }, text = {
+            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
+                live.suggestion()?.let { sg ->
+                    val inP = w.players[sg.inPid]
+                    val outP = s.lineups[me].getOrNull(sg.slot)?.let { w.players.getOrNull(it) }
+                    Row(Modifier.fillMaxWidth().background(Ui.card2, RoundedCornerShape(8.dp)).clickable { live.substitute(sg.slot, sg.inPid) }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Coach suggests: ${inP.handle} for ${outP?.handle ?: "?"}", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Muted("${t.lineupRoles[sg.slot].name} · ${dev.uem.em.sim.Subs.reasonText(sg.reason)}", 11)
+                        }
+                        Text("Make it", color = Ui.accent, fontSize = 12.sp)
+                    }
+                    Gap()
+                } ?: Muted("Your coach would keep this lineup.", 11)
+                for ((slot, role) in t.lineupRoles.withIndex()) {
+                    val cur = s.lineups[me].getOrNull(slot)?.takeIf { it >= 0 }?.let { w.players[it] }
+                    val r = last?.lines?.firstOrNull { it.team == me && it.playerId == cur?.id }?.rating
+                    Gap(6)
+                    Text("${role.name}: ${cur?.handle ?: "—"}${if (r != null) " · last game %.2f".format(r) else ""}", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    val opts = s.bench[me].map { w.players[it] }.filter { dev.uem.em.sim.Subs.plays(it, role.id) }
+                        .sortedWith(compareBy({ dev.uem.em.sim.Subs.tier(it, role.id) }, { -dev.uem.em.sim.Ratings.effectiveness(it, t, role) }))
+                    if (opts.isEmpty()) Muted("Nobody on the bench plays ${role.name}.", 11)
+                    for (q in opts) {
+                        val allowed = dev.uem.em.sim.Subs.importsAllow(w, s.teams[me], s.lineups[me], slot, q)
+                        Row(Modifier.fillMaxWidth().alpha(if (allowed) 1f else 0.4f).clickable(enabled = allowed) { live.substitute(slot, q.id) }.padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                            PlayerPic(q, 26.dp, round = true); HGap(8)
+                            Column(Modifier.weight(1f)) {
+                                Text(q.handle, color = Ui.text, fontSize = 13.sp)
+                                val extra = if (!t.isMoba && t.maps.size > 1) " · map %.0f vs %.0f".format(q.profMap[map] ?: 20.0, cur?.profMap?.get(map) ?: 20.0) else ""
+                                Muted("${when (dev.uem.em.sim.Subs.tier(q, role.id)) { 0 -> "main position"; 1 -> "second position"; else -> "flex" }} · fit %.1f vs %.1f$extra${if (!allowed) " · import limit" else ""}".format(
+                                    dev.uem.em.sim.Ratings.effectiveness(q, t, role), cur?.let { dev.uem.em.sim.Ratings.effectiveness(it, t, role) } ?: 0.0), 11)
+                            }
+                            Text("Sub in", color = Ui.accent, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        })
 }
 
 @Composable

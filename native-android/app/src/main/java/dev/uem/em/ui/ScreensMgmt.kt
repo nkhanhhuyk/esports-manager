@@ -98,7 +98,8 @@ fun SquadScreen(vm: GameVm, w: World) {
     }
     if (pickSlot >= 0) {
         val role = t.lineupRoles[pickSlot]
-        val cands = team.roster.map { w.players[it] }.sortedByDescending { dev.uem.em.sim.Ratings.effectiveness(it, t, role) }
+        // Players who play the position first (main, then second), each group by fit.
+        val cands = team.roster.map { w.players[it] }.sortedWith(compareBy({ dev.uem.em.sim.Subs.tier(it, role.id) }, { -dev.uem.em.sim.Ratings.effectiveness(it, t, role) }))
         AlertDialog(onDismissRequest = { pickSlot = -1 }, confirmButton = { Ghost("Close") { pickSlot = -1 } }, title = { Text(role.name) }, text = {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                 for (p in cands) Row(Modifier.fillMaxWidth().clickable {
@@ -113,7 +114,7 @@ fun SquadScreen(vm: GameVm, w: World) {
                     vm.edit()
                 }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     PlayerPic(p, 28.dp, round = true); HGap(8)
-                    Column(Modifier.weight(1f)) { Text(p.handle, color = Ui.text); Muted("${t.role(p.mainRole).short} · fit here %.1f · CA %.1f · fatigue %.0f${if (p.injuryUntil > w.day) " · injured" else ""}".format(dev.uem.em.sim.Ratings.effectiveness(p, t, role), p.ca, p.fatigue)) }
+                    Column(Modifier.weight(1f)) { Text(p.handle, color = Ui.text); Muted("${t.role(p.mainRole).short}${when (dev.uem.em.sim.Subs.tier(p, role.id)) { 0 -> ""; 1 -> " · second position"; else -> " · out of position" }} · fit here %.1f · CA %.1f · fatigue %.0f${if (p.injuryUntil > w.day) " · injured" else ""}".format(dev.uem.em.sim.Ratings.effectiveness(p, t, role), p.ca, p.fatigue)) }
                     if (p.id == team.lineup.getOrNull(pickSlot)) Text("✓", color = Ui.win)
                 }
             }

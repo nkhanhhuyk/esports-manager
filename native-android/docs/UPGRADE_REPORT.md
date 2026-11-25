@@ -543,3 +543,51 @@ five players and both coaches, playing LEC matches by January).
 Full suite: 104 tests, 0 failures (3 skipped).
 
 Saves: no new fields.
+
+## Twentieth follow-up: substitutes in their positions, substitutions between games, every past player in the game
+
+* **Substitutes play their positions.** A sample of 90 days (all seven games, 50,000 player-games) had 107
+  games played out of position, all because the only player for a position was injured, on a break or
+  waiting for a visa. Now:
+  * **Stand-ins.** When nobody available on the roster plays a position, a stand-in for the day comes in:
+    the best unsigned player of the game who plays it (of the nation for a national team), within the
+    import limit. You get an inbox note when it is your team. A starter who is clearly better out of
+    position than any free agent keeps the seat.
+  * **Registration swaps.** When a player is not registered for a competition, the replacement is now a
+    registered player who plays the position. Before, it was the best player by ability, whatever position
+    they play.
+  * **Lineup picker.** Your manual lineup picker lists the players who play the position first, and marks
+    the others "second position" or "out of position".
+  * **Result.** The same 90 days now have no game out of position. Valorant's Flex counts as open to any
+    player.
+* **Substitutions between games** of a Bo3 / Bo5:
+  * **Your coach suggests a change** between games of a live series. It can come after a bad game in a
+    loss, for the next map (shooters), for the champion pool left under Fearless (MOBAs), or to bring the
+    starter back. You can follow the suggestion or swap any bench player who plays the position
+    (**Substitutions** on the screen after each game).
+  * **Swapping back cancels.** Swapping a player straight back before the next game cancels the change.
+  * **Saved with the series.** Substitutions survive a saved and resumed series.
+  * **AI coaches** make the same calls, at most two per series. That is about one series in twenty in the
+    90-day sample, mostly after a bad game. Your own team gets them in simulated series unless you pick
+    the lineup yourself; you get an inbox note.
+  * **The bench** is the registered, available roster players not playing another series that day.
+  * **Records.** The match report shows each game's substitutions and stand-ins ("⇄ T1: X in for Y at
+    Jungle (after a difficult game)"). Box scores and stats follow the players who actually played each
+    game.
+* **Every past-roster player is in the game.** The 2,296 players of the real past rosters who were not in
+  the game join new worlds as real free agents. That covers retired legends such as Bengi, Bang, Wolf,
+  PoohManDu and MaRin, the NaVi Major winners, and Sentinels 2021.
+  * **Data.** Positions and flags come from the rosters, birthdays from the facts snapshot or the debut
+    year. Ratings fade with the seasons since their last one. Details are in `docs/DATA_PROVENANCE.md`.
+  * **Linked.** The team pages' past rosters now link every player.
+  * **Nothing else changes.** They are added after the rest of the world, so nothing else in it changes.
+    The oldest retire over the next seasons like any unsigned veteran.
+
+Tests: `SubsTest` (no game out of position in 90 days of all seven games; every substitute plays the
+position and appears in that game's box score; substitutions occasional; your substitution plays the next
+game, survives a resumed series, and swapping back cancels it), `PastRosterPlayersTest` (all 5,209
+past-roster players in the game, once each; T1 legends unsigned at their positions; VALORANT and CS2
+examples).
+
+Saves: new fields `GameRecord.subs`, `LiveState.lineups` and `LiveState.subs` (appended, with defaults). Older
+saves load unchanged; past players are added to new worlds only.

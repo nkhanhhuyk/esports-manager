@@ -23,14 +23,18 @@ class LiveMatch(val w: World, fixtureId: Int, spectatorWanted: Boolean = false, 
     val f = w.fixtures[fixtureId]
     // Both sides' preparation is fixed when the series starts (no-op when resuming a series).
     init { dev.uem.em.mgmt.Prep.lock(w, f) }
-    val series = LiveSeries(w, f, arrayOf(
-        dev.uem.em.mgmt.Supporters.lineupFor(w, w.comps[f.compId], w.teams[f.a], Lineups.ensure(w, w.teams[f.a]).toList()),
-        dev.uem.em.mgmt.Supporters.lineupFor(w, w.comps[f.compId], w.teams[f.b], Lineups.ensure(w, w.teams[f.b]).toList()),
-    ))
+    private val standIns = ArrayList<String>()
+    val series = LiveSeries(w, f, Array(2) { si ->
+        val team = w.teams[if (si == 0) f.a else f.b]
+        val c = w.comps[f.compId]
+        dev.uem.em.sim.Subs.standIns(w, c, team, dev.uem.em.mgmt.Supporters.lineupFor(w, c, team, Lineups.ensure(w, team).toList()), emptySet(), si).let { standIns.addAll(it.second); it.first }
+    }, notes0 = standIns)
     /** Watching only: neither team is yours (or you chose to watch). */
     val spectator = spectatorWanted || (!w.isUserTeam(f.a) && !w.isUserTeam(f.b))
     /** The user's series team (0 or 1), or -1 when spectating. */
     val me = if (spectator) -1 else if (w.isUserTeam(f.a)) 0 else 1
+    // Your substitutions are yours to make; the other coach makes theirs.
+    init { if (me >= 0) series.aiSides[me] = false }
     var stage = if (series.t.isMoba) "draft" else "veto"
     var veto: VetoSession? = null
     var setup: LiveSeries.Setup? = null
@@ -200,6 +204,17 @@ class LiveMatch(val w: World, fixtureId: Int, spectatorWanted: Boolean = false, 
     fun afterGame() {
         if (series.done) finish() else nextGame()
     }
+
+    /** Between games: bring a bench player into a position for the next game (they must play it). */
+    fun substitute(slot: Int, inPid: Int): Boolean {
+        if (me < 0 || series.done || stage != "watch") return false
+        val ok = series.substitute(me, slot, inPid, "coach")
+        if (ok) { persist(); bump() }
+        return ok
+    }
+
+    /** What your coach would change before the next game (null: keep the lineup). */
+    fun suggestion(): dev.uem.em.sim.Subs.Pick? = if (me < 0 || series.done) null else dev.uem.em.sim.Subs.suggest(series, me, series.nextMap())
 
     /** Simulate the remaining games without watching (same AI and engine). */
     fun simRest() {

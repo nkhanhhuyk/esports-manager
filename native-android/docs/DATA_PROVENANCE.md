@@ -179,6 +179,23 @@ T1 → T1, Samsung Galaxy / KSV → Gen.G, DAMWON → Dplus KIA, MAD Lions → M
 Weibo Gaming); slot purchases are not joined. Roles that are neither playing nor coaching (streamer, content
 creator) are left out.
 
+**Every player on these rosters is in the game.** The 2,296 who were not in the real-data snapshot or the
+history pack join a new world as real free agents (5,209 different players across the six games). What the
+game knows about them, and what it estimates:
+
+| Fact | Where it comes from |
+|---|---|
+| Handle, teams by year | the past rosters (sources above) |
+| Position | the most frequent position on those rosters (LoL, MLBB, Wild Rift), else the facts snapshot, else a game assignment (shown as estimated on the player page; VALORANT and CS2 rosters list no positions) |
+| Nationality | the roster flag (VALORANT, LoL), else the facts snapshot, else estimated from the last club's country |
+| Birth date | the facts snapshot when it has the player, else estimated from the debut year (about 19 at the debut) |
+| Real name | the facts snapshot only |
+| Ratings | game estimates: a little below today's real average, lower for every season since the last one on a roster |
+
+They are added after the rest of the world, from their own random streams, and after the youth intake's
+target size is set, so every other team, player and coach comes out exactly as without them, and the
+oldest retire over the next seasons (unsigned players aged 33+) without a matching wave of new prospects.
+
 ## Special additions (special.json, 25 Nov 2026)
 
 Added at the player's request, not from a data source, and labelled on the team page:

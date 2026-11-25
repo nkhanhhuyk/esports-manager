@@ -86,8 +86,13 @@ object Supporters {
         for (i in out.indices) {
             val pid = out[i]
             if (pid < 0 || pid in reg.players) continue
-            val sub = reg.players.filter { it in team.roster && it !in out && w.players[it].injuryUntil <= w.day && Circuits.eligible(w, c, w.players[it]) == null }.maxByOrNull { dev.uem.em.sim.Ratings.effectiveness(w.players[it], t, t.lineupRoles[i]) }
-            if (sub != null && (reg.amendments >= 2 || w.players[sub].ca >= w.players[pid].ca - 3 || Circuits.eligible(w, c, w.players[pid]) != null)) out[i] = sub
+            // A registered substitute who plays the position (main, then second); one out of position only as a last resort.
+            val role = t.lineupRoles[i]
+            val subs = reg.players.filter { it in team.roster && it !in out && dev.uem.em.sim.Lineups.available(w, w.players[it]) && Circuits.eligible(w, c, w.players[it]) == null }
+                .sortedWith(compareBy<Int>({ dev.uem.em.sim.Subs.tier(w.players[it], role.id) }, { -dev.uem.em.sim.Ratings.effectiveness(w.players[it], t, role) }))
+            val inPos = subs.firstOrNull { dev.uem.em.sim.Subs.plays(w.players[it], role.id) }
+            val sub = inPos ?: subs.firstOrNull()
+            if (inPos != null && (reg.amendments >= 2 || w.players[inPos].ca >= w.players[pid].ca - 3 || Circuits.eligible(w, c, w.players[pid]) != null)) out[i] = inPos
             else if (reg.amendments < 2 && Circuits.eligible(w, c, w.players[pid]) == null) {
                 reg.players.add(pid)
                 reg.amendments++
