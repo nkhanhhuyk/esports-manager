@@ -90,8 +90,10 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
             Sheets.world = w
             Links.go = if (vm.live == null && busy0(vm)) { s -> vm.go(s) } else null
             val busy = vm.busy
+            // Nothing draws before the game data is loaded (titles, characters, maps): a short loading screen.
+            if (!vm.ready) LoadingScreen(vm)
             // While the simulation runs on other threads the world is not read by any screen.
-            if (busy != null) BusyScreen(vm, busy)
+            else if (busy != null) BusyScreen(vm, busy)
             else if (w == null || vm.screen == Screen.Start) StartScreen(vm)
             else if (vm.screen == Screen.PickOrg || (w.userOrg < 0 && !w.spectator)) PickOrgScreen(vm, w)
             else if (w.sacked) Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) { JobOffersScreen(vm, w) }
@@ -178,6 +180,37 @@ private fun Shell(vm: GameVm, w: World, openMenu: () -> Unit, content: @Composab
             Box(Modifier.weight(1f).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) { content() }
             BottomBar(vm)
         }
+    }
+}
+
+/** Start-up: the game data is loading (or failed to load: the error, to copy and report). */
+@Composable
+private fun LoadingScreen(vm: GameVm) {
+    Box(Modifier.fillMaxSize().background(Ui.bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp), contentAlignment = Alignment.Center) {
+        val err = vm.startupError
+        Column(Modifier.fillMaxWidth().widthIn(max = 520.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("ESPORTS MANAGER", color = Ui.accent, fontWeight = FontWeight.Black, fontSize = 22.sp, letterSpacing = 2.sp)
+            Gap(16)
+            if (err == null) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)), color = Ui.accent, trackColor = Ui.card2)
+                Gap(10)
+                Muted("Loading the games, teams and maps…", 13)
+            } else {
+                Text("The game data could not be loaded.", color = Ui.loss, fontWeight = FontWeight.SemiBold)
+                Gap(8)
+                CopyableError(err)
+            }
+        }
+    }
+}
+
+/** An error text with a Copy button (to paste into a message). */
+@Composable
+fun CopyableError(text: String) {
+    val clip = androidx.compose.ui.platform.LocalClipboardManager.current
+    Column(Modifier.fillMaxWidth().background(Ui.card2, RoundedCornerShape(12.dp)).padding(12.dp)) {
+        Text(text.take(1500), color = Ui.muted, fontSize = 10.sp, maxLines = 18)
+        TextButton(onClick = { clip.setText(androidx.compose.ui.text.AnnotatedString(text)) }) { Text("Copy the error", color = Ui.accent) }
     }
 }
 

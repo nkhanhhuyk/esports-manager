@@ -10,6 +10,12 @@ class App : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // Keep the last crash on the phone (shown at the next launch) before Android closes the app.
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            dev.uem.em.ui.CrashLog.write(e, "thread ${t.name}")
+            previous?.uncaughtException(t, e)
+        }
     }
 
     /**

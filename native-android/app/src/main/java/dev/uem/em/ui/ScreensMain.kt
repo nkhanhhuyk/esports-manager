@@ -126,6 +126,18 @@ fun StartScreen(vm: GameVm) {
                 Row(Modifier.horizontalScroll(rememberScrollState())) { for (id in Catalogue.IDS) TitleTag(id) }
             }
         }
+        // The last crash, if the app closed on an error: copy it to report it.
+        CrashLog.read()?.let { crash ->
+            item(key = "crash") {
+                var shown by remember { mutableStateOf(true) }
+                if (shown) Card("The app closed unexpectedly last time") {
+                    Muted("If it happens again, copy this and send it so it can be fixed.", 12)
+                    Gap(6)
+                    CopyableError(crash)
+                    TextButton(onClick = { CrashLog.clear(); shown = false }) { Text("Dismiss", color = Ui.muted) }
+                }
+            }
+        }
         vm.world?.let { cur ->
             item {
                 Card("Continue your career") {

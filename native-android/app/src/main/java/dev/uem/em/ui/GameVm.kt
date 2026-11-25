@@ -88,6 +88,10 @@ class GameVm(app: Application) : AndroidViewModel(app) {
     var version by mutableIntStateOf(0)
         private set
     var busy by mutableStateOf<Busy?>(null)
+    /** True once the game data (titles, characters, maps, pictures, history) is loaded: no screen draws before. */
+    var ready by mutableStateOf(false)
+    /** What went wrong at start-up, if loading the game data failed (shown instead of crashing). */
+    var startupError by mutableStateOf<String?>(null)
         private set
     var toast by mutableStateOf<String?>(null)
     var slot by mutableStateOf("career")
@@ -119,11 +123,18 @@ class GameVm(app: Application) : AndroidViewModel(app) {
         dev.uem.em.game.Advance.speedMode = prefs.getString("speed", "balanced") ?: "balanced"
         BoxStore.store = store.pages()
         viewModelScope.launch(Dispatchers.Default) {
-            GameData.init(src)
-            Catalogue.init(src)
-            Pics.init(src)
-            Maps.init(src)
-            GameInfo.init(src)
+            try {
+                if (initDelayMs > 0) kotlinx.coroutines.delay(initDelayMs)
+                GameData.init(src)
+                Catalogue.init(src)
+                Pics.init(src)
+                Maps.init(src)
+                GameInfo.init(src)
+            } catch (e: Throwable) {
+                startupError = e.stackTraceToString().take(4000)
+                CrashLog.write(e, "start-up")
+            }
+            withContext(Dispatchers.Main) { ready = startupError == null }
         }
     }
 
@@ -509,6 +520,11 @@ class GameVm(app: Application) : AndroidViewModel(app) {
         touch()
     }
 
-    /** Tests only: show an already built world. */
-    fun setWorldForTest(w: World) { Catalogue.applyCustom(w); world = w; touch() }
+    companion object {
+        /** Tests only: pretend the game data takes this long to load (a slow phone). */
+        @Volatile var initDelayMs = 0L
+    }
+
+    /** Tests only: show an already built world (the game data is loaded by the test). */
+    fun setWorldForTest(w: World) { Catalogue.applyCustom(w); world = w; ready = true; touch() }
 }

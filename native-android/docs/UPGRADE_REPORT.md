@@ -233,6 +233,19 @@ comes after them; draft assistant; business), `ScreenshotWideTest` (foldable sha
 draft test in `MetaTest`, and the social feed's no-repeat and phrasing-variety checks in `SocialTest`.
 
 
+## Fourteenth follow-up: crash on opening the app
+
+The app closed immediately on start on the phone. Cause: the game data (titles, characters, maps) loads on a
+background thread at start-up, while the title screen's first frame already read the list of games (the game tags
+in its header). It had always been a race the data won; the real-history file added in the thirteenth follow-up was
+read first and made the data later, so the first frame lost it and the app stopped with
+`UninitializedPropertyAccessException: lateinit property BY_ID has not been initialized` (reproduced on the JVM by
+starting the app with the data unloaded and slow to load). Fix: nothing is drawn until the game data is loaded (a
+short loading screen); the history file loads once, after the core data; a failure while loading shows the error on
+screen instead of closing the app, and the app keeps the last crash on the phone and shows it (with a Copy button) on
+the title screen at the next launch. `LaunchTest` opens the real activity (phone, the foldable's inner screen,
+its cover screen sideways, rotation) and the slow, unloaded start-up.
+
 ## Tests and results (JVM, `./gradlew testDebugUnitTest`)
 
 All suites pass (23 classes, including `DraftVarietyTest`, `MobaSideTest`, `WorldIsolationTest`). New or extended:

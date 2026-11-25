@@ -79,10 +79,15 @@ object Catalogue {
 
     @Volatile private var loaded = false
 
+    /** Tests only: forget the loaded titles, as on a phone that has just started the app. */
+    internal fun unloadForTest() {
+        loaded = false
+        runCatching { Catalogue::class.java.getDeclaredField("BY_ID").apply { isAccessible = true }.set(null, null) }
+        runCatching { Catalogue::class.java.getDeclaredField("BY_ID").apply { isAccessible = true }.set(this, null) }
+    }
+
     @Synchronized
     fun init(src: DataSource) {
-        // Real esports history before the save (honours, GOAT, Hall of Fame).
-        runCatching { dev.uem.em.mgmt.HistoryBook.init(src) }
         if (loaded) return
         dev.uem.em.sim.MobaMap.init(src)
         dev.uem.em.sim.Abilities.init(src)
@@ -100,6 +105,8 @@ object Catalogue {
         BY_ID = ALL.associateBy { it.id }
         for (t in ALL) base[t.id] = t.characters
         loaded = true
+        // Real esports history before the save (honours, GOAT, Hall of Fame): once, after the core data.
+        runCatching { dev.uem.em.mgmt.HistoryBook.init(src) }
     }
 
     private val base = HashMap<String, List<CharDef>>()
