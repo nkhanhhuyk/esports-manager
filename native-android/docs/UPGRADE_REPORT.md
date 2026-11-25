@@ -435,3 +435,44 @@ rather than invented heatmaps.
 
 APK: `native-android/app/build/outputs/apk/debug/app-debug.apk` (copied to
 `release/esports-manager-native-debug.apk`).
+
+## Seventeenth follow-up: positions, national teams, transfers, box scores, history
+
+* **Positions.** `Lineups.auto` fills each slot in tiers (main position, then second position, then
+  anyone) within the import limit; a day stand-in is taken by position first. Club lineups in a new world:
+  8 of 1,905 places out of position, none avoidable (`NationsTest.clubLineupsKeepPositions`).
+* **National teams** (`mgmt/Nations`). Squads are named in a 10-day window before each event (or at once
+  for an event already under way) and step down when it ends; between events the national teams are empty.
+  Only players of the nationality (first or second; a dual national is eligible for the second country
+  when not a regular for the first). Each position is filled by a player whose main (else second) role it
+  is, by a selection score that weighs form and recent seasons. Coaches: the nation's best head coach not
+  busy elsewhere, else a federation coach. News, inbox (for your players and staff) and social posts give a
+  reason for every pick, the changes from the last squad and the notable omissions. Residency after three
+  seasons makes a player a local for import limits, never a citizen. A national day stand-in can only be a
+  player of the nationality (older saves list earlier stand-ins apart on the past-rosters tab).
+  `NationsTest`: 401 squads, 0 of 2,005 lineup places out of position, every nation with its own head
+  coach, nobody of another nationality ever playing for a nation through an event.
+* **Transfers.** AI clubs fill a position nobody plays first, judge players on ability and recent seasons,
+  and a player refuses a club where a better player holds the position unless young, at an academy or happy
+  as a substitute. `TransferFitTest`: 33 opened holes all filled by players of that position; 0 of 205
+  signings put a good player behind a better one.
+* **Box scores.** Kill priority follows the champion (class and kit), not the lane: in a top-carry meta,
+  top laners on tanks take 1.7 kills a game against 3.9 on carries. A hero dying repeatedly gets more
+  careful and the team's exposure spreads; per-position calibration of ratings keeps every position's
+  average within 0.09 (`BoxScoreTest`).
+* **Staff ambitions.** Every coach and staff member has weighted ambitions like a player's (winning,
+  money, loyalty, legacy, prestige, a bigger role, developing players, home region): they decide offers,
+  renewals (asks and refusals) and departures at the end of contracts; shown on the staff page.
+* **History.** Team History: titles and finals before the save, former players before and during the
+  save. Competitions: a History tab (editions in the save with champion, runner-up, MVP and finals MVP;
+  real editions with finals MVPs and champion rosters). Players and coaches: "Career before the save"
+  (real team spells, see DATA_PROVENANCE) and the moves in the save.
+* **Tier lists** split by class within each role, plus a By class view. **Solo queue**: kills, deaths and
+  assists per game and KDA on the ladder, the player card and past seasons.
+* **Social media.** Half of each post-match thread now brings its own content (the decisive or the even
+  lane matchup, a character's record this season, a player's season numbers or age, the head coach, a
+  ladder rank, a transfer fee, a prediction from the table, a lineup call, the patch's most-picked
+  character); cosmetic restyling (emoji, capitals) is used less.
+
+Saves: appended fields only (`Player.residency`, `Player.soloK/soloD/soloA`, `Team.squadFor`,
+`TeamSeason.compId`, `World.squads`, `World.natFix`, `World.ratingCal`, `Staff.ambitions`, `SquadPick`).

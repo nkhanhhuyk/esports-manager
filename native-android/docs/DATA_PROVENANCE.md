@@ -131,3 +131,26 @@ from their club's level and their titles (head coach titles in full, other coach
 count double, as for players). One note on the fetch: a re-run of the script lost its cache (a hashing bug, since
 fixed) and Leaguepedia answered "rate limited"; the script stopped there and the earlier complete result was
 reused — nothing was retried or worked around.
+
+## Finals MVPs and career moves (careers.json, 25 Nov 2026)
+
+* **Finals MVPs** (`scripts/data/finals_mvp.py`, honours.json field `fm`): Leaguepedia Cargo API —
+  `Tournaments` (event pages) and `MatchSchedule` (the last series between each LoL champion and
+  runner-up, and its MVP where the page records one): 129 of 436 LoL finals. Other games have no
+  finals MVP in the data (the competition History tab says so).
+* **Stage rosters fixed** (`scripts/data/honours_rosters_fix.py`): a few stage records (groups, a regular
+  season) had merged several teams' players into one champion or runner-up roster (e.g. Bin and Knight
+  listed with three LPL teams in one year). Rosters of more than nine names were emptied (21 rosters);
+  the team names stay.
+* **Career moves** (`scripts/data/careers.py` → `src/data/real/careers.json`, read by `mgmt/Careers`):
+  4,332 people.
+
+| Part | Source | Coverage |
+|---|---|---|
+| League of Legends | Leaguepedia Cargo API: `Tenures` joined to `RosterChanges` (team, join and leave month, role: position or staff role). A wiki career is used only when it shares a team with what the snapshot knows about the person (83 left out as probably another person with the same handle). | 997 players and coaches with exact spells. |
+| VALORANT | VALORANT Esports Wiki Cargo API, same tables | 12 people: the wiki answered "rate limited" after the first chunks; the script stopped there (no retry) and the result was built from what had been fetched. |
+| Every game | The snapshot itself: current roster (rosters.json, wildrift.json), last team seen (history.json), champion and runner-up rosters (honours.json), coaches' titles (staff.json) | Teams by year, not exact dates; not a complete record. The page says which kind it shows. |
+
+Disambiguated Leaguepedia pages (for example a handle shared by several players, kept as "Knight (Zhuo Ding)")
+were not matched in this pass; those players show the snapshot's teams by year. Liquipedia (MLBB, HoK, Dota 2,
+CS2) was not used: it refused automated access earlier (HTTP 429) and is not retried.
