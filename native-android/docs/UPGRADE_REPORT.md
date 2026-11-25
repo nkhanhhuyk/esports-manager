@@ -266,6 +266,10 @@ winning picks are banned 40–75 % (18–25 %); the loser keeps 29–33 % of its
 winner keeps 50–57 %; bans repeated from the last game fall from 27–44 % to 20–31 %. In a Bo1 league, the
 opponent's best recent character is banned 60–68 % of the time (46–50 % without the memory).
 
+The new drafts change which heroes are played, and Honor of Kings' Clash lane edged over a third of series MVPs
+(33 %, the highest average game rating, 1.03); its rating scale moved from 1.08 to 1.11 (`Context.ROLE_NORM`):
+29 % of MVPs, average rating 1.01, KDA by role unchanged (`RoleDeathsTest`, `KdaTest`).
+
 ## Tests and results (JVM, `./gradlew testDebugUnitTest`)
 
 All suites pass (23 classes, including `DraftVarietyTest`, `MobaSideTest`, `WorldIsolationTest`). New or extended:
