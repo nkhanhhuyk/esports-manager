@@ -587,7 +587,10 @@ Tests: `SubsTest` (no game out of position in 90 days of all seven games; every 
 position and appears in that game's box score; substitutions occasional; your substitution plays the next
 game, survives a resumed series, and swapping back cancels it), `PastRosterPlayersTest` (all 5,209
 past-roster players in the game, once each; T1 legends unsigned at their positions; VALORANT and CS2
-examples).
+examples). `ReplayTest` now picks lineups as the calendar does (with stand-ins), and `HistoryTest` checks
+that legends whose careers ended before the save are inducted from inside the world: 31 with a legacy of 60+
+(dupreeh, apEX, gla1ve, Bengi...) now have player pages instead of name-only Hall of Fame rows.
+Full suite: 107 tests, 0 failures (3 skipped).
 
 Saves: new fields `GameRecord.subs`, `LiveState.lineups` and `LiveState.subs` (appended, with defaults). Older
 saves load unchanged; past players are added to new worlds only.

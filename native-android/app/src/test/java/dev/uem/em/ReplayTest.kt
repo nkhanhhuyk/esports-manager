@@ -34,10 +34,12 @@ class ReplayTest {
         return w
     }
 
-    private fun lineups(w: World, f: Fixture) = arrayOf(
-        Supporters.lineupFor(w, w.comps[f.compId], w.teams[f.a], Lineups.ensure(w, w.teams[f.a]).toList()),
-        Supporters.lineupFor(w, w.comps[f.compId], w.teams[f.b], Lineups.ensure(w, w.teams[f.b]).toList()),
-    )
+    // As the calendar and the live screen pick them: registration, then stand-ins for seats nobody available plays.
+    private fun lineups(w: World, f: Fixture) = Array(2) { si ->
+        val team = w.teams[if (si == 0) f.a else f.b]
+        val c = w.comps[f.compId]
+        dev.uem.em.sim.Subs.standIns(w, c, team, Supporters.lineupFor(w, c, team, Lineups.ensure(w, team).toList()), emptySet(), si).first
+    }
 
     /** The next series of a game within a week (the calendar moves on until there is one). */
     private fun next(w: World, title: String, pred: (Fixture) -> Boolean = { true }): Fixture {

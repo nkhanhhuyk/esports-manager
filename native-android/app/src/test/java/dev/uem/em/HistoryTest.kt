@@ -38,6 +38,11 @@ class HistoryTest {
         sb.appendLine("players in the world with the most legacy:")
         for ((p, s) in top) sb.appendLine("  ${p.titleId} ${p.handle} %.1f (real %.1f)".format(s.total, s.pastPts))
         println(sb); java.io.File("build/history.txt").writeText(sb.toString())
-        assertTrue("some legends are inducted before the save", absent.isNotEmpty())
+        // Legends whose careers ended before the save are in the world now (every past-roster player is), unsigned and
+        // without games in the save: the Hall of Fame inducts them on their real records, like the few still absent.
+        val before = w.players.filter { it.teamId < 0 && it.stats.isEmpty() && HistoryBook.of(w, it).isNotEmpty() }.map { it to Legacy.of(w, it) }.filter { it.second.total >= 60 }
+        println("inducted before the save: ${before.size} in the world (" + before.sortedByDescending { it.second.total }.take(8).joinToString { "${it.first.handle} %.0f".format(it.second.total) } + "), ${absent.size} absent")
+        assertTrue("some legends are inducted before the save", absent.isNotEmpty() || before.isNotEmpty())
+        assertTrue("Bengi is a legend in the world", before.any { it.first.titleId == "lol" && it.first.handle == "Bengi" })
     }
 }
