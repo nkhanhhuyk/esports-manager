@@ -473,6 +473,13 @@ APK: `native-android/app/build/outputs/apk/debug/app-debug.apk` (copied to
   lane matchup, a character's record this season, a player's season numbers or age, the head coach, a
   ladder rank, a transfer fee, a prediction from the table, a lineup call, the patch's most-picked
   character); cosmetic restyling (emoji, capitals) is used less.
+* **Ratings and MVPs.** The per-position rating target is flat (every position averages 1.0), so top and
+  jungle no longer sit above the rest. A series MVP is the winner who stands out most against how that
+  position usually rates in a win (its running mean and spread among winners), so a position whose wins
+  are rated in a narrow band is not crowded out. League of Legends series MVPs: top 21 %, jungle 14 %,
+  mid 17 %, ADC 30 %, support 16 % (`RoleDeathsTest`).
+
+Full suite: 102 tests, 0 failures (3 skipped).
 
 Saves: appended fields only (`Player.residency`, `Player.soloK/soloD/soloA`, `Team.squadFor`,
 `TeamSeason.compId`, `World.squads`, `World.natFix`, `World.ratingCal`, `Staff.ambitions`, `SquadPick`).
