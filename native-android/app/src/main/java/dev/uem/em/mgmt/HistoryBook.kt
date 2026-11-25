@@ -18,7 +18,9 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 object HistoryBook {
     class Event(val titleId: String, val name: String, val year: Int, val league: String, val tier: String, val prestige: Double,
-                val winner: String, val runnerUp: String, val winners: List<String>, val runners: List<String>, val source: String)
+                val winner: String, val runnerUp: String, val winners: List<String>, val runners: List<String>, val source: String,
+                /** MVP of the final (Leaguepedia, where recorded), else empty. */
+                val finalsMvp: String = "")
     class Award(val titleId: String, val year: Int, val name: String, val player: String, val source: String)
     /** One past honour of a player: a title won (or a final reached) or an award. */
     class Past(val year: Int, val titleId: String, val label: String, val team: String, val pts: Double, val trophy: Boolean, val final: Boolean)
@@ -54,7 +56,7 @@ object HistoryBook {
         events = root["events"]!!.jsonArray.map { e ->
             val o = e.jsonObject
             Event(s(o, "t"), s(o, "n"), o["y"]!!.jsonPrimitive.int, s(o, "lg"), s(o, "tier"), o["pr"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: 1.0,
-                s(o, "w"), s(o, "r"), o["wp"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList(), o["rp"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList(), s(o, "src"))
+                s(o, "w"), s(o, "r"), o["wp"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList(), o["rp"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList(), s(o, "src"), s(o, "fm"))
         }
         awards = root["awards"]?.jsonArray?.map { a -> val o = a.jsonObject; Award(s(o, "t"), o["y"]!!.jsonPrimitive.int, s(o, "n"), s(o, "p"), s(o, "src")) } ?: emptyList()
         coverage = root["coverage"]?.jsonPrimitive?.content ?: ""
@@ -88,4 +90,51 @@ object HistoryBook {
     fun champions(titleId: String?): List<Event> = events.filter { titleId == null || it.titleId == titleId }.sortedWith(compareByDescending<Event> { it.year }.thenBy { tierRank(it.tier) }.thenBy { it.name })
 
     fun tierRank(tier: String) = when (tier) { "worlds" -> 0; "international" -> 1; "league" -> 2; else -> 3 }
+
+    /** A league's earlier names as the records write them (first word of the event name). */
+    private val ALIAS = mapOf("LCK" to setOf("LCK", "CHAMPIONS"), "LEC" to setOf("LEC", "EU"), "LCS" to setOf("LCS", "NA", "LTA"), "LCP" to setOf("LCP", "PCS", "LMS"),
+        "CBLOL" to setOf("CBLOL", "BRAZILIAN"))
+
+    /** Real editions of a competition before the save: its league's titles, the same international event, the world championship. */
+    fun forComp(c: dev.uem.em.model.Competition, leagueShort: String?): List<Event> {
+        val evs = events.filter { it.titleId == c.titleId && it.winner.isNotBlank() }
+        fun first(e: Event) = e.name.split(' ').first().uppercase()
+        return when (c.tier) {
+            dev.uem.em.model.CompTier.WORLDS -> evs.filter { it.tier == "worlds" }
+            dev.uem.em.model.CompTier.INTERNATIONAL -> {
+                val n = c.name.lowercase(); val sh = c.short.lowercase()
+                val keys = when {
+                    sh.startsWith("msi") || n.contains("mid-season invitational") -> setOf("MSI")
+                    sh.startsWith("fst") || n.contains("first stand") -> setOf("FIRST")
+                    n.startsWith("esports world cup") -> setOf("ESPORTS")
+                    n.contains("masters") -> setOf("MASTERS", "LOCK//IN")
+                    else -> emptySet()
+                }
+                evs.filter { it.tier == "international" && first(it) in keys }
+            }
+            dev.uem.em.model.CompTier.LEAGUE -> {
+                val key = (leagueShort ?: c.short).split(' ').first().uppercase()
+                val keys = ALIAS[key] ?: setOf(key)
+                evs.filter { it.tier == "league" && first(it) in keys }
+            }
+            else -> emptyList()
+        }.sortedWith(compareByDescending<Event> { it.year }.thenByDescending { it.name })
+    }
+
+    /** A club's earlier names in the records (renamed and merged organisations). */
+    private val TEAM_ALIAS = mapOf("t1" to listOf("sktelecomt1", "skt1"), "geng" to listOf("samsunggalaxy", "ksv"), "dpluskia" to listOf("damwongaming", "dwgkia", "damwon"),
+        "drx" to listOf("kingzonedragonx", "dragonx"), "beijingjdgesports" to listOf("jdgaming"), "kiwoomdrx" to listOf("drx", "kingzonedragonx", "dragonx"))
+
+    /** A real team's titles (true) and lost finals (false) before the save, by its names. */
+    fun forTeam(titleId: String, names: List<String>): List<Pair<Event, Boolean>> {
+        val keys = names.map { norm(it) }.filter { it.length >= 2 }.toMutableSet()
+        for (k in keys.toList()) TEAM_ALIAS[k]?.let { keys.addAll(it) }
+        fun match(x: String): Boolean {
+            val n = norm(x)
+            if (n.isEmpty()) return false
+            return keys.any { k -> n == k || (k.length >= 4 && n.length >= 4 && (n.contains(k) || k.contains(n))) }
+        }
+        return events.filter { it.titleId == titleId }.flatMap { e -> listOfNotNull(if (match(e.winner)) e to true else null, if (e.runnerUp.isNotBlank() && match(e.runnerUp)) e to false else null) }
+            .sortedWith(compareByDescending<Pair<Event, Boolean>> { it.first.year }.thenBy { tierRank(it.first.tier) })
+    }
 }

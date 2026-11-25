@@ -127,7 +127,7 @@ private fun CompRow(vm: GameVm, w: World, c: Competition) {
     }
 }
 
-private val COMP_TABS = listOf("Standings", "Matches", "Player stats", "Placements & prizes", "Teams")
+private val COMP_TABS = listOf("Standings", "Matches", "Player stats", "Placements & prizes", "Teams", "History")
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -241,6 +241,7 @@ fun CompScreen(vm: GameVm, w: World, id: Int) {
             }
             2 -> item { CompPlayerStats(vm, w, c) }
             3 -> item { Placements(vm, w, c) }
+            5 -> item { CompHistory(vm, w, c) }
             else -> item { Entrants(vm, w, c) }
         }
         item { Gap(16) }
@@ -400,5 +401,54 @@ private fun Entrants(vm: GameVm, w: World, c: Competition) {
             SCol("Str", 44.dp, key = { Lineups.strength(w, it) }) { tm -> Rating(Lineups.strength(w, tm), 1) },
             SCol("Reg.", 40.dp, key = { (c.registrations[it.id]?.players?.size ?: 0).toDouble() }) { tm -> Num("${c.registrations[tm.id]?.players?.size ?: "—"}", Ui.muted) },
         ), initialSort = 2, onRow = { vm.go(Screen.Team(it.id)) }, highlight = { w.isUserTeam(it.id) })
+    }
+}
+
+/** Editions of the same competition: same league and split, or the same event (name without the year). */
+internal fun compFamily(w: World, c: dev.uem.em.model.Competition): List<dev.uem.em.model.Competition> {
+    fun key(x: dev.uem.em.model.Competition) = x.name.replace(Regex("\\b(19|20)\\d{2}\\b"), "").replace(Regex("\\s+"), " ").trim().lowercase()
+    return w.comps.filter { o -> o.titleId == c.titleId && o.tier == c.tier && o.done && o.placements.isNotEmpty() &&
+        (if (c.leagueId >= 0) o.leagueId == c.leagueId && o.split == c.split else o.leagueId < 0 && key(o) == key(c)) }.sortedByDescending { it.season }
+}
+
+/** The MVP of a competition's final (the final series' MVP), or -1. */
+internal fun finalsMvp(w: World, c: dev.uem.em.model.Competition): Int =
+    c.stages.flatMap { it.bracket }.lastOrNull { it.isFinal && it.fixtureId >= 0 }?.let { w.fixtures.getOrNull(it.fixtureId)?.mvp } ?: -1
+
+/** History: every edition in the save (champion, runner-up, MVP, finals MVP), then the real editions before it. */
+@Composable
+private fun CompHistory(vm: GameVm, w: World, c: dev.uem.em.model.Competition) {
+    val family = remember(c.id, vm.version) { compFamily(w, c) }
+    Card("Champions in the save") {
+        if (family.isEmpty()) Muted("No finished edition yet.")
+        for (e in family) Column(Modifier.fillMaxWidth().clickable { vm.go(Screen.Comp(e.id)) }.padding(vertical = 5.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("${e.season}", color = Ui.muted, fontSize = 12.sp, modifier = Modifier.width(44.dp))
+                Text("🏆 ", fontSize = 13.sp)
+                Column(Modifier.weight(1f)) { TeamChip(w, e.placements[0], vm, 18.dp) }
+                e.placements.getOrNull(1)?.let { Muted("def. ${w.teams[it].short}", 11) }
+            }
+            val mvp = w.players.getOrNull(e.mvp); val fm = w.players.getOrNull(finalsMvp(w, e))
+            if (mvp != null || fm != null) Row(Modifier.padding(start = 44.dp)) {
+                mvp?.let { Muted("MVP ", 11); PlayerChip(it, vm, 14.dp) }
+                fm?.let { Muted("  ·  Finals MVP ", 11); PlayerChip(it, vm, 14.dp) }
+            }
+        }
+    }
+    val real = remember(c.id) { dev.uem.em.mgmt.HistoryBook.forComp(c, w.leagues.getOrNull(c.leagueId)?.short) }
+    if (real.isNotEmpty() && !w.fictional) Card("Before the save (real history)") {
+        Muted("From the records of every edition since the scene began (League of Legends: Leaguepedia; CS Majors, The International and VCT events compiled). Finals MVP where the records name one.", 10)
+        val byHandle = remember(c.titleId) { w.players.filter { it.titleId == c.titleId }.associateBy { dev.uem.em.mgmt.HistoryBook.norm(it.handle) } }
+        for (e in real) Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+            Text("${e.year} · ${e.name}", color = if (e.tier == "worlds") Ui.gold else Ui.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("🏆 ${e.winner}" + if (e.runnerUp.isNotBlank()) "  ·  def. ${e.runnerUp}" else "", color = Ui.text, fontSize = 12.sp)
+            if (e.finalsMvp.isNotBlank()) Row(verticalAlignment = Alignment.CenterVertically) {
+                Muted("Finals MVP ", 11)
+                byHandle[dev.uem.em.mgmt.HistoryBook.norm(e.finalsMvp)]?.let { PlayerChip(it, vm, 14.dp) } ?: Text(e.finalsMvp, color = Ui.text, fontSize = 11.sp)
+            }
+            if (e.winners.isNotEmpty()) androidx.compose.foundation.layout.FlowRow {
+                for (h in e.winners) byHandle[dev.uem.em.mgmt.HistoryBook.norm(h)]?.let { p -> Box(Modifier.padding(end = 6.dp)) { PlayerChip(p, vm, 14.dp) } } ?: Muted("$h  ", 11)
+            }
+        }
     }
 }

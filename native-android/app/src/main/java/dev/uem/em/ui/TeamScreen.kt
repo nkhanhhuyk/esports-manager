@@ -3,6 +3,7 @@ package dev.uem.em.ui
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -267,8 +268,39 @@ private fun TeamHistory(vm: GameVm, w: World, team: Team) {
             Text("🏆 ", fontSize = 13.sp); Text("${tr.season}", color = Ui.muted, fontSize = 12.sp, modifier = Modifier.width(40.dp)); Text(tr.name, color = Ui.gold, fontSize = 13.sp)
         }
     }
+    // The real club's record before the save: titles and lost finals with the rosters that played them.
+    val org = w.orgs[team.orgId]
+    val past = remember(team.id) { if (w.fictional || team.nationalOf.isNotEmpty()) emptyList() else dev.uem.em.mgmt.HistoryBook.forTeam(team.titleId, listOf(team.name, team.short, org.name)) }
+    val byHandle = remember(team.titleId) { w.players.filter { it.titleId == team.titleId }.associateBy { dev.uem.em.mgmt.HistoryBook.norm(it.handle) } }
+    if (past.isNotEmpty()) Card("Titles and finals before the save") {
+        Muted("${past.count { it.second }} titles · ${past.count { !it.second }} lost finals (real history: Leaguepedia for League of Legends, compiled for CS, Dota 2 and VALORANT)", 11)
+        for ((e, won) in past.take(40)) Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (won) "🏆 " else "🥈 ", fontSize = 13.sp)
+                Text("${e.year}", color = Ui.muted, fontSize = 12.sp, modifier = Modifier.width(40.dp))
+                Text(e.name, color = if (won) Ui.gold else Ui.text, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            }
+            val roster = if (won) e.winners else e.runners
+            if (roster.isNotEmpty()) FlowRow(Modifier.padding(start = 56.dp)) {
+                for (h in roster) byHandle[dev.uem.em.mgmt.HistoryBook.norm(h)]?.let { p -> Box(Modifier.padding(end = 6.dp)) { PlayerChip(p, vm, 14.dp) } } ?: Muted("$h  ", 11)
+            }
+            if (won && e.finalsMvp.isNotBlank()) Muted("Finals MVP ${e.finalsMvp}", 10)
+        }
+    }
+    // Former players from that real history (who played its finals), with their finals there.
+    val realAlumni = remember(team.id) {
+        val current = team.roster.map { dev.uem.em.mgmt.HistoryBook.norm(w.players[it].handle) }.toSet()
+        past.flatMap { (e, won) -> (if (won) e.winners else e.runners).map { it to won } }.groupBy { dev.uem.em.mgmt.HistoryBook.norm(it.first) }
+            .filter { it.key !in current }.map { (k, v) -> Triple(v.first().first, v.count { it.second }, v.size) }.sortedWith(compareByDescending<Triple<String, Int, Int>> { it.second }.thenByDescending { it.third }).take(30)
+    }
+    if (realAlumni.isNotEmpty()) Card("Former players (before the save)") {
+        for ((h, titles, finals) in realAlumni) Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) { byHandle[dev.uem.em.mgmt.HistoryBook.norm(h)]?.let { PlayerChip(it, vm, 18.dp) } ?: Text(h, color = Ui.text, fontSize = 13.sp) }
+            Muted("$titles titles · $finals finals" + (byHandle[dev.uem.em.mgmt.HistoryBook.norm(h)]?.let { p -> " · now ${p.teamId.takeIf { it >= 0 }?.let { w.teams[it].short } ?: if (p.retired) "retired" else "free agent"}" } ?: " · not in the game"), 11)
+        }
+    }
     val alumni = w.players.filter { p -> p.teamId != team.id && p.stats.any { it.teamId == team.id } }.sortedByDescending { p -> p.stats.filter { it.teamId == team.id }.sumOf { it.gp } }.take(12)
-    if (alumni.isNotEmpty()) Card("Former players") {
+    if (alumni.isNotEmpty()) Card("Former players (in the save)") {
         for (p in alumni) Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) { PlayerChip(p, vm, 18.dp) }
             Muted("${p.stats.filter { it.teamId == team.id }.sumOf { it.gp }} games · now ${p.teamId.takeIf { it >= 0 }?.let { w.teams[it].short } ?: if (p.retired) "retired" else "free agent"}", 11)
