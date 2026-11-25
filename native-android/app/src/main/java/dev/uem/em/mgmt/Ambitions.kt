@@ -207,6 +207,7 @@ object Ambitions {
      * a move needs the new team to suit him (a much better salary can make up for the rest).
      */
     fun refusal(w: World, p: Player, team: Team, salary: Double, renewal: Boolean): String? {
+        if (!renewal) benchRefusal(w, p, team)?.let { return it }
         val f = fit(w, p, team, salary)
         val need = if (renewal) 38.0 - weight(w, p, "loyalty") * 0.25 else 30.0
         if (f.total >= need) return null
@@ -215,8 +216,25 @@ object Ambitions {
         return "${p.handle} is not interested${if (renewal) " in staying" else ""}: what matters most here is ${HINT[KEYS[worst]]} (${a[worst]}% of the weighting)."
     }
 
+    /**
+     * A good player does not join as a substitute behind a better player at his position: only a young
+     * player joining to develop, a fringe player, or one for whom a starting place hardly matters does.
+     */
+    fun benchRefusal(w: World, p: Player, team: Team): String? {
+        if (p.teamId == team.id || Market.wouldStart(w, team, p)) return null
+        val age = Dates.ageAt(p.birth, w.day)
+        val wantsToPlay = weight(w, p, "playtime") + weight(w, p, "ownrole") * 0.5
+        if (age <= 20 && (team.parentId >= 0 || tierOf(w, team) >= 2 || weight(w, p, "growth") >= 20)) return null
+        if (p.ca < 56 && wantsToPlay < 25) return null
+        if (wantsToPlay < 8) return null
+        val t = dev.uem.em.titles.Catalogue.get(team.titleId)
+        val cur = team.lineup.getOrNull(t.lineup.indexOf(p.mainRole))?.let { w.players.getOrNull(it) }
+        return "${p.handle} would not start at ${team.name}${cur?.let { " (${it.handle} plays the position)" } ?: ""} and wants to play."
+    }
+
     /** An AI club's offer: does the free agent take it, or wait for a better fit? Patience runs out the longer he is unsigned. */
     fun acceptsOffer(w: World, p: Player, team: Team, salary: Double): Boolean {
+        if (benchRefusal(w, p, team) != null) return false
         val f = fit(w, p, team, salary).total
         val unsigned = (w.day - (p.career.lastOrNull()?.day ?: w.day)).coerceAtLeast(0)
         return f >= 40 - unsigned / 4.0

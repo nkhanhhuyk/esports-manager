@@ -152,6 +152,26 @@ class StatBook(teams: List<TeamCtx>, val t: TitleDef) {
             "hok" to doubleArrayOf(1.11, 1.02, 1.16, 1.21, 0.66),
             "dota2" to doubleArrayOf(1.43, 1.37, 0.79, 1.08, 0.68),
         )
+
+        /** The rating level a lineup slot should average: even, tilted a little toward the meta's carry. */
+        fun target(w: dev.uem.em.model.World?, t: TitleDef, slot: Int): Double =
+            1.0 + 0.04 * ((dev.uem.em.titles.RoleMeta.killPriority(w, t.id)[dev.uem.em.titles.RoleMeta.pos(t.lineup[slot])] ?: 0.6) - 0.6)
+
+        /**
+         * After a series is applied (in order, between game days, so results stay reproducible): each slot's
+         * calibration moves toward its target, so a meta that hands one position more kills or more of the
+         * game does not leave that position on top of the ratings and the MVP lists for a whole patch.
+         */
+        fun calibrate(w: dev.uem.em.model.World, t: TitleDef, games: List<dev.uem.em.model.GameRecord>) {
+            if (ROLE_NORM[t.id] == null || t.lineup.isEmpty()) return
+            val cal = w.ratingCal.getOrPut(t.id) { DoubleArray(t.lineup.size) }
+            if (cal.size != t.lineup.size) return
+            for (g in games) for (l in g.lines) {
+                val slot = t.lineup.indexOf(l.roleId)
+                if (slot < 0) continue
+                cal[slot] = (cal[slot] + 0.01 * (l.rating - target(w, t, slot)) / 0.65).coerceIn(-0.5, 0.5)
+            }
+        }
     }
     val lines = ArrayList<Line>()
     private val byPlayer = HashMap<Int, Line>()
@@ -182,9 +202,16 @@ class StatBook(teams: List<TeamCtx>, val t: TitleDef) {
         // The position's usual level is shifted (not scaled): a support's big-assist games no longer turn into 9.5s.
         val raw = lines.map { maxOf(0.01, impact(it)) }
         val rawAvg = raw.sum() / maxOf(1, raw.size)
+        // The running calibration of each slot (see [calibrate]) keeps every position's average where it should be.
+        val cal = metaWorld?.ratingCal?.get(t.id)
         val vals = lines.mapIndexed { i, l ->
-            val n = norm?.getOrNull(t.lineup.indexOf(l.roleId))
-            if (n == null) raw[i] else maxOf(0.01, raw[i] + rawAvg * ((0.97 + 0.06 * (prio[dev.uem.em.titles.RoleMeta.pos(l.roleId)] ?: 0.5)) - n))
+            val slot = t.lineup.indexOf(l.roleId)
+            val n0 = norm?.getOrNull(slot)
+            if (n0 == null) raw[i] else {
+                val pos = dev.uem.em.titles.RoleMeta.pos(l.roleId)
+                val n = n0 + (cal?.getOrNull(slot) ?: 0.0)
+                maxOf(0.01, raw[i] + rawAvg * ((0.97 + 0.06 * (prio[pos] ?: 0.5)) - n))
+            }
         }
         val avg = vals.sum() / maxOf(1, vals.size)
         lines.forEachIndexed { i, l ->

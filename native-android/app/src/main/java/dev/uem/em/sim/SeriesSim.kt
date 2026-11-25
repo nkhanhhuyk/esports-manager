@@ -88,7 +88,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
 
     fun draftSession(s: Setup) = DraftSession(t, patch, players, arrayOf(styleOf(0), styleOf(1)), s.firstPick, locked(), s.rng,
         DoubleArray(2) { i -> (Draft.knowledge(w, teams[i]) + dev.uem.em.mgmt.Prep.knowledgeBonus(prep[i])).coerceAtMost(1.0) }, IntArray(2) { i -> Draft.banTendency(w, teams[i]) },
-        Array(2) { i -> dev.uem.em.mgmt.Prep.comfort(prep[i], players[i], dev.uem.em.mgmt.Scrims.bonus(w, teams[i])) }, dev.uem.em.titles.RoleMeta.bot(w, t.id), intel())
+        Array(2) { i -> dev.uem.em.mgmt.Prep.comfort(prep[i], players[i], dev.uem.em.mgmt.Scrims.bonus(w, teams[i])) }, dev.uem.em.titles.RoleMeta.bot(w, t.id), intel(), dev.uem.em.titles.RoleMeta.top(w, t.id))
 
     /** What the earlier games of this series, and each team's recent matches, showed (the draft adapts to it). */
     fun intel() = SeriesIntel.of(games, arrayOf(teams[0].shown, teams[1].shown))

@@ -121,6 +121,12 @@ class World(
     /** Approaches for staff under contract (compensation offers between clubs). */
     val staffBids: MutableList<StaffBid> = ArrayList(),
     var nextStaffBid: Int = 1,
+    /** National squad announcements (players with the selectors' reasons, the coach), kept for two seasons. */
+    val squads: MutableList<SquadPick> = ArrayList(),
+    /** 1: national eligibility by nationality only (residency no longer grants a second nationality). */
+    var natFix: Int = 0,
+    /** MOBA rating calibration per game and lineup slot (see sim.StatBook.calibrate). */
+    val ratingCal: MutableMap<String, DoubleArray> = HashMap(),
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -220,6 +226,8 @@ class Player(
     @ProtoPacked var ambitions: IntArray = IntArray(0),
     /** Day the player asked to leave (0: settled). */
     var wantsOutDay: Int = 0,
+    /** Country where three straight seasons made the player a local (not an import) — residency, not nationality. */
+    var residency: String = "",
 ) {
     val retired get() = retiredSeason != 0
     /** Every nationality (the first is the main one). */
@@ -292,6 +300,8 @@ class Team(
     var rebuildNote: String = "",
     /** Characters shown in recent official series (MOBAs; fades every series): opponents' drafts read it. */
     var shown: MutableMap<String, ShownStat> = HashMap(),
+    /** National teams: the competition the current squad was selected for (-1: no squad; the team is empty between events). */
+    var squadFor: Int = -1,
 )
 
 /** One scrim block against a partner: games won and lost, and (for teams you follow) the picks of every game. */
@@ -306,7 +316,17 @@ class ScrimStat(var g: Int = 0, var w: Int = 0)
 class ShownStat(var g: Float = 0f, var w: Float = 0f)
 
 @Serializable
-class TeamSeason(val season: Int, val leagueId: Int, var position: Int, var w: Int, var l: Int, var elo: Double, @ProtoPacked val roster: IntArray = IntArray(0))
+class TeamSeason(val season: Int, val leagueId: Int, var position: Int, var w: Int, var l: Int, var elo: Double, @ProtoPacked val roster: IntArray = IntArray(0),
+    /** National teams: the competition this squad played (-1 for a club season). */
+    val compId: Int = -1)
+
+/**
+ * A national squad named for a competition: the players (positions, second-position picks), the
+ * selectors' reason for each, the coaching staff, who came in and who dropped out.
+ */
+@Serializable
+class SquadPick(val day: Int, val teamId: Int, val compId: Int, val titleId: String, val players: List<Int>, val roles: List<String>, val notes: List<String>,
+    val coaches: List<Int>, val coachNotes: List<String>, val newIn: List<Int>, val dropped: List<Int>, val snubs: List<Int> = emptyList())
 
 @Serializable
 class Trophy(val season: Int, val compId: Int, val name: String)

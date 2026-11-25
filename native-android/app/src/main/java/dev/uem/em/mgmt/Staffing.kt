@@ -145,14 +145,15 @@ object Staffing {
 
     // --------------------------------------------------------------------------------- who is where
 
-    fun members(w: World, team: Team): List<Staff> = team.staffIds.mapNotNull { w.staff.getOrNull(it) }.filter { !it.retired && it.teamId == team.id }
+    /** A club's staff; a national team's staff are named per event and keep their club jobs. */
+    fun members(w: World, team: Team): List<Staff> = team.staffIds.mapNotNull { w.staff.getOrNull(it) }.filter { !it.retired && (it.teamId == team.id || team.nationalOf.isNotEmpty()) }
 
     /** Best value of [attr] (or the role ability) among the team's staff in [role]. */
     fun best(w: World, team: Team, role: String, attr: Int = -1, spec: String? = null): Double? {
         var b: Double? = null
         for (sid in team.staffIds) {
             val s = w.staff.getOrNull(sid) ?: continue
-            if (s.retired || s.role != role || s.teamId != team.id || (spec != null && s.spec != spec)) continue
+            if (s.retired || s.role != role || (s.teamId != team.id && team.nationalOf.isEmpty()) || (spec != null && s.spec != spec)) continue
             val v = if (attr < 0) s.quality else attr(s, attr)
             if (b == null || v > b) b = v
         }
@@ -476,7 +477,8 @@ object Staffing {
         val org = w.orgs[team.orgId]
         val out = ArrayList<Pair<String, String>>()
         fun add(r: String, spec: String = "") = out.add(r to spec)
-        if (team.nationalOf.isNotEmpty()) { add("head-coach"); add("analyst"); return out }
+        // National teams: coaches are named with each squad (Nations), never hired.
+        if (team.nationalOf.isNotEmpty()) return out
         if (team.kind.isNotEmpty()) { add("head-coach"); return out }
         if (team.parentId >= 0) { add("head-coach"); add("assistant-coach"); add("analyst"); return out }
         val tier = when { org.rep >= 62 || team.elo >= 1640 -> 2; org.rep >= 40 || team.elo >= 1500 -> 1; else -> 0 }

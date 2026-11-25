@@ -256,12 +256,16 @@ object Market {
         val t = Catalogue.get(team.titleId)
         val org = w.orgs[team.orgId]
         val lineup = team.lineup.ifEmpty { Lineups.auto(w, team) }
-        // Weakest position.
+        // Players are judged on ability and recent seasons (form, games, the level they played at): see Extras.selectionScore.
+        val judged = HashMap<Int, Double>()
+        fun judge(p: dev.uem.em.model.Player) = judged.getOrPut(p.id) { Extras.selectionScore(w, p) }
+        // Weakest position (a starter out of position counts as a hole there).
         var weakSlot = -1
         var weakCa = 999.0
-        t.lineup.forEachIndexed { i, _ ->
+        t.lineup.forEachIndexed { i, r ->
             val pid = lineup.getOrNull(i) ?: -1
-            val ca = if (pid >= 0) w.players[pid].ca else 0.0
+            val pl = w.players.getOrNull(pid)
+            val ca = if (pl != null && (pl.mainRole == r || pl.roles.getOrNull(1) == r)) judge(pl) else 0.0
             if (ca < weakCa) { weakCa = ca; weakSlot = i }
         }
         // A position nobody plays as his main role comes first; otherwise the weakest starter's.
@@ -271,8 +275,8 @@ object Market {
         val budget = org.balance * Ambitions.budgetShare(w, team)
         // Free agents first.
         val academy = Academies.isAcademy(team)
-        val fa = w.players.asSequence().filter { it.teamId < 0 && !it.retired && it.titleId == team.titleId && it.mainRole == role && it.ca > weakCa + (if (short) -15.0 else 3.5) && (!academy || dev.uem.em.core.Dates.ageAt(it.birth, w.day) <= 21) }
-            .sortedByDescending { it.ca }.take(5).toList()
+        val fa = w.players.asSequence().filter { it.teamId < 0 && !it.retired && it.titleId == team.titleId && it.mainRole == role && (!academy || dev.uem.em.core.Dates.ageAt(it.birth, w.day) <= 21) }
+            .filter { judge(it) > weakCa + (if (short) -15.0 else 3.5) }.sortedByDescending { judge(it) }.take(5).toList()
         for (p in fa) {
             val sal = asking(w, team, p)
             if (sal * 1.2 > budget && !short) continue
@@ -295,8 +299,8 @@ object Market {
         // Second divisions and academies included (their best players move up); a listed player even from a
         // stronger club; nobody who joined his club only recently.
         val targets = w.players.asSequence().filter { p -> p.teamId >= 0 && p.loanFrom < 0 && w.teams[p.teamId].orgId != team.orgId && w.teams[p.teamId].kind.isEmpty() && w.teams[p.teamId].nationalOf.isEmpty() &&
-                !(w.isUserTeam(team.id) && w.isUserTeam(p.teamId)) && p.titleId == team.titleId && p.mainRole == role && p.ca > weakCa + 4.5 && (w.teams[p.teamId].elo < myElo + 40 || p.listed) && settled(w, p) }
-            .sortedByDescending { Ambitions.targetScore(w, team, it) }.take(4).toList()
+                !(w.isUserTeam(team.id) && w.isUserTeam(p.teamId)) && p.titleId == team.titleId && p.mainRole == role && (w.teams[p.teamId].elo < myElo + 40 || p.listed) && settled(w, p) }
+            .filter { judge(it) > weakCa + 4.5 }.sortedByDescending { Ambitions.targetScore(w, team, it) + (judge(it) - it.ca) }.take(4).toList()
         for (p in targets) {
             val value = Economy.marketValue(w, p)
             if (value > budget) continue

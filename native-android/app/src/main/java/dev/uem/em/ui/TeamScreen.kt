@@ -101,7 +101,7 @@ fun TeamScreen(vm: GameVm, w: World, id: Int) {
         item { Tabs(TEAM_TABS, tab) { tab = it } }
         item {
             when (tab) {
-                0 -> { TeamRoster(vm, w, team, t); TeamChemistryCard(vm, w, team) }
+                0 -> { if (team.nationalOf.isNotEmpty()) NationalSquads(vm, w, team); TeamRoster(vm, w, team, t); TeamChemistryCard(vm, w, team) }
                 1 -> TeamSchedule(vm, w, team)
                 2 -> TeamStats(vm, w, team, t)
                 3 -> TeamStaff(vm, w, team)
@@ -468,5 +468,40 @@ private fun TeamTransfers(vm: GameVm, w: World, team: Team) {
         Gap(6); Text("Out (${outs.size})", color = Ui.loss, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         if (outs.isEmpty()) Muted("No departures.", 11)
         for (tr in outs) line(tr, false)
+    }
+}
+
+/** A national team: the current squad's announcement (or when the next one is named) and earlier squads, with the selectors' reasons. */
+@Composable
+private fun NationalSquads(vm: GameVm, w: World, team: Team) {
+    val picks = w.squads.filter { it.teamId == team.id }.reversed()
+    Card("Squad selections") {
+        if (team.roster.isEmpty()) Muted("No squad between events: the selectors name one ${dev.uem.em.mgmt.Nations.SELECT_DAYS} days before each event this nation plays, and it steps down when the event ends.", 12)
+        if (picks.isEmpty()) Muted("No squad named yet.", 12)
+        for ((i, sp) in picks.take(4).withIndex()) {
+            val t = Catalogue.get(sp.titleId)
+            Text("${Dates.format(sp.day)} · ${w.comps.getOrNull(sp.compId)?.name ?: "an event"}", color = if (i == 0) Ui.text else Ui.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+            for ((k, pid) in sp.players.withIndex()) Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.Top) {
+                Text(t.role(sp.roles.getOrElse(k) { "" }).short, color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(44.dp))
+                Column(Modifier.weight(1f)) {
+                    w.players.getOrNull(pid)?.let { PlayerChip(it, vm, 16.dp) }
+                    Muted(sp.notes.getOrElse(k) { "" }, 10)
+                }
+            }
+            for ((k, sid) in sp.coaches.withIndex()) w.staff.getOrNull(sid)?.let { s ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                    Text("Staff", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(44.dp))
+                    Column(Modifier.weight(1f)) { StaffChip(s, vm); Muted("${dev.uem.em.mgmt.Staffing.label(s)} · ${sp.coachNotes.getOrElse(k) { "" }}", 10) }
+                }
+            }
+            if (sp.newIn.isNotEmpty() || sp.dropped.isNotEmpty()) Muted("In: ${sp.newIn.joinToString { w.players[it].handle }.ifEmpty { "none" }} · out: ${sp.dropped.joinToString { w.players[it].handle }.ifEmpty { "none" }}", 11)
+            if (sp.snubs.isNotEmpty()) Muted("Left out: ${sp.snubs.joinToString { w.players[it].handle }}", 11)
+        }
+        val past = team.history.filter { it.compId >= 0 }.reversed()
+        if (past.isNotEmpty()) {
+            Gap(6)
+            Text("Squads that played", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            for (h in past.take(8)) Muted("${w.comps.getOrNull(h.compId)?.short ?: h.season.toString()}: ${if (h.position > 0) "${h.position}. · " else ""}${h.w}-${h.l} · " + h.roster.joinToString { w.players[it].handle }, 11)
+        }
     }
 }

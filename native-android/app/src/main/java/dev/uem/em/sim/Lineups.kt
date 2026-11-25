@@ -10,37 +10,46 @@ import dev.uem.em.titles.Catalogue
 object Lineups {
     fun available(w: World, p: Player) = !p.retired && p.injuryUntil <= w.day && p.visaUntil <= w.day
 
+    /**
+     * The coach's lineup: every position goes to a player whose main position it is, else one who lists
+     * it as his second; a player out of position only when nobody available plays it at all. Within
+     * those, the best fit for the position (ability there, character pool, freshness); the league's
+     * import limit holds throughout.
+     */
     fun auto(w: World, team: Team): MutableList<Int> {
         val t = Catalogue.get(team.titleId)
         var players = team.roster.map { w.players[it] }.filter { available(w, it) && Dates.ageAt(it.birth, w.day) >= t.minAge }
         if (players.size < t.teamSize) players = team.roster.map { w.players[it] }.filter { !it.retired }
         val roles = t.lineupRoles
-        class Pair(val p: Player, val ri: Int, val e: Double)
+        class Pair(val p: Player, val ri: Int, val e: Double, val tier: Int)
         val pairs = ArrayList<Pair>(players.size * roles.size)
         for (p in players) {
             val pp = if (t.characters.isNotEmpty()) Ratings.charProf(p, t, roles[0]) else null
             for (i in roles.indices) {
                 val role = roles[i]
-                val natural = if (p.roles[0] == role.id) 1.5 else if (p.roles.getOrNull(1) == role.id) 0.5 else 0.0
-                pairs.add(Pair(p, i, Ratings.effectiveness(p, t, role, null, pp) + natural - p.fatigue * 0.03))
+                // 0: main position, 1: second position, 2: out of position.
+                val tier = if (p.roles[0] == role.id) 0 else if (p.roles.getOrNull(1) == role.id) 1 else 2
+                pairs.add(Pair(p, i, Ratings.effectiveness(p, t, role, null, pp) - p.fatigue * 0.03, tier))
             }
         }
-        pairs.sortByDescending { it.e }
         val slots = IntArray(roles.size) { -1 }
         val used = HashSet<Int>()
         // League import limit: once the lineup holds the allowed number of imports, other imports are skipped.
         val cap = dev.uem.em.mgmt.Imports.cap(w, team)
         var imports = 0
-        for (pr in pairs) {
-            if (slots[pr.ri] >= 0 || pr.p.id in used) continue
-            val imp = cap >= 0 && dev.uem.em.mgmt.Imports.isImport(w, pr.p, team)
-            if (imp && imports >= cap) continue
-            slots[pr.ri] = pr.p.id
-            used.add(pr.p.id)
-            if (imp) imports++
+        // Main positions first, then second positions, then (only for a slot nobody can play) anyone.
+        for (tier in 0..2) {
+            for (pr in pairs.filter { it.tier <= tier }.sortedWith(compareBy<Pair> { it.tier }.thenByDescending { it.e })) {
+                if (slots[pr.ri] >= 0 || pr.p.id in used) continue
+                val imp = cap >= 0 && dev.uem.em.mgmt.Imports.isImport(w, pr.p, team)
+                if (imp && imports >= cap) continue
+                slots[pr.ri] = pr.p.id
+                used.add(pr.p.id)
+                if (imp) imports++
+            }
         }
         // A slot nobody local can fill still gets the best remaining player (an empty seat is worse).
-        for (i in slots.indices) if (slots[i] < 0) pairs.firstOrNull { it.ri == i && it.p.id !in used }?.let { slots[i] = it.p.id; used.add(it.p.id) }
+        for (i in slots.indices) if (slots[i] < 0) pairs.filter { it.ri == i && it.p.id !in used }.minWithOrNull(compareBy<Pair> { it.tier }.thenByDescending { it.e })?.let { slots[i] = it.p.id; used.add(it.p.id) }
         return slots.toMutableList()
     }
 

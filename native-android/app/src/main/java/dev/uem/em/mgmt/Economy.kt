@@ -196,6 +196,7 @@ object Economy {
 
     /** Older saves and new worlds: staff (real where known), sponsors and salaries for every team. */
     fun ensureSetup(w: World, src: dev.uem.em.data.DataSource? = null) {
+        Nations.migrate(w)
         if (w.staff.isNotEmpty()) { Staffing.migrate(w, src); return }
         val rng = Rng.derive(w.seed, "staff-setup")
         Staffing.setup(w, src)

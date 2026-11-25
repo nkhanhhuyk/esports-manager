@@ -93,8 +93,8 @@ object Imports {
         val lg = leagueOf(w, team) ?: return false
         val regions = GameData.expand(lg.region).ifEmpty { GameData.expand(team.region) }
         if (regions.isEmpty()) return false
-        // Either nationality makes a player local (a second nationality earned after three seasons counts).
-        return p.nats().none { GameData.regionOf(it) in regions }
+        // Either nationality makes a player local, and so does residency (three straight seasons in the country).
+        return p.nats().none { GameData.regionOf(it) in regions } && (p.residency.isEmpty() || GameData.regionOf(p.residency) !in regions)
     }
 
     /** Visa wait for a player joining a team (days; 0 when none is needed). */

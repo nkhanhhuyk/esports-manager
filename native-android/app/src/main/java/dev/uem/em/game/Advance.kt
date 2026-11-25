@@ -94,7 +94,7 @@ object Advance {
     fun day(w: World) {
         w.day++
         val d = w.day
-        timed(0) { dev.uem.em.mgmt.Circuits.ensure(w); dev.uem.em.mgmt.Circuits.daily(w); dev.uem.em.comp.Ecosystem.daily(w); Progress.startDue(w, d); dev.uem.em.mgmt.Patches.daily(w) }
+        timed(0) { dev.uem.em.mgmt.Circuits.ensure(w); dev.uem.em.mgmt.Circuits.daily(w); dev.uem.em.comp.Ecosystem.daily(w); dev.uem.em.mgmt.Nations.daily(w); Progress.startDue(w, d); dev.uem.em.mgmt.Patches.daily(w) }
         timed(1) { playFixtures(w, d) }
         timed(2) { daily(w) }
         timed(3) {
@@ -238,6 +238,8 @@ object Advance {
             }
             for (b in g.bans) w.charStats.getOrPut("${w.season}|$b") { IntArray(3) }[2]++
         }
+        // Ratings: every position's average stays level through meta changes.
+        dev.uem.em.sim.StatBook.calibrate(w, t, o.record.games)
         // What each team showed: the next opponents' drafts read it (MOBAs with a ban / pick draft).
         if (t.isMoba && t.draft.mode == "sequential") for (s in 0..1) if (teamIds[s] >= 0) dev.uem.em.sim.SeriesIntel.remember(w.teams[teamIds[s]].shown, o.record.games, s)
         if (o.mvp >= 0) {
@@ -320,14 +322,21 @@ object Advance {
             if (!team.active || w.isUserTeam(team.id) || team.nationalOf.isNotEmpty() || team.kind.isNotEmpty()) continue
             val t = Catalogue.get(team.titleId)
             val pool = free[team.titleId] ?: continue
-            // Every position covered by a player whose main role it is, and at least one substitute.
+            // Every position covered by a player whose main role it is first, then one substitute: a backup at the
+            // thinnest position who is content to be one (never a star signed to sit behind a weaker starter).
             while (pool.isNotEmpty()) {
                 val have = team.roster.map { w.players[it].roles[0] }.toSet()
                 val need = t.lineup.firstOrNull { it !in have }
                 if (need == null && team.roster.size >= t.teamSize + 1) break
                 if (need != null && team.roster.size >= t.teamSize + 4) break
                 if (need != null && dev.uem.em.mgmt.Academies.aiPromote(w, team)) continue
-                val pick = (if (need != null) pool.firstOrNull { it.roles[0] == need } ?: pool.firstOrNull { it.roles.getOrNull(1) == need } else null) ?: pool[0]
+                val pick = if (need != null) pool.firstOrNull { it.roles[0] == need } ?: pool.firstOrNull { it.roles.getOrNull(1) == need } ?: pool[0]
+                else {
+                    val depth = t.lineup.minByOrNull { r -> team.roster.count { w.players[it].roles[0] == r } * 100 + (team.lineup.getOrNull(t.lineup.indexOf(r))?.let { w.players.getOrNull(it)?.ca } ?: 0.0) } ?: t.lineup[0]
+                    val starter = team.lineup.getOrNull(t.lineup.indexOf(depth))?.let { w.players.getOrNull(it) }
+                    pool.firstOrNull { it.roles[0] == depth && (starter == null || it.ca <= starter.ca + 1) && dev.uem.em.mgmt.Ambitions.benchRefusal(w, it, team) == null }
+                        ?: pool.firstOrNull { (it.roles[0] == depth || it.roles.getOrNull(1) == depth) && dev.uem.em.mgmt.Ambitions.benchRefusal(w, it, team) == null } ?: break
+                }
                 pool.remove(pick)
                 pick.teamId = team.id
                 dev.uem.em.mgmt.Imports.onJoin(w, pick, team)

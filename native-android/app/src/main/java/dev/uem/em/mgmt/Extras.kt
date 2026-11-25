@@ -92,12 +92,18 @@ object Extras {
     // ------------------------------------------------------------------ national teams
 
     /** National teams of a title (old saves' Nations Cup rule): the strongest nations' squads. */
-    fun nationalTeams(w: World, titleId: String, count: Int): List<Int> {
+    /** The nations with the strongest players of a game (by their best five), strongest first. */
+    fun strongestNations(w: World, titleId: String, count: Int): List<String> {
         val t = Catalogue.get(titleId)
         val byNat = w.players.filter { !it.retired && it.titleId == titleId && it.injuryUntil <= w.day }.groupBy { it.nat }
-        val strong = byNat.filter { (_, ps) -> ps.size >= t.teamSize }.map { (nat, ps) -> nat to ps.sortedByDescending { it.ca }.take(t.teamSize).sumOf { it.ca } }
+        return byNat.filter { (_, ps) -> ps.size >= t.teamSize }.map { (nat, ps) -> nat to ps.sortedByDescending { it.ca }.take(t.teamSize).sumOf { it.ca } }
             .sortedByDescending { it.second }.take(count).map { it.first }
-        return strong.map { nat -> callUp(w, nationalTeam(w, titleId, nat), byNat[nat].orEmpty()).id }
+    }
+
+    /** The strongest nations, squads named for [compId] (unless the selectors already named them). */
+    fun nationalTeams(w: World, titleId: String, count: Int, compId: Int = -1): List<Int> {
+        val byNat = w.players.filter { !it.retired && it.titleId == titleId }.groupBy { it.nat }
+        return strongestNations(w, titleId, count).map { nat -> nationalTeam(w, titleId, nat).let { tm -> if (compId < 0 || tm.squadFor != compId) Nations.select(w, tm, compId, byNat[nat].orEmpty(), byNat).team else tm }.id }
     }
 
     /** Places with no permanent population: no national team. */
@@ -115,7 +121,7 @@ object Extras {
             ?: Org(w.orgs.size, "${country?.name ?: nat} national team", nat, nat, country?.region ?: "NA", rep = 40.0 + (country?.let { maxOf(it.moba, it.shooter) } ?: 20) * 0.3).also { w.orgs.add(it) }
         val team = Team(w.teams.size, org.id, titleId, country?.name ?: nat, nat, country?.region ?: "NA", nationalOf = nat)
         team.active = false
-        team.dataNote = "National team: the country's best available players of the game, called up for each Nations Cup event; amateurs are called up when there are not enough professionals."
+        team.dataNote = "National team: the selectors name a squad ${Nations.SELECT_DAYS} days before each Nations Cup event (players of the nationality in the best form at each position, amateurs when a position has nobody) and it steps down when the event ends."
         w.teams.add(team)
         org.teams.add(team.id)
         team.elo = 1500.0
@@ -137,7 +143,7 @@ object Extras {
             // Form in a second division, an academy league or a community circuit says less (weaker opposition).
             val (gap, trust) = levelOf(w, team)
             gp += l.gp * wt
-            perf += (l.ratingSum / l.gp - 1.0) * 30.0 * trust * l.gp * wt
+            perf += (l.ratingSum / l.gp - 1.0) * 50.0 * trust * l.gp * wt
             lvl += gap * l.gp * wt
         }
         val club = levelOf(w, w.teams.getOrNull(p.teamId)?.takeIf { it.nationalOf.isEmpty() }).first
@@ -154,79 +160,24 @@ object Extras {
         return (base.first + (team.elo - 1500.0) / 45.0 * 0.6) to base.second
     }
 
-    /** Whether a player may be called up by a nation: his main nationality, or his second one when his first country would not pick him. */
-    private fun eligible(w: World, p: Player, nat: String, pools: Map<String, List<Player>>?): Boolean {
-        if (p.nat == nat) return true
-        if (p.nat2 != nat) return false
-        val home = pools?.get(p.nat) ?: w.players.filter { it.titleId == p.titleId && !it.retired && it.nat == p.nat }
-        val sc = selectionScore(w, p)
-        // A starter or the substitute at home stays with his first country.
-        return home.count { it.id != p.id && it.mainRole == p.mainRole && !it.retired && selectionScore(w, it) > sc } >= 2
-    }
-
-    /**
-     * Call up a nation's squad: for every position the player of the nationality in the best form
-     * this season (any club, free agents too), then the best remaining players off-role, plus a
-     * substitute. A nation without enough players calls up amateurs (created once and kept, so they
-     * can be scouted and signed). Dual nationals play for their second country only when their first
-     * country would not select them.
-     */
-    fun callUp(w: World, team: Team, pool0: List<Player>? = null, pools: Map<String, List<Player>>? = null): Team {
-        val t = Catalogue.get(team.titleId)
-        val nat = team.nationalOf
-        val base = pool0 ?: w.players.filter { (it.nat == nat || it.nat2 == nat) && it.titleId == team.titleId && !it.retired }
-        val pool = base.filter { !it.retired && it.injuryUntil <= w.day && eligible(w, it, nat, pools) }
-        val score = HashMap<Int, Double>()
-        fun sc(p: Player) = score.getOrPut(p.id) { selectionScore(w, p) }
-        val picked = ArrayList<Player>()
-        for (role in t.lineup) pool.filter { it.mainRole == role && it !in picked }.maxByOrNull { sc(it) }?.let { picked.add(it) }
-        for (role in t.lineup) {
-            if (picked.size >= t.teamSize) break
-            if (picked.any { it.mainRole == role }) continue
-            pool.filter { it !in picked }.maxByOrNull { sc(it) }?.let { picked.add(it) }
-        }
-        if (picked.size < t.teamSize) {
-            val country = GameData.countries[nat]
-            val scene = (if (t.isMoba) country?.moba else country?.shooter) ?: 15
-            val missing = t.lineup.filter { r -> picked.none { it.mainRole == r } }.take(t.teamSize - picked.size)
-            for ((k, role) in missing.withIndex()) {
-                val rng = Rng.derive(w.seed, "national", team.titleId, nat, role, k, w.season)
-                val ctx = dev.uem.em.gen.GenCtx(w, rng)
-                val p = dev.uem.em.gen.PlayerGen.generate(ctx, team.titleId, role, nat, rng.int(17, 26), clamp(20.0 + scene * 0.36 + rng.normal(0.0, 3.5), 18.0, 58.0), rng.float(0.0, 8.0))
-                // Not a ladder amateur (keeps the solo queue's weekly work and amateur scouting as they were).
-                p.career.add(dev.uem.em.model.CareerEntry(w.season, w.day, -1, "amateur (national call-up)"))
-                picked.add(p)
-            }
-        }
-        val starters = picked.take(t.teamSize)
-        pool.filter { it !in picked }.maxByOrNull { sc(it) }?.let { picked.add(it) }
-        val before = team.roster.toSet()
-        team.roster.clear()
-        team.roster.addAll(picked.map { it.id })
-        team.active = true
-        team.manualLineup = false
-        team.lineup = Lineups.auto(w, team)
-        val squadElo = 1500 + (starters.map { it.ca }.average() - 65) * 18
-        team.elo = if (team.elo == 1500.0 && team.trophies.isEmpty()) squadElo else team.elo * 0.5 + squadElo * 0.5
-        lastChanges = (picked.map { it.id }.filter { it !in before }) to before.filter { it !in team.roster }
-        return team
-    }
+    /** Call up a nation's squad now (see Nations.select). */
+    fun callUp(w: World, team: Team, pool0: List<Player>? = null, pools: Map<String, List<Player>>? = null, compId: Int = -1): Team = Nations.select(w, team, compId, pool0, pools).team
 
     /** Who came in and who dropped out at the last call-up (for the squad news). */
     @Volatile var lastChanges: Pair<List<Int>, List<Int>> = emptyList<Int>() to emptyList()
 
     /** Every nation of a continent with its squad called up, strongest first (the qualifier's seeding). */
-    fun continentTeams(w: World, titleId: String, continent: String): List<Int> {
+    fun continentTeams(w: World, titleId: String, continent: String, compId: Int = -1): List<Int> {
         val all = w.players.filter { it.titleId == titleId && !it.retired }
         val byNat = all.groupBy { it.nat }
         val dual = all.filter { it.nat2.isNotEmpty() }.groupBy { it.nat2 }
-        return nationsOf(continent).map { nat -> callUp(w, nationalTeam(w, titleId, nat), byNat[nat].orEmpty() + dual[nat].orEmpty(), byNat) }.sortedByDescending { it.elo }.map { it.id }
+        return nationsOf(continent).map { nat -> nationalTeam(w, titleId, nat).let { tm -> if (compId >= 0 && tm.squadFor == compId) tm else callUp(w, tm, byNat[nat].orEmpty() + dual[nat].orEmpty(), byNat, compId) } }.sortedByDescending { it.elo }.map { it.id }
     }
 
     /**
      * Season end: a player who spent three straight seasons at clubs of one country (not his own)
-     * takes its nationality as his second one: no longer an import there, and eligible for its
-     * national team.
+     * counts as a local there (residency: no longer an import). It is not a nationality: national
+     * teams pick only their own nationals.
      */
     fun residency(w: World) {
         for (p in w.players) {
@@ -236,11 +187,11 @@ object Extras {
             val c = w.orgs[team.orgId].country
             if (c.isBlank() || c !in GameData.countries) continue
             if (c == p.resCountry) p.resYears++ else { p.resCountry = c; p.resYears = 1 }
-            if (p.resYears >= 3 && c != p.nat && p.nat2.isEmpty()) {
-                p.nat2 = c
+            if (p.resYears >= 3 && c != p.nat && c != p.nat2 && p.residency != c) {
+                p.residency = c
                 val country = GameData.countries[c]?.name ?: c
-                if (w.isUserTeam(team.id) || team.id in w.followed) w.news.add(News(w.day, "${p.handle} gains ${country} nationality",
-                    "After three straight seasons in ${country}, ${p.handle} (${GameData.countries[p.nat]?.name ?: p.nat}) also holds ${country} nationality: no longer an import there, and eligible for ${country}'s national team.", listOf(team.id)))
+                if (w.isUserTeam(team.id) || team.id in w.followed) w.news.add(News(w.day, "${p.handle} counts as a local player in ${country}",
+                    "After three straight seasons in ${country}, ${p.handle} (${GameData.countries[p.nat]?.name ?: p.nat}) is no longer an import there. The nationality does not change: national teams still pick only their own nationals.", listOf(team.id)))
             }
         }
     }
@@ -273,10 +224,10 @@ object Extras {
 
     fun isNational(t: Team) = t.nationalOf.isNotEmpty()
 
-    /** National teams step down when their event ends (they are called up again for the next one). */
+    /** National teams step down when their event ends (empty until the selectors name the next squad). */
     fun onCompetitionFinished(w: World, c: dev.uem.em.model.Competition) {
         showcase(w, c)
-        for (tid in c.teamIds) if (w.teams[tid].nationalOf.isNotEmpty()) w.teams[tid].active = false
+        for (tid in c.teamIds) if (w.teams[tid].nationalOf.isNotEmpty()) Nations.stepDown(w, w.teams[tid], c.id)
     }
 
     // ------------------------------------------------------------------ difficulty

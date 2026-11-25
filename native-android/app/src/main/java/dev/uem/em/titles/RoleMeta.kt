@@ -114,6 +114,26 @@ object RoleMeta {
     /** What the bot-side carry plays under the current meta (marksman, mage, hyper-carry...). */
     fun bot(w: World?, titleId: String): String = current(w, titleId).getOrNull(6) ?: "bot-marksman"
 
+    /** The top-lane metas in force: the top group's option, plus "top-carry" when the top side is the carry. */
+    fun top(w: World?, titleId: String): String {
+        val m = current(w, titleId)
+        return listOfNotNull(m.getOrNull(4)?.takeIf { it.startsWith("top-") }, if (m.firstOrNull() == "top-carry") "top-carry" else null).joinToString(",")
+    }
+
+    private val TANK = Regex("tank|guardian|vanguard|defender", RegexOption.IGNORE_CASE)
+
+    /** What the top laner drafts under the top metas: carries when the top side carries, tanks, bruisers or split-pushers by the top meta. */
+    fun topBias(top: String, c: CharDef): Double {
+        if (top.isEmpty()) return 0.0
+        val tank = isA(c, TANK); val fighter = isA(c, FIGHTER); val carry = !tank && (fighter || isA(c, MARKSMAN) || isA(c, MAGE))
+        var v = 0.0
+        if ("top-carry" in top) v += if (carry) 0.22 else if (tank) -0.15 else 0.0
+        else if ("top-tank" in top) v += if (tank) 0.12 else 0.0
+        if ("top-bruiser" in top) v += if (fighter && !tank) 0.14 else 0.0
+        if ("top-split" in top) v += if (fighter) 0.12 else 0.0
+        return v
+    }
+
     private val MAGE = Regex("mage|nuker|caster|spell", RegexOption.IGNORE_CASE)
     private val MARKSMAN = Regex("marksman|ranged|archer|shooter|hunter", RegexOption.IGNORE_CASE)
     private val FIGHTER = Regex("fighter|bruiser|warrior|duelist|assassin|juggernaut|slayer|diver", RegexOption.IGNORE_CASE)

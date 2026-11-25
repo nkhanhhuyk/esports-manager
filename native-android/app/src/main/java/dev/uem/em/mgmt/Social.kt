@@ -144,6 +144,7 @@ object Social {
         for ((f, imp) in recent.sortedByDescending { it.second }.take(if (teams.isEmpty()) 28 else 40)) series(w, f, imp, out)
         for ((f, imp) in coming.sortedByDescending { it.second }.take(if (teams.isEmpty()) 10 else 14)) upcoming(w, f, imp, out)
         transfers(w, titleId, teams, out)
+        selections(w, titleId, teams, out)
         patches(w, titleId, teams, out)
         streaks(w, titleId, teams, out)
         titlesWon(w, titleId, teams, out)
@@ -343,6 +344,50 @@ object Social {
                 "news", t.id, listOfNotNull(to.id, from?.id), listOf(p.id), engagement(w, rng, 1.6 * imp, to), 0, IntArray(6),
                 listOf(Comment(fan(rng, t, to), "Let's gooo", engagement(w, rng, 0.05 * imp, to))), image = Image("player", playerId = p.id, teamA = to.id)))
             n++
+        }
+    }
+
+    // ------------------------------------------------------------------ national squads
+
+    /** Squad announcements: the press, the national team's account, and what fans make of the picks, the snubs and the coach. */
+    private fun selections(w: World, titleId: String?, teams: Set<Int>, out: MutableList<Post>) {
+        for (sp in w.squads.asReversed()) {
+            if (sp.day < w.day - 10) break
+            if (titleId != null && sp.titleId != titleId) continue
+            val team = w.teams.getOrNull(sp.teamId) ?: continue
+            if (teams.isNotEmpty() && team.id !in teams && sp.players.none { w.players[it].teamId in teams }) continue
+            val t = Catalogue.get(sp.titleId)
+            val c = w.comps.getOrNull(sp.compId)
+            val rng = Rng.derive(w.seed, "social-squad", sp.day, sp.teamId, sp.compId)
+            val imp = 2.2 * (1 + sqrt(fansOf(w, team) / 2e6))
+            val starters = sp.players.take(t.teamSize)
+            val line = starters.mapIndexed { i, pid -> "${handle(w, pid)} (${t.role(sp.roles[i]).short})" }.joinToString(", ")
+            val coach = sp.coaches.firstOrNull()?.let { w.staff[it] }
+            // Facts: +1 the nation's supporters, -1 a snubbed player's club supporters.
+            val facts = ArrayList<SocialTalk.Fact>()
+            for ((i, pid) in sp.players.withIndex()) {
+                val p = w.players[pid]
+                val note = sp.notes.getOrElse(i) { "" }
+                val rating = Regex("rating (\\d\\.\\d+) over (\\d+) games").find(note)
+                if (rating != null && rating.groupValues[1].toDouble() >= 1.12) facts.add(SocialTalk.Fact(1, true, "${p.handle} earning the call with a ${rating.groupValues[1]} rating over ${rating.groupValues[2]} games", p.handle, 1.8, "form"))
+                if (pid in sp.newIn) facts.add(SocialTalk.Fact(1, true, "a first call-up for ${p.handle}${w.teams.getOrNull(p.teamId)?.let { " (${it.short})" } ?: ""}", p.handle, 1.6, "debut"))
+                if (note.contains("second position")) facts.add(SocialTalk.Fact(1, false, "${p.handle} filling in at ${t.role(sp.roles[i]).name.lowercase()}", p.handle, 1.5, "position"))
+                if (note.contains("amateur")) facts.add(SocialTalk.Fact(1, false, "an amateur ${t.role(sp.roles[i]).name.lowercase()} in the squad", p.handle, 1.4, "amateur"))
+            }
+            for (pid in sp.snubs) w.players.getOrNull(pid)?.let { p -> facts.add(SocialTalk.Fact(-1, false, "no place for ${p.handle}", p.handle, 2.0, "snub")) }
+            for (pid in sp.dropped.take(2)) w.players.getOrNull(pid)?.let { p -> facts.add(SocialTalk.Fact(-1, false, "${p.handle} dropped from the last squad", p.handle, 1.5, "dropped")) }
+            if (sp.newIn.isEmpty() && sp.dropped.isEmpty()) facts.add(SocialTalk.Fact(0, true, "the same squad as last time", team.short, 1.2, "unchanged"))
+            if (coach != null) facts.add(SocialTalk.Fact(1, true, "${coach.name()} in charge${w.teams.getOrNull(coach.teamId)?.let { " (on loan from the ${it.short} job)" } ?: ""}", coach.name(), 1.4, "coach"))
+            val snubClub = sp.snubs.firstNotNullOfOrNull { w.teams.getOrNull(w.players[it].teamId) } ?: team
+            fun talk(n: Int, wgt: Double) = SocialTalk.comments(rng, team, snubClub, facts, n, { tm -> fan(rng, t, tm) }, { rng.pick(ANALYSTS) }, { rng.pick(MEMES) }) { x -> engagement(w, rng, wgt * x * imp, team) }
+            val event = c?.short ?: "the next event"
+            out.add(Post("sq${sp.day}-${sp.teamId}-${sp.compId}", CHIRP, sp.day, sp.day * 10.0 + imp, rng.pick(PRESS), null,
+                "${team.name} name their ${t.short} squad for $event: $line${coach?.let { "; ${Staffing.label(it).lowercase()} ${it.name()}" } ?: ""}.", "news", t.id, listOf(team.id), sp.players,
+                engagement(w, rng, 0.7 * imp, team), engagement(w, rng, 0.2 * imp, team), IntArray(6), talk(3, 0.05)))
+            out.add(Post("sqa${sp.day}-${sp.teamId}-${sp.compId}", AGORA, sp.day, sp.day * 10.0 + imp - 0.1, fan(rng, t, team), "[Squad] ${team.name} for $event",
+                sp.players.mapIndexed { i, pid -> "• ${handle(w, pid)}: ${sp.notes.getOrElse(i) { "" }}" }.joinToString("\n") + (coach?.let { "\n• ${it.name()} (${Staffing.label(it).lowercase()}): ${sp.coachNotes.firstOrNull() ?: ""}" } ?: ""),
+                "debate", t.id, listOf(team.id), sp.players, engagement(w, rng, 0.5 * imp, team), 0, IntArray(6), talk(5 + rng.int(0, 2), 0.05),
+                place = "a/${t.short.lowercase().filter { it.isLetterOrDigit() }}"))
         }
     }
 

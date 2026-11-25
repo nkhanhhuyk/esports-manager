@@ -37,10 +37,11 @@ object MobaEngine {
         // With heroes stepping out of tower range the divers (often the solo laner) stopped dying under towers:
         // the solo lane is calibrated up and the carry down to keep the order above (HoK's Clash lane less, as
         // more Clash-lane deaths made the winners die nearly as often as the losers there).
-        "mlbb" to floatArrayOf(1.42f, 1.0f, 0.82f, 0.64f, 1.08f),
+        // Supports a little less (pro supports die most, but not one game in five with 7+ deaths).
+        "mlbb" to floatArrayOf(1.42f, 1.0f, 0.82f, 0.64f, 0.95f),
         "hok" to floatArrayOf(1.18f, 0.97f, 0.86f, 0.64f, 1.0f),
-        "lol" to floatArrayOf(1.3f, 1.08f, 0.84f, 0.66f, 0.96f),
-        "wildrift" to floatArrayOf(1.3f, 1.04f, 0.82f, 0.66f, 0.88f),
+        "lol" to floatArrayOf(1.26f, 1.08f, 0.84f, 0.66f, 0.82f),
+        "wildrift" to floatArrayOf(1.3f, 1.04f, 0.82f, 0.66f, 0.74f),
         "dota2" to floatArrayOf(0.88f, 0.86f, 0.96f, 1.04f, 1.08f),
     )
     /** How strongly teams hand kills to their carry, per title (tuning). */
@@ -215,6 +216,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         var nextItem: dev.uem.em.titles.ItemDef? = null; var nextAt = -999
         /** Per-position calibration of damage taken (deaths about even across positions). */
         var takenMul = 1f
+        /** The calibration before this game's deaths: a player who keeps dying plays safer (see [die]). */
+        var takenBase = 1f
         val survive = 0.04f * z(Phase.SURVIVAL)
 
         var x = 0f; var y = 0f
@@ -634,6 +637,16 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         }
         v.hp = 0f
         v.deaths++
+        // Pro players behind in a game play safer (they wait for the team, give up the side waves): from the
+        // third death each one makes them a little harder to catch, so a lost game's deaths spread over the team.
+        // The team's exposure stays the same (the others step up), so a losing team still dies as often — spread out.
+        if (v.deaths >= 3) {
+            v.takenMul = maxOf(v.takenBase * 0.55f, v.takenMul * 0.85f)
+            val team = bySide[v.side]
+            var base = 0f; var cur = 0f
+            for (h in team) { base += h.takenBase; cur += h.takenMul }
+            if (cur > 0f) { val k = base / cur; for (h in team) if (h !== v) h.takenMul = minOf(h.takenBase * 1.2f, h.takenMul * k) }
+        }
         if (v.hbuffs.removeAll { it.endsOnDeath }) v.retally()
         val respawn = respawnTime()
         v.deadUntil = now + respawn
@@ -1514,7 +1527,26 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     init {
         val prio = dev.uem.em.titles.RoleMeta.killPriority(world, t.id); val farm = dev.uem.em.titles.RoleMeta.farm(world, t.id)
         val cal = MobaEngine.DEATH_CAL[t.id]
-        for (h in heroes) { h.killPrio = (prio[h.pos] ?: 0.5).toFloat(); h.econ *= farm[h.pos] ?: 1f; h.takenMul = cal?.getOrNull(h.idx) ?: 1f }
+        for (h in heroes) {
+            // Who takes the last hit: the meta's carry position, but by what the champion is — a tank or an
+            // enchanter rarely, a fighter less than a marksman, a mage or an assassin — and by its kit (burst and
+            // finishing abilities take kills; protective kits give them away).
+            val cls = when {
+                h.assassin -> 1.15f; h.marksman -> 1.1f; h.mage -> 1.0f
+                h.tank -> 0.42f; h.supportCls -> 0.48f
+                Regex("fighter|warrior|bruiser|juggernaut|diver|skirmisher").containsMatchIn(h.cls) -> 0.82f
+                else -> 0.75f
+            }
+            val burst = h.acts.count { it.damage != null && (it.ai == Abilities.AI_BURST || it.ai == Abilities.AI_FINISH) }
+            val protect = h.acts.count { it.ai == Abilities.AI_PROTECT || it.ai == Abilities.AI_BUFF }
+            val kitMul = (1f + 0.06f * burst - 0.05f * protect).coerceIn(0.8f, 1.2f)
+            h.killPrio = (prio[h.pos] ?: 0.5).toFloat() * cls * kitMul
+            h.econ *= farm[h.pos] ?: 1f
+            h.takenMul = cal?.getOrNull(h.idx) ?: 1f
+            // A top laner on a carry plays behind the front line rather than in it (the calibration is for the usual tank or bruiser).
+            if (h.pos == "top" && !h.tank && (h.marksman || h.mage || h.assassin)) h.takenMul *= 0.9f
+            h.takenBase = h.takenMul
+        }
     }
 
     fun useSpell(h: Hero, i: Int) {

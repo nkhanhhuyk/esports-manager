@@ -656,9 +656,9 @@ object Progress {
             when (p[0]) {
                 "league" -> { val l = w.leagues[p[1].toInt()]; l.teamIds.forEach { add(it, rule, "member of ${l.short}") } }
                 "ids" -> p[1].split(',').mapNotNull { it.toIntOrNull() }.filter { it in w.teams.indices }.forEach { add(it, rule, "invited") }
-                "nations" -> dev.uem.em.mgmt.Extras.nationalTeams(w, p[1], p[2].toInt()).forEach { add(it, rule, "one of the strongest nations") }
+                "nations" -> dev.uem.em.mgmt.Extras.nationalTeams(w, p[1], p[2].toInt(), c.id).forEach { add(it, rule, "one of the strongest nations") }
                 // Every nation of a continent (Nations Cup qualifier), squads called up now.
-                "continent" -> dev.uem.em.mgmt.Extras.continentTeams(w, p[1], p.drop(2).joinToString(":")).forEach { add(it, rule, "nation of ${p.drop(2).joinToString(":")}") }
+                "continent" -> dev.uem.em.mgmt.Extras.continentTeams(w, p[1], p.drop(2).joinToString(":"), c.id).forEach { add(it, rule, "nation of ${p.drop(2).joinToString(":")}") }
                 // The best of a finished qualifier (national squads are called up again on this season's form).
                 "qual" -> {
                     val src = w.comps[p[1].toInt()]
@@ -667,8 +667,9 @@ object Progress {
                     for ((i, tid) in src.placements.withIndex()) {
                         if (taken >= p[2].toInt()) break
                         if (has(tid)) continue
-                        if (w.teams[tid].nationalOf.isNotEmpty()) {
-                            val tm = dev.uem.em.mgmt.Extras.callUp(w, w.teams[tid])
+                        // Squads are normally named in the selection window; a nation not named yet is called up now.
+                        if (w.teams[tid].nationalOf.isNotEmpty() && w.teams[tid].squadFor != c.id) {
+                            val tm = dev.uem.em.mgmt.Extras.callUp(w, w.teams[tid], compId = c.id)
                             val (inn, outt) = dev.uem.em.mgmt.Extras.lastChanges
                             if (inn.isNotEmpty() || outt.isNotEmpty()) w.news.add(dev.uem.em.model.News(w.day, "${tm.name} squad for ${c.short}",
                                 "Changes from the qualifier — in: ${inn.joinToString { w.players[it].handle }.ifEmpty { "none" }}; out: ${outt.joinToString { w.players[it].handle }.ifEmpty { "none" }}.", listOf(tm.id)))
@@ -680,7 +681,7 @@ object Progress {
                 "fill" -> {
                     val need = p[2].toInt() - ids.size
                     if (need > 0) w.teams.filter { it.titleId == p[1] && it.nationalOf.isNotEmpty() && !has(it.id) }.sortedByDescending { it.elo }.take(need)
-                        .forEach { dev.uem.em.mgmt.Extras.callUp(w, it); add(it.id, rule, "filled an empty place (strongest remaining nation)") }
+                        .forEach { dev.uem.em.mgmt.Extras.callUp(w, it, compId = c.id); add(it.id, rule, "filled an empty place (strongest remaining nation)") }
                 }
                 // The strongest tier-1 teams of a game not already in (by Elo).
                 "elo" -> { val need = p[2].toInt(); w.teams.filter { it.titleId == p[1] && it.active && it.nationalOf.isEmpty() && w.leagues.getOrNull(it.leagueId)?.tier == 1 && !has(it.id) }.sortedByDescending { it.elo }.take(need).forEach { add(it.id, rule, "invited on strength (Elo)") } }
