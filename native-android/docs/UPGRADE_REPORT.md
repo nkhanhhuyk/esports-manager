@@ -531,7 +531,7 @@ winners' rating statistics from the seventeenth follow-up are dropped on load.
   The team page says it is a special addition. New worlds only: an existing save keeps its LEC. Los Ratones
   and Caedrel are added after the rest of the world is generated, so every other team, player and coach comes
   out exactly as without them (adding them first had reshuffled the random draws of the rest of the world).
-* **Two lineup fixes found by the tests.** The automatic lineup now moves a player to his other position
+* **Two lineup fixes found by the tests.** The automatic lineup now moves a player to their other position
   before putting anyone out of position (a second-position pick could take a main player's slot and leave
   that player's partner position to someone who doesn't play it). National squads no longer pick players
   below the game's minimum age on the day the squad is named (a 15-year-old Dota 2 player was named at
@@ -540,5 +540,6 @@ winners' rating statistics from the seventeenth follow-up are dropped on load.
 Tests: `PastRostersTest` (known line-ups such as T1 2013, Fnatic 2019, G2 2019, Team Spirit 2021, Sentinels
 2021, NaVi 2021; earlier club names; months; staff), `SpecialTeamsTest` (Los Ratones in an 11-team LEC with the
 five players and both coaches, playing LEC matches by January).
+Full suite: 104 tests, 0 failures (3 skipped).
 
 Saves: no new fields.
