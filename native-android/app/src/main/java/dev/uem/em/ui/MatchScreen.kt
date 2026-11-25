@@ -379,7 +379,7 @@ private fun DraftRecap(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRec
     val teams = intArrayOf(f.a, f.b)
     Gap(8)
     Text("Draft recap", color = Ui.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-    Muted("${w.teams[teams[order[0]]].short} on the left, ${w.teams[teams[order[1]]].short} on the right", 10)
+    Muted("${w.teams[teams[order[0]]].short} on the left, ${w.teams[teams[order[1]]].short} on the right" + (if (g.draftNotes.isNotEmpty()) " · ↻ marks a step shaped by the earlier games" else ""), 10)
     var lastBan: Boolean? = null
     var phase = 0
     g.draftOrder.forEachIndexed { i, e ->
@@ -391,6 +391,8 @@ private fun DraftRecap(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRec
         if (ban != lastBan) { phase++; lastBan = ban; Text("${if (ban) "Ban" else "Pick"} phase ${(phase + 1) / 2}", color = Ui.muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)) }
         val left = team == order[0]
         val pid = p.getOrNull(3)?.toIntOrNull() ?: -1
+        // Why, when the earlier games shaped this step ("banned: they won two games with it").
+        val why = if (g.draftNotes.isEmpty()) emptyList() else dev.uem.em.sim.DraftNotes.forStep(t, g.draftNotes, i, w.teams[teams[1 - team.coerceIn(0, 1)]].short)
         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("${i + 1}", color = Ui.muted, fontSize = 10.sp, modifier = Modifier.width(20.dp))
             @Composable fun cell(mod: Modifier) = Row(mod.clickable(enabled = pid >= 0) { vm.go(Screen.Player(pid)) }, verticalAlignment = Alignment.CenterVertically) {
@@ -402,6 +404,7 @@ private fun DraftRecap(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRec
                 Column {
                     Text(t.charIndex[cid]?.name ?: cid, color = if (ban) Ui.muted else Ui.text, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(if (ban) "ban · ${w.teams[teams[team]].short}" else (w.players.getOrNull(pid)?.handle ?: w.teams[teams[team]].short), color = if (left) Ui.blue else Ui.red, fontSize = 9.sp, maxLines = 1)
+                    if (why.isNotEmpty()) Text("↻ " + why.joinToString(" · "), color = Ui.gold, fontSize = 9.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 }
             }
             if (left) { cell(Modifier.weight(1f)); Box(Modifier.weight(1f)) }

@@ -285,6 +285,8 @@ class Team(
     var rebuildUntil: Int = 0,
     /** Why the last rebuild began (for news and the team page). */
     var rebuildNote: String = "",
+    /** Characters shown in recent official series (MOBAs; fades every series): opponents' drafts read it. */
+    var shown: MutableMap<String, ShownStat> = HashMap(),
 )
 
 /** One scrim block against a partner: games won and lost, and (for teams you follow) the picks of every game. */
@@ -293,6 +295,10 @@ class ScrimBlock(val day: Int, val opp: Int, val won: Int, val lost: Int, val pi
 
 @Serializable
 class ScrimStat(var g: Int = 0, var w: Int = 0)
+
+/** Games and wins with a character in a team's recent official series, fading with every series. */
+@Serializable
+class ShownStat(var g: Float = 0f, var w: Float = 0f)
 
 @Serializable
 class TeamSeason(val season: Int, val leagueId: Int, var position: Int, var w: Int, var l: Int, var elo: Double, @ProtoPacked val roster: IntArray = IntArray(0))
@@ -512,6 +518,8 @@ class GameRecord(
     @ProtoPacked val econ: IntArray = IntArray(0),
     /** MOBAs: every neutral objective taken, code * 2 + team (see ui.ObjTally): a kind (drake element...), an objective, a soul. */
     @ProtoPacked val objs: IntArray = IntArray(0),
+    /** Why draft steps happened when earlier games shaped them: "step|kind|n|character" (see sim.DraftNotes). */
+    val draftNotes: List<String> = emptyList(),
 )
 
 /**

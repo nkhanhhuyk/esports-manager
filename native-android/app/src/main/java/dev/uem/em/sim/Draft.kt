@@ -14,7 +14,9 @@ import dev.uem.em.titles.TitleDef
  */
 object Draft {
     /** `order`: the draft step by step ("b|team|character" or "p|team|character|player"), team = series team. */
-    class Result(val picks: Array<ArrayList<String>>, val bans: List<String>, val assign: Array<HashMap<Int, String>>, val firstPick: Int, val order: List<String> = emptyList())
+    class Result(val picks: Array<ArrayList<String>>, val bans: List<String>, val assign: Array<HashMap<Int, String>>, val firstPick: Int, val order: List<String> = emptyList(),
+                 /** Why steps happened when earlier games shaped them (see [DraftNotes]). */
+                 val notes: List<String> = emptyList())
 
     private val FRONT = Regex("tank|guardian|vanguard|front|defender|fighter|warrior|bruiser|captain")
     private val DAMAGE = Regex("marksman|mage|assassin|sniper|hunter|sharpshooter|damage|duelist|attacker|carry|nuker|caster|energy")
@@ -115,12 +117,16 @@ class DraftSession(
     val scrimBonus: Array<Map<String, Double>>? = null,
     /** The bot-lane meta in force (see RoleMeta): what the bot-side carry slot drafts. */
     val botMeta: String = "bot-marksman",
+    /** What the earlier games of the series (and recent matches) showed: the draft adapts to it. */
+    val intel: SeriesIntel = SeriesIntel.NONE,
 ) {
     val picks = arrayOf(ArrayList<String>(), ArrayList<String>())
     val assign = arrayOf(HashMap<Int, String>(), HashMap<Int, String>())
     val bans = ArrayList<String>()
     /** Every ban and pick in order (see [Draft.Result.order]). */
     val order = ArrayList<String>()
+    /** Why steps happened when the series shaped them ("step|kind|n|character", see [DraftNotes]). */
+    val notes = ArrayList<String>()
     val banned = HashSet<String>()
     val picked = HashSet<String>()
     val open = arrayOf(lineups[0].indices.toMutableList(), lineups[1].indices.toMutableList())
@@ -161,6 +167,101 @@ class DraftSession(
     private val topMeta: List<CharDef> by lazy { t.characters.sortedByDescending { patch.charMeta[it.id] ?: 0.0 }.take(10) }
     private val cv = Counters.view(t, patch)
 
+    /**
+     * How much each team's draft reacts to what earlier games showed: its analysts' read, more after
+     * losing the last game (the winner mostly keeps what works), more again when behind in the series.
+     */
+    val adapt = DoubleArray(2) { s ->
+        if (!intel.any) 0.0
+        else (0.55 + 0.45 * know[s]) * (if (intel.lastWinner == s) 0.7 else 1.0) * (if (intel.wins[s] < intel.wins[1 - s]) 1.15 else 1.0)
+    }
+
+    /** The enemy's best-working character this series that [team] could still ban (the heart of their comp). */
+    private fun keyThreat(team: Int): String? {
+        if (intel.games == 0) return null
+        val enemy = 1 - team
+        return intel.played[enemy].keys.filter { (intel.won[enemy][it] ?: 0) > 0 && legal(team, true, it) }
+            .maxWithOrNull(compareBy<String> { intel.threat(team, it) }.thenBy { it })
+    }
+
+    /**
+     * The series part of a ban's value for [team], with the note that explains it: what the enemy
+     * played and won with (its key character most), minus bans that did not stop us losing (their slot
+     * goes to what beat us; an overpowered character stays banned), plus a little for bans in games won.
+     */
+    private fun seriesBan(team: Int, c: CharDef, op: Double, key: String?): Pair<Double, String?> {
+        val a = adapt[team]
+        if (a <= 0.0) return 0.0 to null
+        val enemy = 1 - team
+        val th = intel.threat(team, c.id)
+        var v = a * th * 0.7 + (if (c.id == key) 0.35 * a else 0.0)
+        val lostBan = intel.bannedLost[team][c.id] ?: 0
+        val keptBan = (intel.bannedBy[team][c.id] ?: 0) - lostBan
+        if (lostBan > 0 || keptBan > 0) v -= a * (0.6 * lostBan - 0.1 * keptBan) * (1 - 0.6 * minOf(1.0, op))
+        val pl = intel.played[enemy][c.id] ?: 0
+        val wn = intel.won[enemy][c.id] ?: 0
+        val note = when {
+            th < 0.5 -> null
+            c.id == key && !keyBanned[team] -> "bk|$wn"
+            wn > 0 -> "bw|$wn"
+            pl > 0 -> "bp|$pl"
+            (intel.recent[enemy][c.id]?.w ?: 0f) >= 1f -> "br|0"
+            else -> null
+        }
+        return v to note
+    }
+
+    /**
+     * The series part of a pick's value for slot [i] of [team], with its note: keep what won (more
+     * when the player did well on it), move off what lost (less for a signature pick), take away what
+     * the enemy won with, take what the enemy banned before and left open, answer what they keep playing.
+     */
+    private fun seriesPick(team: Int, i: Int, c: CharDef): Pair<Double, String?> {
+        val a = adapt[team]
+        if (a <= 0.0 || intel.games == 0) return 0.0 to null
+        val enemy = 1 - team
+        var v = 0.0
+        var note: String? = null; var nv = 0.3
+        val (pl, wn, r) = intel.own(team, c.id)
+        val cf = comfortOf[team][i](c)
+        if (pl > 0) {
+            val rf = r.coerceIn(0.5, 1.8)
+            val sig = ((cf - 70) / 30).coerceIn(0.0, 0.7)
+            val keep = 0.8 * wn * (rf - 0.3).coerceAtLeast(0.0)
+            val drop = 0.55 * (pl - wn) * (1.6 - rf).coerceAtLeast(0.25) * (1 - sig)
+            v += keep - drop
+            if (keep - drop > nv) { nv = keep - drop; note = "pk|$wn" }
+        }
+        val ew = intel.won[enemy][c.id] ?: 0
+        if (ew > 0) { val d = 0.35 * ew * (cf / 100).coerceIn(0.3, 1.0); v += d; if (d > nv) { nv = d; note = "pd|$ew" } }
+        val eb = intel.bannedBy[enemy][c.id] ?: 0
+        if (eb > 0) { val o = 0.2 * minOf(eb, 2) * (cf / 100).coerceIn(0.3, 1.0); v += o; if (o > nv) { nv = o; note = "po|$eb" } }
+        var ans = 0.0; var ref = ""; var refN = 0
+        for ((e, n) in intel.played[enemy]) {
+            if (e == c.id || e in picks[enemy] || !legal(enemy, false, e)) continue
+            val sc = cv.score(c.id, e) * minOf(n, 3) * (if ((intel.won[enemy][e] ?: 0) > 0) 1.3 else 0.8)
+            if (sc > ans) { ans = sc; ref = e; refN = n }
+        }
+        if (ans > 0) { val av = know[team] * 0.35 * minOf(ans, 2.0); v += av; if (av > nv) { nv = av; note = "pa|$refN|$ref" } }
+        return a * v to note
+    }
+
+    /** Bans this team made last game and dropped this game, each paired with the new ban that took its slot. */
+    private fun dropNotes(): List<String> {
+        if (intel.games == 0) return emptyList()
+        val out = ArrayList<String>()
+        for (team in 0..1) {
+            val mine = order.withIndex().filter { it.value.startsWith("b|$team|") }.map { it.index to it.value.split('|')[2] }
+            val now = mine.map { it.second }.toSet()
+            val dropped = intel.lastBans[team].filter { it !in now && it !in locked[1 - team] }
+            // Only a new ban the series explains (what beat us) is paired with the ban it replaced.
+            val reasoned = notes.mapNotNull { DraftNotes.parse(it) }.filter { it.kind[0] == 'b' }.map { it.step }.toSet()
+            val fresh = mine.filter { it.second !in intel.lastBans[team] && it.first in reasoned }
+            for (k in 0 until minOf(dropped.size, fresh.size)) out.add(DraftNotes.encode(fresh[k].first, "bd", 0, dropped[k]))
+        }
+        return out
+    }
+
     private fun nextPickIsMine(team: Int): Boolean {
         var k = step + 1
         while (true) {
@@ -175,6 +276,10 @@ class DraftSession(
      * picks (weighted by the player's level), what the opponents already showed in earlier games
      * through `locked`, minus "handshake" picks this team wants to take itself next.
      */
+    private var banNote: String? = null
+    /** Whether a team already banned the enemy's key character this draft (the note names one per team). */
+    private val keyBanned = BooleanArray(2)
+
     private fun chooseBan(team: Int): CharDef? {
         val enemy = 1 - team
         // Deep in a long Fearless series the pool runs low: bans stop while both teams still need picks from it.
@@ -193,6 +298,13 @@ class DraftSession(
         val mPref8 = mySlots.map { prefs[team][it].take(8) }
         for (l in ePref6) cand.addAll(l)
         cand.addAll(topMeta)
+        // What the enemy showed in earlier games and recent matches.
+        if (adapt[team] > 0) {
+            for (cid in intel.played[enemy].keys.sorted()) t.charIndex[cid]?.let { cand.add(it) }
+            for (cid in intel.recent[enemy].keys.sorted()) t.charIndex[cid]?.let { cand.add(it) }
+        }
+        val key = keyThreat(team)
+        banNote = null
         if (know[team] > 0.5) for (i in open[team]) prefs[team][i].firstOrNull()?.let { mp -> cv.countersTo(mp.id, 2).forEach { cid -> t.charIndex[cid]?.let { cand.add(it) } } }
         val mineNext = nextPickIsMine(team)
         var best: CharDef? = null; var bv = -9.0
@@ -216,9 +328,12 @@ class DraftSession(
             var threat = 0.0
             for (i in open[team]) prefs[team][i].firstOrNull { legal(team, false, it.id) && it.id != c.id }?.let { mp -> threat = maxOf(threat, cv.score(c.id, mp.id) * comfortOf[team][i](mp) / 100) }
             var v = wMeta * op + wTarget * target * 1.4 + know[team] * (threat * 0.9 - answer * 0.8 * minOf(1.0, op)) + rng.normal(0.0, 0.3)
+            // Earlier games: ban what is beating us, drop bans that did not help.
+            val (sv, sn) = seriesBan(team, c, op, key)
+            v += sv
             // Handshake: a power pick we can take with our next pick stays open.
             if (mineNext && (style == 3 || style == 2) && mine > 0.45 && op > 0.3) v -= 1.2 + mine
-            if (v > bv) { bv = v; best = c }
+            if (v > bv) { bv = v; best = c; banNote = if (sn != null && sv > 0.5 && sv >= wMeta * op && sv >= wTarget * target * 1.4) sn else null }
         }
         return best ?: t.characters.firstOrNull { legal(team, true, it.id) }
     }
@@ -247,12 +362,20 @@ class DraftSession(
                 if (picks[team].isNotEmpty()) { val syn = picks[team].sumOf { cv.synergy(c.id, it) } / picks[team].size; v += 0.7 * syn; if (syn > 0.15) why.add("fits your picks") }
                 if (picks[enemy].isNotEmpty()) { val ctr = picks[enemy].sumOf { cv.score(c.id, it) } / picks[enemy].size; v += 0.9 * ctr; if (ctr > 0.15) why.add("good against their comp") }
                 if (t.isMoba && dev.uem.em.titles.RoleMeta.pos(t.lineupRoles[i].id) == dev.uem.em.titles.RoleMeta.BOT && dev.uem.em.titles.RoleMeta.botBias(botMeta, c) > 0.1) why.add("fits the bot-lane meta")
+                // Earlier games of the series.
+                val (sv, sn) = seriesPick(team, i, c)
+                v += sv
+                sn?.let { DraftNotes.advice(t, it) }?.let { why.add(it) }
+                val (pl, wn, _) = intel.own(team, c.id)
+                if (pl > wn && sv < 0) why.add("you lost with it ${if (pl - wn == 1) "once" else "${pl - wn} times"} this series")
                 out.add(Triple(c, v, why))
             }
         } else {
             val enemySlots = open[enemy].ifEmpty { lineups[enemy].indices.toList() }
             val cand = LinkedHashSet<CharDef>()
             for (i in enemySlots) cand.addAll(prefs[enemy][i].take(5)); cand.addAll(topMeta)
+            for (cid in intel.played[enemy].keys.sorted()) t.charIndex[cid]?.let { cand.add(it) }
+            val key = keyThreat(team)
             for (c in cand) {
                 if (!legal(team, true, c.id)) continue
                 val why = ArrayList<String>()
@@ -263,8 +386,11 @@ class DraftSession(
                 if (target > 0.3) why.add("$who's comfort pick")
                 var threat = 0.0
                 for (i in open[team]) prefs[team][i].firstOrNull { legal(team, false, it.id) && it.id != c.id }?.let { mp -> val th = cv.score(c.id, mp.id); if (th > threat) threat = th; if (th > 0.2) why.add("counters your ${mp.name}") }
+                val (sv, sn) = seriesBan(team, c, op, key)
+                sn?.let { DraftNotes.advice(t, it) }?.let { why.add(0, it) }
+                if ((intel.bannedLost[team][c.id] ?: 0) > 0) why.add("you banned it before and still lost")
                 if (why.isEmpty()) continue
-                out.add(Triple(c, 1.6 * op + 1.4 * target + 0.9 * threat, why.distinct()))
+                out.add(Triple(c, 1.6 * op + 1.4 * target + 0.9 * threat + sv, why.distinct()))
             }
         }
         return out.sortedByDescending { it.second }.distinctBy { it.first.id }.take(n).map { it.first to it.third }
@@ -306,7 +432,10 @@ class DraftSession(
         val team = cur.first
         if (cur.second) {
             val c = chooseBan(team)
-            if (c != null) { banned.add(c.id); bans.add(c.id); order.add("b|$team|${c.id}") }
+            if (c != null) {
+                banned.add(c.id); bans.add(c.id); order.add("b|$team|${c.id}")
+                banNote?.let { notes.add("${order.size - 1}|$it"); if (it.startsWith("bk|")) keyBanned[team] = true }
+            }
             step++
             return
         }
@@ -314,6 +443,7 @@ class DraftSession(
         var best = -99.0
         var bc: CharDef? = null
         var bi = -1
+        var bn: String? = null
         val enemy = 1 - team
         val k = know[team]
         // Lane opponents already shown by the enemy (their character by lineup slot).
@@ -331,15 +461,26 @@ class DraftSession(
                 if (picks[enemy].isNotEmpty()) v += k * 0.9 * picks[enemy].sumOf { cv.score(c.id, it) } / picks[enemy].size
                 if (picks[team].isNotEmpty()) v += k * 0.7 * picks[team].sumOf { cv.synergy(c.id, it) } / picks[team].size
                 v += k * 0.5 * (cv.power(c.id) - 0.5)
+                // Earlier games of the series: keep what won, move off what lost, deny, answer.
+                val (sv, sn) = seriesPick(team, i, c)
+                v += sv
                 v += rng.next() * 0.45
-                if (v > best) { best = v; bc = c; bi = i }
+                if (v > best) { best = v; bc = c; bi = i; bn = if (sv > 0.45) sn else null }
             }
         }
         if (bc == null) {
             bi = open[team][0]
             bc = t.characters.filter { legal(team, false, it.id) }.maxByOrNull { patch.charMeta[it.id] ?: 0.0 } ?: exhausted(team)
         }
-        if (bc != null) place(team, bi, bc.id)
+        if (bc != null) {
+            place(team, bi, bc.id)
+            val at = order.size - 1
+            bn?.let { notes.add("$at|$it") }
+            // The player lost the last game on another character still open to them: a switch.
+            val prev = intel.lastChar[team][lineups[team][bi].id]
+            if (intel.games > 0 && intel.lastWinner != team && prev != null && prev != bc.id && legal(team, false, prev) &&
+                t.charIndex[prev]?.let { seriesPick(team, bi, it).first < -0.25 } == true) notes.add(DraftNotes.encode(at, "ps", 0, prev))
+        }
         step++
     }
 
@@ -378,5 +519,5 @@ class DraftSession(
     private fun exhausted(team: Int): CharDef? =
         t.characters.filter { it.id !in picked && it.id !in banned }.maxByOrNull { patch.charMeta[it.id] ?: 0.0 }
 
-    fun result() = Draft.Result(picks, bans, assign, firstPick, order)
+    fun result() = Draft.Result(picks, bans, assign, firstPick, order, notes + dropNotes())
 }

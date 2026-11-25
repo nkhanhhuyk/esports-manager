@@ -157,6 +157,21 @@ private fun DraftView(live: LiveMatch) {
                 for (id in d.picks[side]) { CharPic(id, t.charIndex[id]?.name ?: id, 26.dp); HGap(2) }
             }
             if (d.bans.isNotEmpty()) Row(verticalAlignment = Alignment.CenterVertically) { Muted("Bans ", 11); for (b in d.bans) { Box(Modifier.alpha(0.5f)) { CharPic(b, t.charIndex[b]?.name ?: b, 20.dp) }; HGap(2) } }
+            // The last step, when the earlier games shaped it: how the other side is adapting.
+            val lastStep = d.order.size - 1
+            d.order.lastOrNull()?.split('|')?.takeIf { it.size >= 3 }?.let { p ->
+                val tm = p[1].toIntOrNull() ?: return@let
+                val why = dev.uem.em.sim.DraftNotes.forStep(t, d.notes, lastStep, s.teams[1 - tm].short)
+                if (why.isNotEmpty()) Text("↻ ${s.teams[tm].short} ${if (p[0] == "b") "banned" else "picked"} ${t.charIndex[p[2]]?.name ?: p[2]}: ${why.joinToString(" · ")}", color = Ui.gold, fontSize = 11.sp)
+            }
+            // From game 2: what each side has shown so far in the series.
+            if (s.games.isNotEmpty() && t.isMoba) {
+                val intel = remember(s.gi) { s.intel() }
+                for (side in 0..1) {
+                    val won = intel.won[side].entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key }).take(4)
+                    if (won.isNotEmpty()) Muted("${s.teams[side].short} won with " + won.joinToString { "${t.charIndex[it.key]?.name ?: it.key}${if (it.value > 1) " ×${it.value}" else ""}" }, 10)
+                }
+            }
             Gap(4)
             Text(when {
                 d.done || !d.sequential -> "Draft complete"

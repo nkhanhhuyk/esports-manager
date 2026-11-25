@@ -246,6 +246,26 @@ screen instead of closing the app, and the app keeps the last crash on the phone
 the title screen at the next launch. `LaunchTest` opens the real activity (phone, the foldable's inner screen,
 its cover screen sideways, rotation) and the slow, unloaded start-up.
 
+## Fifteenth follow-up: drafts that adapt to the earlier games
+
+Teams used to draft every game of a series as if it were the first: the same bans, the same comfort picks.
+Now each draft reads what the earlier games showed (`sim/SeriesIntel.kt`), on top of everything it already
+weighed (patch strength, comfort, counters, synergy, the team's ban style, scrims, preparation, Fearless):
+
+| Step | What changes from game 2 |
+|---|---|
+| Bans | What the other team played and won with is a ban target, more when it won with it twice, more when its player rated well on it; the best-working one is named "the heart of their comp". A ban that did not stop you losing gives its slot to what beat you (an overpowered character stays banned); a ban in a game you won tends to stay. |
+| Picks | The winner keeps what worked (more when the player did well on it); the loser moves off what lost (less for a signature pick); a team takes away a character the opponent won with when one of its players can play it, takes a comfort pick the opponent banned before and left open, and picks answers to what the opponent keeps playing. |
+| Who adapts more | The team that lost the last game adapts more than the winner, more again when behind in the series; better analysts and coaches read it better. |
+| Across matches | Each team keeps a short, fading memory of the characters it showed in recent official series (`Team.shown`); opponents' bans lean a little toward what that team has been winning with, so league bans follow the opponent instead of being the same every week. |
+| Shown | The match report's draft recap marks adapted steps with ↻ and the reason ("the heart of BLG's comp: won 2 games with it", "switched off Azir after the loss", "replaces last game's Kalista ban"); the live draft shows the other side's last adapted step and what each side has won with so far; the draft assistant gives the same series reasons. |
+
+Measured in `DraftAdaptTest` (50 Bo5 series per MOBA without Fearless, same teams drafted again without memory): a
+character a team won with twice is banned in the next game 70–97 % of the time (15–29 % before); last game's
+winning picks are banned 40–75 % (18–25 %); the loser keeps 29–33 % of its picks (about 52 % before) while the
+winner keeps 50–57 %; bans repeated from the last game fall from 27–44 % to 20–31 %. In a Bo1 league, the
+opponent's best recent character is banned 60–68 % of the time (46–50 % without the memory).
+
 ## Tests and results (JVM, `./gradlew testDebugUnitTest`)
 
 All suites pass (23 classes, including `DraftVarietyTest`, `MobaSideTest`, `WorldIsolationTest`). New or extended:
@@ -264,6 +284,9 @@ All suites pass (23 classes, including `DraftVarietyTest`, `MobaSideTest`, `Worl
   old result kept; drafts and editions survive save/load.
 * `IntegrityTest.twentySeasonSoak` (UEM_SOAK=1) — now also checks a recurring custom event is played
   exactly once per season and fixture ids stay unique.
+* `DraftAdaptTest` — drafts adapt within a series (bans on what won, dropped bans, winner keeps / loser
+  switches, measured against the same series without memory), league bans follow each opponent's recent
+  picks, the real series path records readable notes, same inputs give the same draft, the memory stays small.
 * Existing `ReplayTest` (recording/watching never changes results, replays add up to box scores,
   interrupted live series resume identically, results applied once), `IntegrityTest`, `SaveTest`,
   `SeasonTest`, `ScreenshotTest` (renders the new viewers and analysis) pass.
@@ -312,7 +335,7 @@ Replays → "Important" (default) or "Off" keeps the page storage down.
 ## Saves and migration
 
 All schema changes are appended fields (`Replay.per/step/posN/pos/posT`, `Competition.finalBo/
-customId`, `World.customComps`, `CompTier.CUSTOM` at the end), so existing saves load. Replays made
+customId`, `World.customComps`, `CompTier.CUSTOM` at the end, `GameRecord.draftNotes`, `Team.shown`), so existing saves load. Replays made
 before this upgrade (v1) still play in the previous event view; their analysis shows "unavailable"
 rather than invented heatmaps.
 

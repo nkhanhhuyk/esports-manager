@@ -88,7 +88,10 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
 
     fun draftSession(s: Setup) = DraftSession(t, patch, players, arrayOf(styleOf(0), styleOf(1)), s.firstPick, locked(), s.rng,
         DoubleArray(2) { i -> (Draft.knowledge(w, teams[i]) + dev.uem.em.mgmt.Prep.knowledgeBonus(prep[i])).coerceAtMost(1.0) }, IntArray(2) { i -> Draft.banTendency(w, teams[i]) },
-        Array(2) { i -> dev.uem.em.mgmt.Prep.comfort(prep[i], players[i], dev.uem.em.mgmt.Scrims.bonus(w, teams[i])) }, dev.uem.em.titles.RoleMeta.bot(w, t.id))
+        Array(2) { i -> dev.uem.em.mgmt.Prep.comfort(prep[i], players[i], dev.uem.em.mgmt.Scrims.bonus(w, teams[i])) }, dev.uem.em.titles.RoleMeta.bot(w, t.id), intel())
+
+    /** What the earlier games of this series, and each team's recent matches, showed (the draft adapts to it). */
+    fun intel() = SeriesIntel.of(games, arrayOf(teams[0].shown, teams[1].shown))
 
     /** Simulate one game with a finished draft; `record` keeps events for the 2D view. */
     /** Tactical timeouts allowed per team per map in this series' competition. */
@@ -143,7 +146,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
             // Neutral objectives taken (code * 2 + side), in series team order.
             val objs = IntArray(out.objs.size) { i -> (out.objs[i] shr 1) * 2 + order[out.objs[i] and 1] }
             val score = if (s.blue == 0) out.score else intArrayOf(out.score[1], out.score[0])
-            g = GameRecord(winnerSeries, out.duration, s.mapId, s.blue, intArrayOf(s.chooser, s.choice, if (s.byLoser) 1 else 0, s.firstPick), draft.bans, draft.picks[0] + draft.picks[1], score, lines, draftOrder = draft.order, objs = objs)
+            g = GameRecord(winnerSeries, out.duration, s.mapId, s.blue, intArrayOf(s.chooser, s.choice, if (s.byLoser) 1 else 0, s.firstPick), draft.bans, draft.picks[0] + draft.picks[1], score, lines, draftOrder = draft.order, objs = objs, draftNotes = draft.notes)
         } else {
             val firstAttack = if (grng.chance(0.5)) 0 else 1
             val out = if (quick && rec == null) QuickSim.shooter(t, ctx.toList(), evals, firstAttack, grng)

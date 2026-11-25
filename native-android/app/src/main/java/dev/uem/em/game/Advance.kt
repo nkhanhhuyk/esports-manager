@@ -237,6 +237,8 @@ object Advance {
             }
             for (b in g.bans) w.charStats.getOrPut("${w.season}|$b") { IntArray(3) }[2]++
         }
+        // What each team showed: the next opponents' drafts read it (MOBAs with a ban / pick draft).
+        if (t.isMoba && t.draft.mode == "sequential") for (s in 0..1) if (teamIds[s] >= 0) dev.uem.em.sim.SeriesIntel.remember(w.teams[teamIds[s]].shown, o.record.games, s)
         if (o.mvp >= 0) {
             w.players[o.mvp].stats.lastOrNull { it.season == w.season && it.titleId == t.id }?.let { it.mvps++ }
             c.pstats[o.mvp]?.let { it.m++ }
