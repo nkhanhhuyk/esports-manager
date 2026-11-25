@@ -232,7 +232,10 @@ fun CompareScreen(vm: GameVm, w: World, a: Int, b: Int) {
 
 // ---------------------------------------------------------------------------------------- history
 
-private val HISTORY_TABS = listOf("Champions by season", "GOAT rankings", "Hall of Fame", "Dynasties", "Retired archive")
+private val HISTORY_TABS = listOf("Champions by season", "GOAT rankings", "Hall of Fame", "Dynasties", "Retired archive", "Before the save")
+
+/** A legacy table row: a player of this world, or a real legend who retired before the save. */
+private class LegacyRow(val p: Player?, val legend: dev.uem.em.mgmt.HistoryBook.Legend?, val name: String, val titleId: String, val score: Legacy.Score, val trophies: Int, val awards: Int, val status: String)
 private const val HOF_THRESHOLD = 60.0
 
 @Composable
@@ -275,22 +278,34 @@ fun HistoryScreen(vm: GameVm, w: World) {
             }
             1, 2 -> item {
                 val rows = remember(title, vm.version, tab) {
-                    w.players.filter { p -> (title == null || p.titleId == title || p.stats.any { it.titleId == title }) && (p.stats.isNotEmpty() || p.awards.isNotEmpty()) }
-                        .map { it to Legacy.of(w, it) }.filter { tab == 1 || (it.first.retired && it.second.total >= HOF_THRESHOLD) }.sortedByDescending { it.second.total }.take(150)
+                    // Players of this world (real careers before the save count), and real legends who retired before it.
+                    val inWorld = w.players.filter { p -> (title == null || p.titleId == title || p.stats.any { it.titleId == title }) && (p.stats.isNotEmpty() || p.awards.isNotEmpty() || dev.uem.em.mgmt.HistoryBook.of(w, p).isNotEmpty()) }
+                        .map { p -> val sc = Legacy.of(w, p); val hs = Legacy.honours(w, p)
+                            LegacyRow(p, null, p.handle, p.titleId, sc, hs.count { it.trophy }, hs.count { !it.trophy && !it.label.contains("runner-up") },
+                                if (p.retired) "retired ${p.retiredSeason}" else p.teamId.takeIf { it >= 0 }?.let { w.teams[it].short } ?: if (p.stats.isEmpty()) "retired before the save" else "free agent") }
+                        // Hall of Fame: retired in the save, or a real career that ended before it (no team, no games in the save).
+                        .filter { r -> tab == 1 || (r.score.total >= HOF_THRESHOLD && (r.p!!.retired || (r.p.teamId < 0 && r.p.stats.isEmpty()))) }
+                    val legends = if (w.fictional) emptyList() else dev.uem.em.mgmt.HistoryBook.absent(w, title).map { l -> val sc = Legacy.ofLegend(l)
+                        LegacyRow(null, l, l.handle, l.titleId, sc, l.titles, l.honours.count { !it.trophy && !it.final }, "retired before the save (${l.firstYear}–${l.lastYear})") }
+                        .filter { tab == 1 || it.score.total >= HOF_THRESHOLD }
+                    (inWorld + legends).sortedByDescending { it.score.total }.take(200)
                 }
                 Card(if (tab == 1) (title?.let { "${Catalogue.get(it).name} all-time greats" } ?: "Greatest of all time (prestige-weighted)") else "Hall of Fame (retired, legacy ≥ ${HOF_THRESHOLD.toInt()})") {
+                    Muted("Real careers before the save count (League of Legends events since 2011, CS Majors, The International, VCT internationals); legends who retired before it are inducted on their real records.", 11)
+                    Gap(4)
                     if (rows.isEmpty()) Muted(if (tab == 2) "Nobody has been inducted yet: players enter when they retire with a legacy of ${HOF_THRESHOLD.toInt()}+." else "No players yet.")
                     else SortTable(rows, listOf(
-                        SCol<Pair<Player, Legacy.Score>>("Player", 130.dp, false) { (p, _) -> Row(verticalAlignment = Alignment.CenterVertically) { p.nats().joinToString("") { flag(it) }.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp); HGap(3) }; PlayerChip(p, vm, 18.dp) } },
-                        SCol("Title", 52.dp, false) { (p, _) -> TitleTag(p.titleId) },
-                        SCol("Trophies", 56.dp, key = { (p, _) -> Legacy.honours(w, p).count { it.trophy }.toDouble() }) { (p, _) -> Num("${Legacy.honours(w, p).count { it.trophy }}", Ui.gold) },
-                        SCol("Awards", 50.dp, key = { (p, _) -> w.awards.count { it.playerId == p.id }.toDouble() }) { (p, _) -> Num("${w.awards.count { it.playerId == p.id }}") },
-                        SCol("Achieve.", 58.dp, key = { it.second.achievements }) { Num("%.1f".format(it.second.achievements)) },
-                        SCol("Peak", 44.dp, key = { it.second.peak }) { Num("%.1f".format(it.second.peak)) },
-                        SCol("Longev.", 52.dp, key = { it.second.longevity }) { Num("%.1f".format(it.second.longevity)) },
-                        SCol("Legacy", 52.dp, key = { it.second.total }) { Num("%.1f".format(it.second.total), Ui.gold, bold = true) },
-                        SCol("Status", 80.dp, false) { (p, _) -> Muted(if (p.retired) "retired ${p.retiredSeason}" else p.teamId.takeIf { it >= 0 }?.let { w.teams[it].short } ?: "free agent", 11) },
-                    ), initialSort = 7, onRow = { vm.go(Screen.Player(it.first.id)) })
+                        SCol<LegacyRow>("Player", 130.dp, false) { r -> if (r.p != null) Row(verticalAlignment = Alignment.CenterVertically) { r.p.nats().joinToString("") { flag(it) }.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp); HGap(3) }; PlayerChip(r.p, vm, 18.dp) } else Text(r.name, color = Ui.text, fontSize = 14.sp, fontWeight = FontWeight.Medium) },
+                        SCol("Title", 52.dp, false) { r -> TitleTag(r.titleId) },
+                        SCol("Trophies", 56.dp, key = { it.trophies.toDouble() }) { r -> Num("${r.trophies}", Ui.gold) },
+                        SCol("Awards", 50.dp, key = { it.awards.toDouble() }) { r -> Num("${r.awards}") },
+                        SCol("Achieve.", 58.dp, key = { it.score.achievements }) { Num("%.1f".format(it.score.achievements)) },
+                        SCol("Real past", 58.dp, key = { it.score.pastPts }) { Num(if (it.score.pastPts > 0) "%.1f".format(it.score.pastPts) else "—", Ui.muted) },
+                        SCol("Peak", 44.dp, key = { it.score.peak }) { Num("%.1f".format(it.score.peak)) },
+                        SCol("Longev.", 52.dp, key = { it.score.longevity }) { Num("%.1f".format(it.score.longevity)) },
+                        SCol("Legacy", 52.dp, key = { it.score.total }) { Num("%.1f".format(it.score.total), Ui.gold, bold = true) },
+                        SCol("Status", 150.dp, false) { r -> Muted(r.status, 11) },
+                    ), initialSort = 8, onRow = { r -> r.p?.let { vm.go(Screen.Player(it.id)) } })
                 }
             }
             3 -> item {
@@ -310,6 +325,28 @@ fun HistoryScreen(vm: GameVm, w: World) {
                             Pic(org.teams.firstNotNullOfOrNull { Pics.team(w.teams[it]) }, org.short, 20.dp); HGap(6)
                             Column(Modifier.weight(1f)) { Text(org.name, color = if (o == w.userOrg) Ui.gold else Ui.text, fontSize = 13.sp); Muted("${a[0]} worlds · ${a[1]} internationals · ${a[2]} leagues", 10) }
                             Text("$total", color = Ui.gold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+            5 -> {
+                val evs = dev.uem.em.mgmt.HistoryBook.champions(title)
+                item {
+                    Card("Real history before the save") {
+                        Muted(dev.uem.em.mgmt.HistoryBook.coverage, 11)
+                        for ((k, v) in dev.uem.em.mgmt.HistoryBook.sources) Muted("• $v", 10)
+                    }
+                }
+                if (evs.isEmpty()) item { Card { EmptyNote("No real history recorded for this game.") } }
+                for ((year, list) in evs.groupBy { it.year }) item(key = "rh$year") {
+                    Card("$year") {
+                        for (e in list) Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (title == null) TitleTag(e.titleId)
+                                Text(e.name, color = if (e.tier == "worlds") Ui.gold else Ui.text, fontSize = 13.sp, fontWeight = if (e.tier == "worlds") FontWeight.Bold else FontWeight.Medium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Text("🏆 ${e.winner}" + if (e.runnerUp.isNotBlank()) "  ·  def. ${e.runnerUp}" else "", color = Ui.text, fontSize = 12.sp)
+                            if (e.winners.isNotEmpty()) Muted(e.winners.joinToString(", "), 11)
                         }
                     }
                 }

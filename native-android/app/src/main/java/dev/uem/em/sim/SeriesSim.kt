@@ -88,7 +88,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
 
     fun draftSession(s: Setup) = DraftSession(t, patch, players, arrayOf(styleOf(0), styleOf(1)), s.firstPick, locked(), s.rng,
         DoubleArray(2) { i -> (Draft.knowledge(w, teams[i]) + dev.uem.em.mgmt.Prep.knowledgeBonus(prep[i])).coerceAtMost(1.0) }, IntArray(2) { i -> Draft.banTendency(w, teams[i]) },
-        Array(2) { i -> dev.uem.em.mgmt.Prep.comfort(prep[i], players[i], dev.uem.em.mgmt.Scrims.bonus(w, teams[i])) })
+        Array(2) { i -> dev.uem.em.mgmt.Prep.comfort(prep[i], players[i], dev.uem.em.mgmt.Scrims.bonus(w, teams[i])) }, dev.uem.em.titles.RoleMeta.bot(w, t.id))
 
     /** Simulate one game with a finished draft; `record` keeps events for the 2D view. */
     /** Tactical timeouts allowed per team per map in this series' competition. */
@@ -108,7 +108,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
         lastLoser = lastLoserBefore
     }
 
-    fun play(s: Setup, draft: Draft.Result, record: Boolean = false, timeouts: TimeoutPlan? = null): GameRecord {
+    fun play(s: Setup, draft: Draft.Result, record: Boolean = false, timeouts: TimeoutPlan? = null, mobaCalls: List<Triple<Int, Int, String>> = emptyList()): GameRecord {
         lastLoserBefore = lastLoser
         // The game's own random stream: the same game can be replayed exactly (with a different timeout).
         val grng = Rng.derive(w.seed, f.id, "play", gi)
@@ -132,7 +132,7 @@ class LiveSeries(val w: World, val f: Fixture, val lineups: Array<List<Int>>, pr
             val sideCtx = order.mapIndexed { si, sx -> TeamCtx(ctx[sx].team, si, ctx[sx].players, ctx[sx].phase, ctx[sx].overall, ctx[sx].aggression) }
             val out = if (quick && rec == null) QuickSim.moba(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), grng, w)
                 else MobaEngine.simulate(t, sideCtx, arrayOf(evals[order[0]], evals[order[1]]), grng, patch, rec,
-                MobaEngine.Opts(coachComms, doubleArrayOf(coachQ(order[0]), coachQ(order[1])), w))
+                MobaEngine.Opts(coachComms, doubleArrayOf(coachQ(order[0]), coachQ(order[1])), w, mobaCalls.map { (sec, team, call) -> Triple(sec, order.indexOf(team), call) }))
             winnerSeries = order[out.winner]
             // Recorded events use series team indexes.
             if (rec != null) {

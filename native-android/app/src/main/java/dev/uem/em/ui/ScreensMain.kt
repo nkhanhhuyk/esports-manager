@@ -21,6 +21,13 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -108,7 +115,7 @@ fun StartScreen(vm: GameVm) {
     var name by remember { mutableStateOf("Career") }
     var fictional by remember { mutableStateOf(false) }
     var saves by remember(vm.slot, vm.unsaved, vm.busy) { mutableStateOf(vm.saves()) }
-    LazyColumn(Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
             Column(Modifier.fillMaxWidth().padding(12.dp).clip(RoundedCornerShape(20.dp)).background(Ui.hero).padding(horizontal = 20.dp, vertical = 24.dp)) {
                 Text("ESPORTS", color = Color.White.copy(alpha = 0.8f), fontWeight = FontWeight.Black, fontSize = 14.sp, letterSpacing = 4.sp)
@@ -213,6 +220,7 @@ fun StartScreen(vm: GameVm) {
                 Tabs(listOf("Load pictures online", "Game art only"), if (online) 0 else 1) { online = it == 0; Pics.online = online; vm.setPicturesOnline(online) }
             }
             Card("Performance") { SpeedSetting(vm) }
+            AppearanceCard(vm)
         }
     }
 }
@@ -225,7 +233,7 @@ fun PickOrgScreen(vm: GameVm, w: World) {
         w.orgs.filter { o -> o.teams.any { w.teams[it].active && (title == null || w.teams[it].titleId == title) } }
             .sortedWith(compareByDescending<dev.uem.em.model.Org> { it.real }.thenByDescending { it.rep })
     }
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
         Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 4.dp)) {
             Text("STEP 1 OF 2", color = Ui.accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             Text("Choose your job", color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 22.sp)
@@ -373,9 +381,12 @@ internal fun QuickActions(vm: GameVm, w: World, spectator: Boolean = false) {
         Shortcut("Finances", Icons.Rounded.Build, Screen.Finances, tint = Ui.win), Shortcut("Matches", Icons.Rounded.PlayArrow, Screen.Watch, tint = Ui.red),
         Shortcut("Social", Icons.Rounded.ThumbUp, Screen.Social, tint = Ui.accent2), Shortcut("Stats", Icons.AutoMirrored.Rounded.List, Screen.Stats, tint = Ui.gold),
     )
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    // Wide screens: the shortcuts share the whole width; phones: a row that scrolls sideways.
+    val fill = maxWidth >= (items.size * 84 + 24).dp
+    Row(Modifier.fillMaxWidth().let { if (fill) it else it.horizontalScroll(rememberScrollState()) }.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         for (s in items) Column(
-            Modifier.width(76.dp).clip(RoundedCornerShape(14.dp)).background(Ui.card).border(1.dp, Ui.line.copy(alpha = 0.7f), RoundedCornerShape(14.dp)).clickable { vm.go(s.screen) }.padding(vertical = 10.dp),
+            (if (fill) Modifier.weight(1f) else Modifier.width(76.dp)).clip(RoundedCornerShape(14.dp)).background(Ui.card).border(1.dp, Ui.line.copy(alpha = 0.7f), RoundedCornerShape(14.dp)).clickable { vm.go(s.screen) }.padding(vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box {
@@ -385,6 +396,7 @@ internal fun QuickActions(vm: GameVm, w: World, spectator: Boolean = false) {
             Gap(6)
             Text(s.label, color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
         }
+    }
     }
 }
 
@@ -407,12 +419,14 @@ fun HomeScreen(vm: GameVm, w: World) {
     if (w.userOrg < 0) { SpectatorHome(vm, w); return }
     val org = w.orgs[w.userOrg]
     val teams = org.teams.map { w.teams[it] }.filter { it.active }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
-        item(key = "header") { ClubHeader(w, org, teams) }
-        item(key = "resume") { ResumeLiveCard(vm, w) }
-        item(key = "next") { NextMatchHero(vm, w) }
-        item(key = "actions") { QuickActions(vm, w) }
-        item(key = "tiles") {
+    // One column on phones; on wide screens (unfolded, tablets, sideways) the cards flow into two or more.
+    LazyVerticalStaggeredGrid(columns = StaggeredGridCells.Adaptive(380.dp), modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
+        item(key = "header", span = StaggeredGridItemSpan.FullLine) { ClubHeader(w, org, teams) }
+        item(key = "resume", span = StaggeredGridItemSpan.FullLine) { ResumeLiveCard(vm, w) }
+        item(key = "tips", span = StaggeredGridItemSpan.FullLine) { TipCard(vm, w) }
+        item(key = "next", span = StaggeredGridItemSpan.FullLine) { NextMatchHero(vm, w) }
+        item(key = "actions", span = StaggeredGridItemSpan.FullLine) { QuickActions(vm, w) }
+        item(key = "tiles", span = StaggeredGridItemSpan.FullLine) {
             val fin = dev.uem.em.mgmt.Economy.monthly(w, org)
             val net = fin.income - fin.costs
             val unread = w.inbox.count { !it.read }
@@ -552,8 +566,8 @@ fun HomeScreen(vm: GameVm, w: World) {
                 }
             }
         }
-        item { FollowedCard(vm, w) }
-        item {
+        item(key = "followed") { FollowedCard(vm, w) }
+        item(key = "news") {
             Card("News") {
                 val news = w.news.takeLast(8).reversed()
                 news.forEachIndexed { i, n ->
@@ -577,6 +591,7 @@ fun MoreScreen(vm: GameVm, w: World) {
         "Your club" to listOf(
             MoreEntry("Inbox", if (unread > 0) "$unread unread" else "Messages, offers, reports", Icons.Rounded.Email, Screen.Inbox, Ui.accent2, unread),
             MoreEntry("Finances", "Balance, income and expenses, sponsors, facilities", Icons.Rounded.Build, Screen.Finances, Ui.win),
+            MoreEntry("Business", "Sponsor deals, content creators, your venue and fan events", Icons.Rounded.ShoppingCart, Screen.Business, Ui.gold),
             MoreEntry("Board", "Objectives and confidence", Icons.Rounded.Warning, Screen.Board, Ui.gold),
             MoreEntry("Settings", "Difficulty, autosave, pictures, your name", Icons.Rounded.Settings, Screen.Settings, Ui.muted),
         ),
@@ -605,10 +620,13 @@ fun MoreScreen(vm: GameVm, w: World) {
             MoreEntry("Neutral objectives", "Drakes, Baron, Turtles, Lords, Tyrants, Roshan... and what they give", Icons.Rounded.LocationOn, Screen.Library("objectives"), Ui.red),
         ),
     )
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    // Two tiles a row on phones, more on wide screens.
+    val perRow = (maxWidth / 210.dp).toInt().coerceIn(2, 5)
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
         for ((head, entries) in sections) {
             item(key = "h$head") { SectionLabel(head) }
-            for (pair in entries.chunked(2)) item(key = "e${pair[0].title}") {
+            for (pair in entries.chunked(perRow)) item(key = "e${pair[0].title}") {
                 Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 8.dp)) {
                     for (e in pair) Column(
                         Modifier.weight(1f).fillMaxHeight().padding(4.dp).clip(RoundedCornerShape(16.dp)).background(Ui.card).border(1.dp, Ui.line.copy(alpha = 0.7f), RoundedCornerShape(16.dp)).clickable { vm.go(e.screen) }.padding(12.dp),
@@ -623,7 +641,7 @@ fun MoreScreen(vm: GameVm, w: World) {
                         Gap(2)
                         Text(e.sub, color = Ui.muted, fontSize = 11.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 14.sp)
                     }
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                    repeat(perRow - pair.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
@@ -639,6 +657,7 @@ fun MoreScreen(vm: GameVm, w: World) {
             }
         }
         item { Card("Career") { Muted("${w.name} · ${w.players.size} players · ${w.teams.count { it.active }} active teams · ${w.comps.size} competitions · ${w.transfers.size} transfers") } }
+    }
     }
 }
 

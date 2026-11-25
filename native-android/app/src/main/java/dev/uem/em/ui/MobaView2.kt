@@ -202,7 +202,7 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
         else -> null
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    ViewerLayout(header = {
         if (bc) BroadcastUi.SeriesBar(w, f, g)
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             TeamPic(teams[blue], 26.dp)
@@ -220,6 +220,7 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
         Text("${map.name} · structures destroyed ${down[1]}–${down[0]} · objectives ${objs[0]}–${objs[1]} · gold lead ${k1(abs(teamGold[0] - teamGold[1]))}", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 12.dp))
         // Every kind of neutral objective each team has taken so far (drakes by element, Baron, Turtles, Lords...).
         Column(Modifier.padding(horizontal = 12.dp)) { ObjTallyStrip(ObjTally.fromEvents(w, t, ev, Ti, ::mapSide), listOf(teams[blue].short, teams[1 - blue].short)) }
+        }, map = {
         MapFrame(cam, draw = { W ->
             val u = W / 1000f
             fun p(x: Float, y: Float) = Offset(x * u, y * u)
@@ -393,6 +394,7 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
                 }
             }
         }
+        }, rest = {
         // Playback controls.
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { if (time >= dur) { time = 0f; playing = true } else playing = !playing }) { Text(if (time >= dur) "Replay" else if (playing) "Pause" else "Play", color = Ui.accent) }
@@ -440,6 +442,20 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
             drawLine(Color.White, Offset(Wd * (T / dur), 0f), Offset(Wd * (T / dur), size.height), strokeWidth = 2f)
         }
         if (bc) BroadcastUi.Bookmarks(moments, Ti, { teams[it].short }, { teamCol[mapSide(it)] }) { s -> time = (s - 4).coerceAtLeast(0).toFloat(); playing = false; slate = false }
+        // Your live game: coach calls (the rest of the game is played again from now with the call in effect).
+        LiveHooks.onCall?.let { call ->
+            if (time < dur - 5f) Card("Coach calls", right = { Muted("${LiveHooks.callsLeft} left this game", 11) }) {
+                Muted("A call holds for ${dev.uem.em.sim.MobaEngine.CALL_SECONDS / 60}½ minutes from now and changes how your team plays from here; nothing before this moment changes.", 11)
+                LiveHooks.calls.lastOrNull()?.let { (sec, c) -> Muted("Last call at ${clock(sec)}: ${dev.uem.em.sim.MobaEngine.CALLS.firstOrNull { it.first == c }?.second?.substringBefore(':') ?: c}", 11) }
+                Gap(4)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                    for ((id, desc) in dev.uem.em.sim.MobaEngine.CALLS) Pill(desc.substringBefore(':'), if (LiveHooks.callsLeft > 0) Ui.accentSoft else Ui.card2, if (LiveHooks.callsLeft > 0) Ui.accent else Ui.muted) {
+                        if (LiveHooks.callsLeft > 0) call(id, Ti)
+                    }
+                }
+                for ((id, desc) in dev.uem.em.sim.MobaEngine.CALLS) Muted("• ${desc}", 10)
+            }
+        }
         if (time >= dur) after?.invoke()
         // Scoreboard.
         Card("Scoreboard", right = { Muted("tap a player to follow") }) {
@@ -501,7 +517,7 @@ fun MobaReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable ()
         PlayFeed(w, t, ev, g, Ti, teams, ::mapSide, teamCol)
         Muted("  ${map.name} (walkable grid from the map's terrain; approximate layout). Everything shown — movement, health, abilities, minions, structures, wards, objectives — is the recorded simulation; playback speed and seeking never change it.", 10)
         Spacer(Modifier.height(12.dp))
-    }
+    })
 }
 
 private fun dist(ax: Float, ay: Float, bx: Float, by: Float): Float { val dx = ax - bx; val dy = ay - by; return sqrt(dx * dx + dy * dy) }

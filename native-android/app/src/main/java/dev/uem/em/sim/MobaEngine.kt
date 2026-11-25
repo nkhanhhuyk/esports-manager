@@ -96,7 +96,20 @@ object MobaEngine {
     val PROF_NAMES = listOf("waves", "objectives spawn", "plan", "vision", "heroes", "structures", "objectives", "fights")
 
     /** Match rules for the engine: coach comms allowed, and each side's head coach (0..100). */
-    class Opts(val coachComms: Boolean = false, val coachQ: DoubleArray = doubleArrayOf(50.0, 50.0), val world: dev.uem.em.model.World? = null)
+    class Opts(val coachComms: Boolean = false, val coachQ: DoubleArray = doubleArrayOf(50.0, 50.0), val world: dev.uem.em.model.World? = null,
+               /** Coach calls in a live game: (second, map side, call). Each holds for [CALL_SECONDS] from its second; nothing before it changes. */
+               val calls: List<Triple<Int, Int, String>> = emptyList())
+
+    /** How long a coach call holds. */
+    const val CALL_SECONDS = 150
+    /** The calls a coach can make during a live MOBA game, with what each changes. */
+    val CALLS = listOf(
+        "safe" to "Play safe: no fights without a clear edge, no dives, objectives only when ahead",
+        "fight" to "Force a fight: group up and take fights even when it is close",
+        "objective" to "Play for objectives: group on the next dragon / turtle / lord / Roshan and contest",
+        "split" to "Split-push: put pressure on the weakest side lane",
+        "end" to "Go for the end: push down the lane and dive the base with the numbers you have",
+    )
 
     fun simulate(t: TitleDef, teams: List<TeamCtx>, comp: Array<CompEval>, rng: Rng, patch: Patch? = null, rec: Recorder? = null, opts: Opts = Opts()): GameOutcome =
         MobaSim(t, teams, comp, rng, patch, rec, opts).run()
@@ -1259,6 +1272,14 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
     val planLane = IntArray(2)
     val planObj = IntArray(2) { -1 }
 
+    /** The coach call holding for [side] now (live games), or null. */
+    fun callOf(side: Int): String? {
+        if (opts.calls.isEmpty()) return null
+        var c: Triple<Int, Int, String>? = null
+        for (x in opts.calls) if (x.second == side && x.first <= now && now - x.first < MobaEngine.CALL_SECONDS && (c == null || x.first >= c.first)) c = x
+        return c?.third
+    }
+
     fun teamPower(side: Int): Float { var p = 0f; for (h in bySide[side]) if (h.alive(now)) p += h.power(); return p }
 
     val planSince = IntArray(2)
@@ -1368,6 +1389,18 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
                 val canDive = alive > enemyAlive || (pushUntil[side] > now && alive >= enemyAlive) || ratio > 1.25 || m > cfg.avgLength * 1.6
                 plan[side] = if (highGround && !canDive) 0 else 1
             } else plan[side] = 0
+            // The coach's call (live games) overrides the team's own plan while it holds.
+            when (callOf(side)) {
+                "safe" -> if ((plan[side] == 1 || plan[side] == 2) && ratio < 1.15) plan[side] = 0
+                "fight" -> if (alive >= 4 && m >= cfg.laneEnd * 0.5 && plan[side] == 0) plan[side] = 1
+                "objective" -> if (bestObj >= 0 && alive >= 3 && plan[side] != 3) { plan[side] = 2; planObj[side] = bestObj }
+                "split" -> if (plan[side] != 3 && alive >= 3) {
+                    // The side lane whose front structure is weakest.
+                    plan[side] = 1
+                    planLane[side] = listOf(0, 2).minByOrNull { li -> frontStruct(1 - side, li)?.let { it.hp / it.maxHp } ?: 2f } ?: 0
+                }
+                "end" -> if (alive >= 3 && plan[side] != 3) { plan[side] = 1; pushUntil[side] = max(pushUntil[side], now + 15) }
+            }
             if (plan[side] != old) planSince[side] = now
             if (plan[side] <= 1) huntCheck(side)
         }
@@ -1816,7 +1849,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         // After the laning phase teams pick their fights: a skirmish away from an objective or a push
         // needs a clearer edge, and the back line (carries, mages, supports) does not start it.
         val back = h.marksman || h.mage || h.supportCls
-        val lateC = if (laningNow || h.task == 5) paceCaution else (if (back) R.lateCaution * 2f else R.lateCaution)
+        val callBias = when (callOf(side)) { "safe" -> 0.22f; "fight" -> -0.22f; "end" -> -0.1f; else -> 0f }
+        val lateC = (if (laningNow || h.task == 5) paceCaution else (if (back) R.lateCaution * 2f else R.lateCaution)) + callBias
         val engage = when {
             // A gank in the laning phase goes in with the numbers (the jungler waits for its laner); later collapses as before.
             h.task == 5 && (h.camp == best.gi || h.huntTarget == best.gi) -> ratio > (if (laningNow) 1.15f else 0.75f) || (killable && ratio > 0.8f)

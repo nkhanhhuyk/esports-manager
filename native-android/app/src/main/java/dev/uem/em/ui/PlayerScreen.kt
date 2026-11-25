@@ -82,7 +82,7 @@ fun PlayerScreen(vm: GameVm, w: World, id: Int) {
     val sgp = seasonLines.sumOf { it.gp }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(if (own) Ui.heroGold else Ui.hero).padding(16.dp), verticalAlignment = Alignment.Top) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(if (own) Ui.heroGoldSoft else Ui.heroSoft).padding(16.dp), verticalAlignment = Alignment.Top) {
                 PlayerPic(p, 76.dp, round = true)
                 HGap(14)
                 Column(Modifier.weight(1f)) {
@@ -458,12 +458,23 @@ private fun PlayerHistory(vm: GameVm, w: World, p: Player) {
 private fun PlayerAwards(vm: GameVm, w: World, p: Player, honours: List<Legacy.Honour>, lg: Legacy.Score) {
     Card("Honours") {
         if (honours.isEmpty()) Muted("No honours yet.")
-        for (h in honours) Row(Modifier.fillMaxWidth().clickable(enabled = h.compId >= 0) { vm.go(Screen.Comp(h.compId)) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(if (h.trophy) "🏆" else "🎖", fontSize = 15.sp, modifier = Modifier.width(24.dp))
+        val inGame = honours.filter { !it.past }; val past = honours.filter { it.past }
+        @Composable fun row(h: Legacy.Honour) = Row(Modifier.fillMaxWidth().clickable(enabled = h.compId >= 0) { vm.go(Screen.Comp(h.compId)) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(if (h.trophy) "🏆" else if (h.label.contains("runner-up")) "🥈" else "🎖", fontSize = 15.sp, modifier = Modifier.width(24.dp))
             Text("${h.season}", color = Ui.muted, fontSize = 12.sp, modifier = Modifier.width(40.dp))
             TitleTag(h.titleId)
-            Text(h.label, color = if (h.trophy) Ui.gold else Ui.text, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 2)
+            Column(Modifier.weight(1f)) {
+                Text(h.label, color = if (h.trophy) Ui.gold else Ui.text, fontSize = 13.sp, maxLines = 2)
+                if (h.team.isNotBlank()) Muted(h.team, 11)
+            }
             Muted("+%.1f".format(h.pts), 11)
+        }
+        for (h in inGame) row(h)
+        if (past.isNotEmpty()) {
+            if (inGame.isNotEmpty()) Gap(8)
+            Text("Before the save (real career): ${past.count { it.trophy }} titles, ${past.count { it.label.contains("runner-up") }} other finals", color = Ui.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            for (h in past.take(60)) row(h)
+            if (past.size > 60) Muted("… and ${past.size - 60} more", 11)
         }
     }
     Card("Legacy (GOAT score)") {
@@ -471,6 +482,7 @@ private fun PlayerAwards(vm: GameVm, w: World, p: Player, honours: List<Legacy.H
         KV("Peak ability", "%.1f".format(lg.peak))
         KV("Longevity", "%.1f".format(lg.longevity))
         KV("Volume", "%.1f".format(lg.volume))
+        if (lg.pastPts > 0) KV("of which before the save (real career)", "%.1f".format(lg.pastPts))
         KV("Total", "%.1f".format(lg.total), Ui.gold)
         for ((tid, v) in lg.byTitle) KV(Catalogue.get(tid).name, "%.1f achievement pts".format(v))
     }

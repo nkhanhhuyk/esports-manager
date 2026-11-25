@@ -93,3 +93,21 @@ Entrants tab and on the Road screen with what is official and what is the game's
 - **Development circuits** (amateur, university, Game Changers clubs and events) are fictional.
 
 No Liquipedia or Fandom pages were requested for this phase; no roster or player data was changed.
+
+## Real history before the save (honours.json, 24 Nov 2026)
+
+`src/data/real/honours.json`, read by `mgmt/HistoryBook`:
+
+| Part | Source | Coverage |
+|---|---|---|
+| League of Legends | Leaguepedia Cargo API (lol.fandom.com), tables `Tournaments`, `TournamentResults`, `TournamentPlayers`; a few polite requests, nothing bypassed | 440 events 2011–2026: every World Championship (2017 onwards from the parent event page), MSI, First Stand, EWC, Mid-Season Cup, IEM, KeSPA / Demacia Cups and the top domestic leagues (LCK / OGN Champions, LPL, LEC / EU LCS, LCS / NA LCS, LMS, PCS, VCS, LJL, CBLOL, LCP, LTA, TCL, LLA, OPL, LCL, GPL). Champions and runners-up with their players (coaches left out). A split's regular season is not counted as a title when the split has playoffs. |
+| CS (CS:GO / CS2) | Compiled for this game from public records | Every Major from DreamHack Winter 2013 to the BLAST.tv Austin Major 2025 (winner, runner-up, rosters where reliably known); HLTV player of the year 2013–2024. |
+| Dota 2 | Compiled | The International 2011–2025 (winner, runner-up, rosters where reliably known). |
+| VALORANT | Compiled | Masters and Champions 2021–2025. |
+| Not included | — | Honor of Kings (the game's HoK players are fictional), Wild Rift, MLBB, domestic leagues of CS / Dota / VALORANT. The VALORANT and Wild Rift fan wikis hold almost no tournament data; Liquipedia was not used (it refused automated access earlier); Wikipedia's API was rate-limiting this network. |
+
+Compiled entries were not checked against a live source in this export and may contain gaps; they are labelled
+`"src":"compiled"` in the file. Players are matched by game and handle (case and punctuation ignored), and only
+in real-data worlds: a fictional world has no real history. Scoring: world titles 12 points, international titles
+5–9, league titles 2–4, cups 1.5, a lost final 30% of the title; compiled events count double because only the
+biggest events of those games are recorded.

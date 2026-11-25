@@ -6,6 +6,17 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.rounded.DateRange
+import androidx.compose.material.icons.rounded.Email
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -66,6 +77,12 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun AppRoot(vm: GameVm, exit: () -> Unit) {
+    // Theme: dark, light or the phone's setting; the status / navigation bar icons follow it.
+    val sysDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val want = if (vm.themeMode == "light" || (vm.themeMode == "system" && !sysDark)) Ui.LIGHT else Ui.DARK
+    if (Ui.palette !== want) androidx.compose.runtime.SideEffect { Ui.palette = want }
+    val activity = androidx.compose.ui.platform.LocalContext.current as? dev.uem.em.MainActivity
+    LaunchedEffect(want.dark) { activity?.edgeToEdge(want.dark) }
     MaterialTheme(colorScheme = Ui.scheme, typography = Ui.typography, shapes = Ui.shapes) {
         BackHandler { if (!vm.back()) exit() }
         Box(Modifier.fillMaxSize().background(Ui.bg)) {
@@ -77,11 +94,9 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
             if (busy != null) BusyScreen(vm, busy)
             else if (w == null || vm.screen == Screen.Start) StartScreen(vm)
             else if (vm.screen == Screen.PickOrg || (w.userOrg < 0 && !w.spectator)) PickOrgScreen(vm, w)
-            else if (w.sacked) Column(Modifier.fillMaxSize().statusBarsPadding()) { JobOffersScreen(vm, w) }
-            else if (vm.live != null) Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) { LiveScreen(vm, w, vm.live!!) }
-            else SideMenu(vm, w) { openMenu -> Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-                TopBar(vm, w, openMenu)
-                Box(Modifier.weight(1f)) {
+            else if (w.sacked) Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) { JobOffersScreen(vm, w) }
+            else if (vm.live != null) Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) { LiveScreen(vm, w, vm.live!!) }
+            else SideMenu(vm, w) { openMenu -> Shell(vm, w, openMenu) {
                     @Suppress("UNUSED_EXPRESSION") vm.version
                     when (val s = vm.screen) {
                         Screen.Home -> HomeScreen(vm, w)
@@ -117,10 +132,10 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                         is Screen.Prepare -> PrepareScreen(vm, w, s.fixtureId)
                         Screen.Circuits -> CircuitsScreen(vm, w)
                         is Screen.Replay -> ReplayScreen(vm, w, s.fixtureId, s.game)
+                        Screen.Search -> SearchScreen(vm, w)
+                        Screen.Business -> BusinessScreen(vm, w)
                         else -> HomeScreen(vm, w)
                     }
-                }
-                BottomBar(vm)
             } }
             if (vm.saveAsOpen && w != null && busy == null) SaveAsDialog(vm, w)
             val sheet = Sheets.open
@@ -134,9 +149,34 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                 ) {
                     Icon(Icons.Rounded.Info, null, tint = Ui.accent, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text(msg, color = Color.White, fontSize = 13.sp)
+                    Text(msg, color = Ui.text, fontSize = 13.sp)
                 }
             }
+        }
+    }
+}
+
+/**
+ * The frame around every screen. Tall screens: top bar, content, bottom bar. Wide screens (tablets,
+ * the inner screen of a foldable, any phone held sideways): a navigation rail on the left instead of
+ * the bottom bar, so the content keeps its height. Bars are drawn under the system bars and cutouts
+ * (their colour reaches the screen edges) and the content is padded by those insets.
+ */
+@Composable
+private fun Shell(vm: GameVm, w: World, openMenu: () -> Unit, content: @Composable () -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val rail = maxWidth >= 600.dp || maxWidth > maxHeight
+        val tall = maxHeight >= 560.dp
+        if (rail) Row(Modifier.fillMaxSize()) {
+            NavRail(vm, tall)
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                TopBar(vm, w, openMenu, WindowInsetsSides.Top + WindowInsetsSides.End)
+                Box(Modifier.weight(1f).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End + WindowInsetsSides.Bottom))) { content() }
+            }
+        } else Column(Modifier.fillMaxSize()) {
+            TopBar(vm, w, openMenu, WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+            Box(Modifier.weight(1f).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) { content() }
+            BottomBar(vm)
         }
     }
 }
@@ -198,18 +238,21 @@ fun screenTitle(w: World, s: Screen): String = when (s) {
     is Screen.Prepare -> "Prepare for match"
     Screen.Circuits -> "Development circuits"
     is Screen.Replay -> "Replay"
+    Screen.Search -> "Search"
+    Screen.Business -> "Business"
     Screen.Start -> "Esports Manager"
     Screen.PickOrg -> "Choose your job"
 }
 
 @Composable
-private fun TopBar(vm: GameVm, w: World, openMenu: () -> Unit = {}) {
+private fun TopBar(vm: GameVm, w: World, openMenu: () -> Unit = {}, sides: WindowInsetsSides = WindowInsetsSides.Top + WindowInsetsSides.Horizontal) {
     var menu by remember { mutableStateOf(false) }
     var years by remember { mutableStateOf<GameVm.Span?>(null) }
     val deep = vm.stack.size > 1
-    Column(Modifier.fillMaxWidth().background(Ui.card)) {
+    Column(Modifier.fillMaxWidth().background(Ui.card).windowInsetsPadding(WindowInsets.safeDrawing.only(sides))) {
         Row(Modifier.fillMaxWidth().padding(start = 2.dp, end = 6.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = openMenu) { Icon(Icons.Rounded.Menu, contentDescription = "Menu", tint = Ui.text) }
+            IconButton(onClick = { vm.go(Screen.Search) }) { Icon(Icons.Rounded.Search, contentDescription = "Search", tint = Ui.text) }
             if (deep) IconButton(onClick = { vm.back() }, modifier = Modifier.padding(start = 0.dp)) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Ui.text) }
             Column(Modifier.weight(1f).padding(start = 2.dp, end = 6.dp)) {
                 Text(screenTitle(w, vm.screen), color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -269,13 +312,48 @@ fun YearsDialog(vm: GameVm, w: World, span: GameVm.Span, close: () -> Unit) {
 
 private class NavItem(val label: String, val icon: ImageVector, val screen: Screen, val badge: Int = 0)
 
-@Composable
-private fun BottomBar(vm: GameVm) {
+private fun navItems(vm: GameVm): List<NavItem> {
     val unread = vm.world?.inbox?.count { !it.read } ?: 0
     val spectator = (vm.world?.userOrg ?: 0) < 0
-    val items = if (spectator) listOf(NavItem("Home", Icons.Rounded.Home, Screen.Home), NavItem("Watch", Icons.Rounded.PlayArrow, Screen.Watch), NavItem("Events", Icons.Rounded.Star, Screen.Comps), NavItem("Teams", Icons.Rounded.AccountCircle, Screen.Teams), NavItem("More", Icons.AutoMirrored.Rounded.List, Screen.More))
+    return if (spectator) listOf(NavItem("Home", Icons.Rounded.Home, Screen.Home), NavItem("Watch", Icons.Rounded.PlayArrow, Screen.Watch), NavItem("Events", Icons.Rounded.Star, Screen.Comps), NavItem("Teams", Icons.Rounded.AccountCircle, Screen.Teams), NavItem("More", Icons.AutoMirrored.Rounded.List, Screen.More))
     else listOf(NavItem("Home", Icons.Rounded.Home, Screen.Home), NavItem("Events", Icons.Rounded.Star, Screen.Comps), NavItem("Squad", Icons.Rounded.Person, Screen.Squad), NavItem("Market", Icons.Rounded.ShoppingCart, Screen.Market), NavItem("More", Icons.AutoMirrored.Rounded.List, Screen.More, unread))
-    Column(Modifier.fillMaxWidth().background(Ui.card)) {
+}
+
+/** Side navigation for wide screens: the same tabs as the bottom bar, plus shortcuts when there is room. */
+@Composable
+private fun NavRail(vm: GameVm, tall: Boolean) {
+    val base = navItems(vm)
+    val extra = if (!tall) emptyList() else listOf(NavItem("Watch", Icons.Rounded.PlayArrow, Screen.Watch), NavItem("Schedule", Icons.Rounded.DateRange, Screen.Schedule), NavItem("Inbox", Icons.Rounded.Email, Screen.Inbox, vm.world?.inbox?.count { !it.read } ?: 0))
+        .filter { e -> base.none { it.screen == e.screen } && (e.screen != Screen.Inbox || (vm.world?.userOrg ?: -1) >= 0) }
+    val root = vm.stack.first()
+    Row(Modifier.fillMaxHeight().background(Ui.card)) {
+        Column(
+            Modifier.fillMaxHeight().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start + WindowInsetsSides.Vertical)).width(80.dp)
+                .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            for (it in base + extra) {
+                val on = root == it.screen
+                Column(Modifier.width(72.dp).clip(RoundedCornerShape(14.dp)).clickable { vm.tab(it.screen) }.padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(width = 52.dp, height = 30.dp).background(if (on) Ui.accentSoft else Color.Transparent, RoundedCornerShape(50)), contentAlignment = Alignment.Center) {
+                            Icon(it.icon, contentDescription = it.label, tint = if (on) Ui.accent else Ui.muted, modifier = Modifier.size(22.dp))
+                        }
+                        if (it.badge > 0) Box(Modifier.align(Alignment.TopEnd)) { CountBubble(it.badge) }
+                    }
+                    Spacer(Modifier.height(2.dp))
+                    Text(it.label, color = if (on) Ui.text else Ui.muted, fontSize = 11.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+                }
+            }
+        }
+        Box(Modifier.fillMaxHeight().width(0.5.dp).background(Ui.line))
+    }
+}
+
+@Composable
+private fun BottomBar(vm: GameVm) {
+    val items = navItems(vm)
+    Column(Modifier.fillMaxWidth().background(Ui.card).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))) {
         HorizontalDivider(color = Ui.line, thickness = 0.5.dp)
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
             val root = vm.stack.first()

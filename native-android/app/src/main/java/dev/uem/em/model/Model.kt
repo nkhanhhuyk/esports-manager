@@ -326,7 +326,21 @@ class Org(
     var merchLevel: Int = 1,
     /** How the organisation builds teams (see [dev.uem.em.mgmt.Ambitions.STRATEGIES]); blank until set. */
     var strategy: String = "",
+    /** The organisation's venue: 0 none, 1 studio & content house, 2 esports arena, 3 stadium (see Business). */
+    var venue: Int = 0,
+    /** Content creators signed to the organisation. */
+    var creators: MutableList<CreatorDeal> = ArrayList(),
+    /** Fan events held (the last two years). */
+    var fanEvents: MutableList<FanEvent> = ArrayList(),
 )
+
+/** A content creator signed to an organisation: audience, monthly fee, until the end of a season. */
+@Serializable
+class CreatorDeal(val name: String, val platform: String, var followers: Double, val fee: Double, val untilSeason: Int, val titleId: String, val style: String, val signedDay: Int = 0)
+
+/** A fan event an organisation held: what it cost and brought in. */
+@Serializable
+class FanEvent(val day: Int, val kind: String, val cost: Double, val revenue: Double, val fans: Double, val rep: Double, val note: String = "")
 
 @Serializable
 class League(

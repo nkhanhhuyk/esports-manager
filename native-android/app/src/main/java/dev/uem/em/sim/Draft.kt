@@ -65,20 +65,25 @@ object Draft {
      */
     private val prefCache = java.util.concurrent.ConcurrentHashMap<Patch, java.util.concurrent.ConcurrentHashMap<String, List<CharDef>>>()
 
-    private fun preferred(t: TitleDef, patch: Patch, p: Player, roleIdx: Int, style: String): List<CharDef> {
+    private fun preferred(t: TitleDef, patch: Patch, p: Player, roleIdx: Int, style: String, bot: String = "bot-marksman"): List<CharDef> {
         if (prefCache.size > 64) prefCache.clear()
         val m = prefCache.getOrPut(patch) { java.util.concurrent.ConcurrentHashMap() }
         if (m.size > 40_000) m.clear()
-        return m.getOrPut("${p.id}|$roleIdx|$style|${p.profChar.hashCode()}|${t.characters.size}") { computePreferred(t, patch, p, roleIdx, style) }
+        return m.getOrPut("${p.id}|$roleIdx|$style|${p.profChar.hashCode()}|${t.characters.size}|$bot") { computePreferred(t, patch, p, roleIdx, style, bot) }
     }
 
     /** A player's preferred characters for the patch (top 14). */
-    private fun computePreferred(t: TitleDef, patch: Patch, p: Player, roleIdx: Int, style: String): List<CharDef> {
+    private fun computePreferred(t: TitleDef, patch: Patch, p: Player, roleIdx: Int, style: String, bot: String): List<CharDef> {
         val role = t.lineupRoles[roleIdx]
         val cf = comfort(t, p)
         val fitAny = t.characters.any { it.lanes.isNotEmpty() || it.classes.isNotEmpty() }
-        return t.characters.asSequence().filter { !fitAny || it.fits(role) }
-            .map { it to ((patch.charMeta[it.id] ?: 0.0) / 10 * 0.8 + cf(it) / 100 * 1.1 + ((it.styles[style] ?: 5.0) - 5) / 10) }
+        // The bot-side carry slot follows the bot-lane meta (marksmen, mage APCs, bruisers...).
+        val isBot = t.isMoba && dev.uem.em.titles.RoleMeta.pos(role.id) == dev.uem.em.titles.RoleMeta.BOT
+        // In a mage APC or bruiser bot meta, bot laners practise those characters: part of their carry comfort carries over.
+        val best = if (isBot && (bot == "bot-mage" || bot == "bot-bruiser")) t.characters.filter { it.fits(role) }.maxOfOrNull { cf(it) } ?: 0.0 else 0.0
+        fun comfortIn(c: CharDef) = if (isBot && !c.fits(role) && dev.uem.em.titles.RoleMeta.botExtra(t, bot, c)) maxOf(cf(c), best * 0.4) else cf(c)
+        return t.characters.asSequence().filter { !fitAny || it.fits(role) || (isBot && dev.uem.em.titles.RoleMeta.botExtra(t, bot, it)) }
+            .map { it to ((patch.charMeta[it.id] ?: 0.0) / 10 * 0.8 + comfortIn(it) / 100 * 1.1 + ((it.styles[style] ?: 5.0) - 5) / 10 + (if (isBot) dev.uem.em.titles.RoleMeta.botBias(bot, it) else 0.0)) }
             .sortedByDescending { it.second }.take(14).map { it.first }.toList()
     }
 
@@ -92,7 +97,7 @@ object Draft {
     fun banTendency(w: dev.uem.em.model.World, team: dev.uem.em.model.Team) = Math.floorMod(team.id * 7 + w.season * 3 + team.style.length, 4)
     val BAN_TENDENCY = listOf("bans the meta threats", "targets the opponents' comfort picks", "mixes meta and comfort bans", "leaves power picks open to trade them (handshake)")
 
-    internal fun prefs(t: TitleDef, patch: Patch, p: Player, roleIdx: Int, style: String) = preferred(t, patch, p, roleIdx, style)
+    internal fun prefs(t: TitleDef, patch: Patch, p: Player, roleIdx: Int, style: String, bot: String = "bot-marksman") = preferred(t, patch, p, roleIdx, style, bot)
 }
 
 /**
@@ -108,6 +113,8 @@ class DraftSession(
     banPref: IntArray? = null,
     /** What each team learned in scrims on this patch (character → -0.5 failed .. +0.5 works). */
     val scrimBonus: Array<Map<String, Double>>? = null,
+    /** The bot-lane meta in force (see RoleMeta): what the bot-side carry slot drafts. */
+    val botMeta: String = "bot-marksman",
 ) {
     val picks = arrayOf(ArrayList<String>(), ArrayList<String>())
     val assign = arrayOf(HashMap<Int, String>(), HashMap<Int, String>())
@@ -122,7 +129,7 @@ class DraftSession(
     private val prefs = Array(2) { s ->
         val bonus = scrimBonus?.getOrNull(s)?.takeIf { it.isNotEmpty() }
         lineups[s].mapIndexed { i, p ->
-            val base = Draft.prefs(t, patch, p, i, styles[s])
+            val base = Draft.prefs(t, patch, p, i, styles[s], botMeta)
             // Scrims move a team's priorities toward what worked for it on this patch.
             if (bonus == null) base else base.withIndex().sortedByDescending { (k, c) -> (base.size - k).toDouble() / base.size + (bonus[c.id] ?: 0.0) * 1.2 }.map { it.value }
         }
@@ -214,6 +221,53 @@ class DraftSession(
             if (v > bv) { bv = v; best = c }
         }
         return best ?: t.characters.firstOrNull { legal(team, true, it.id) }
+    }
+
+    /**
+     * The draft assistant for [team]'s turn: up to [n] characters with the reasons behind each —
+     * for a pick: the player's comfort, the patch, counters to what the enemy showed, synergy with our
+     * picks, the bot-lane meta; for a ban: the enemy's comfort picks, the patch's strongest, threats to
+     * our picks. Read from the same numbers the AI drafts with (no hidden information beyond them).
+     */
+    fun suggest(team: Int, ban: Boolean, n: Int = 3): List<Pair<CharDef, List<String>>> {
+        val enemy = 1 - team
+        val out = ArrayList<Triple<CharDef, Double, List<String>>>()
+        fun meta(c: CharDef) = patch.charMeta[c.id] ?: 0.0
+        if (!ban) {
+            val enemyBySlot = HashMap<Int, String>()
+            for ((pid, cid) in assign[enemy]) { val slot = lineups[enemy].indexOfFirst { it.id == pid }; if (slot >= 0) enemyBySlot[slot] = cid }
+            for (i in open[team]) for ((idx, c) in prefs[team][i].withIndex()) {
+                if (!legal(team, false, c.id) || idx > 7) continue
+                val why = ArrayList<String>()
+                val cf = comfortOf[team][i](c)
+                var v = (14 - idx) / 14.0 * 3.0
+                why.add("${lineups[team][i].handle}: comfort %.0f".format(cf))
+                if (meta(c) >= 2.5) why.add("strong this patch (%+.1f)".format(meta(c)))
+                enemyBySlot[i]?.let { e -> val sc = cv.score(c.id, e); v += 1.6 * sc; if (sc > 0.15) why.add("counters ${t.charIndex[e]?.name ?: e} in lane") else if (sc < -0.15) why.add("weak into ${t.charIndex[e]?.name ?: e}") }
+                if (picks[team].isNotEmpty()) { val syn = picks[team].sumOf { cv.synergy(c.id, it) } / picks[team].size; v += 0.7 * syn; if (syn > 0.15) why.add("fits your picks") }
+                if (picks[enemy].isNotEmpty()) { val ctr = picks[enemy].sumOf { cv.score(c.id, it) } / picks[enemy].size; v += 0.9 * ctr; if (ctr > 0.15) why.add("good against their comp") }
+                if (t.isMoba && dev.uem.em.titles.RoleMeta.pos(t.lineupRoles[i].id) == dev.uem.em.titles.RoleMeta.BOT && dev.uem.em.titles.RoleMeta.botBias(botMeta, c) > 0.1) why.add("fits the bot-lane meta")
+                out.add(Triple(c, v, why))
+            }
+        } else {
+            val enemySlots = open[enemy].ifEmpty { lineups[enemy].indices.toList() }
+            val cand = LinkedHashSet<CharDef>()
+            for (i in enemySlots) cand.addAll(prefs[enemy][i].take(5)); cand.addAll(topMeta)
+            for (c in cand) {
+                if (!legal(team, true, c.id)) continue
+                val why = ArrayList<String>()
+                val op = ((meta(c) - 4.5) / 2.5).coerceAtLeast(0.0)
+                if (op > 0) why.add("overpowered this patch (%+.1f)".format(meta(c)))
+                var target = 0.0; var who = ""
+                for (i in enemySlots) if (c in prefs[enemy][i].take(5)) { val v = comfortOf[enemy][i](c) / 100 * (0.6 + lineups[enemy][i].ca / 200); if (v > target) { target = v; who = lineups[enemy][i].handle } }
+                if (target > 0.3) why.add("$who's comfort pick")
+                var threat = 0.0
+                for (i in open[team]) prefs[team][i].firstOrNull { legal(team, false, it.id) && it.id != c.id }?.let { mp -> val th = cv.score(c.id, mp.id); if (th > threat) threat = th; if (th > 0.2) why.add("counters your ${mp.name}") }
+                if (why.isEmpty()) continue
+                out.add(Triple(c, 1.6 * op + 1.4 * target + 0.9 * threat, why.distinct()))
+            }
+        }
+        return out.sortedByDescending { it.second }.distinctBy { it.first.id }.take(n).map { it.first to it.third }
     }
 
     /**

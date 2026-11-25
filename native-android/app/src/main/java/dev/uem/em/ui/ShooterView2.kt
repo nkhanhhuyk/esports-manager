@@ -122,7 +122,7 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
     LaunchedEffect(shot?.from) { if (shot != null && shotPos != null && cam.zoom < 1.5f) cam.zoom = 1.6f }
     cam.pinned = followPos ?: shotPos
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    ViewerLayout(header = {
         if (bc) BroadcastUi.SeriesBar(w, f, g)
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             TeamPic(teams[0], 24.dp); Text(" ${teams[0].short}", color = teamCol[0], fontWeight = FontWeight.Bold)
@@ -134,6 +134,7 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
         Text("${map.name} · round ${ri + 1} · ${teams[atkSide].short} attacking (${round?.text?.split("|")?.getOrNull(0) ?: ""} vs ${round?.text?.split("|")?.getOrNull(1) ?: ""}) · ${clock(rt.coerceAtLeast(0))}" + (bombLeft?.let { " · ${if (t.id == "cs2") "bomb" else "spike"} ${max(0, it)}s" } ?: ""),
             color = Ui.muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 12.dp))
         if (bc) dev.uem.em.sim.Broadcast.shooterRound(t, g, ev, Ti, need)?.let { BroadcastUi.RoundHud(w, t, f, it) { s -> teamCol[s.coerceIn(0, 1)] } }
+        }, map = {
         MapFrame(cam, draw = { W ->
             fun p(o: Offset) = Offset(o.x * W, o.y * W)
             drawRect(Color(0xFF20262F), Offset.Zero, Size(W, W))
@@ -199,6 +200,7 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
                     p.handle + (if (flags and 2 != 0) " ✺" else "") + (if (flags and 4 != 0) " ⏳" else ""), teamCol[l.team.coerceIn(0, 1)], v[2] / 100f, null, isDead, follow == pid, names, size = 28.dp)
             }
         }
+        }, rest = {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { if (time >= dur) { time = 0f; playing = true } else playing = !playing }) { Text(if (time >= dur) "Replay" else if (playing) "Pause" else "Play", color = Ui.accent) }
             for (sp in listOf(1, 2, 4, 8, 16)) TextButton(onClick = { speed = sp }) { Text("${sp}×", color = if (speed == sp) Ui.accent else Ui.muted, fontSize = 12.sp) }
@@ -266,7 +268,7 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
         }
         Muted("  ${map.name} (node graph and walls: approximate layout). Positions, health, utility, kills, plants and defuses are the recorded round; replay speed never changes it.", 10)
         Spacer(Modifier.height(12.dp))
-    }
+    })
 }
 
 private val UTIL_NAMES = listOf("smoke", "flash", "molly", "recon", "wall", "trap", "concuss", "slow", "heal", "mobility", "decoy", "nearsight", "suppress", "revive", "weapon", "HE grenade")

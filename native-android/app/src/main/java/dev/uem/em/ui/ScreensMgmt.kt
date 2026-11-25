@@ -904,6 +904,7 @@ fun CommercialCard(vm: GameVm, w: World, org: dev.uem.em.model.Org) {
                 Pill("Ask +10%") { note = dev.uem.em.mgmt.Commerce.negotiate(w, o.id, 0.10, false); vm.edit() }
                 Pill("Ask +25%") { note = dev.uem.em.mgmt.Commerce.negotiate(w, o.id, 0.25, false); vm.edit() }
                 Pill("Longer deal") { note = dev.uem.em.mgmt.Commerce.negotiate(w, o.id, 0.0, true); vm.edit() }
+                Pill("Performance clauses") { note = dev.uem.em.mgmt.Commerce.negotiateBonus(w, o.id); vm.edit() }
                 Pill("Decline", Ui.loss.copy(alpha = 0.3f)) { dev.uem.em.mgmt.Commerce.decline(w, o.id); note = "Declined ${o.name}"; vm.edit() }
             }
         }

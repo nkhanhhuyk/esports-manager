@@ -90,8 +90,10 @@ class Tile(val label: String, val value: String, val sub: String? = null, val co
 /** Headline numbers in tiles (the web version's stat strip). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun Tiles(tiles: List<Tile>, perRow: Int = 3) {
-    FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp), maxItemsInEachRow = perRow) {
+fun Tiles(tiles: List<Tile>, perRow: Int = 0) = androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+    // Three a row on phones, more when the screen is wide.
+    val n = if (perRow > 0) perRow else if (maxWidth >= 840.dp) minOf(6, tiles.size.coerceAtLeast(1)) else if (maxWidth >= 600.dp) 4 else 3
+    FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp), maxItemsInEachRow = n) {
         for (t in tiles) Column(
             Modifier.weight(1f).padding(4.dp).background(Ui.card, RoundedCornerShape(14.dp)).border(1.dp, Ui.line.copy(alpha = 0.7f), RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 10.dp),
         ) {

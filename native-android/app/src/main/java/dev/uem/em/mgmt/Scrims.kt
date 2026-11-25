@@ -83,7 +83,7 @@ object Scrims {
         team.lineup.forEachIndexed { i, pid ->
             if (pid < 0 || i >= t.lineupRoles.size) return@forEachIndexed
             val p = w.players[pid]
-            val cands = Draft.prefs(t, patch, p, i, team.style).filter { it.id !in used }.take(7)
+            val cands = Draft.prefs(t, patch, p, i, team.style, dev.uem.em.titles.RoleMeta.bot(w, t.id)).filter { it.id !in used }.take(7)
             if (cands.isEmpty()) return@forEachIndexed
             val c = if (rng.chance(0.22)) rng.pick(cands) // trying something new
             else cands.withIndex().maxBy { (k, c) -> (7 - k) / 7.0 + bonusOf(team.scrimStats[c.id]) * 2.5 + rng.next() * 0.35 }.value

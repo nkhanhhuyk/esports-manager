@@ -165,10 +165,32 @@ class LiveMatch(val w: World, fixtureId: Int, spectatorWanted: Boolean = false, 
         bump()
     }
 
+    /** Your coach calls in the MOBA game being watched: (second, call). */
+    val myCalls = ArrayList<Pair<Int, String>>()
+    val callsPerGame = 3
+
+    /**
+     * A coach call in a live MOBA game (play safe, force a fight, objectives, split-push, go for the end):
+     * the game is played again from this second with the call in effect — everything before stays as it was —
+     * and the view keeps its place.
+     */
+    fun callMoba(call: String, atSeconds: Int) {
+        if (me < 0 || stage != "watch" || !series.t.isMoba || myCalls.size >= callsPerGame) return
+        val s = setup ?: return
+        val d = draft ?: return
+        myCalls.add(atSeconds to call)
+        series.undoLast()
+        ReplayJump.seconds = atSeconds
+        game = series.play(s, d.runAll(), record = true, mobaCalls = myCalls.map { Triple(it.first, me, it.second) })
+        persist()
+        bump()
+    }
+
     fun startGame() {
         val s = setup ?: return
         val d = draft ?: return
         myTimeouts.clear()
+        myCalls.clear()
         game = series.play(s, d.runAll(), record = true, timeouts = timeoutPlan())
         stage = "watch"
         persist()

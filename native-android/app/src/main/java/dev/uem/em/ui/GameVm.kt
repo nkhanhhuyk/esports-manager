@@ -68,6 +68,10 @@ sealed class Screen {
     data object Circuits : Screen()
     /** Prepare for Match (one of your fixtures). */
     data class Prepare(val fixtureId: Int) : Screen()
+    /** Find any player, team, organisation, competition, character or screen. */
+    data object Search : Screen()
+    /** Sponsors, content creators, venue and fan events. */
+    data object Business : Screen()
 }
 
 class Busy(val label: String, val done: Int, val total: Int)
@@ -98,6 +102,13 @@ class GameVm(app: Application) : AndroidViewModel(app) {
 
     private val prefs = app.getSharedPreferences("uem", android.content.Context.MODE_PRIVATE)
     fun setPicturesOnline(on: Boolean) { prefs.edit().putBoolean("pictures", on).apply() }
+    /** Interface colours: "dark", "light" or "system" (follow the phone). */
+    var themeMode by mutableStateOf(prefs.getString("theme", "dark") ?: "dark")
+    fun setTheme(mode: String) { themeMode = mode; prefs.edit().putString("theme", mode).apply() }
+    /** Tips shown once on a new career (dismissed ones are remembered). */
+    var tipsSeen by mutableStateOf(prefs.getStringSet("tips", emptySet())?.toSet() ?: emptySet())
+    fun dismissTip(id: String) { tipsSeen = tipsSeen + id; prefs.edit().putStringSet("tips", tipsSeen).apply() }
+    fun resetTips() { tipsSeen = emptySet(); prefs.edit().putStringSet("tips", emptySet()).apply() }
     /** Simulation speed: "full" (every core), "balanced" (half, default), "cool" (two cores: cooler phone, longer battery). */
     fun setSpeedMode(mode: String) { dev.uem.em.game.Advance.speedMode = mode; prefs.edit().putString("speed", mode).apply() }
     fun speedMode(): String = dev.uem.em.game.Advance.speedMode

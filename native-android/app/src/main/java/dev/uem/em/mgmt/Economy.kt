@@ -107,8 +107,12 @@ object Economy {
         val merch = Supporters.merchandise(org, econ) * Commerce.merchFactor(org)
         val streaming = Commerce.streaming(w, org)
         val facilities = org.facilities.sumOf { Math.pow(it.toDouble(), 1.5) * 350 } * (0.4 + econ)
-        return Breakdown(mapOf("Sponsorship" to sponsor, "Media" to media, "Merchandise" to merch, "Streaming" to streaming),
-            mapOf("Player salaries" to salaries, "Staff salaries" to staff, "Facilities" to facilities, "Operations" to ops, "Merchandise operations" to Commerce.merchCost(org)))
+        val rev = linkedMapOf("Sponsorship" to sponsor, "Media" to media, "Merchandise" to merch, "Streaming" to streaming)
+        val exp = linkedMapOf("Player salaries" to salaries, "Staff salaries" to staff, "Facilities" to facilities, "Operations" to ops, "Merchandise operations" to Commerce.merchCost(org))
+        // Content creators and the venue (see Business).
+        if (org.creators.isNotEmpty()) { rev["Content creators"] = Business.creatorRevenue(org); exp["Content creators"] = Business.creatorCost(org) }
+        if (org.venue > 0) { rev["Venue (rentals, hospitality)"] = Business.VENUES[org.venue].capacity * 6.0 * (0.4 + econ); exp["Venue upkeep"] = Business.venueUpkeep(org) }
+        return Breakdown(rev, exp)
     }
 
     /** First day of each month: every organisation's finances. */
@@ -117,6 +121,7 @@ object Economy {
         if (w.lastMonth == mk) return
         w.lastMonth = mk
         val rng = Rng.derive(w.seed, "finance", mk)
+        Business.monthTick(w, Rng.derive(w.seed, "business", mk))
         for (org in w.orgs) {
             if (org.teams.none { w.teams[it].active && w.teams[it].nationalOf.isEmpty() }) continue
             renewSponsors(w, org, rng)

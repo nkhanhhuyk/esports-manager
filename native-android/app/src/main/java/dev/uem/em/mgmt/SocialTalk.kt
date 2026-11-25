@@ -13,8 +13,8 @@ import kotlin.math.roundToInt
 
 /**
  * What fans actually talk about after a series, built from the series itself: each player's line with
- * the character he played, game lengths and kill scores, map scores and overtimes, objectives taken,
- * reverse sweeps and deciders, the standings and the next match, the head-to-head, a player beating his
+ * the character played, game lengths and kill scores, map scores and overtimes, objectives taken,
+ * reverse sweeps and deciders, the standings and the next match, the head-to-head, a player beating their
  * old team, streaks and upsets. Each fact is turned into a comment by who is speaking (a winning fan, a
  * losing fan, a neutral, an analyst, a troll) with many phrasings; a thread never uses the same phrasing
  * twice, so two series never read the same.
@@ -158,20 +158,20 @@ internal object SocialTalk {
 
     /** Templates by speaker and by whether the fact is good for the speaker's side. {c} = the fact, {s} = its subject. */
     private val WIN_GOOD = listOf("{C}. Absolute cinema.", "Did everyone see {c}? Unreal.", "{C} — I'm not okay.", "Remember when people doubted us? {C}.", "{C}. Book the parade.",
-        "Not even surprised anymore. {C}.", "Rewatching {c} on loop tonight.", "{C} and the chat still had excuses lol", "Peak {s}. {C}.", "I've supported this team for years and {c} is why.")
-    private val WIN_BAD = listOf("We won, but {c} has to be cleaned up.", "Happy with the W, less happy about {c}.", "{C}. We got away with one there.", "Not gonna lie, {c} scared me.")
+        "Not even surprised anymore. {C}.", "Rewatching {c} on loop tonight.", "{C} and the chat still had excuses lol", "Peak {s}. {C}.", "I've supported this team for years and {c} is why.", "{C}. Tell your friends.", "{C} — screenshot it, frame it.", "{C}. This is our year.", "I yelled so loud at {c} the neighbours knocked.", "{C}. Haters quiet today.", "Watching {c} live is why I wake up early.", "{C}. Chills.", "No notes. {C}.", "{C}, and they made it look easy.", "{C}. Coaching staff deserve a raise.", "{C}. Season ticket worth it already.", "That {c} clip is going on my wall.", "{C}. Tell me who stops this team.", "Grown adults crying over {c}. Me. I'm grown adults.", "{C}. Unreal from start to finish.")
+    private val WIN_BAD = listOf("We won, but {c} has to be cleaned up.", "Happy with the W, less happy about {c}.", "{C}. We got away with one there.", "Not gonna lie, {c} scared me.", "{C} — let's not pretend that was clean.", "Won, but {c} would have cost us against a top team.", "{C}. Fix it before playoffs.", "Good win, though {c} is a warning sign.", "{C} needs a long vod review.", "Relieved more than happy. {C}.", "{C}. Not every win is a good one.", "We survived {c}. Barely.")
     private val LOSE_BAD = listOf("{C}. Can't keep happening.", "Be honest: {c} lost us this.", "{C}... I need a break from this team.", "I'm tired. {C}.", "{C} and the staff will say 'we learned a lot'.",
-        "Every week it's something. This time {c}.", "{C}. Somebody explain that to me.", "Screenshot {c} and send it to the coaches.")
-    private val LOSE_GOOD = listOf("Only positive today: {c}.", "{C} deserved better teammates.", "At least {c}. Build around that.", "{C}. Not everyone gave up.", "Hard loss, but {c} gives me hope.")
+        "Every week it's something. This time {c}.", "{C}. Somebody explain that to me.", "Screenshot {c} and send it to the coaches.", "{C}. Unacceptable at this level.", "Look at {c} and tell me the plan is working.", "{C}. I'm out of patience.", "{C} and somehow nobody is accountable.", "{C}. Same story, different week.", "Rewatching {c} hurts more the second time.", "{C}. We deserve better.", "{C}. Fix this or change it.", "If {c} doesn't change, the season is over.", "Can't defend {c}. Sorry.", "{C}. Pain.", "{C}. Back to the drawing board.")
+    private val LOSE_GOOD = listOf("Only positive today: {c}.", "{C} deserved better teammates.", "At least {c}. Build around that.", "{C}. Not everyone gave up.", "Hard loss, but {c} gives me hope.", "{C} — the bright spot of a dark day.", "Give {s} the ball more often. {C}.", "{C}. Keep that, change the rest.", "{C}, so it isn't all doom.", "One thing to take away: {c}.", "{C}. Proud of that at least.", "Heads up, {c} shows there's something here.", "{C}. Build the team around that.")
     private val NEUTRAL_GOOD = listOf("{C} is the moment of the day.", "This is why we watch: {c}.", "{C}. What a series to tune into.", "Whatever team you support, {c} was special.",
-        "Clip of the week: {c}.", "{C}. Scene is healthy.")
-    private val NEUTRAL_BAD = listOf("Not to pile on, but {c}.", "{C}. That's not a top-level performance.", "Gonna get downvoted but {c} is the real story.", "Brutal: {c}.")
-    private val ANALYST = listOf("Stat of the series: {c}.", "Worth noting: {c}.", "The numbers say it plainly — {c}.", "Underrated detail: {c}.", "If you only remember one thing: {c}.")
-    private val TROLL = listOf("{C}? Wait until they play someone good.", "{C} lmao", "imagine {c} 💀", "{C}. Hall of shame material.", "{C}, and people call this a top team?")
+        "Clip of the week: {c}.", "{C}. Scene is healthy.", "Neutral fan here: {c} was class.", "{C}. Great advert for the game.", "Even as a rival fan, {c} was special.", "Recommend the vod for {c} alone.", "{C}. Top-tier entertainment.", "Highlight package will open with {c}.", "{C}. Pure quality.", "Nobody watching this region is bored. {C}.", "{C} might be the play of the split.", "{C}. Respect from a neutral.")
+    private val NEUTRAL_BAD = listOf("Not to pile on, but {c}.", "{C}. That's not a top-level performance.", "Gonna get downvoted but {c} is the real story.", "Brutal: {c}.", "Not the prettiest stat: {c}.", "{C} won't make the highlight reel.", "Gotta be honest, {c} was rough to watch.", "{C}. Somebody had a bad day.", "Hard to watch {c}.", "{C}. Not their finest.", "As a neutral: {c} stood out, and not in a good way.", "{C}. Expected more.")
+    private val ANALYST = listOf("Stat of the series: {c}.", "Worth noting: {c}.", "The numbers say it plainly — {c}.", "Underrated detail: {c}.", "If you only remember one thing: {c}.", "Key number from the series: {c}.", "Data point to keep in mind: {c}.", "Context matters, but {c} stands out.", "From the stat sheet: {c}.", "Quietly decisive: {c}.", "One for the season review: {c}.", "Tracking this trend: {c}.", "Not on the highlight reel, but {c} decided a lot.", "If you're building a narrative, start with {c}.", "{C} — that's the margin at this level.", "Film-room note: {c}.")
+    private val TROLL = listOf("{C}? Wait until they play someone good.", "{C} lmao", "imagine {c} 💀", "{C}. Hall of shame material.", "{C}, and people call this a top team?", "{C}. Tier list says no.", "{C}. Uninstall speedrun.", "{C}. Bronze moment.", "Imagine paying salaries for {c}.", "{C}. Ok and? Still mid.", "{C} 🤡", "{C}. Bookmarking for the roast thread.", "{C}. Bot game energy.", "Did they practise {c}? Asking for a friend.")
 
-    private val REPLY_AGREE = listOf("This. {s} was the difference.", "Exactly what I was thinking about {s}.", "Agreed, and nobody talks about it enough.", "Real.", "Couldn't have said it better.")
-    private val REPLY_DISAGREE = listOf("Hard disagree, {s} wasn't the problem.", "One series. Relax.", "You say this every week.", "Lazy take, watch the games again.", "Overreaction of the year.")
-    private val REPLY_JOKE = listOf("{s} fans are so loud when they win lol", "Somebody check on the {s} subforum", "Bookmarking this for the next loss.", "The copium in this thread is incredible.")
+    private val REPLY_AGREE = listOf("This. {s} was the difference.", "Exactly what I was thinking about {s}.", "Agreed, and nobody talks about it enough.", "Real.", "Couldn't have said it better.", "Underrated point about {s}.", "100%. {s} decided it.", "Finally someone said it.", "Took the words out of my mouth.", "Clip this comment.", "Hard agree on {s}.", "This should be pinned.", "Saying this since last split.", "Bang on.")
+    private val REPLY_DISAGREE = listOf("Hard disagree, {s} wasn't the problem.", "One series. Relax.", "You say this every week.", "Lazy take, watch the games again.", "Overreaction of the year.", "Meh, {s} was fine. Look elsewhere.", "Small sample size.", "The vod says otherwise.", "Recency bias at its finest.", "Let's see after playoffs.", "Nope, the draft was the issue.", "Not buying it.", "You'd say the opposite if they won.", "Context: the other side was just better.")
+    private val REPLY_JOKE = listOf("{s} fans are so loud when they win lol", "Somebody check on the {s} subforum", "Bookmarking this for the next loss.", "The copium in this thread is incredible.", "{s} fans after one good series: 📈📈📈", "The {s} subreddit is on fire rn", "Imagine being a {s} fan in this economy", "{s} hype train has no brakes", "Every thread becomes a {s} thread lol", "Not the {s} slander again 😭")
 
     /**
      * Up to [n] comments for a thread: facts drawn by weight (never the same fact or phrasing twice),
@@ -187,10 +187,7 @@ internal object SocialTalk {
         val left = facts.toMutableList()
         val used = HashSet<String>()
         val out = ArrayList<Social.Comment>()
-        fun pickTemplate(list: List<String>): String {
-            val free = list.filter { it !in used }.ifEmpty { list }
-            return rng.pick(free).also { used.add(it) }
-        }
+        fun pickTemplate(list: List<String>): String = SocialVoice.template(rng, list, used)
         fun fill(tpl: String, f: Fact) = tpl.replace("{C}", cap(f.core)).replace("{c}", f.core).replace("{s}", f.subject.ifBlank { "that" })
         while (out.size < n && left.isNotEmpty()) {
             val f = rng.weighted(left) { it.weight }

@@ -156,6 +156,7 @@ fun SpectatorHome(vm: GameVm, w: World) {
             }
         }
         item { QuickActions(vm, w, spectator = true) }
+        item { TipCard(vm, w) }
         item {
             Tiles(listOf(
                 Tile("Matches today & tomorrow", "${today.size}", "watch any of them live"),

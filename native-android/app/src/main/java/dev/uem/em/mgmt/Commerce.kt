@@ -79,6 +79,23 @@ object Commerce {
         }
     }
 
+    /**
+     * Trade part of the monthly fee for performance clauses: a lower base, a much bigger trophy bonus.
+     * Sponsors like it more from organisations that win; each round still tests their patience.
+     */
+    fun negotiateBonus(w: World, id: Int): String {
+        val o = w.sponsorOffers.firstOrNull { it.id == id } ?: return "That offer is gone"
+        val org = w.orgs[o.orgId]
+        val rng = Rng.derive(w.seed, "sponsor-bonus", o.id, o.round)
+        o.round++
+        val ok = rng.chance(clamp(0.75 + org.prestige / 400 - (o.round - 1) * 0.12, 0.2, 0.95))
+        if (!ok) { o.note = "Wants a fixed fee"; return "${o.name} prefer a fixed fee without performance clauses" }
+        o.perMonth = (o.perMonth * 0.85 / 100).roundToInt() * 100.0
+        o.bonus = (maxOf(o.bonus * 2.5, o.perMonth * 3) / 100).roundToInt() * 100.0
+        o.note = "Performance clauses agreed"
+        return "${o.name}: ${formatMoney(o.perMonth)} per month and ${formatMoney(o.bonus)} for every trophy"
+    }
+
     /** Trophy bonuses from sponsors when one of the organisation's teams wins a competition. */
     fun trophyBonus(w: World, org: Org, compName: String) {
         val total = org.sponsors.filter { it.untilSeason >= w.season }.sumOf { it.bonus }

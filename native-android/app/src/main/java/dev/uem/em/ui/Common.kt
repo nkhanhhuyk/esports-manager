@@ -22,6 +22,10 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.Text
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,44 +43,70 @@ import androidx.compose.ui.unit.sp
 import dev.uem.em.model.Player
 import dev.uem.em.model.World
 
+/** One colour set of the interface (dark or light). */
+class Palette(
+    val dark: Boolean, val bg: Color, val card: Color, val card2: Color, val card3: Color, val line: Color, val text: Color, val muted: Color, val faint: Color,
+    val accent: Color, val accent2: Color, val gold: Color, val win: Color, val loss: Color, val red: Color,
+)
+
 /**
- * Design tokens. Dark "broadcast" palette: a near-black navy canvas, two raised surface levels with
+ * Design tokens. Dark "broadcast" palette (or a light one): a near-black navy canvas, two raised surface levels with
  * hairline borders, one blue accent (actions, selection), violet for highlights, gold for your club,
  * green / red for results. Every screen draws with these, so the whole app follows them.
  */
 object Ui {
-    val bg = Color(0xFF090D16)
-    val card = Color(0xFF121827)
-    val card2 = Color(0xFF1B2335)
-    val card3 = Color(0xFF232D43)
-    val line = Color(0xFF253049)
-    val text = Color(0xFFE9EDF5)
-    val muted = Color(0xFF8C96AD)
-    val faint = Color(0xFF5E6880)
-    val accent = Color(0xFF4F8CFF)
-    val accent2 = Color(0xFF8B6CFF)
-    val accentSoft = Color(0x294F8CFF)
+    val DARK = Palette(true, Color(0xFF090D16), Color(0xFF121827), Color(0xFF1B2335), Color(0xFF232D43), Color(0xFF253049), Color(0xFFE9EDF5), Color(0xFF8C96AD), Color(0xFF5E6880),
+        Color(0xFF4F8CFF), Color(0xFF8B6CFF), Color(0xFFF5C451), Color(0xFF34D399), Color(0xFFFF6B6B), Color(0xFFFF5A6E))
+    val LIGHT = Palette(false, Color(0xFFF2F4F9), Color(0xFFFFFFFF), Color(0xFFEEF1F7), Color(0xFFE2E7F0), Color(0xFFD7DDE8), Color(0xFF131A2A), Color(0xFF5A6478), Color(0xFF98A1B3),
+        Color(0xFF2F6FEB), Color(0xFF6E52D9), Color(0xFFB07D12), Color(0xFF12985F), Color(0xFFD93F3F), Color(0xFFD9364F))
+
+    /** The colours in use; screens read them while composing, so switching redraws the whole app. */
+    var palette by mutableStateOf(DARK)
+
+    val bg: Color get() = palette.bg
+    val card: Color get() = palette.card
+    val card2: Color get() = palette.card2
+    val card3: Color get() = palette.card3
+    val line: Color get() = palette.line
+    val text: Color get() = palette.text
+    val muted: Color get() = palette.muted
+    val faint: Color get() = palette.faint
+    val accent: Color get() = palette.accent
+    val accent2: Color get() = palette.accent2
+    val accentSoft: Color get() = palette.accent.copy(alpha = if (palette.dark) 0.16f else 0.12f)
     /** Highlighted table rows (your team, your players). */
-    val rowHi = Color(0x174F8CFF)
-    val gold = Color(0xFFF5C451)
-    val goldSoft = Color(0x24F5C451)
-    val win = Color(0xFF34D399)
-    val loss = Color(0xFFFF6B6B)
-    val blue = Color(0xFF4F8CFF)
-    val red = Color(0xFFFF5A6E)
+    val rowHi: Color get() = palette.accent.copy(alpha = if (palette.dark) 0.09f else 0.07f)
+    val gold: Color get() = palette.gold
+    val goldSoft: Color get() = palette.gold.copy(alpha = 0.15f)
+    val win: Color get() = palette.win
+    val loss: Color get() = palette.loss
+    val blue: Color get() = palette.accent
+    val red: Color get() = palette.red
 
     val radius = 16.dp
     val shape = RoundedCornerShape(radius)
+    /** Banner cards with white text (the same in both themes). */
     val hero = Brush.linearGradient(listOf(Color(0xFF1C3B7A), Color(0xFF3A2A7A), Color(0xFF151C2E)))
     val heroGold = Brush.linearGradient(listOf(Color(0xFF5A4316), Color(0xFF2A2240), Color(0xFF151C2E)))
+    /** Page headers drawn with the theme's text colours. */
+    val heroSoft: Brush get() = if (palette.dark) hero else Brush.linearGradient(listOf(Color(0xFFDCE6FF), Color(0xFFE8E0FF), Color(0xFFF7F8FC)))
+    val heroGoldSoft: Brush get() = if (palette.dark) heroGold else Brush.linearGradient(listOf(Color(0xFFFFEBC2), Color(0xFFEDE6FF), Color(0xFFF7F8FC)))
 
-    val scheme = darkColorScheme(
-        primary = accent, onPrimary = Color.White, primaryContainer = Color(0xFF1E3A70), onPrimaryContainer = Color(0xFFD6E3FF),
-        secondary = gold, onSecondary = Color(0xFF231A00), tertiary = accent2,
-        background = bg, onBackground = text, surface = card, onSurface = text, surfaceVariant = card2, onSurfaceVariant = muted,
-        surfaceContainer = card, surfaceContainerHigh = card2, surfaceContainerHighest = card3, surfaceContainerLow = card, surfaceContainerLowest = bg,
-        outline = line, outlineVariant = line, error = loss, onError = Color.White,
+    private val darkScheme = darkColorScheme(
+        primary = DARK.accent, onPrimary = Color.White, primaryContainer = Color(0xFF1E3A70), onPrimaryContainer = Color(0xFFD6E3FF),
+        secondary = DARK.gold, onSecondary = Color(0xFF231A00), tertiary = DARK.accent2,
+        background = DARK.bg, onBackground = DARK.text, surface = DARK.card, onSurface = DARK.text, surfaceVariant = DARK.card2, onSurfaceVariant = DARK.muted,
+        surfaceContainer = DARK.card, surfaceContainerHigh = DARK.card2, surfaceContainerHighest = DARK.card3, surfaceContainerLow = DARK.card, surfaceContainerLowest = DARK.bg,
+        outline = DARK.line, outlineVariant = DARK.line, error = DARK.loss, onError = Color.White,
     )
+    private val lightScheme = lightColorScheme(
+        primary = LIGHT.accent, onPrimary = Color.White, primaryContainer = Color(0xFFD9E4FF), onPrimaryContainer = Color(0xFF0B2A66),
+        secondary = LIGHT.gold, onSecondary = Color.White, tertiary = LIGHT.accent2,
+        background = LIGHT.bg, onBackground = LIGHT.text, surface = LIGHT.card, onSurface = LIGHT.text, surfaceVariant = LIGHT.card2, onSurfaceVariant = LIGHT.muted,
+        surfaceContainer = LIGHT.card, surfaceContainerHigh = LIGHT.card2, surfaceContainerHighest = LIGHT.card3, surfaceContainerLow = LIGHT.card, surfaceContainerLowest = LIGHT.bg,
+        outline = LIGHT.line, outlineVariant = LIGHT.line, error = LIGHT.loss, onError = Color.White,
+    )
+    val scheme: androidx.compose.material3.ColorScheme get() = if (palette.dark) darkScheme else lightScheme
     val typography = Typography(
         titleLarge = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
         titleMedium = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold),

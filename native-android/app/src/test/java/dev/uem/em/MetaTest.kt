@@ -37,7 +37,10 @@ class MetaTest {
         val old = w.roleMetas["lol"]
         try {
             w.roleMetas.remove("lol")
-            assertEquals(6, RoleMeta.current(w, "lol").size)
+            assertEquals(7, RoleMeta.current(w, "lol").size)
+            assertEquals("bot-marksman", RoleMeta.bot(w, "lol"))
+            assertEquals("Bot lane mage APC meta", RoleMeta.label("lol", "bot-mage"))
+            assertEquals("Gold lane mage APC meta", RoleMeta.label("mlbb", "bot-mage"))
             assertEquals("bot-carry", RoleMeta.current(w, "lol")[0])
             assertEquals("Gold lane carry meta", RoleMeta.label("mlbb", "bot-carry"))
             assertEquals("Farm lane carry meta", RoleMeta.label("hok", "bot-carry"))
@@ -73,6 +76,39 @@ class MetaTest {
         } finally {
             if (old == null) w.roleMetas.remove("lol") else w.roleMetas["lol"] = old
         }
+    }
+
+    /** The bot-lane meta decides what the bot-side carry drafts: marksmen normally, mages in a mage APC meta. */
+    @Test
+    fun botLaneMetaDrivesTheDraft() {
+        val w = MobaBalanceTest.world()
+        val sb = StringBuilder()
+        for (id in listOf("lol", "mlbb", "wildrift", "hok")) {
+            val t = Catalogue.get(id)
+            val patch = Patch.of(w, t)
+            val botIdx = t.lineupRoles.indexOfFirst { RoleMeta.pos(it.id) == RoleMeta.BOT }
+            val teams = w.teams.filter { it.titleId == id && it.active && it.leagueId >= 0 && it.parentId < 0 }.sortedByDescending { it.elo }.take(12)
+            fun share(meta: String, rx: Regex): Double {
+                var n = 0; var hit = 0
+                for ((i, a) in teams.withIndex()) {
+                    val b = teams[(i + 5) % teams.size]
+                    val lu = arrayOf(dev.uem.em.sim.Lineups.ensure(w, a).map { w.players[it] }, dev.uem.em.sim.Lineups.ensure(w, b).map { w.players[it] })
+                    val r = dev.uem.em.sim.DraftSession(t, patch, lu, arrayOf(a.style, b.style), 0, arrayOf(emptySet(), emptySet()), Rng.of("bot|$id|$meta|$i"), botMeta = meta).runAll()
+                    for (side in 0..1) {
+                        val c = r.assign[side][lu[side][botIdx].id]?.let { t.charIndex[it] } ?: continue
+                        // A mage that is not also a marksman (Ezreal, Varus and the like count as marksmen).
+                        n++; if (rx.containsMatchIn(c.cls) && !(c.cls + c.classes.joinToString()).contains("marksman", ignoreCase = true)) hit++
+                    }
+                }
+                return hit.toDouble() / n.coerceAtLeast(1)
+            }
+            val mage = Regex("mage", RegexOption.IGNORE_CASE)
+            val normal = share("bot-marksman", mage); val apc = share("bot-mage", mage)
+            sb.appendLine("$id: mages in the bot slot ${"%.0f".format(normal * 100)}% (marksman meta) → ${"%.0f".format(apc * 100)}% (mage APC meta)")
+            // Not every bot laner switches: comfort, bans and counters keep some marksmen.
+            assertTrue("$id: a mage APC meta drafts mages bot ($normal → $apc)", apc >= 0.3 && apc > normal + 0.2 && apc <= 0.9)
+        }
+        println(sb); java.io.File("build/bot-meta.txt").writeText(sb.toString())
     }
 
     @Test

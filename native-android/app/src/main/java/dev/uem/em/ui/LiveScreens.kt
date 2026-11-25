@@ -95,6 +95,9 @@ fun LiveScreen(vm: GameVm, w: World, live: LiveMatch) {
                 val g = live.game
                 // Your shooter maps: tactical timeouts from the viewer.
                 LiveHooks.onTimeout = if (live.me >= 0 && !s.t.isMoba) { r, sec -> live.callTimeout(r, sec) } else null
+                // Your MOBA games: coach calls from the viewer.
+                LiveHooks.onCall = if (live.me >= 0 && s.t.isMoba) { c, sec -> live.callMoba(c, sec) } else null
+                LiveHooks.calls = live.myCalls.toList(); LiveHooks.callsLeft = live.callsPerGame - live.myCalls.size
                 LiveHooks.timeoutsLeft = live.timeoutsLeft()
                 LiveHooks.seriesGames = live.series.games.toList()
                 val done: @Composable () -> Unit = { LaunchedEffect(g) { revealed = true }; WatchDone(live) }
@@ -166,6 +169,21 @@ private fun DraftView(live: LiveMatch) {
                 if (d.done || !d.sequential) Button(onClick = { live.startGame() }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Start game ${s.gi + 1}") }
             }
         }
+        // Draft assistant: what the analysts would ban or pick now, and why (tap to take it).
+        if (d.sequential && !d.done && !live.spectator && myTurn && cur != null) {
+            val tips = remember(d.step, cur.second) { d.suggest(live.me, cur.second) }
+            if (tips.isNotEmpty()) Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).background(Ui.accentSoft, androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).padding(10.dp)) {
+                Text("Draft assistant — suggested ${if (cur.second) "bans" else "picks"}", color = Ui.accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                for ((c, why) in tips) Row(Modifier.fillMaxWidth().clickable(enabled = d.legal(live.me, cur.second, c.id)) { live.draftAct(c.id) }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CharPic(c.id, c.name, 30.dp, tap = false); HGap(8)
+                    Column(Modifier.weight(1f)) {
+                        Text(c.name, color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Muted(why.joinToString(" · "), 11)
+                    }
+                    Text(if (cur.second) "Ban" else "Pick", color = Ui.accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
         if (d.sequential && !d.done && !live.spectator) {
             Tabs(listOf("All") + t.lineupRoles.map { it.short }, role + 1) { role = it - 1 }
             val chars = t.characters.filter { role < 0 || it.fits(t.lineupRoles[role]) }.sortedByDescending { s.patch.charMeta[it.id] ?: 0.0 }
@@ -218,6 +236,10 @@ private fun ResultView(vm: GameVm, w: World, live: LiveMatch) {
 object LiveHooks {
     @Volatile var onTimeout: ((beforeRound: Int, atSeconds: Int) -> Unit)? = null
     @Volatile var timeoutsLeft: Int = 0
+    /** Coach calls in a live MOBA game (null: not your game). */
+    @Volatile var onCall: ((call: String, atSeconds: Int) -> Unit)? = null
+    @Volatile var calls: List<Pair<Int, String>> = emptyList()
+    @Volatile var callsLeft: Int = 0
     /** Games of the series being watched live (for the broadcast series bar). */
     @Volatile var seriesGames: List<dev.uem.em.model.GameRecord>? = null
 }

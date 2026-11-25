@@ -46,6 +46,20 @@ class SocialTest {
         val repeats = pmtComments.size - pmtComments.toSet().size
         println("post-match threads: ${feed.count { it.key.startsWith("pm") }}, comments ${pmtComments.size}, repeated word for word $repeats")
         assertTrue("comments repeat across threads: $repeats of ${pmtComments.size}", pmtComments.isNotEmpty() && repeats * 10 <= pmtComments.size)
+        // Nowhere in the feed is a comment or reply written twice word for word, and the phrasings
+        // themselves (names and numbers masked) vary: most comments use a phrasing no other comment uses.
+        fun flat(cs: List<Social.Comment>): List<String> = cs.flatMap { listOf(it.text) + flat(it.replies) }
+        val every = feed.flatMap { flat(it.comments) }
+        val twice = every.groupingBy { it }.eachCount().filter { it.value > 1 }
+        assertTrue("comments written twice: ${twice.entries.take(5)}", twice.isEmpty())
+        val names = (w.teams.map { it.short } + w.teams.map { it.name } + w.players.map { it.handle }).filter { it.length >= 2 }.sortedByDescending { it.length }
+        val nameRx = Regex("\\b(" + names.take(4000).joinToString("|") { Regex.escape(it) } + ")\\b")
+        fun skeleton(t: String) = nameRx.replace(t, "#").replace(Regex("[0-9][0-9.,:/–-]*"), "9").lowercase()
+        val sk = every.map(::skeleton)
+        val counts = sk.groupingBy { it }.eachCount()
+        val unique = sk.count { counts[it] == 1 }
+        println("feed comments: ${every.size}, phrasings used once: $unique; most repeated: " + counts.entries.sortedByDescending { it.value }.take(6).joinToString(" | ") { "${it.value}× ${it.key.take(60)}" })
+        assertTrue("phrasings repeat: only $unique of ${every.size} are unique", unique * 10 >= every.size * 6)
         // A game filter and a team filter narrow the feed.
         val lol = Social.feed(w, "lol")
         assertTrue(lol.isNotEmpty() && lol.all { it.titleId == "lol" })

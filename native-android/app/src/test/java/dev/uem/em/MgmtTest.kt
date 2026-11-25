@@ -60,7 +60,12 @@ class MgmtTest {
         assertTrue(w.awards.isNotEmpty())
         // Professional teams always field a roster; a development club left short by a signing refills the next day.
         val short = w.teams.filter { it.active && it.kind.isEmpty() && it.roster.size < 5 }
-        assertTrue("development clubs short for more than a day", w.teams.count { it.active && it.kind.isNotEmpty() && it.roster.size < 5 } <= 3)
+        // Clubs left short today (a signing on the last day) refill at the start of the next day: run that refill.
+        val shortToday = w.teams.filter { it.active && it.kind.isNotEmpty() && it.roster.size < 5 }
+        dev.uem.em.mgmt.Circuits.daily(w)
+        val stillShort = shortToday.filter { it.roster.size < 5 }
+        println("development clubs short at the end of the day: ${shortToday.size}, after the next day's refill: ${stillShort.size}")
+        assertTrue("development clubs short for more than a day: ${stillShort.map { "${it.name} ${it.roster.size}" }}", stillShort.size <= 1)
         assertTrue("short rosters: ${short.take(4).map { "${it.name} (${it.kind.ifBlank { "pro" }}) ${it.roster.size}" }}", short.isEmpty())
         assertTrue(Economy.payroll(w, t1) > 0)
     }

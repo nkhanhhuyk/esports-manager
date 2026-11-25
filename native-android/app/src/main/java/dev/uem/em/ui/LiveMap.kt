@@ -1,5 +1,7 @@
 package dev.uem.em.ui
 
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -96,6 +98,29 @@ class MapCam {
 
     /** Stop following, keeping the current view. */
     fun unpin() { val c = center(); pinned = null; follow = -1; cx = c.x; cy = c.y }
+}
+
+/**
+ * The 2D viewers' layout. Tall screens: header, map and everything else scroll in one column. Wide
+ * screens (a phone held sideways, an unfolded foldable, a tablet): the map takes the left side at full
+ * height and the rest scrolls beside it, so nothing is left empty and the map never needs scrolling.
+ */
+@Composable
+internal fun ViewerLayout(header: @Composable ColumnScope.() -> Unit, map: @Composable () -> Unit, rest: @Composable ColumnScope.() -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val W = maxWidth; val H = maxHeight
+        val wide = W >= 560.dp && W > H * 0.85f
+        if (!wide) Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { header(); map(); rest() }
+        else if (W * 0.6f >= H) Row(Modifier.fillMaxSize()) {
+            // Very wide: the map is as tall as the screen.
+            Box(Modifier.fillMaxHeight().width(H)) { map() }
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) { header(); rest() }
+        } else Row(Modifier.fillMaxSize()) {
+            // Nearly square (an unfolded foldable): score and map on the left, controls and boards on the right.
+            Column(Modifier.fillMaxHeight().width(W * 0.6f).verticalScroll(rememberScrollState())) { header(); map() }
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) { rest() }
+        }
+    }
 }
 
 /** A square map with pinch-zoom and drag-pan; `draw` paints the map in 0..W map space. */

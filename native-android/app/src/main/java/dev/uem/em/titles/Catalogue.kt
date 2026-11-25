@@ -81,6 +81,8 @@ object Catalogue {
 
     @Synchronized
     fun init(src: DataSource) {
+        // Real esports history before the save (honours, GOAT, Hall of Fame).
+        runCatching { dev.uem.em.mgmt.HistoryBook.init(src) }
         if (loaded) return
         dev.uem.em.sim.MobaMap.init(src)
         dev.uem.em.sim.Abilities.init(src)

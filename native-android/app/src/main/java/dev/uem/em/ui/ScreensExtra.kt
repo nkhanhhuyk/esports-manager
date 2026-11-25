@@ -1,5 +1,6 @@
 package dev.uem.em.ui
 
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -106,6 +107,7 @@ fun ScheduleScreen(vm: GameVm, w: World) {
 @Composable
 fun SettingsScreen(vm: GameVm, w: World) {
     LazyColumn(Modifier.fillMaxSize()) {
+        item { AppearanceCard(vm) }
         item {
             Card("Simulation detail") {
                 Muted("Full: every match is played on the 2D engines (most detailed, slowest). Balanced (default): the top leagues of the games you manage or follow and every international event on the 2D engines; second-tier leagues (Challengers, academies) and the other games' regular leagues on a quick model. Fast: every match without your team or a followed team, and that keeps no replay, uses the quick model (results, drafts and box scores, no replay) — several times faster on a phone. Matches you watch or play always use the full engines.", 11)
@@ -336,6 +338,22 @@ fun DatabaseEditorCard(vm: GameVm, w: World) {
             for (e in r.errors.take(12)) Muted("• $e", 10)
             if (r.errors.size > 12) Muted("… and ${r.errors.size - 12} more", 10)
             for (n in r.notes.take(5)) Muted("• $n", 10)
+        }
+    }
+}
+
+/** Theme and the first-career tips. */
+@Composable
+fun AppearanceCard(vm: GameVm) {
+    Card("Appearance") {
+        Muted("Dark suits the broadcast-style 2D matches; light is easier to read outdoors. Follow phone switches with the phone's setting.", 11)
+        val modes = listOf("dark", "light", "system")
+        Tabs(listOf("Dark", "Light", "Follow phone"), modes.indexOf(vm.themeMode).coerceAtLeast(0)) { vm.setTheme(modes[it]) }
+        Gap(4)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Muted("Tips for a new career on Home", 12)
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { vm.resetTips(); vm.toast = "Tips will show on Home again" }) { Text("Show tips again", color = Ui.accent) }
         }
     }
 }
