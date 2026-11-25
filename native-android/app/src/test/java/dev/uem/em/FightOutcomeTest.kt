@@ -34,7 +34,9 @@ class FightOutcomeTest {
             var wd = 0.0; var ld = 0.0; var wk = 0.0; var lk = 0.0; var games = 0; var dur = 0.0
             val byRole = HashMap<String, DoubleArray>()
             var moreKillsWon = 0; var moreKillsGames = 0; var moreObjWon = 0; var moreObjGames = 0; var strongerWon = 0; var agree = 0; var agreeGames = 0
-            for (i in 0 until n) {
+            // Honor of Kings sits close to its limit (about 0.91 over 400 games): a bigger sample measures it, not the noise of 120.
+            val games0 = if (id == "hok" && System.getenv("UEM_FIGHT_GAMES") == null) 300 else n
+            for (i in 0 until games0) {
                 val a = teams[i % teams.size]; val b = teams[(i * 7 + 3) % teams.size]
                 if (a.id == b.id) continue
                 val f = Fixture(-(4_000_000 + k * 10_000 + i), comp.id, 0, id, w.day, a.id, b.id, 1)

@@ -85,7 +85,7 @@ object Database {
             for (c in w.comps) if (c.season >= w.season) emit(listOf(c.id, c.titleId, c.season, c.name, c.short, c.tier.name, c.region, date(c.startDay), c.prizePool.roundToInt(), w.images["comp:${c.id}"] ?: ""))
         })
         val staff = Xlsx.SheetOut("Staff", STAFF_HEAD, { emit ->
-            for (s in w.staff) if (!s.retired) emit(listOf(s.id, "${s.titleId}|${s.first} ${s.last}", s.titleId, s.first, s.last, s.nat, date(s.birth), s.role, s.quality.roundToInt(), if (s.teamId >= 0) s.teamId else null, w.teams.getOrNull(s.teamId)?.name ?: ""))
+            for (s in w.staff) if (!s.retired) emit(listOf(s.id, "${s.titleId}|${s.name()}", s.titleId, s.first, s.last, s.nat, date(s.birth), s.role, s.quality.roundToInt(), if (s.teamId >= 0) s.teamId else null, w.teams.getOrNull(s.teamId)?.name ?: ""))
         })
         val chars = Xlsx.SheetOut("Characters", CHAR_HEAD, { emit -> for (id in w.titles) for (c in Catalogue.get(id).characters) emit(listOf(c.id, id, c.name, c.cls, w.images["char:${c.id}"] ?: "")) })
         Xlsx.write(listOf(readme, players, teams, orgs, leagues, comps, staff, chars, roles), out)
@@ -292,7 +292,8 @@ object Database {
     }
 
     private fun importStaff(w: World, cell: (String) -> String, where: String, byKey: Boolean, r: Report) {
-        val s = (if (byKey) w.staff.firstOrNull { "${it.titleId}|${it.first} ${it.last}" == cell("match key") } else cell("id").toIntOrNull()?.let { w.staff.getOrNull(it) })
+        // Match key: game and name (the handle for real coaches); files from before staff handles used first and last name.
+        val s = (if (byKey) w.staff.firstOrNull { "${it.titleId}|${it.name()}" == cell("match key") } ?: w.staff.firstOrNull { "${it.titleId}|${it.first} ${it.last}" == cell("match key") } else cell("id").toIntOrNull()?.let { w.staff.getOrNull(it) })
             ?: run { if (!byKey) r.errors.add("$where: no staff member with id ${cell("id")}"); return }
         var ch = false
         cell("first name").takeIf { it.isNotBlank() && it != s.first }?.let { s.first = it; ch = true }

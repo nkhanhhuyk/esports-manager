@@ -71,7 +71,6 @@ fun SquadScreen(vm: GameVm, w: World) {
     val team = teams[ti.coerceIn(0, teams.size - 1)]
     val t = Catalogue.get(team.titleId)
     var pickSlot by remember { mutableIntStateOf(-1) }
-    var hireRole by remember { mutableStateOf<String?>(null) }
     LazyColumn(Modifier.fillMaxSize()) {
         if (teams.size > 1) item { Tabs(teams.map { Catalogue.get(it.titleId).short + " · " + it.short }, ti) { ti = it } }
         item {
@@ -116,24 +115,6 @@ fun SquadScreen(vm: GameVm, w: World) {
                     PlayerPic(p, 28.dp, round = true); HGap(8)
                     Column(Modifier.weight(1f)) { Text(p.handle, color = Ui.text); Muted("${t.role(p.mainRole).short} · fit here %.1f · CA %.1f · fatigue %.0f${if (p.injuryUntil > w.day) " · injured" else ""}".format(dev.uem.em.sim.Ratings.effectiveness(p, t, role), p.ca, p.fatigue)) }
                     if (p.id == team.lineup.getOrNull(pickSlot)) Text("✓", color = Ui.win)
-                }
-            }
-        })
-    }
-    hireRole?.let { role ->
-        val pool = w.staff.filter { it.teamId < 0 && !it.retired && it.role == role }.sortedByDescending { it.quality + if (it.titleId == team.titleId) 5 else 0 }.take(30)
-        AlertDialog(onDismissRequest = { hireRole = null }, confirmButton = { Ghost("Close") { hireRole = null } }, title = { Text("Hire: ${Economy.ROLE_LABEL[role]}") }, text = {
-            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
-                if (pool.isEmpty()) Muted("Nobody available.")
-                for (s in pool) Row(Modifier.fillMaxWidth().clickable {
-                    Economy.staffOf(w, team, role).takeIf { role == "head-coach" }?.forEach { Economy.fire(w, it) }
-                    Economy.hire(w, s, team, 2)
-                    hireRole = null
-                    vm.toast = "${s.name()} hired"
-                    vm.edit()
-                }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) { Text(s.name(), color = Ui.text); Muted("${Catalogue.BY_ID[s.titleId]?.short ?: ""} · age ${Dates.ageAt(s.birth, w.day)} · asks ${formatMoney(Economy.staffSalary(s, team.region))}") }
-                    Rating(s.quality)
                 }
             }
         })
@@ -270,34 +251,6 @@ private fun SquadTraining(vm: GameVm, w: World, team: Team, t: dev.uem.em.titles
     }
 }
 
-@Composable
-private fun SquadStaff(vm: GameVm, w: World, team: Team, hire: (String) -> Unit) {
-    Card("Staff · ${team.name}") {
-        if (team.staffIds.isEmpty()) Muted("No staff.")
-        for (sid in team.staffIds.toList()) {
-            val s = w.staff[sid]
-            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(flag(s.nat).ifEmpty { "·" }, fontSize = 14.sp, modifier = Modifier.width(24.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(s.name(), color = Ui.text, fontSize = 14.sp)
-                    Muted("${Economy.ROLE_LABEL[s.role]} · age ${Dates.ageAt(s.birth, w.day)} · ${formatMoney(s.salary)}/season to ${s.contractEnd}", 11)
-                }
-                Rating(s.quality)
-                if (Roles.can(w, "staff")) Ghost("Release", Ui.loss) { Economy.fire(w, s); vm.edit() }
-            }
-        }
-        Gap(4)
-        KV("Coaching quality", "%.0f".format(Economy.coachQuality(w, team)))
-        KV("Match preparation", "×%.2f".format(Economy.prepFactor(w, team)))
-        KV("Staff payroll", formatMoney(team.staffIds.sumOf { w.staff[it].salary }))
-    }
-    Card("Hire") {
-        for (role in Economy.STAFF_ROLES) Row(Modifier.fillMaxWidth().clickable { hire(role) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(Economy.ROLE_LABEL[role]!!, color = Ui.text, fontSize = 13.sp, modifier = Modifier.weight(1f))
-            Muted("${Economy.staffOf(w, team, role).size} employed · ${w.staff.count { it.teamId < 0 && !it.retired && it.role == role }} available ›", 11)
-        }
-    }
-}
 
 @Composable
 private fun SquadContracts(vm: GameVm, w: World, team: Team) {

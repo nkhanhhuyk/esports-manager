@@ -324,6 +324,11 @@ with five Worlds as head coach, is in the market). Clubs without real staff data
 positional coach 40%; real titles before the save count (kkOma 152, Homme 97, Dylan Falco 70, Daeny 64 at the start).
 The Hall of Fame takes coaches with a legacy of 45+ who retired, or whose real careers ended before the save.
 
+Balance after the change: the staff now separate clubs a little more, so two edge checks were re-measured.
+League of Legends bot laners reached 34% of series MVPs (limit a third): their rating scale moved 1.16 → 1.17
+(30%; the KDA top 20 stays mixed). Honor of Kings fight winners die 0.91× as often as losers over 400 games (limit
+0.92): the 120-game sample swung either side of the limit, so `FightOutcomeTest` now plays 300 HoK games (0.91).
+
 Saves: `Staff` gained appended fields (attributes, handle, position, reputation, career, real titles), and
 `World.staffVersion`, `World.staffBids`. An older save keeps its own staff (given attributes), real coaches join
 the AI clubs (your own staff untouched), and every AI club fills its plan.

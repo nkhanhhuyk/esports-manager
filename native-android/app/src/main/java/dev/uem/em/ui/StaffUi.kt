@@ -119,7 +119,7 @@ fun StaffScreen(vm: GameVm, w: World, id: Int) {
         }
         item {
             Card("Best roles") {
-                val fits = Staffing.ROLES.filter { !it.titleBound || true }.map { it to Staffing.qualityOf(it.id, s.attrs.takeIf { a -> a.size == Staffing.ATTRS.size } ?: IntArray(Staffing.ATTRS.size) { s.quality.toInt() }) }.sortedByDescending { it.second }.take(5)
+                val fits = Staffing.ROLES.map { it to Staffing.qualityOf(it.id, s.attrs.takeIf { a -> a.size == Staffing.ATTRS.size } ?: IntArray(Staffing.ATTRS.size) { s.quality.toInt() }) }.sortedByDescending { it.second }.take(5)
                 for ((d, q) in fits) Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(Staffing.roleLabel(d.id, s.titleId), color = if (d.id == s.role) Ui.accent else Ui.text, fontSize = 12.sp, modifier = Modifier.weight(1f))
                     Rating(q)
