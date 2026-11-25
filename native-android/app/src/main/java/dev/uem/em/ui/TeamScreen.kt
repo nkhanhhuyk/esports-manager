@@ -494,7 +494,7 @@ private fun RealPastRosters(vm: GameVm, w: World, team: Team, t: TitleDef) {
                 val p = people[dev.uem.em.mgmt.Careers.norm(e.handle)]?.let { l -> if (l.size == 1) l[0] else l.firstOrNull { it.nat == e.nat } ?: l[0] }
                 val role = e.role.takeIf { r -> t.roles.any { it.id == r } } ?: p?.roles?.firstOrNull()?.takeIf { e.role.isEmpty() }
                 Row(Modifier.fillMaxWidth().then(if (p != null) Modifier.clickable { vm.go(Screen.Player(p.id)) } else Modifier).padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(role?.let { t.role(it).short } ?: if (e.role == "sub") "Sub" else "", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(40.dp))
+                    Text(role?.let { t.role(it).short } ?: when (e.role) { "sub" -> "Sub"; "stand-in" -> "Stand-in"; "trial" -> "Trial"; "loan" -> "Loan"; else -> "" }, color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(40.dp))
                     if (p != null) { PlayerPic(p, 22.dp, round = true); HGap(6) }
                     Column(Modifier.weight(1f)) {
                         Text(e.handle, color = if (p != null) Ui.accent else Ui.text, fontSize = 13.sp)

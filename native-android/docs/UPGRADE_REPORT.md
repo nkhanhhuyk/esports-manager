@@ -516,3 +516,22 @@ Saves: appended fields only (`Player.residency`, `Player.soloK/soloD/soloA`, `Te
 
 Saves: no new fields. `World.ratingCal` gains two keys per game; older saves start them fresh. The
 winners' rating statistics from the seventeenth follow-up are dropped on load.
+
+## Nineteenth follow-up: real past rosters for every team, Los Ratones in the LEC
+
+* **Past rosters before the save** (team page → Past rosters → "Before the save: real rosters"). Every real
+  team now shows who played for it, year by year: 529 teams across six games (LoL from 2011, Dota 2 from 2011,
+  CS2 from 2013, VALORANT from 2020, MLBB from 2019, Wild Rift 2021). Each year lists the players with position
+  and flag, the months they joined or left where the source has them, and the staff where known. It also gives
+  the club's name that year when it was different ("as SK Telecom T1"). Players who are in the game open their
+  page. Sources and coverage: `docs/DATA_PROVENANCE.md` ("Past rosters by team"). Honor of Kings teams are
+  fictional and have none. The seasons you play still appear above, as before.
+* **Los Ratones** join the LEC as an eleventh team (`src/data/real/special.json`): Baus, Velja, Nemesis,
+  Crownie, Rekkles; Caedrel head coach, Shaves assistant coach. The LEC plays its splits with a bye each round.
+  The team page says it is a special addition. New worlds only: an existing save keeps its LEC.
+
+Tests: `PastRostersTest` (known line-ups such as T1 2013, Fnatic 2019, G2 2019, Team Spirit 2021, Sentinels
+2021, NaVi 2021; earlier club names; months; staff), `SpecialTeamsTest` (Los Ratones in an 11-team LEC with the
+five players and both coaches, playing LEC matches by January).
+
+Saves: no new fields.

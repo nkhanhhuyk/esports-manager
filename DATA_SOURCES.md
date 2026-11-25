@@ -196,3 +196,22 @@ dead ones that were removed (6 Dota 2 team logos, 1 LoL photo).
 * Valve Regional Standings: published by Valve on GitHub; team names and rosters (facts) only.
 * MPL ID / MPL PH official sites, LoL Esports: official league data; handles, roles and published names only.
 * Character names and game terms are trademarks of their publishers.
+
+## Snapshot `pastRosters` (25 Nov 2026) — real past rosters by team
+
+`python3 scripts/data/past_rosters.py [cache-dir] --vrs <clone of ValveSoftware/counter-strike_regional_standings>`
+→ `src/data/real/pastRosters.json`: who played for each real team, year by year (529 teams).
+
+| Game | Source |
+| --- | --- |
+| League of Legends | **Community** — Games of Legends (gol.gg) season team pages (robots.txt allows `/teams/`), joined with the Leaguepedia tenures already in careers.json |
+| Dota 2 | **Community API** — OpenDota SQL explorer (premium/professional league matches since 2012) and `/proPlayers` |
+| VALORANT | **Community** — vlr.gg team transaction pages (robots.txt allows them) |
+| CS2 | **Official** — Valve Regional Standings (monthly standings with rosters, Aug 2024 on); Major finalists' rosters from honours.json |
+| MLBB | **Official** — id-mpl.com (Season 4 on) and ph-mpl.com (Season 6 on) team pages |
+| Wild Rift | Wild Rift Esports Wiki rosters (2021, wildrift.json) |
+
+Requests spaced (gol.gg 1.5 s, vlr.gg 1 s, OpenDota 4 s, MPL 0.6 s) and cached; an HTTP 429 stops that source
+without a retry. No Fandom or Liquipedia request was made for this snapshot.
+
+`src/data/real/special.json` holds additions made at the player's request (not from a source): Los Ratones in the LEC.

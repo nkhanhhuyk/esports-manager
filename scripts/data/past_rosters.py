@@ -193,14 +193,29 @@ def main():
     STAFF = {"head-coach", "coach", "assistant", "strategic-coach", "analyst", "positional-coach", "manager", "owner", "performance"}
 
     # ------------------------------------------------------------------ careers.json (every game)
+    POS = {"lol": {"top", "jungle", "mid", "bot", "support"}, "wildrift": {"baron", "jungle", "mid", "dragon", "support"},
+           "mlbb": {"exp", "jungle", "mid", "gold", "roam"}, "dota2": {"pos1", "pos2", "pos3", "pos4", "pos5"}}
+    def role_kind(ti, role):
+        """(role, staff) for a careers role, or None for roles that are neither playing nor coaching (streamer, creator...)."""
+        r = (role or "").strip().lower()
+        if r in ("", "sub") or r in POS.get(ti, set()) or ti in ("valorant", "cs2") and r in ("duelist", "initiator", "controller", "sentinel", "flex", "igl", "awper", "rifler", "entry", "support", "lurker"):
+            return r, False
+        if r in STAFF: return r, True
+        if "director" in r or "manager" in r: return "manager", True
+        if "coach" in r: return "coach", True
+        if "analyst" in r: return "analyst", True
+        return None
     for key, spells in careers.items():
         ti, _ = key.split("|", 1)
         for team, frm, to, role, src in spells:
             tgt = resolve(ti, team)
             if not tgt: continue
+            rk = role_kind(ti, role)
+            if rk is None: continue
+            role = rk[0]
             # The handle as written: careers keys are normalised, so take it from the other files when possible.
-            add(ti, tgt, team, None or key.split("|", 1)[1], role, frm, to,
-                {"wiki": "Leaguepedia tenures", "honours": "title rosters"}.get(src, "real-data snapshot"), staff=role in STAFF)
+            add(ti, tgt, team, key.split("|", 1)[1], role, frm, to,
+                {"wiki": "Leaguepedia tenures", "honours": "title rosters"}.get(src, "real-data snapshot"), staff=rk[1])
     # Display handles for the normalised career keys.
     handles = defaultdict(dict)
     for t in rosters["teams"]:
@@ -277,7 +292,7 @@ def main():
     # ------------------------------------------------------------------ VALORANT: vlr.gg transactions
     VROLE = {"player": "", "head coach": "head-coach", "coach": "coach", "assistant coach": "assistant", "analyst": "analyst", "manager": "manager",
              "performance coach": "performance", "substitute": "sub", "sub": "sub", "inactive": "inactive", "strategic coach": "strategic-coach",
-             "positional coach": "positional-coach"}
+             "positional coach": "positional-coach", "staff": "staff"}
     vteams = {}
     for name in sorted(targets["valorant"].values()):
         u = urls.get(("valorant", name), "")
@@ -312,17 +327,17 @@ def main():
         open_ = {}
         for date, action, h, pos, nat in rows:
             role = VROLE.get(pos, "coach" if "coach" in pos else pos)
-            k = (norm(h), role in STAFF)
+            k = (norm(h), role in STAFF or role == "staff")
             if action == "join":
                 if k not in open_: open_[k] = [h, role, date, nat]
             elif action in ("leave", "inactive", "bench"):
                 o = open_.pop(k, None)
                 if o is None: o = [h, role, "", nat]
                 if role == "inactive" and o[1] not in STAFF: pass
-                add("valorant", name, None, o[0], "" if o[1] in ("", "inactive") else o[1], o[2][:7], (date or "")[:7] or o[2][:7], "vlr.gg transactions", o[3], staff=o[1] in STAFF)
+                add("valorant", name, None, o[0], "" if o[1] in ("", "inactive") else o[1], o[2][:7], (date or "")[:7] or o[2][:7], "vlr.gg transactions", o[3], staff=o[1] in STAFF or o[1] == "staff")
                 vn += 1
         for o in open_.values():
-            add("valorant", name, None, o[0], "" if o[1] in ("", "inactive") else o[1], o[2][:7], "", "vlr.gg transactions", o[3], staff=o[1] in STAFF)
+            add("valorant", name, None, o[0], "" if o[1] in ("", "inactive") else o[1], o[2][:7], "", "vlr.gg transactions", o[3], staff=o[1] in STAFF or o[1] == "staff")
             vn += 1
     print("vlr.gg: %d teams, %d spells" % (len(vteams), vn), file=sys.stderr)
 
@@ -395,7 +410,20 @@ def main():
                 st = p.get("status") != "player"
                 add("wildrift", t["name"], None, p["handle"], p.get("role", "") if not st else "coach", "2021", "2021", "Wild Rift Esports Wiki (2021)", staff=st)
 
+    # ------------------------------------------------------------------ display handles
+    # Careers keys are normalised; take the spelling another source uses for the same person (same game).
+    spell_of = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    for (ti, _), d in out.items():
+        for p in d["people"]:
+            if p[4] not in (0, 7, 8) or p[0] != norm(p[0]): spell_of[ti][norm(p[0])][p[0]] += 1
+    for (ti, _), d in out.items():
+        for p in d["people"]:
+            if p[0] == norm(p[0]) and spell_of[ti].get(p[0]):
+                c = spell_of[ti][p[0]]
+                p[0] = max(c, key=lambda h: (c[h], h != h.lower()))
+
     # ------------------------------------------------------------------ by year
+    def mon(x): return int(x[5:7]) if len(x) >= 7 else 0
     res = {}
     for (ti, team), d in sorted(out.items()):
         years = defaultdict(dict)  # year -> norm handle -> entry
@@ -404,6 +432,8 @@ def main():
             if y0 is None: continue
             y1 = int(to[:4]) if to[:4].isdigit() else as_of
             if y1 < y0: y1 = y0
+            if mon(frm) >= 11 and y1 > y0: y0 += 1; frm = ""
+            if to and mon(to) == 1 and y1 > y0: y1 -= 1; to = ""
             for y in range(y0, min(y1, as_of) + 1):
                 a = frm if y == y0 and len(frm) >= 7 else ""
                 b = to if y == y1 and len(to) >= 7 else ""
@@ -423,11 +453,13 @@ def main():
                     if h != prev["h"] and h[:1].isupper() and not prev["h"][:1].isupper(): prev["h"] = h
         ys = {}
         for y in sorted(years):
-            rows = sorted(years[y].values(), key=lambda e: (e["st"], e["h"].lower()))
+            staff_keys = {k[0] for k in years[y] if k[1]}
+            rows = sorted((e for k, e in years[y].items() if k[1] or k[0] not in staff_keys), key=lambda e: (e["st"], e["h"].lower()))
+            if not any(not e["st"] for e in rows): continue
             ys[str(y)] = {
                 "p": [[e["h"], e["r"], e["n"], e["a"], e["b"], sorted(e["s"])] for e in rows if not e["st"]],
                 "s": [[e["h"], e["r"], e["n"], e["a"], e["b"], sorted(e["s"])] for e in rows if e["st"]],
-                "as": sorted(n for n in d["names"].get(y, set()) if norm(n) != norm(team)),
+                "as": sorted({norm(n): n for n in sorted(d["names"].get(y, set())) if norm(n) != norm(team)}.values()),
             }
         if ys: res[ti + "|" + norm(team)] = {"n": team, "y": ys}
     doc = {"snapshot_id": 1, "as_of": time.strftime("%Y-%m-%d"), "sources": SRC,

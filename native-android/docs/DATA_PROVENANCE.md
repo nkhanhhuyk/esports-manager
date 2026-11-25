@@ -154,3 +154,37 @@ reused — nothing was retried or worked around.
 Disambiguated Leaguepedia pages (for example a handle shared by several players, kept as "Knight (Zhuo Ding)")
 were not matched in this pass; those players show the snapshot's teams by year. Liquipedia (MLBB, HoK, Dota 2,
 CS2) was not used: it refused automated access earlier (HTTP 429) and is not retried.
+
+## Past rosters by team (pastRosters.json, 25 Nov 2026)
+
+`scripts/data/past_rosters.py` → `src/data/real/pastRosters.json` (read by `mgmt/PastRosters`, team page →
+Past rosters → "Before the save"). Who played for each real team, year by year, with the staff where a source
+lists them. 529 teams; 1,098 requests, every response cached; nothing was rate-limited.
+
+| Game | Source | Teams | Years | Notes |
+|---|---|---|---|---|
+| League of Legends | Games of Legends (gol.gg) season team pages (robots.txt allows them; 1.5 s apart): the players who played for the team that season, their position and flag. Joined with the Leaguepedia tenures of careers.json (months, staff). | 168 of 177 | 2011–2026 | 2013 has few gol.gg teams; earlier years come from Leaguepedia tenures and title rosters only. |
+| Dota 2 | OpenDota public SQL explorer: every premium/professional league match since 2012, per team and player (first and last match). Players with at least 5 games; names from OpenDota's pro-player list. | 65 of 69 | 2011–2026 | A club that changed its OpenDota team id keeps only the current id's matches. Positions come from the game's player when the person is in the game. |
+| VALORANT | vlr.gg team transaction logs (joins, departures, staff; 1 s apart). | 70 of 72 | 2020–2026 | Dates to the day; positions from the game's player. |
+| CS2 | Valve Regional Standings (monthly global and regional standings with five-player rosters, Aug 2024 on) and the Major champion / runner-up rosters (honours.json). | 162 of 162 | 2013–2026 | Before Aug 2024 only the Major finalists' rosters: most CS2 teams have only recent years. |
+| MLBB | MPL Indonesia (Season 4 on) and MPL Philippines (Season 6 on) official team pages; an old team page redirects to the club's current one, which links a club's seasons. | 26 of 28 | 2019–2026 | Season → year: S1–S2 2018, S3–S4 2019 … S17–S18 2026. Early seasons list classes (fighter, tank) rather than lanes. |
+| Wild Rift | Wild Rift Esports Wiki rosters (2021, wildrift.json) | 38 of 38 | 2021 | The only year with a source. |
+| Honor of Kings | none | — | — | The HoK teams are fictional. |
+
+How the years are built: a spell counts in every year it covers, except that a spell starting in November or
+December counts from the next year, and one ending in January stops the year before, so pre-season signings
+don't show up in the old year. A person listed as staff and as a player in the same year (title rosters list
+coaches) is shown as staff. Earlier names of a club are joined in from a short list of renames (e.g. SK Telecom
+T1 → T1, Samsung Galaxy / KSV → Gen.G, DAMWON → Dplus KIA, MAD Lions → Movistar KOI, Excel → GIANTX, Suning →
+Weibo Gaming); slot purchases are not joined. Roles that are neither playing nor coaching (streamer, content
+creator) are left out.
+
+## Special additions (special.json, 25 Nov 2026)
+
+Added at the player's request, not from a data source, and labelled on the team page:
+
+* **Los Ratones in the LEC** as an eleventh team, with the line-up of their 2025–26 run (Baus, Velja, Nemesis,
+  Crownie, Rekkles; real names, nationalities and birthdays from the facts snapshot), Caedrel (the club's
+  founder) as head coach and Shaves (their real 2025–26 assistant coach) as assistant coach. Starting team
+  strength 72, like SK Gaming or Team Heretics. In reality the club has no LEC place, and YamatoCannon, their
+  head coach in 2025–26, stays at Cloud9 Kia in the game.
