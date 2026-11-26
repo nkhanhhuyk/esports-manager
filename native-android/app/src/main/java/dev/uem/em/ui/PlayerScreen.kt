@@ -315,9 +315,12 @@ private fun PlayerCareer(vm: GameVm, w: World, p: Player) {
     if (before.isNotEmpty()) Card("Career before the save") {
         CareerSpells(vm, w, p.titleId, before)
     }
-    Card(if (before.isNotEmpty()) "Moves in the save" else "Career timeline") {
+    // A long career: one season at a time (or all of it).
+    val seasons = listOf(0) + p.career.map { it.season }.distinct().sortedDescending()
+    var si by remember(p.id) { mutableIntStateOf(0) }
+    Card(if (before.isNotEmpty()) "Moves in the save" else "Career timeline", right = { if (seasons.size > 2) Select("", seasons.map { if (it == 0) "All seasons" else "$it" }, si) { si = it } }) {
         if (p.career.isEmpty()) Muted("No moves recorded.")
-        for (e in p.career.reversed()) {
+        for (e in p.career.reversed().filter { si == 0 || it.season == seasons[si] }) {
             val fee = w.transfers.firstOrNull { it.playerId == p.id && it.day == e.day && it.toTeam == e.teamId }?.fee ?: 0.0
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.width(78.dp)) { Text(Dates.short(e.day), color = Ui.text, fontSize = 12.sp); Muted("season ${e.season}", 10) }

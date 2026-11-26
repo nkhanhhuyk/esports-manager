@@ -400,7 +400,8 @@ object Formats {
             "promofmt" to 0.5, "cacl" to 0.25,
         )
         // League reforms (expansion, merger, split) are rarer still: at most one every five seasons.
-        if (tf.log.none { it.kind in LEAGUE_KINDS && w.season - it.season < 5 }) { kinds.add("expandleague" to 0.5); kinds.add("merge" to 0.35); kinds.add("split" to 0.35) }
+        if (tf.log.none { it.kind in LEAGUE_KINDS && w.season - it.season < 5 }) { kinds.add("expandleague" to 0.5); kinds.add("merge" to 0.35); kinds.add("split" to 0.35); kinds.add("recognize" to 0.3); kinds.add("associate" to 0.2) }
+        kinds.add("hostpolicy" to 0.3); kinds.add("allstar" to 0.2)
         val want = if (force > 0) force else rng.int(1, 3)
         // Most reforms apply from next season; some are announced a season further ahead (time to plan rosters and budgets).
         val longNotice = ahead ?: (force <= 0 && rng.chance(0.3))
@@ -434,13 +435,13 @@ object Formats {
         return logged.map { "Competitions [${it.id}] — ${it.text}" }
     }
 
-    val LEAGUE_KINDS = setOf("expandleague", "merge", "split")
+    val LEAGUE_KINDS = setOf("expandleague", "merge", "split", "recognize", "associate")
 
     private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     /** The structural part of a game's format as JSON (log, announcements and review dates left out). */
     private fun snapshot(tf: TitleFormat): String = json.encodeToString(TitleFormat.serializer(),
-        TitleFormat(tf.titleId, HashMap(tf.events), HashMap(tf.seeds), tf.rank, HashMap(tf.proRel), tf.lastChance, tf.invitational, 0, ArrayList(), HashMap(tf.promo), tf.academyCup))
+        TitleFormat(tf.titleId, HashMap(tf.events), HashMap(tf.seeds), tf.rank, HashMap(tf.proRel), tf.lastChance, tf.invitational, 0, ArrayList(), HashMap(tf.promo), tf.academyCup, ArrayList(), HashMap(tf.hosts), tf.allStar))
 
     private fun restore(tf: TitleFormat, state: String) {
         val s = json.decodeFromString(TitleFormat.serializer(), state)
@@ -451,6 +452,8 @@ object Formats {
         tf.lastChance = s.lastChance; tf.invitational = s.invitational
         tf.promo.clear(); tf.promo.putAll(s.promo)
         tf.academyCup = s.academyCup
+        tf.hosts.clear(); tf.hosts.putAll(s.hosts)
+        tf.allStar = s.allStar
     }
 
     /** The game's format as an announcement will make it (for the preview), or null. */
@@ -652,17 +655,37 @@ object Formats {
             "promofmt" -> {
                 val l = x.tier1.filter { hasProRel(w, it) }.let { if (it.isEmpty()) null else rng.pick(it) } ?: return null
                 val now = x.tf.promo[l.id] ?: "rr"
-                val next = if (now == "playoff") "rr" else "playoff"
+                val next = rng.pick(listOf("rr", "playoff", "survival").filter { it != now })
                 x.tf.promo[l.id] = next
-                return fc("promofmt", if (next == "playoff") "${l.short} promotion becomes playoffs: its bottom two against the lower leagues' best two, cross-seeded; the semi-final winners take the places"
-                    else "${l.short} promotion goes back to a round robin of the bottom two and the lower leagues' best", if (next == "playoff") "Win-or-go-home series for a top-flight place." else "Every candidate plays every other: fewer upsets.", listOf(l.id))
+                return fc("promofmt", when (next) {
+                    "playoff" -> "${l.short} promotion becomes playoffs: its bottom two against the lower leagues' best two, cross-seeded; the semi-final winners take the places"
+                    "survival" -> "${l.short} promotion becomes a survival series: the last place goes down and the lower leagues' best comes up directly; the second-last plays the next-best in one series for the last place"
+                    else -> "${l.short} promotion goes back to a round robin of the bottom two and the lower leagues' best" },
+                    when (next) { "playoff" -> "Win-or-go-home series for a top-flight place."; "survival" -> "A clear rule at both ends of the table, and one series that decides everything."; else -> "Every candidate plays every other: fewer upsets." }, listOf(l.id))
             }
             "cacl" -> {
                 x.tf.academyCup = !x.tf.academyCup
                 return fc("cacl", if (x.tf.academyCup) "The Continental Academy Champions League returns: each academy league's top two after the season" else "The Continental Academy Champions League is discontinued",
                     if (x.tf.academyCup) "Academy prospects get international games against other regions." else "The academy calendar ends with the domestic leagues.")
             }
-            "expandleague", "merge", "split" -> return Leagues.propose(x.w, x.t, x.tf, x.tier1, kind, rng, effective)?.let { (text, why, leagues) -> fc(kind, text, why, leagues, leagues) }
+            "expandleague", "merge", "split", "recognize", "associate" -> return Leagues.propose(x.w, x.t, x.tf, x.tier1, kind, rng, effective)?.let { (text, why, leagues) -> fc(kind, text, why, leagues, if (kind == "associate") leagues.drop(1) else leagues.take(1)) }
+            "hostpolicy" -> {
+                val ev = rng.pick(listOf("worlds", "msi"))
+                val now = x.tf.hosts[ev] ?: "rotation"
+                val next = rng.pick(listOf("rotation", "champion", "fixed").filter { it != now })
+                x.tf.hosts[ev] = next
+                val name = eventName(x.t.id, ev)
+                return FormatChange(w.season, w.day, "hostpolicy", ev, when (next) {
+                    "champion" -> "$name hosting: the region of the last champion hosts the next edition"
+                    "fixed" -> "$name hosting: a permanent home — the next host city keeps the event"
+                    else -> "$name hosting: back to rotation across continents" },
+                    when (next) { "champion" -> "Winning brings the event home: fans of the champion's region get the next one."; "fixed" -> "One home every year: lower costs and a venue built around the event."; else -> "Every continent gets its turn." })
+            }
+            "allstar" -> {
+                x.tf.allStar = !x.tf.allStar
+                return FormatChange(w.season, w.day, "allstar", "", if (x.tf.allStar) "The all-star showdown returns: the two best-ranked leagues' best players by position, one series" else "The all-star showdown is discontinued",
+                    if (x.tf.allStar) "Regional pride with the best players of each league side by side." else "Players get their off-season back.")
+            }
             // A league switches between promotion / relegation and franchising (rarely: not within three seasons of its last switch).
             "prorel" -> {
                 val cands = x.tier1.filter { l -> independentLowers(w, l).isNotEmpty() && x.tf.log.none { it.kind.startsWith("prorel") && l.id in it.leagues && w.season - it.season < 3 } }

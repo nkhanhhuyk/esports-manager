@@ -43,6 +43,18 @@ object Hosts {
     fun choose(w: World, c: Competition) {
         if (c.host.isNotEmpty() || c.defKey.isEmpty()) return
         val rng = Rng.derive(w.seed, "host", c.defKey, c.season)
+        // The event's published host policy (a major patch can change it): rotation, the last champion's region, or a permanent home.
+        val policy = w.formats[c.titleId]?.hosts?.get(c.defKey.removePrefix("${c.titleId}:")) ?: "rotation"
+        val last = w.comps.filter { it.defKey == c.defKey && it.season < c.season && it.host.isNotEmpty() }.maxByOrNull { it.season }
+        val dayStart = c.startDay; val dayEnd = c.startDay + 21
+        val taken = w.comps.filter { o -> o.id != c.id && o.host.isNotEmpty() && o.startDay < dayEnd && o.startDay + 21 > dayStart }.map { it.host.substringBefore(',') }.toSet()
+        if (policy == "fixed" && last != null && last.host.substringBefore(',') !in taken) {
+            c.host = last.host
+            c.hostNote = "Permanent home (host policy): ${last.host} hosts every edition."
+            return
+        }
+        val champCountry = if (policy == "champion") last?.placements?.firstOrNull()?.let { w.orgs[w.teams[it].orgId].country } else null
+        val champRegion = champCountry?.let { GameData.countries[it]?.region }
         val pop = Catalogue.POPULARITY[c.titleId] ?: emptyMap()
         val past = w.comps.filter { it.defKey == c.defKey && it.season < c.season && it.host.isNotEmpty() }.sortedByDescending { it.season }.take(2)
         val pastContinents = past.map { continent(it.host.substringAfterLast(", ")) }
@@ -50,13 +62,15 @@ object Hosts {
         val busy = w.comps.filter { o -> o.id != c.id && o.host.isNotEmpty() && o.startDay < end && o.startDay + 21 > start }.map { it.host.substringBefore(',') }.toSet()
         val bids = candidates(w, c.titleId).filter { it.name !in busy }.map { city ->
             val audience = ((pop[GameData.countries[city.country]?.region ?: ""] ?: 30) / 100.0).coerceIn(0.0, 1.0)
-            val rotation = if (continent(city.country) in pastContinents) 0.0 else 1.0
+            val rotation = if (policy == "champion") (if (city.country == champCountry) 1.5 else if (champRegion != null && GameData.countries[city.country]?.region == champRegion) 1.0 else 0.0)
+                else if (continent(city.country) in pastContinents) 0.0 else 1.0
             val size = (city.capacity / 18.0).coerceAtMost(1.0) * (c.prestige / 100.0) + (1 - c.prestige / 100.0) * 0.6
             city to (0.25 * city.infra + 0.2 * audience + 0.15 * size + 0.15 * city.appeal + 0.2 * rotation - 0.1 * city.cost + rng.float(0.0, 0.05))
         }.sortedByDescending { it.second }.take(4)
         val win = bids.firstOrNull() ?: return
         c.host = "${win.first.name}, ${win.first.country}"
-        c.hostNote = "Bids: " + bids.joinToString { "${it.first.name} (${(it.second * 100).roundToInt()})" } + ". Scored on infrastructure 25%, audience 20%, continental rotation 20%, venue 15%, appeal 15%, cost −10%."
+        c.hostNote = "Bids: " + bids.joinToString { "${it.first.name} (${(it.second * 100).roundToInt()})" } + ". Scored on infrastructure 25%, audience 20%, " +
+            (if (policy == "champion") "the last champion's home 20%" else "continental rotation 20%") + ", venue 15%, appeal 15%, cost −10%" + (if (policy == "fixed") " (the city chosen now becomes the permanent home)" else "") + "."
         if (c.tier == CompTier.WORLDS || c.prestige >= 60) w.news.add(News(w.day, "${c.name}: host city ${win.first.name}", "${win.first.name} wins the bid to host ${c.name}${if (bids.size > 1) " ahead of ${bids.drop(1).joinToString { it.first.name }}" else ""}."))
     }
 }
@@ -153,3 +167,39 @@ object OrgRankings {
 
     @Suppress("unused") private fun close(a: Double, b: Double) = abs(a - b) < 1e-9
 }
+
+/**
+ * Representative squads for the all-star showdown: a league's best player at each position on this season's form
+ * (plus two substitutes), named a few days before. Their club contracts and registrations stay as they are; the
+ * squad steps down when the event ends (as national teams do), and its games are not club results.
+ */
+object AllStars {
+    fun team(w: World, league: dev.uem.em.model.League): dev.uem.em.model.Team {
+        val code = "*${league.id}"
+        w.teams.firstOrNull { it.nationalOf == code && it.titleId == league.titleId }?.let { return it }
+        val org = dev.uem.em.model.Org(w.orgs.size, "${league.short} All-Stars", league.short, "", league.region, rep = 50.0).also { w.orgs.add(it) }
+        val team = dev.uem.em.model.Team(w.teams.size, org.id, league.titleId, "${league.short} All-Stars", "${league.short}★", league.region, nationalOf = code)
+        team.active = false
+        team.dataNote = "All-star squad of ${league.name}: its best players by position for the showdown, named before each edition; not a club."
+        w.teams.add(team); org.teams.add(team.id)
+        return team
+    }
+
+    fun select(w: World, league: dev.uem.em.model.League, compId: Int): dev.uem.em.model.Team {
+        val team = team(w, league)
+        val t = Catalogue.get(league.titleId)
+        val pool = league.teamIds.flatMap { w.teams[it].roster }.map { w.players[it] }.filter { !it.retired && it.injuryUntil <= w.day }
+        val picked = ArrayList<dev.uem.em.model.Player>()
+        for (role in t.lineup) pool.filter { it.mainRole == role && it !in picked }.maxByOrNull { dev.uem.em.mgmt.Extras.selectionScore(w, it) }?.let { picked.add(it) }
+        for (p in pool.filter { it !in picked }.sortedByDescending { dev.uem.em.mgmt.Extras.selectionScore(w, it) }.take(t.teamSize + 2 - picked.size)) picked.add(p)
+        team.roster.clear(); team.roster.addAll(picked.map { it.id })
+        team.active = true
+        team.squadFor = compId
+        val clubs = league.teamIds.map { w.teams[it] }.sortedByDescending { it.elo }.take(4)
+        team.elo = if (clubs.isEmpty()) 1500.0 else clubs.map { it.elo }.average() + 40
+        team.lineup = dev.uem.em.sim.Lineups.auto(w, team)
+        team.lineupSig = 0
+        return team
+    }
+}
+

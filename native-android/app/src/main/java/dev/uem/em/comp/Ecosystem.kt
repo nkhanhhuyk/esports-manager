@@ -203,7 +203,9 @@ object Ecosystem {
                 val slice = p.getOrNull(4)?.toIntOrNull()?.takeIf { it < n }?.let { " — the top $it of them in the main event, the rest in the play-in" } ?: ""
                 "$n from ${league(p[1])?.name}: $how$slice"
             }
-"rival" -> "The top ${p[3]} of ${league(p[1])?.name} and of ${league(p[2])?.name} on circuit points (pride and prestige only)"
+"bottomnth" -> "The ${p[2]}${if (p[2] == "2") "nd" else "th"} from the bottom of ${comp(p[1])} (survival series)"
+            "promonth" -> "The ${p[2]}${if (p[2] == "2") "nd" else "th"}-best team of ${comp(p[1])} that may go up (survival series)"
+            "rival" -> "The top ${p[3]} of ${league(p[1])?.name} and of ${league(p[2])?.name} on circuit points (pride and prestige only)"
             "pseed" -> "${league(p[2])?.name}'s Worlds seeds below its top ${p[3]} (of ${p[4]}): play-in seeds"
             "lcq" -> "The next ${p[3]} teams of ${league(p[2])?.name} on circuit points after its direct Worlds places"
             "rest" -> "${p[3]} team(s) of ${league(p[2])?.name} that missed ${comp(p[1])}, by circuit points"
@@ -262,7 +264,7 @@ object Ecosystem {
         val p = rule.split(':')
         return when (p[0]) {
             "league" -> team.leagueId == p[1].toIntOrNull()
-            "top", "qual", "bottom", "promo" -> w.comps.getOrNull(p[1].toInt())?.let { team.id in it.teamIds || (it.status == 0 && it.entrants.any { r -> ruleConcerns(w, r, team) }) } == true
+            "top", "qual", "bottom", "promo", "bottomnth", "promonth" -> w.comps.getOrNull(p[1].toInt())?.let { team.id in it.teamIds || (it.status == 0 && it.entrants.any { r -> ruleConcerns(w, r, team) }) } == true
             "circuit", "points" -> team.leagueId == p[1].removePrefix("L").toIntOrNull()
             "pseed", "lcq", "rest" -> team.leagueId == p[2].toIntOrNull()
             "rival" -> team.leagueId == p[1].toIntOrNull() || team.leagueId == p[2].toIntOrNull()

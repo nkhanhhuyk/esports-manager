@@ -207,10 +207,21 @@ fun RaceCard(vm: GameVm, w: World, c: Competition) {
     if (leagues.isEmpty() || (c.tier != dev.uem.em.model.CompTier.WORLDS && c.leagueId < 0)) return
     var li by androidx.compose.runtime.saveable.rememberSaveable(c.id) { androidx.compose.runtime.mutableIntStateOf(0) }
     val league = leagues[li.coerceIn(0, leagues.size - 1)]
-    val rows = androidx.compose.runtime.remember(league.id, c.season, vm.version) { dev.uem.em.comp.Race.league(w, league, c.season) }
+    // What-if (in memory only): a team's result in the next points event.
+    val next = androidx.compose.runtime.remember(league.id, c.season, vm.version) { dev.uem.em.comp.Race.nextEvent(w, league, c.season) }
+    val cands = league.teamIds.filter { w.teams[it].active }
+    var who by androidx.compose.runtime.remember(league.id) { mutableIntStateOf(0) }
+    var what by androidx.compose.runtime.remember(league.id) { mutableIntStateOf(0) }
+    val bonus = if (next == null || what == 0 || who == 0) emptyMap() else mapOf(cands[who - 1] to if (what == 1) next.second else next.third)
+    val rows = androidx.compose.runtime.remember(league.id, c.season, vm.version, bonus) { dev.uem.em.comp.Race.league(w, league, c.season, bonus) }
     val worlds = dev.uem.em.comp.Race.worldsOf(w, c.titleId, c.season)
     Card("Qualification race — ${worlds?.short ?: "Worlds"} ${c.season}") {
         if (leagues.size > 1) Select("League", leagues.map { it.short }, li) { li = it }
+        if (next != null) Row {
+            Select("What if", listOf("—") + cands.map { w.teams[it].short }, who.coerceIn(0, cands.size)) { who = it }
+            Select("", listOf("no scenario", "wins ${next.first.short}", "is runner-up in ${next.first.short}"), what) { what = it }
+        }
+        if (bonus.isNotEmpty()) Text("What-if preview (not saved): ${w.teams[bonus.keys.first()].short} +${bonus.values.first().toInt()} points from ${next!!.first.short}. Results already decided do not change.", color = Ui.gold, fontSize = 11.sp)
         Muted("Circuit points this season and each team's route. \"Projected\" and \"Conditional\" lines follow today's table and can change; \"Locked\" and \"Eliminated\" are settled.", 10)
         for (r in rows) Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Team(r.teamId)) }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
             TeamPic(w.teams[r.teamId], 18.dp); HGap(6)

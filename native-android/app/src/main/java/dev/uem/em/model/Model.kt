@@ -469,6 +469,10 @@ class TitleFormat(
     var academyCup: Boolean = true,
     /** Changes announced ahead of time: they apply from their season (FormatChange.season + 1 is the announcement's next season; see Formats.pending). */
     val pending: MutableList<PendingChange> = ArrayList(),
+    /** Host policy per event ("worlds" → "rotation" across continents, "champion": the last champion's region, "fixed": a permanent home). */
+    val hosts: MutableMap<String, String> = HashMap(),
+    /** The all-star showdown of the two best-ranked leagues (representative squads of their players). */
+    var allStar: Boolean = true,
 )
 
 /** A competition change announced in advance: applied when [effective]'s calendar is drawn up. */

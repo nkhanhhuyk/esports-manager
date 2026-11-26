@@ -72,6 +72,29 @@ object Leagues {
                 return Triple("${a.short} and ${b.short} merge into one league from $effective (${clubs(w, a).size + clubs(w, b).size} teams)",
                     "Neither scene can sustain a full league on its own; together they make one stronger competition. Both leagues' histories are kept; the merged league carries their Worlds seeds (up to its cap).", listOf(a.id, b.id))
             }
+            // A lower league whose best clubs match the bottom of its top league becomes a top league of its own.
+            "recognize" -> {
+                val cand = tier1.flatMap { up -> Formats.independentLowers(w, up).map { up to it } }.filter { (up, low) ->
+                    val lc = clubs(w, low); val uc = clubs(w, up)
+                    lc.size >= 6 && uc.size >= 4 && lc.sortedByDescending { it.elo }.take(4).map { it.elo }.average() >= uc.sortedBy { it.elo }.take(4).map { it.elo }.average()
+                }
+                val (up, low) = if (cand.isEmpty()) return null else rng.pick(cand)
+                tf.pending.add(PendingChange("recognize", effective, w.day, "${low.short} becomes a top league", state = "l=${low.id};u=${up.id}"))
+                return Triple("${low.short} becomes a top league of its own from $effective, with its own Worlds place (it leaves ${up.short}'s promotion)",
+                    "Its best clubs now match the bottom of ${up.short}: the scene has the teams, audience and results for its own representation.", listOf(low.id, up.id))
+            }
+            // A small top league with weak results becomes an associate (lower) league of a larger one; its places go to the strongest leagues.
+            "associate" -> {
+                if (tier1.size < 3) return null
+                val order = tf.rank
+                val weak = tier1.filter { clubs(w, it).size <= 8 }.maxByOrNull { l -> order.indexOf(l.id).let { if (it < 0) 99 else it } * 100 - Season.leagueStrength(l) } ?: return null
+                if (order.isNotEmpty() && order.lastOrNull() != weak.id) return null
+                val host = tier1.filter { it.id != weak.id && macroOf(it.region) == macroOf(weak.region) }.maxByOrNull { Season.leagueStrength(it) }
+                    ?: tier1.filter { it.id != weak.id }.maxByOrNull { Season.leagueStrength(it) } ?: return null
+                tf.pending.add(PendingChange("associate", effective, w.day, "${weak.short} becomes an associate league of ${host.short}", state = "l=${weak.id};h=${host.id}"))
+                return Triple("${weak.short} becomes an associate league of ${host.short} from $effective: its clubs reach the top flight through ${host.short}'s promotion, and its Worlds places go to the strongest leagues",
+                    "Results and audience no longer carry a separate top league; the scene keeps its league as a qualifier and its clubs keep their history.", listOf(weak.id, host.id))
+            }
             "split" -> {
                 val l = tier1.filter { clubs(w, it).size >= 14 && splitPlan(w, it) != null }.let { if (it.isEmpty()) return null else rng.pick(it) }
                 val (sa, sb) = splitPlan(w, l)!!
@@ -155,6 +178,50 @@ object Leagues {
                 }
                 tf.rank = tf.rank.flatMap { if (it == l.id) parts.map { p2 -> p2.id } else listOf(it) }
                 w.news.add(News(w.day, "${l.short} splits", "From $season, ${parts[0].name} (${parts[0].teamIds.size} teams) and ${parts[1].name} (${parts[1].teamIds.size} teams). Past seasons stay in ${l.short}'s history."))
+            }
+            "recognize" -> {
+                val low = w.leagues.getOrNull(param(p, "l")?.toIntOrNull() ?: -1)?.takeIf { it.tier == 2 && it.until == 0 } ?: return false
+                val up = w.leagues.getOrNull(param(p, "u")?.toIntOrNull() ?: -1)
+                if (clubs(w, low).size < 4) return false
+                val c = League(w.leagues.size, low.titleId, low.region, 1, low.name, low.short, since = season, real = low.real, realSrc = low.realSrc)
+                c.predecessors.add(low.id)
+                w.leagues.add(c)
+                for (team in low.teamIds.map { w.teams[it] }.toList()) {
+                    if (team.parentId >= 0) { low.teamIds.remove(team.id); team.leagueId = -1 } else Season.moveTeam(w, team, c)
+                }
+                for (l2 in w.leagues.filter { it.upperId == low.id }) l2.upperId = c.id
+                low.until = season - 1; low.successors.add(c.id)
+                // Its own places: one at each event (Worlds keeps its size when its former top league can give one).
+                for (key in Formats.KEYS) {
+                    tf.seeds["$key:${c.id}"] = 1
+                    if (key == "worlds" && up != null && (tf.seeds["worlds:${up.id}"] ?: 0) > 1) tf.seeds["worlds:${up.id}"] = tf.seeds["worlds:${up.id}"]!! - 1
+                }
+                tf.rank = tf.rank + c.id
+                w.news.add(News(w.day, "${c.short} is a top league", "From $season, ${c.name} is a top league with its own international places (${c.teamIds.size} teams). Its seasons as a lower league stay in its history."))
+            }
+            "associate" -> {
+                val weak = w.leagues.getOrNull(param(p, "l")?.toIntOrNull() ?: -1)?.takeIf { live(it) } ?: return false
+                val host = w.leagues.getOrNull(param(p, "h")?.toIntOrNull() ?: -1)?.takeIf { live(it) } ?: return false
+                val c = League(w.leagues.size, weak.titleId, weak.region, 2, weak.name, weak.short, upperId = host.id, since = season, real = weak.real, realSrc = weak.realSrc)
+                c.predecessors.add(weak.id)
+                w.leagues.add(c)
+                for (team in clubs(w, weak)) Season.moveTeam(w, team, c)
+                for (l2 in w.leagues.filter { it.upperId == weak.id }) { if (l2.academy) { for (tid in l2.teamIds) w.teams[tid].leagueId = -1; l2.teamIds.clear(); l2.until = season - 1 } else l2.upperId = host.id }
+                weak.until = season - 1; weak.successors.add(c.id)
+                // Its places go to the best-ranked leagues with room (the events keep their size).
+                for (key in Formats.KEYS) {
+                    var give = tf.seeds["$key:${weak.id}"] ?: 0
+                    tf.seeds["$key:${weak.id}"] = 0
+                    for (lid in tf.rank) {
+                        if (give <= 0) break
+                        val l = w.leagues.getOrNull(lid)?.takeIf { live(it) && it.id != weak.id } ?: continue
+                        val have = tf.seeds["$key:${l.id}"] ?: 0
+                        val room = Formats.cap(key, l) - have
+                        if (room > 0) { val n = minOf(room, give); tf.seeds["$key:${l.id}"] = have + n; give -= n }
+                    }
+                }
+                tf.rank = tf.rank.filter { it != weak.id }
+                w.news.add(News(w.day, "${weak.short} joins ${host.short}'s pyramid", "From $season, ${c.name} is an associate league of ${host.name}: its clubs go up through ${host.short}'s promotion. Its top-league seasons stay in its history."))
             }
             else -> return false
         }

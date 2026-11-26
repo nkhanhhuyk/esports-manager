@@ -188,6 +188,21 @@ object Season {
             val winners = c.placements.take(slots)
             val up = winners.filter { it !in wasUp && w.teams[it].active }
             val down = wasUp.filter { it !in winners }
+            // Survival series: the last place goes down and the best lower team comes up without playing.
+            val bn = c.entrants.firstOrNull { it.startsWith("bottomnth:") }?.split(':')?.getOrNull(1)?.toIntOrNull()?.let { w.comps[it] }
+            val pn = c.entrants.firstOrNull { it.startsWith("promonth:") }?.split(':')?.getOrNull(1)?.toIntOrNull()?.let { w.comps[it] }
+            if (bn != null && pn != null) {
+                val directDown = bn.placements.lastOrNull { w.teams[it].leagueId == upper.id && w.teams[it].active && it !in c.teamIds }
+                val directUp = pn.placements.firstOrNull { w.teams[it].active && w.teams[it].parentId < 0 && w.teams[it].leagueId == pn.leagueId && it !in c.teamIds }
+                if (directDown != null && directUp != null) {
+                    homeLower(w, upper, w.teams[directDown])?.let { to ->
+                        moveTeam(w, w.teams[directDown], to)
+                        w.news.add(dev.uem.em.model.News(w.day, "${w.teams[directDown].name} relegated to ${to.short}", "${w.teams[directDown].name} finished last in ${upper.name} and go down directly.", listOf(directDown)))
+                        moveTeam(w, w.teams[directUp], upper)
+                        w.news.add(dev.uem.em.model.News(w.day, "${w.teams[directUp].name} promoted to ${upper.short}", "${w.teams[directUp].name} won ${pn.short} and go up directly.", listOf(directUp)))
+                    }
+                }
+            }
             if (up.size != down.size) continue
             for (tid in down) {
                 val team = w.teams[tid]
@@ -262,14 +277,25 @@ object Season {
                 val lowers = Formats.promotionLowers(w, upper)
                 if (lowers.isEmpty() || upper.teamIds.size < 6) continue
                 val last = splitComps[upper.id]?.lastOrNull() ?: continue
-                val playoff = w.formats[titleId]?.promo?.get(upper.id) == "playoff"
+                val fmt = w.formats[titleId]?.promo?.get(upper.id) ?: "rr"
+                val playoff = fmt == "playoff"
+                val survival = fmt == "survival"
                 // Playoffs: the bottom two against the lower leagues' best two, cross-seeded (9th vs the best, 10th vs the second);
                 // the two semi-final winners take the places (the final decides nothing but the title).
-                val rules = listOf("bottom:${last.id}:2") + if (playoff) (if (lowers.size == 1) listOf("promo:${splitComps[lowers[0].id]!!.last().id}:2") else lowers.take(2).map { "promo:${splitComps[it.id]!!.last().id}:1" })
-                    else lowers.mapIndexed { i, l -> "promo:${splitComps[l.id]!!.last().id}:${if (i == 0) 2 else 1}" }
-                val pc = mk(w, t, season, if (playoff) "${upper.name} Promotion Playoffs $season" else "${upper.name} Promotion $season", "${upper.short} PRO", CompTier.CHALLENGER, null, rules,
-                    listOf(if (playoff) stage("Promotion Playoffs", StageType.SINGLE_ELIM, D(10, 13), t.formats.second.n, listOf(1, 2, 3), daysBetween = 1)
-                        else stage("Promotion", StageType.RR, D(10, 13), t.formats.second.n, listOf(1, 2, 3), daysBetween = 1)), t.prizeScale * 60_000, 20, emptyList())
+                // Survival series: the last place goes down and the best lower team comes up directly; the second-last plays
+                // the lower leagues' second-best in one series for the last place.
+                val lowSplit = splitComps[lowers[0].id]!!.last().id
+                val rules = when {
+                    survival -> listOf("bottomnth:${last.id}:2", "promonth:$lowSplit:2")
+                    playoff -> listOf("bottom:${last.id}:2") + (if (lowers.size == 1) listOf("promo:$lowSplit:2") else lowers.take(2).map { "promo:${splitComps[it.id]!!.last().id}:1" })
+                    else -> listOf("bottom:${last.id}:2") + lowers.mapIndexed { i, l -> "promo:${splitComps[l.id]!!.last().id}:${if (i == 0) 2 else 1}" }
+                }
+                val pc = mk(w, t, season, when { survival -> "${upper.name} Survival Series $season"; playoff -> "${upper.name} Promotion Playoffs $season"; else -> "${upper.name} Promotion $season" }, "${upper.short} PRO", CompTier.CHALLENGER, null, rules,
+                    listOf(when {
+                        survival -> stage("Survival Series", StageType.SINGLE_ELIM, D(10, 13), t.formats.third.n, listOf(1, 2, 3), daysBetween = 1)
+                        playoff -> stage("Promotion Playoffs", StageType.SINGLE_ELIM, D(10, 13), t.formats.second.n, listOf(1, 2, 3), daysBetween = 1)
+                        else -> stage("Promotion", StageType.RR, D(10, 13), t.formats.second.n, listOf(1, 2, 3), daysBetween = 1)
+                    }), t.prizeScale * 60_000, 20, emptyList())
                 pc.promoLeague = upper.id
                 pc.realName = true
             }
@@ -366,6 +392,11 @@ object Season {
             val c = mk(w, t, season, "${a.short}–${b.short} Rivalry Cup $season", "${a.short}v${b.short}", CompTier.CHALLENGER, null, listOf("rival:${a.id}:${b.id}:4"),
                 listOf(stage("Knockout Stage", StageType.SINGLE_ELIM, D(11, 14), t.formats.second.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)), t.prizeScale * 80_000, 40, emptyList(), key = "${t.id}:rivalry")
             c.realName = true
+            if (tf.allStar) {
+                val sh = mk(w, t, season, "${a.short} vs ${b.short} All-Star Showdown $season", "${a.short}★${b.short}", CompTier.CHALLENGER, null, listOf("allstar:${a.id}", "allstar:${b.id}"),
+                    listOf(stage("Showdown", StageType.SINGLE_ELIM, D(11, 19), t.formats.third.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)), t.prizeScale * 30_000, 30, emptyList(), key = "${t.id}:allstar")
+                sh.realName = true
+            }
         }
     }
 
@@ -887,6 +918,19 @@ object Progress {
                     src.placements.withIndex().reversed().filter { (_, it) -> w.teams[it].active && w.teams[it].leagueId == src.leagueId && !has(it) }.take(p[2].toInt())
                         .forEach { (i, it) -> add(it, rule, "defending its place (bottom ${n - i} of ${src.short})", src.id, i) }
                 }
+                // Survival series: the k-th from the bottom of a split (still in its league) / the k-th best lower team that may go up.
+                "bottomnth" -> {
+                    val src = w.comps[p[1].toInt()]
+                    if (!src.done) return null
+                    src.placements.withIndex().reversed().filter { (_, it) -> w.teams[it].active && w.teams[it].leagueId == src.leagueId }.getOrNull(p[2].toInt() - 1)
+                        ?.let { (i, it) -> add(it, rule, "survival series (${dev.uem.em.core.ordinal(p[2].toInt())} from the bottom of ${src.short})", src.id, i) }
+                }
+                "promonth" -> {
+                    val src = w.comps[p[1].toInt()]
+                    if (!src.done) return null
+                    src.placements.withIndex().filter { (_, it) -> w.teams[it].active && w.teams[it].parentId < 0 && w.teams[it].leagueId == src.leagueId }.getOrNull(p[2].toInt() - 1)
+                        ?.let { (i, it) -> add(it, rule, "survival series challenger", src.id, i) }
+                }
                 // The best teams of a finished lower-league split that may go up: no academies (their parent's league).
                 "promo" -> {
                     val src = w.comps[p[1].toInt()]
@@ -925,6 +969,11 @@ object Progress {
                     league.teamIds.filter { t -> w.teams[t].active && t != winner && direct.none { it.teamId == t } }
                         .sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo }).take(p[3].toInt())
                         .forEach { add(it, rule, "circuit points (next after the direct places)", note = "${(pts[it] ?: 0.0).toInt()} points in ${league.short}") }
+                }
+                // All-star showdown: a league's representative squad (its best players by position), named now.
+                "allstar" -> {
+                    val league = w.leagues[p[1].toInt()]
+                    add(AllStars.select(w, league, c.id).id, rule, "the best of ${league.short} by position (this season's form)")
                 }
                 // Rivalry cup: the two leagues' top teams on circuit points, alternately (so the bracket pairs them across).
                 "rival" -> {

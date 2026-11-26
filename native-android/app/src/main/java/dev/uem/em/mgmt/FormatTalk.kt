@@ -181,6 +181,30 @@ object FormatTalk {
                 listOf("One half is going to be way stronger than the other, mark it.", "The weaker half will never win a Worlds game again."),
                 listOf("The league after the split: 🧩🧩", "Fans checking which half their team is in: 👀"),
                 listOf("Clubs go to their home region's league; the Worlds seeds are shared between the two.", "Two sets of playoffs means two sets of upsets."))
+            "recognize" -> Lines(
+                listOf("$gain earned this. Years of results and now a top league of its own.", "A new region at the top level — great for the scene."),
+                listOf("$gain isn't ready. They'll get stomped internationally.", "Another Worlds place for a region that hasn't won anything?"),
+                listOf("$gain will make a Worlds semi-final within three years, calling it.", "The old league just lost its best feeder. Doomed."),
+                listOf("$gain fans this morning: 🎉🎉🎉", "Small region, big dreams 🌱"),
+                listOf("The new league gets its own international places; clubs keep their history and their academies.", "Expect investment to follow: sponsors like a top-league badge."))
+            "associate" -> Lines(
+                listOf("Joining a bigger pyramid gives $lose clubs real competition every week.", "Better a strong qualifier than a weak top league."),
+                listOf("$lose losing its top league is a sad day for the region.", "The big leagues just took $lose's places. Typical."),
+                listOf("This is the end of esports in $lose.", "$lose clubs will never reach the top flight again."),
+                listOf("$lose fans reading the news: 🥀", "Downgraded like a phone plan"),
+                listOf("Its clubs can still go up through promotion; its seasons as a top league stay in its history.", "The freed places go to the strongest leagues: the international field gets tougher."))
+            "hostpolicy" -> Lines(
+                listOf("Finally a hosting rule that makes sense.", "Fans everywhere get a chance to see the event live."),
+                listOf("Same city every year? Boring.", "Rewarding the champion's region with hosting is unfair to everyone else."),
+                listOf("The home crowd will win them the title, mark it.", "Ticket prices are going to explode."),
+                listOf("Travel agents reading the announcement: 💸", "Me already planning the trip ✈️"),
+                listOf("Hosting changes travel and crowds, not match results.", "A permanent home lowers costs; rotation grows new audiences."))
+            "allstar" -> Lines(
+                listOf("All-stars of two regions side by side — pure fun.", "The best players of each league on one team. Love it."),
+                listOf("Exhibition games nobody needs at the end of the season.", "Players deserve their off-season."),
+                listOf("This showdown will settle the best-region debate forever.", "The all-star game will be the most watched series of the year."),
+                listOf("Rival players forced to share a team: 😬", "All-star comms: pure chaos"),
+                listOf("Squads are named on form; club contracts are untouched and the games are not club results.", "A showcase for the season's breakout players."))
             else -> Lines(listOf("Good change."), listOf("Bad change."), listOf("This changes everything."), listOf("Patch notes enjoyers 📜"), listOf("We'll see how it plays out."))
         }
     }

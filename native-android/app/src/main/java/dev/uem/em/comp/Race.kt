@@ -27,13 +27,24 @@ object Race {
         return r.toInt()
     }
 
-    fun league(w: World, league: League, season: Int): List<Row> {
+    /** The next event that awards this league's teams circuit points, and its points for 1st, 2nd and last place. */
+    fun nextEvent(w: World, league: League, season: Int): Triple<Competition, Double, Double>? {
+        val c = w.comps.filter { it.season == season && it.titleId == league.titleId && !it.done && it.circuitPoints.isNotEmpty() && (it.leagueId == league.id || it.leagueId < 0) }.minByOrNull { it.startDay } ?: return null
+        val wt = Season.splitWeight(c.split)
+        return Triple(c, (c.circuitPoints.firstOrNull() ?: 0) * wt, (c.circuitPoints.getOrNull(1) ?: 0) * wt)
+    }
+
+    /**
+     * The race, optionally under a what-if: [bonus] adds circuit points to teams (a hypothetical result, computed
+     * here only — nothing is written to the world). Results already decided are not changed by it.
+     */
+    fun league(w: World, league: League, season: Int, bonus: Map<Int, Double> = emptyMap()): List<Row> {
         val t = league.titleId
         val worlds = comp(w, season, "$t:worlds") ?: return emptyList()
         val pi = comp(w, season, "$t:worlds:playin")
         val rf = comp(w, season, "$t:rf:L${league.id}")?.takeIf { !it.name.endsWith("(cancelled)") }
         val rest = comp(w, season, "$t:dcgi")
-        val pts = Progress.circuitPoints(w, season, t)
+        val pts = HashMap(Progress.circuitPoints(w, season, t)).also { m -> for ((k, v) in bonus) m[k] = (m[k] ?: 0.0) + v }
         val teams = league.teamIds.filter { w.teams[it].active }.sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo })
         val rule = worlds.entrants.firstOrNull { it.startsWith("circuit:${league.id}:") }
             ?: pi?.entrants?.firstOrNull { it.startsWith("pseed:${worlds.id}:${league.id}:") }?.split(':')?.let { "circuit:${league.id}:${it[4]}:0:99:${it.getOrElse(5) { "placings" }}" }
@@ -69,7 +80,7 @@ object Race {
             }
         }
         // Season running: projections from today's points table (labelled), and a clinch / elimination check in points mode.
-        val rem = maxRemaining(w, league, season)
+        val rem = maxOf(0, maxRemaining(w, league, season) - (if (bonus.isNotEmpty()) (nextEvent(w, league, season)?.second ?: 0.0).toInt() else 0))
         val d = Formats.direct(places)
         val lcqN = if (rf != null || places - d > 0) minOf(6, teams.size - places) else 0
         return teams.mapIndexed { i, tid ->

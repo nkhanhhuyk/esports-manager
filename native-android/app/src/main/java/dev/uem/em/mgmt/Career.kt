@@ -119,7 +119,7 @@ object Career {
         for (id in w.titles) {
             val t = Catalogue.get(id)
             // Senior awards count first-team games only (second teams have their own awards below).
-            fun senior(teamId: Int) = w.teams.getOrNull(teamId)?.parentId?.let { it < 0 } != false
+            fun senior(teamId: Int) = w.teams.getOrNull(teamId)?.let { it.parentId < 0 && !it.nationalOf.startsWith("*") } != false
             val lines = w.players.mapNotNull { p -> p.stats.filter { it.season == w.season && it.titleId == id && senior(it.teamId) }.takeIf { it.isNotEmpty() }?.let { s -> Triple(p, s.sumOf { it.gp }, s.sumOf { it.ratingSum }) } }
             if (lines.isEmpty()) continue
             val maxGp = lines.maxOf { it.second }

@@ -169,12 +169,17 @@ private fun TeamRoster(vm: GameVm, w: World, team: Team, t: TitleDef) {
 private fun TeamSchedule(vm: GameVm, w: World, team: Team) {
     var season by remember { mutableIntStateOf(w.season) }
     val seasons = w.comps.filter { team.id in it.teamIds }.map { it.season }.distinct().sortedDescending().ifEmpty { listOf(w.season) }
-    val fx = w.fixtures.filter { (it.a == team.id || it.b == team.id) && w.comps[it.compId].season == season }.sortedBy { it.day }
+    val all = w.fixtures.filter { (it.a == team.id || it.b == team.id) && w.comps[it.compId].season == season }.sortedBy { it.day }
+    // One competition at a time when the season is long.
+    val comps = listOf(-1) + all.map { it.compId }.distinct()
+    var ci by remember(team.id, season) { mutableIntStateOf(0) }
+    val fx = all.filter { ci == 0 || it.compId == comps[ci.coerceIn(0, comps.size - 1)] }
     val done = fx.filter { it.done }
     val sw = done.count { it.winner == team.id }
     val gw = done.sumOf { if (it.a == team.id) it.scoreA else it.scoreB }
     val gl = done.sumOf { if (it.a == team.id) it.scoreB else it.scoreA }
     Card("Fixtures", right = { Select("", seasons.map { "$it" }, seasons.indexOf(season).coerceAtLeast(0)) { season = seasons[it] } }) {
+        if (comps.size > 2) Select("Competition", comps.map { if (it < 0) "All competitions" else w.comps[it].short }, ci.coerceIn(0, comps.size - 1)) { ci = it }
         Muted("Series ${sw}-${done.size - sw} · games $gw-$gl · ${fx.size - done.size} to play", 12)
         Gap(4)
         if (fx.isEmpty()) Muted("No fixtures this season.")
