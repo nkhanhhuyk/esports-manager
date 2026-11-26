@@ -626,3 +626,42 @@ for the position, and no game out of position.
 Full suite: 108 tests, 0 failures (3 skipped).
 
 Saves: new player fields `callUpFrom` and `callUpFor` (appended, with defaults).
+
+## Twenty-second follow-up: who replaces whom, historical teams, photos of past players
+
+* **Replacements follow the absence.**
+  * **Short absence.** A regular out for up to four weeks is covered by an academy call-up, who goes back
+    when the regular is fit.
+  * **Long absence.** For a longer absence, an AI club signs a free agent who plays the position, as an
+    emergency contract until the season ends. The club must be able to pay, and the player must need no
+    visa. There is a news item. A club with nobody to sign calls up from the academy instead.
+  * **Nobody at the position full-time.** The club decides: it promotes its prospect or signs a free agent,
+    whichever suits it better. A strong academy facility and a tight budget lean to the prospect.
+  * **Your club** gets the academy call-up for the match. For a long absence or an empty position, the
+    inbox note also lists the best three free agents who play the position, and you decide.
+  * **No academy player for the position.** A stand-in for the day, as before.
+* **Historical teams.** 150 champions and finalists of the real events that are not teams of today's data
+  join new worlds as dormant real teams, with their rosters by year: 132 LoL, 9 Dota 2, 6 CS2, 3 VALORANT.
+  Examples are Taipei Assassins (2012–2016), Azubu Frost, Moscow Five and CLG Europe.
+  * **Every player has a page.** That covers every player of every champion and finalist roster, and every
+    player of the career records (Toyz, Stanley, Bebe, MiSTakE, Lilballz...).
+  * **Counts.** 6,037 past-roster players, 3,175 of them new to the game. A former player who coaches today
+    has a player page and a staff page.
+  * **Current teams unchanged.** Historical teams are matched by exact name after the game's own teams, so
+    no current team's past rosters change (three gained better-spelled handles).
+* **Photos of past players.** 758 photo links were added. Sources and the remaining gaps are in
+  `docs/DATA_PROVENANCE.md`.
+  * **By game:** VALORANT 332, CS2 232, LoL 183, Dota 2 10.
+  * **Gaps:** most LoL past players and almost all Dota 2 and MLBB players still use the generated
+    portrait. Their main photo sources (Leaguepedia, Liquipedia) were not available to this snapshot.
+
+Tests: `SubsTest.shortAbsenceAcademyLongAbsenceSigning`:
+* a ten-day injury means a call-up, which goes back;
+* a six-week injury means a free agent signed as cover;
+* an empty position means a promotion or a signing;
+* your club gets a call-up with free agents suggested, and can keep the player.
+
+`PastRosterPlayersTest.historicalTeamsAndChampions`:
+* Taipei Assassins are a dormant real team with their 2012 roster;
+* all five 2012 champions have player pages;
+* no LoL champion or finalist roster player is missing.

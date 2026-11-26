@@ -204,6 +204,21 @@ They are added after the rest of the world, from their own random streams, and a
 target size is set, so every other team, player and coach comes out exactly as without them, and the
 oldest retire over the next seasons (unsigned players aged 33+) without a matching wave of new prospects.
 
+**Photos of past players (26 Nov 2026, `scripts/data/past_pictures.py`).** 758 photo links were added
+for players without one:
+
+| Source | Photos | How a match is made |
+|---|---|---|
+| vlr.gg player pages (VALORANT) | 330 | player id from the cached transaction pages |
+| bo3.gg player list (CS2) | 230 | nickname |
+| LoL Esports gateway (LoL) | 152 | handle plus a team the player was on; archived teams list their last rosters |
+| Wikidata / Wikimedia Commons, free licences (any game) | 46 | handle plus the real name, a team, or the country |
+
+These are links only, nothing is copied. Players still without a photo keep the generated portrait: LoL
+2,100, MLBB 507, Dota 2 382, VALORANT 263, Wild Rift 210 and CS2 73. Most LoL past-player photos are on
+Leaguepedia, which was not queried again after it rate-limited this snapshot's requests. Liquipedia (Dota 2,
+MLBB) answered 429. Wikidata answered 429 to a second, wider query, which was not retried.
+
 ## Special additions (special.json, 25 Nov 2026)
 
 Added at the player's request, not from a data source, and labelled on the team page:
