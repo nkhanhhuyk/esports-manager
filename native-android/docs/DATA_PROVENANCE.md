@@ -237,7 +237,10 @@ for players without one:
 | LoL Esports gateway (LoL) | 152 | handle plus a team the player was on; archived teams list their last rosters |
 | Wikidata / Wikimedia Commons, free licences (any game) | 46 | handle plus the real name, a team, or the country |
 
-These are links only, nothing is copied. Players still without a photo keep the generated portrait: LoL
+A second pass added 194 more: MLBB 178 from the MPL Philippines team pages' public photo storage, VALORANT
+12 from a vlr.gg search checked against a team the player was on, and CS2 4. MPL Indonesia's photo storage is
+private. Wikidata answered 429 again and was not retried. These are links only, nothing is copied. Before
+the second pass, players still without a photo kept the generated portrait: LoL
 2,100, MLBB 507, Dota 2 382, VALORANT 263, Wild Rift 210 and CS2 73. Most LoL past-player photos are on
 Leaguepedia, which was not queried again after it rate-limited this snapshot's requests. Liquipedia (Dota 2,
 MLBB) answered 429. Wikidata answered 429 to a second, wider query, which was not retried.

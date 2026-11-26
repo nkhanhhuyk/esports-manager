@@ -667,3 +667,43 @@ Tests: `SubsTest.shortAbsenceAcademyLongAbsenceSigning`:
 * no LoL champion or finalist roster player is missing.
 
 Full suite: 109 tests, 0 failures (3 skipped).
+
+## Twenty-third follow-up: promote or sign, keep or send back, the other games' history
+
+* **Cover, as clubs decide it.**
+  * **Short absence.** Up to four weeks: an academy player is promoted for the matches.
+  * **Long absence, or nobody at the position.** The club promotes its prospect or signs a free agent,
+    whichever suits it. A strong academy and a tight budget lean to the prospect; a clearly better free
+    agent is signed.
+  * **When the regular is fit again.** An AI club keeps the promoted player in the main team if they played
+    well (average rating 1.05+ over three or more games) and are close to the regular or better. Otherwise
+    the player goes back to the academy, and a kept player makes the news.
+  * **Your club** is asked instead. An inbox note gives the player's games and average rating, and the
+    player stays until you choose **Keep full-time** or **Send back to the academy** on their page.
+* **History for VALORANT, CS2, Dota 2 and MLBB** (`scripts/data/history_more.py`; sources and gaps in
+  `docs/DATA_PROVENANCE.md`):
+  * **VALORANT:** 196 VCT events (every league, Kickoff, Stage, regional Challengers and LCQ since 2021).
+  * **CS2:** 118 S-tier tournaments since 2020.
+  * **Dota 2:** 39 premium events.
+  * **MLBB:** four MPL Indonesia seasons.
+  * **What it feeds.** Champions, runners-up and their line-ups go into the competition History tabs, team
+    titles, player honours, the GOAT list and the Hall of Fame. VCT and MPL leagues' History tabs show
+    their region's events, VALORANT's earlier Challengers included.
+* **Past rosters of the other games.** The champion and runner-up rosters of every event join the past
+  rosters for that year.
+  * **Counts.** 808 teams with past rosters, 279 of them historical teams of every game: 112 VALORANT,
+    24 Dota 2, 8 CS2, 3 MLBB, plus the 132 LoL ones. No player was removed from any earlier roster.
+  * **Players.** 6,385 past-roster players are in the game, 3,522 of them added to new worlds.
+  * **Hall of Fame.** 50 legends with a legacy of 60+ are inducted before the save, up from 31.
+* **More photos.** 194 more photo links: MLBB 178 from MPL Philippines, VALORANT 12 from a vlr.gg search,
+  CS2 4.
+
+Tests:
+* `OtherGamesHistoryTest`:
+  * event counts per game;
+  * the VCT Americas History has the 2023 Americas League won by LOUD and no other region;
+  * MPL ID's History has Season 15 won by ONIC and no MPL PH season.
+* `SubsTest`:
+  * an AI club keeps or sends back the player when the regular returns;
+  * a long absence is a promotion or a signing;
+  * your club is asked when the regular returns.
