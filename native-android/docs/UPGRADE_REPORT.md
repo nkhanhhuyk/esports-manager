@@ -713,3 +713,46 @@ Tests:
 
 Full suite: 110 tests, 1 failure fixed and re-run (`ReplayTest`, the snapshot above), 3 skipped. The
 replay tests (`ReplayTest`, `BroadcastTest`, `LiveDepthTest`) pass.
+
+## Twenty-fourth follow-up: Worlds places by the playoffs, agents by map, the save stays open, a second team for every club
+
+* **Worlds-type events by the last split's playoffs** (LoL, MLBB, HoK, Wild Rift). A league's places are:
+  * 1 place: the last split's champion;
+  * 2 places: its two finalists;
+  * 3 places: the two finalists and the best other team on circuit points;
+  * 4 places: the four semi-finalists;
+  * more than 4: the semi-finalists, then circuit points.
+
+  A region's extra seed (LoL: the MSI runner-up's region) counts in its total. A place taken by a team already
+  in (the MSI winner) passes down the playoff order. First Stand and MSI already came from the splits'
+  playoffs (champion, or the two finalists). VALORANT (circuit and championship points), CS2 (regional
+  standings invitations and open qualifiers) and Dota 2 (invitations on results and regional qualifiers,
+  The International's format since the end of the DPC in 2023) are unchanged.
+* **VALORANT agents follow the map.** Each map has the agents its compositions are built around (the real maps'
+  professional meta; new and fictional maps get a stable lean of their own) and a usual flex class: a second
+  controller on Abyss and Lotus, a second initiator on Haven, Bind and Sunset.
+  * **How a player chooses.** By their own agent pool (comfort), the patch, the map, what worked in the team's
+    scrims, and a little game-to-game variety.
+  * **The flex player** chooses last and fills what the map asks for, or what the composition still lacks
+    (always a controller and an initiator).
+  * **Before,** the map was not considered at all, so every map of a series had the same five agents. Now a
+    player keeps the first map's agent on 51% of the later maps.
+  * **MOBAs** already varied: the game-1 character is repeated in 18–30% of later games (LoL, MLBB, HoK,
+    Wild Rift, Dota 2).
+* **The save stays open.**
+  * **When the app leaves the screen** (screen off, another app, Home), the open save file is remembered and
+    progress is saved. During a simulation, it is saved the moment the simulation step ends (before, nothing
+    was saved then).
+  * **If Android ends the app in the background**, the next start reopens that save instead of the title
+    screen. Swiping the app away from Recents (or stopping it), a crash, or going back to the title screen
+    starts at the title screen.
+  * **Folding, unfolding and rotating** never restarted the game (the activity handles those changes itself).
+* **A second team for every club.** Every club of every game (333 in a new world) has an academy.
+  * **League places.** Academies keep a place only in the real academy leagues (LCK Challengers League and the
+    like). The others are development squads that train, play one scrim a week and feed the main team (call-ups
+    and promotions, see the twenty-first follow-up). No league grows.
+  * **Second-division clubs'** second teams play no league.
+
+Tests: `PickVarietyTest` (VALORANT agents change with the map; repeat rates for every game), `AcademiesTest` (every
+club has an academy; development squads play no league; none in its parent's league), `QualificationTest` (Worlds
+2027–2029: each league's places come from its last split's playoffs, at most one on points for a third place).
