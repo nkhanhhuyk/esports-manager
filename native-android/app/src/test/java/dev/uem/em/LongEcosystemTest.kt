@@ -14,15 +14,16 @@ import org.junit.Test
 import java.io.File
 
 /**
- * Long seeded run of the four MOBA ecosystems (UEM_LONG=1, UEM_SEASONS=20 by default): every season's events
+ * Long seeded run of the four MOBA ecosystems (UEM_ECO=1; UEM_ECO_SEASONS, 20 by default): every season's events
  * finish, no duplicate entrants, one league per club, nobody plays twice on a day, prestige stays bounded,
  * reforms stay rare (and only at major patches), and the save survives a reload mid-season. Prints measured limits.
  */
 class LongEcosystemTest {
     @Test
     fun manySeasons() {
-        Assume.assumeTrue("long run: set UEM_LONG=1", System.getenv("UEM_LONG") != null)
-        val seasons = System.getenv("UEM_SEASONS")?.toIntOrNull() ?: 20
+        // Its own switch: UEM_LONG also starts LongRunTest (all seven titles, full detail), far slower at 20 seasons.
+        Assume.assumeTrue("long run: set UEM_ECO=1", System.getenv("UEM_ECO") != null)
+        val seasons = System.getenv("UEM_ECO_SEASONS")?.toIntOrNull() ?: 20
         TestData.init()
         val dir = File("build/long-saves").apply { deleteRecursively(); mkdirs() }
         val store = SaveStore(dir)

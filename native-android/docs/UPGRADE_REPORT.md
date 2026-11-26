@@ -999,6 +999,24 @@ not run in this batch; the longest runs here are the two-season LoL playthrough 
     recognised.
 
 Tests: `EcosystemEvolutionTest` (survival series, all-star squads, permanent host, recognition / associate with
-one membership per club), `LongEcosystemTest` (opt-in: `UEM_LONG=1`, 20 seasons of the four MOBA ecosystems
+one membership per club), `LongEcosystemTest` (opt-in: `UEM_ECO=1`, `UEM_ECO_SEASONS` to change the length; 20 seasons of the four MOBA ecosystems
 with a save and reload mid-season).
+
+### Measured: 20 seasons of LoL, MLBB, HoK and Wild Rift (2027–2046, fast simulation)
+
+| | |
+|---|---|
+| Run time (JVM, one core for the test) | 1,286 s (about 64 s per season) |
+| Events per season | 295–315 (more from 2039, after leagues split and expanded) |
+| Unfinished events, duplicate entrants, clubs in two leagues, double bookings | none in any season |
+| Reforms per season (all four games) | 0–5; per game 9–14 changes in 5–7 reviews, never two reviews in consecutive seasons, all on a major patch |
+| League reforms seen | three mergers in 2032–2034 (19 → 16 top leagues), a split in 2038 (17), a league grown by two clubs (MLBB, 2046); format reforms: event sizes, play-ins, seeds, series lengths, brackets, LCQs, host policy, the academy champions league |
+| Event prestige (Worlds is pinned at 100) | 7.7 – 90.0 |
+| Richest organisation after 20 seasons | 158.9M |
+| Save and reload mid-season (26 Jun 2037) | identical day, competitions and formats; save 27 MB at that point |
+| Final world | 19,692 players, 1,818 teams, 6,381 competitions, 200,230 fixtures, 4,184 weekly solo ladders; save 43 MB |
+
+Limits: a 20-season world of four games is a 43 MB save; on a phone a save of that size takes a few seconds.
+Fixtures and box scores are the bulk of it, and the weekly ladders keep the top 30 per game after a season.
+The test ran on a JVM, not on a device.
 
