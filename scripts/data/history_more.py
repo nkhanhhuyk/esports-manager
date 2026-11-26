@@ -102,7 +102,8 @@ def valorant(known):
             if re.search(r"masters|valorant-champions|lock-in|champions-20\d\d$", s): continue  # in honours.json already
             _, ev = fetch("https://www.vlr.gg/event/%s/%s" % (eid, slug), 1.3)
             if not ev: continue
-            title = clean((re.search(r'<h1 class="wf-title">(.*?)</h1>', ev, re.S) or [None, slug])[1])
+            hm = re.search(r'<h1 class="(?:event-header-main-title|wf-title)">(.*?)</h1>', ev, re.S)
+            title = clean(hm.group(1)) if hm else slug
             if norm(title) in known: continue
             places = {}
             for place, tid, body in re.findall(r'(\d)<sup>(?:st|nd)</sup>\s*</div>.*?href="/team/(\d+)/[^"]*"[^>]*>(.*?)</a>', ev, re.S):
@@ -119,7 +120,7 @@ def valorant(known):
             low = title.lower()
             intl = any(k in low for k in ("americas", "emea", "pacific", "china")) and ("league" in low or "kickoff" in low or "stage" in low)
             tier, pr = ("cup", 0.3) if "last chance" in low or "lcq" in low else ("league", 1.0 if intl else 0.45)
-            lg = re.sub(r"\s*(?:20\d\d)\s*", " ", title).strip()
+            lg = re.sub(r"\s+", " ", re.sub(r"\s*\b20\d\d\b\s*", " ", title)).replace(" :", ":").strip()
             out.append(event("valorant", title, year, lg, tier, pr, "vlr.gg", places[1][1], roster(1), places.get(2, ("", ""))[1], roster(2)))
     return out
 
@@ -139,6 +140,16 @@ def dota(known):
     mids = [r["match_id"] for r in rows]
     lineup = defaultdict(lambda: ([], []))
     pro = {p["account_id"]: p.get("name") for p in (jget("https://api.opendota.com/api/proPlayers", 2.0) or []) if p.get("name")}
+    # Older players missing from proPlayers: the explorer's notable_players table.
+    acc = set()
+    for i in range(0, len(mids), 200):
+        q = "select distinct account_id from player_matches where match_id in (%s)" % ",".join(str(x) for x in mids[i:i + 200])
+        for r in (jget("https://api.opendota.com/api/explorer?sql=" + urllib.parse.quote(q), 4.0) or {}).get("rows", []): acc.add(r["account_id"])
+    need = sorted(a for a in acc if a and a not in pro)
+    for i in range(0, len(need), 300):
+        q = "select account_id, name from notable_players where account_id in (%s)" % ",".join(str(x) for x in need[i:i + 300])
+        for r in (jget("https://api.opendota.com/api/explorer?sql=" + urllib.parse.quote(q), 4.0) or {}).get("rows", []):
+            if r.get("name"): pro.setdefault(r["account_id"], r["name"])
     for i in range(0, len(mids), 200):
         q = "select match_id, account_id, player_slot from player_matches where match_id in (%s)" % ",".join(str(x) for x in mids[i:i + 200])
         for r in (jget("https://api.opendota.com/api/explorer?sql=" + urllib.parse.quote(q), 4.0) or {}).get("rows", []):
@@ -168,11 +179,29 @@ def mlbb(known):
         for sn in range(first, last_ + 1):
             _, sched = fetch("%s/s%d/schedule" % (base, sn), 0.6)
             if not sched: continue
-            i = sched.find("Grand Final")
-            blk = sched[max(0, i - 500): i + 16000] if i >= 0 else ""
-            # The grand final block: team1 (logo slug, name), score, ..., score, team2.
-            m = re.search(r'class="team team1.*?/teams/([a-z0-9-]+?)(?:-b)?-\d+\.\w+.*?<div class="name">\s*([^<]+?)\s*</div>.*?<div class="score[^"]*">\s*(\d+)\s*</div>.*?Grand Final.*?<div class="score[^"]*">\s*(\d+)\s*</div>.*?class="team team2.*?/teams/([a-z0-9-]+?)(?:-b)?-\d+\.\w+.*?<div class="name">\s*([^<]+?)\s*</div>', blk, re.S)
-            if not m: continue
+            # The grand final: the match whose label reads "Grand Final(s)" (not the commented-out heading).
+            found = None
+            for lab in re.finditer(r'>\s*Grand Finals?\s*</div>', sched):
+                start = sched.rfind('<div class="match', 0, lab.start())
+                t2 = sched.find('class="team team2', lab.start())
+                if start < 0 or t2 < 0: continue
+                blk = sched[start: t2 + 2000]
+                a1 = blk.find('class="team team1')
+                part1 = blk[a1: blk.find('<div class="score', a1)] if a1 >= 0 else ""
+                n1 = re.search(r'<div class="name">\s*([^<]+?)\s*</div>', part1)
+                l1 = re.search(r'/teams/([a-z0-9-]+?)(?:-b)?-\d+\.\w+', part1)
+                sc = re.findall(r'<div class="score[^"]*">\s*(\d+)\s*</div>', blk)
+                part2 = blk[blk.find('class="team team2'):]
+                part2 = part2[: part2.find('class="modal') if 'class="modal' in part2 else 1500]
+                n2 = re.search(r'<div class="name">\s*([^<]+?)\s*</div>', part2)
+                l2 = re.search(r'/teams/([a-z0-9-]+?)(?:-b)?-\d+\.\w+', part2)
+                if n1 and n2 and l1 and l2 and len(sc) >= 2 and n1.group(1) != n2.group(1):
+                    found = (l1.group(1), n1.group(1), sc[0], sc[1], l2.group(1), n2.group(1))
+            if not found: continue
+            class M:
+                def __init__(self, g): self.g = g
+                def group(self, i): return self.g[i - 1]
+            m = M(found)
             s1, s2 = int(m.group(3)), int(m.group(4))
             if s1 == s2: continue
             a, b = (m.group(1), m.group(2)), (m.group(5), m.group(6))
@@ -184,10 +213,12 @@ def mlbb(known):
                     t = re.search(r"<title>\s*([^<|–-]+)", page)
                     h = re.search(r'class="team-name[^"]*">\s*([^<]+?)\s*<', page)
                     name = clean(h.group(1)) if h else (clean(t.group(1)) if t and "MPL" not in t.group(1) else tag)
+                    name = name or tag
                 people = [html.unescape(x).strip() for x in re.findall(r'class="player-name">\s*([^<]+?)\s*</div>', page or "")]
                 ign = [html.unescape(v) for v in re.findall(r'id="player-\d+-ign" value="([^"]*)"', page or "")]
                 roles = re.findall(r'class="player-role[^"]*">\s*([^<]*?)\s*</div>', page or "")
                 players = [p for p, r_ in zip(people, roles + [""] * len(people)) if not re.search(r"coach|analyst|manager", r_, re.I)] or ign
+                players = [p for p in players if not re.match(r"(?i)^(coach|head coach|analyst|manager)\b", p)]
                 return name, list(dict.fromkeys(players))[:8]
             wn, wp = team(wslug, wtag)
             ln, lp = team(lslug, ltag)
