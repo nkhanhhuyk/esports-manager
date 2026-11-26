@@ -992,7 +992,11 @@ not run in this batch; the longest runs here are the two-season LoL playthrough 
   * the development index counted rivalry cups, regional finals and promotion series: now second teams and
     second-tier leagues only;
   * survival-series direct moves were skipped when the top-flight team won its series;
-  * associate status could join leagues of different continents (Europe into China): same macro-region only.
+  * associate status could join leagues of different continents (Europe into China): same macro-region only;
+  * found by the 20-season run: after a lower Chinese league was recognised as a top league, the same
+    amateur clubs were drawn into two amateur championships on the same day. Each amateur club now belongs
+    to exactly one top league's circuit, and only a league from a region without a top league can be
+    recognised.
 
 Tests: `EcosystemEvolutionTest` (survival series, all-star squads, permanent host, recognition / associate with
 one membership per club), `LongEcosystemTest` (opt-in: `UEM_LONG=1`, 20 seasons of the four MOBA ecosystems
