@@ -6,7 +6,7 @@ import dev.uem.em.mgmt.Academies
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Every club of every game has a second team; leagues keep their size (development squads play no league). */
+/** Every club of every game has a second team; MOBA top leagues' second teams play academy leagues, the others are development squads. */
 class AcademiesTest {
     @Test
     fun everyClubHasAnAcademy() {
@@ -25,6 +25,10 @@ class AcademiesTest {
             assertTrue("${a.name} in its parent's league", a.leagueId < 0 || a.leagueId != parent.leagueId)
             if (w.leagues.getOrNull(parent.leagueId)?.tier != 1) assertTrue("${a.name}: a second-division club's second team plays no league", a.leagueId < 0)
             assertTrue("${a.name} has a roster", a.roster.size >= dev.uem.em.titles.Catalogue.get(a.titleId).teamSize)
+        }
+        // LoL, MLBB, HoK and Wild Rift: every top-league club's second team plays (an academy league or a Challengers division).
+        for (a in w.teams.filter { it.parentId >= 0 && it.titleId in dev.uem.em.mgmt.Academies.LEAGUE_TITLES }) {
+            if (w.leagues.getOrNull(w.teams[a.parentId].leagueId)?.tier == 1) assertTrue("${a.name} plays a league", a.leagueId >= 0)
         }
     }
 }

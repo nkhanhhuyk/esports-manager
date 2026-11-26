@@ -27,7 +27,9 @@ object Patches {
             val last = w.patches.lastOrNull { it.titleId == id }
             val rng = Rng.derive(w.seed, "patch", id, w.day)
             val major = w.comps.any { it.titleId == id && it.tier == CompTier.WORLDS && it.done && (it.season == w.season || it.season == w.season - 1) && it.stages.last().fixtureIds.maxOfOrNull { f -> w.fixtures[f].day }?.let { d -> d + 1 == w.day } == true }
-            val medium = w.comps.any { it.titleId == id && it.season == w.season && (it.tier == CompTier.INTERNATIONAL || it.tier == CompTier.WORLDS) && !dev.uem.em.comp.Season.isEncQualifier(it) && it.startDay - 10 == w.day }
+            val medium = w.comps.any { it.titleId == id && it.season == w.season && (it.tier == CompTier.INTERNATIONAL || it.tier == CompTier.WORLDS) && !dev.uem.em.comp.Season.isEncQualifier(it) && it.startDay - 10 == w.day &&
+                // One patch per event: an event with a play-in gets it before the play-in; none before the best-of-the-rest invitational.
+                !it.defKey.endsWith(":dcgi") && w.comps.none { o -> o.season == it.season && o.defKey == it.defKey + ":playin" } }
             val minor = !major && !medium && (last == null || w.day - last.day >= 24) && rng.chance(1.0 / 9)
             if (major) make(w, t, "major", rng) else if (medium) make(w, t, "medium", rng) else if (minor) make(w, t, "minor", rng)
         }
@@ -160,6 +162,8 @@ object Patches {
             }
         }
         if (kind == "major") notes.addAll(dev.uem.em.comp.Fearless.evolve(w, t, rng))
+        // Competition formats (seeds, play-ins, stages, qualification, franchising): reviewed every few seasons, never mid-season.
+        if (kind == "major") notes.addAll(dev.uem.em.comp.Formats.evolve(w, t, Rng.derive(w.seed, "formats", t.id, w.season)))
         // Competitive ruleset: coach comms in fights (MOBAs), introduced or withdrawn with a major patch.
         if (kind == "major" && t.isMoba) {
             if (t.id !in w.coachCommsTitles && rng.chance(0.4)) {

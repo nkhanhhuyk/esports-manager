@@ -190,10 +190,22 @@ object Ecosystem {
         fun league(id: String) = w.leagues.getOrNull(id.removePrefix("L").toIntOrNull() ?: -1)
         return when (p[0]) {
             "league" -> "Every team of ${league(p[1])?.name ?: "the league"}"
-            "top" -> "Top ${p[2]} of ${comp(p[1])}"
-            "circuit" -> "${p[2]} from ${league(p[1])?.name}: " + when (p[2].toIntOrNull() ?: 0) {
-                1 -> "the last split's champion"; 2 -> "the last split's two finalists"; 3 -> "the last split's two finalists, then the best on circuit points"
-                4 -> "the last split's four semi-finalists"; else -> "the last split's four semi-finalists, then circuit points" }
+            "top" -> if (p.size > 3) "${p[2]} play-in seed(s) from ${comp(p[1])}: the next after its top ${p[3]}" else "Top ${p[2]} of ${comp(p[1])}"
+            "circuit" -> {
+                val n = p[2].toIntOrNull() ?: 0
+                val pts = p.getOrNull(5) == "points"
+                val rf = w.comps.firstOrNull { it.season == c.season && it.defKey == "${c.titleId}:rf:L${p[1]}" && !it.name.endsWith("(cancelled)") }
+                val rest = if (rf != null) "the winner(s) of ${rf.name}" else "the best on circuit points"
+                val d = Formats.direct(n)
+                val how = if (pts) (if (n <= d) "the top $n on circuit points" else "the top $d on circuit points, then $rest")
+                    else when (n) { 1 -> "the last split's champion"; 2 -> "the last split's two finalists"; 3 -> "the last split's two finalists, then $rest"
+                        4 -> "the last split's four semi-finalists"; else -> "the last split's four semi-finalists, then $rest" }
+                val slice = p.getOrNull(4)?.toIntOrNull()?.takeIf { it < n }?.let { " — the top $it of them in the main event, the rest in the play-in" } ?: ""
+                "$n from ${league(p[1])?.name}: $how$slice"
+            }
+            "pseed" -> "${league(p[2])?.name}'s Worlds seeds below its top ${p[3]} (of ${p[4]}): play-in seeds"
+            "lcq" -> "The next ${p[3]} teams of ${league(p[2])?.name} on circuit points after its direct Worlds places"
+            "rest" -> "${p[3]} team(s) of ${league(p[2])?.name} that missed ${comp(p[1])}, by circuit points"
             "bottom" -> "The bottom ${p[2]} of ${comp(p[1])} (defending their places)"
             "promo" -> "The best ${p[2]} independent team(s) of ${comp(p[1])}"
             "qual" -> "Top ${p[2]} of ${comp(p[1])}"
@@ -251,6 +263,7 @@ object Ecosystem {
             "league" -> team.leagueId == p[1].toIntOrNull()
             "top", "qual", "bottom", "promo" -> w.comps.getOrNull(p[1].toInt())?.let { team.id in it.teamIds || (it.status == 0 && it.entrants.any { r -> ruleConcerns(w, r, team) }) } == true
             "circuit", "points" -> team.leagueId == p[1].removePrefix("L").toIntOrNull()
+            "pseed", "lcq", "rest" -> team.leagueId == p[2].toIntOrNull()
             "invite", "open" -> team.titleId == p[1] && inRegion(w, team, leagueOf(w, p[2])) && (p[0] == "invite" || team.kind.isEmpty() || team.kind == "amateur")
             "amateur", "amateurpts" -> team.titleId == p[1] && team.kind == "amateur" && (leagueOf(w, p[2])?.region ?: team.region) == team.region
             "kind" -> team.titleId == p[1] && team.kind == p[3] && (leagueOf(w, p[2])?.region ?: team.region) == team.region
@@ -282,9 +295,9 @@ object Ecosystem {
                         else lines.add("$text — finished ${if (i >= 0) dev.uem.em.core.ordinal(i + 1) else "out"}")
                     } else lines.add("$text — ${scenario(w, src, team, n)}").also { if (good == null) good = null }
                 }
-                "circuit", "points" -> {
+                "circuit", "points", "pseed", "lcq", "rest" -> {
                     val pts = Progress.circuitPoints(w, c.season, c.titleId)
-                    val league = w.leagues[p[1].removePrefix("L").toInt()]
+                    val league = w.leagues[(if (p[0] in setOf("pseed", "lcq", "rest")) p[2] else p[1]).removePrefix("L").toInt()]
                     val order = league.teamIds.sortedByDescending { pts[it] ?: 0.0 }
                     lines.add("$text — ${dev.uem.em.core.ordinal(order.indexOf(team.id) + 1)} on points (${(pts[team.id] ?: 0.0).toInt()})")
                 }

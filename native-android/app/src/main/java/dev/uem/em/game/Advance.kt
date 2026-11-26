@@ -338,6 +338,8 @@ object Advance {
         dev.uem.em.mgmt.Academies.aiFound(w)
         fillRosters(w)
         dev.uem.em.mgmt.Mentoring.aiSuccession(w)
+        // Second teams follow their clubs between leagues (academy leagues).
+        dev.uem.em.mgmt.Academies.ensureLeagues(w)
         Season.plan(w, w.season)
         dev.uem.em.mgmt.Circuits.plan(w, w.season)
         dev.uem.em.comp.CustomComps.rollover(w)

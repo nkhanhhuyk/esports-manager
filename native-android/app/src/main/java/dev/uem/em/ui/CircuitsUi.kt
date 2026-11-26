@@ -59,7 +59,7 @@ fun CircuitsScreen(vm: GameVm, w: World) {
             val clubs = w.teams.filter { it.titleId == titleId && it.active && it.kind.isNotEmpty() && it.region == l.region }
             val events = w.comps.filter { c -> c.season == w.season && c.titleId == titleId && c.circuit.isNotBlank() && c.entrants.any { it.split(':').getOrNull(2) == "L${l.id}" } }.sortedBy { it.startDay }
             val pts = Circuits.amateurPoints(w, w.season, titleId)
-            val lower = w.leagues.firstOrNull { it.upperId == l.id && it.tier == 2 && l.lowerId != it.id }
+            val lower = w.leagues.firstOrNull { it.upperId == l.id && it.tier == 2 && l.lowerId != it.id && !it.academy }
             Card("${l.short} region") {
                 Muted(if (lower != null) "Amateur Championship winner moves up to ${lower.name}; its lowest independent team drops to the amateur circuit." else "No independent lower league here: amateur clubs move up through open qualifiers where the game has them.", 11)
                 Text("Events ${w.season}", color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))

@@ -266,7 +266,7 @@ object Circuits {
             if (c.season != w.season || c.circuit != AMATEUR || !c.defKey.endsWith("amchamp") || !c.done) continue
             val champ = w.teams.getOrNull(c.placements.firstOrNull() ?: -1) ?: continue
             val upper = w.leagues.firstOrNull { it.id.toString() == c.defKey.split(':').getOrNull(1)?.removePrefix("L") } ?: continue
-            val lower = w.leagues.firstOrNull { it.upperId == upper.id && it.tier == 2 && upper.lowerId != it.id } ?: continue
+            val lower = w.leagues.firstOrNull { it.upperId == upper.id && it.tier == 2 && upper.lowerId != it.id && !it.academy } ?: continue
             val last = w.comps.lastOrNull { it.season == w.season && it.leagueId == lower.id && it.done }?.placements?.lastOrNull { w.teams[it].parentId < 0 && w.teams[it].kind.isEmpty() && !w.isUserTeam(it) } ?: continue
             val down = w.teams[last]
             // Promotion: the club turns semi-professional (its players now sign contracts with it).

@@ -27,11 +27,52 @@ object Academies {
 
     fun cost(w: World, parent: Team): Double = (60000 * (0.4 + GameData.economy(w.orgs[parent.orgId].region)) / 1000).roundToInt() * 1000.0
 
+    /** Games whose top leagues run academy leagues (the franchised MOBA ecosystems). */
+    val LEAGUE_TITLES = setOf("lol", "mlbb", "hok", "wildrift")
+    /** Real names of academy leagues the game creates (rosters generated): "title|region" → name, short. */
+    private val ACADEMY_NAMES = mapOf("lol|CN" to ("LoL Development League" to "LDL"), "lol|NA" to ("LCS Academy League" to "LCS Academy"), "lol|BR" to ("CBLOL Academy" to "CBLOL Academy"))
+
+    /** The academy league under a top league, if it has one. */
+    fun academyLeague(w: World, upper: dev.uem.em.model.League): dev.uem.em.model.League? = w.leagues.firstOrNull { it.academy && it.upperId == upper.id }
+
+    /**
+     * Academy leagues: every top league of LoL, MLBB, HoK and Wild Rift has one for its clubs' second teams
+     * (LCK CL and MDL are real; the others are the game's, named after real ones where they existed — LDL,
+     * LCS Academy, CBLOL Academy). Second teams already in an independent Challengers division stay there.
+     * Run at creation and every new season: a second team follows its club (its club relegated, it leaves
+     * the academy league; promoted, it joins the new league's).
+     */
+    fun ensureLeagues(w: World) {
+        // Older saves: the real academy leagues were plain lower leagues.
+        for (l in w.leagues) if (!l.academy && l.tier == 2 && l.upperId >= 0 && l.teamIds.isNotEmpty() && l.teamIds.all { w.teams[it].parentId >= 0 }) l.academy = true
+        for (al in w.leagues) {
+            if (!al.academy) continue
+            for (tid in al.teamIds.toList()) {
+                val a = w.teams[tid]
+                val parent = w.teams.getOrNull(a.parentId)
+                if (parent == null || !a.active || parent.leagueId != al.upperId) { al.teamIds.remove(tid); if (a.leagueId == al.id) a.leagueId = -1 }
+            }
+        }
+        for (upper in w.leagues.toList()) {
+            if (upper.tier != 1 || upper.titleId !in LEAGUE_TITLES) continue
+            val acads = upper.teamIds.map { w.teams[it] }.filter { it.active && it.parentId < 0 }.mapNotNull { of(w, it) }.filter { it.leagueId < 0 }
+            if (acads.isEmpty()) continue
+            val al = academyLeague(w, upper) ?: run {
+                // Too few for a league of their own: they join the league's Challengers division when it has one.
+                if (acads.size < 3) return@run w.leagues.getOrNull(upper.lowerId)?.takeIf { it.tier == 2 && it.upperId == upper.id }
+                val names = ACADEMY_NAMES["${upper.titleId}|${upper.region}"]?.takeIf { !w.fictional } ?: ("${upper.short} Academy League" to "${upper.short} AL")
+                dev.uem.em.model.League(w.leagues.size, upper.titleId, upper.region, 2, names.first, names.second, upperId = upper.id, academy = true).also { w.leagues.add(it) }
+            } ?: continue
+            for (a in acads) { a.leagueId = al.id; if (a.id !in al.teamIds) al.teamIds.add(a.id) }
+        }
+    }
+
     /** The Challengers league an academy of this team would play in, if the region has one. */
-    fun leagueFor(w: World, parent: Team) = w.leagues.getOrNull(parent.leagueId)?.let { l -> w.leagues.getOrNull(l.lowerId) }
+    fun leagueFor(w: World, parent: Team) = w.leagues.getOrNull(parent.leagueId)?.let { academyLeague(w, it) }
+        ?: w.leagues.getOrNull(parent.leagueId)?.let { l -> w.leagues.getOrNull(l.lowerId) }
         // A league with several lower leagues (LCP: LJL, PCS, VCS): the one of the organisation's country.
-        ?: w.leagues.getOrNull(parent.leagueId)?.let { l -> w.leagues.firstOrNull { it.upperId == l.id && it.tier == 2 && w.orgs[parent.orgId].region in GameData.expand(it.region) } }
-        ?: w.leagues.firstOrNull { it.titleId == parent.titleId && it.tier == 2 && it.region == parent.region }
+        ?: w.leagues.getOrNull(parent.leagueId)?.let { l -> w.leagues.firstOrNull { it.upperId == l.id && it.tier == 2 && !it.academy && w.orgs[parent.orgId].region in GameData.expand(it.region) } }
+        ?: w.leagues.firstOrNull { it.titleId == parent.titleId && it.tier == 2 && !it.academy && it.region == parent.region }
 
     class Result(val ok: Boolean, val text: String, val team: Team? = null)
 

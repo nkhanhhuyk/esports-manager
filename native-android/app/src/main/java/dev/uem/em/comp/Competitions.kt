@@ -56,7 +56,7 @@ object Season {
         return if (parts.isEmpty()) 30.0 else parts.maxOf { pop[it] ?: 0 } * 0.85
     }
 
-    private fun allocate(strengths: List<Double>, total: Int, maxPer: Int = 4): IntArray {
+    internal fun allocate(strengths: List<Double>, total: Int, maxPer: Int = 4): IntArray {
         val n = strengths.size
         val slots = IntArray(n) { 1 }
         var left = total - n
@@ -157,7 +157,7 @@ object Season {
 
     /** The lower league a team plays in when it leaves [upper]: the one covering its organisation's country. */
     fun homeLower(w: World, upper: League, team: dev.uem.em.model.Team): League? {
-        val lowers = w.leagues.filter { it.upperId == upper.id && it.tier == 2 }
+        val lowers = w.leagues.filter { it.upperId == upper.id && it.tier == 2 && !it.academy }
         val org = w.orgs[team.orgId]
         return lowers.firstOrNull { org.region in GameData.expand(it.region) || org.country in GameData.expand(it.region) } ?: lowers.maxByOrNull { leagueStrength(it) }
     }
@@ -242,8 +242,9 @@ object Season {
             // last two teams against the lower leagues' champions (the strongest lower league sends two); the
             // top two play the tier-1 league next season. Midweek in October, after the last splits.
             for (upper in tier1) {
-                // Independent lower leagues only (not an academy league, not the upper league's own Challengers division).
-                val lowers = tier2.filter { l -> l.upperId == upper.id && upper.lowerId != l.id && l.teamIds.count { w.teams[it].parentId < 0 } >= 4 }.sortedByDescending { leagueStrength(it) }
+                // Independent lower leagues only (not an academy league; the upper league's own Challengers division only when
+                // a major patch opened the league up — see Formats.proRel). A franchised league has none.
+                val lowers = Formats.promotionLowers(w, upper)
                 if (lowers.isEmpty() || upper.teamIds.size < 6) continue
                 val last = splitComps[upper.id]?.lastOrNull() ?: continue
                 val rules = listOf("bottom:${last.id}:2") + lowers.mapIndexed { i, l -> "promo:${splitComps[l.id]!!.last().id}:${if (i == 0) 2 else 1}" }
@@ -255,6 +256,12 @@ object Season {
             val real = REAL_EVENTS[titleId]
             fun name(k: String, generic: String, short: String): Triple<String, String, Boolean> =
                 real?.get(k)?.let { Triple("${it.first} $season", it.second, true) } ?: Triple("${t.short} $generic $season", "${t.short} $short", false)
+            // LoL, MLBB, HoK, Wild Rift: internationals with formats that evolve at major patches (comp.Formats).
+            if (Formats.applies(titleId) && tier1.size >= 2) {
+                planEvolving(w, t, season, tier1, splitComps, ::name, ::D)
+                nationsCup(w, t, season, ti)
+                return@forEachIndexed
+            }
             fun topOf(split: Int, two: (Int) -> Boolean) = tier1.mapIndexed { i, l -> "top:${splitComps[l.id]!![split - 1].id}:${if (two(i)) 2 else 1}" }
             fun count(rules: List<String>) = rules.sumOf { it.split(':')[2].toInt() }
             val lol = titleId == "lol"
@@ -299,6 +306,146 @@ object Season {
             if (cs) openQualifiers(w, t, season, worlds, tier1, csInvites)
             if (dota) { worlds.entrants = worlds.entrants + tier1.map { "qual:${regionalQualifier(w, t, season, worlds, it).id}:2" } }
             nationsCup(w, t, season, ti)
+        }
+    }
+
+    /**
+     * First Stand, MSI, the Esports World Cup, Worlds with its regional finals, and the best-of-the-rest
+     * invitational, each with the game's current format (seeds per league, play-in, stages, best-of).
+     * With the formats never changed this is the 2026 calendar exactly.
+     */
+    private fun planEvolving(w: World, t: TitleDef, season: Int, tier1: List<League>, splitComps: Map<Int, List<Competition>>,
+                             name: (String, String, String) -> Triple<String, String, Boolean>, D: (Int, Int) -> Int) {
+        val tf = Formats.of(w, t.id)
+        val rank = Formats.rankIdx(w, t.id, tier1)
+        fun split(l: League, n: Int) = splitComps[l.id]!![n - 1]
+        fun topRule(n: Int) = { l: League, _: Int, from: Int, count: Int -> "top:${split(l, n).id}:$count" + if (from > 0) ":$from" else "" }
+        fun topPi(n: Int) = { _: Int, l: League, from: Int, s: Int -> "top:${split(l, n).id}:${s - from}:$from" }
+        val fs = planEvent(w, t, season, "fs", name("fs", "First Stand", "FST"), CompTier.INTERNATIONAL, D(3, 6), tier1, rank, Formats.seeds(w, t.id, "fs", tier1), tf.events["fs"],
+            emptyList(), null, topRule(1), topPi(1), { n, st -> international(t, minOf(8, n), st) }, t.prizeScale * 250_000, 60, FS_POINTS)
+        Fearless.assign(w, t, fs)
+        val msi = planEvent(w, t, season, "msi", name("msi", "Mid-Season Invitational", "MSI"), CompTier.INTERNATIONAL, D(6, 26), tier1, rank, Formats.seeds(w, t.id, "msi", tier1), tf.events["msi"],
+            emptyList(), null, topRule(2), topPi(2), { n, st ->
+                if (n > 8) listOf(stage("Play-In Groups", StageType.GROUPS, st, t.formats.first.n, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 4), stage("Bracket Stage", StageType.DOUBLE_ELIM, st + 6, t.formats.second.n))
+                else listOf(stage("Bracket Stage", StageType.DOUBLE_ELIM, st, t.formats.second.n)) }, t.prizeScale * 400_000, 70, MSI_POINTS)
+        ewcFor(w, t, season, msi, D(7, 14))
+        val wef = tf.events["worlds"]
+        val mode = if (wef?.qual == "points") "points" else "placings"
+        val wSeeds = Formats.seeds(w, t.id, "worlds", tier1)
+        val circuitRule = { l: League, s: Int, from: Int, count: Int -> if (from == 0 && count == s && mode == "placings") "circuit:${l.id}:$s" else "circuit:${l.id}:$s:$from:$count:$mode" }
+        val worlds = planEvent(w, t, season, "worlds", name("worlds", "World Championship", "Worlds"), CompTier.WORLDS, D(9, 24), tier1, rank, wSeeds, wef,
+            if (Formats.winnerSpot(t.id, wef)) listOf("msiwin:${msi.id}") else emptyList(), if (Formats.runnerSeed(t.id, wef)) "msiseed:${msi.id}" else null,
+            circuitRule, { mainId, l, from, s -> "pseed:$mainId:${l.id}:$from:$s:$mode" }, { n, st -> international(t, n, st) }, t.prizeScale * 1_000_000, 100, emptyList())
+        // Regional finals (LPL-style last chance) for the places the placings do not decide.
+        if (tf.lastChance) tier1.forEachIndexed { i, l -> regionalFinals(w, t, season, worlds, l, wSeeds[i], wSeeds[i], mode) }
+        if (tf.invitational) invitational(w, t, season, worlds, tier1, rank)
+    }
+
+    /**
+     * An international under its format. Without a play-in every seed goes straight in. With one, the main
+     * event keeps [EventFormat.size] places: the best-ranked leagues' top seeds go straight in (every league's
+     * first seed, then second seeds...), the rest play the play-in (its own competition, before the main
+     * event), whose top [EventFormat.playInAdvance] join the main event.
+     */
+    private fun planEvent(w: World, t: TitleDef, season: Int, key: String, nm: Triple<String, String, Boolean>, tier: CompTier, start: Int, tier1: List<League>, rank: List<Int>,
+                          seeds: IntArray, ef: dev.uem.em.model.EventFormat?, before: List<String>, runner: String?,
+                          rule: (League, Int, Int, Int) -> String, piRule: (Int, League, Int, Int) -> String, default: (Int, Int) -> List<Stage>,
+                          prize: Double, prestige: Int, points: List<Int>): Competition {
+        val extra = if (runner != null) 1 else 0
+        val adv = ef?.playInAdvance ?: 0
+        val size = ef?.size ?: 0
+        val direct = (size - adv - before.size).coerceIn(0, seeds.sum())
+        val mainS = Formats.mainSeeds(seeds, rank, direct)
+        val piN = seeds.sum() - mainS.sum() + extra
+        val withPi = ef != null && ef.playIn.isNotEmpty() && adv > 0 && size > 0 && piN >= 2 && adv < piN
+        if (!withPi) {
+            val n = before.size + seeds.sum() + extra
+            val rules = before + tier1.indices.filter { seeds[it] > 0 }.map { rule(tier1[it], seeds[it], 0, seeds[it]) } + listOfNotNull(runner)
+            val c = mk(w, t, season, nm.first, nm.second, tier, null, rules, Formats.mainStages(t, key, ef, n, start, default(n, start)), prize, prestige, points, key = "${t.id}:$key")
+            c.realName = nm.third
+            return c
+        }
+        val mainStart = start + Formats.playInDays(ef!!.playIn, piN)
+        val mainN = before.size + mainS.sum() + adv
+        val rules = before + tier1.indices.filter { mainS[it] > 0 }.map { rule(tier1[it], seeds[it], 0, mainS[it]) } + listOfNotNull(runner)
+        val main = mk(w, t, season, nm.first, nm.second, tier, null, rules, Formats.mainStages(t, key, ef, mainN, mainStart, default(mainN, mainStart)), prize, prestige, points, key = "${t.id}:$key")
+        main.realName = nm.third
+        val piRules = tier1.indices.filter { seeds[it] > mainS[it] || runner != null }.map { piRule(main.id, tier1[it], mainS[it], seeds[it]) }
+        val pi = mk(w, t, season, "${nm.first} Play-In", "${nm.second} PI", CompTier.INTERNATIONAL, null, piRules, Formats.playInStages(t, ef.playIn, piN, adv, start),
+            prize * 0.08, maxOf(30, prestige - 25), if (points.isEmpty()) emptyList() else List(piN) { if (it < adv) 0 else 10 }, key = "${t.id}:$key:playin")
+        pi.realName = nm.third
+        pi.finalBo = if (ef.playIn == "decider") 5 else t.formats.second.n
+        main.entrants = main.entrants + "qual:${pi.id}:$adv"
+        return main
+    }
+
+    /**
+     * LPL-style regional finals: when a league has more Worlds places than its playoffs decide (three places:
+     * the finalists go, the third is played for), the next six teams on circuit points play two groups of
+     * three, then semi-finals and a final; the winner (the top two for two open places) goes to Worlds.
+     * After MSI an extra seed can add one (see [afterFinish]).
+     */
+    internal fun regionalFinals(w: World, t: TitleDef, season: Int, worlds: Competition, l: League, places: Int, base: Int, mode: String): Competition? {
+        if (w.comps.any { it.season == season && it.defKey == "${t.id}:rf:L${l.id}" }) return null
+        if (places - Formats.direct(places) <= 0) return null
+        val n = minOf(6, l.teamIds.count { w.teams[it].active } - places - 1)
+        if (n < 3) return null
+        val first = w.comps.filter { it.season == season && (it.id == worlds.id || it.defKey == worlds.defKey + ":playin") }.minOf { it.startDay }
+        val start = first - 12
+        val all = listOf(0, 1, 2, 3, 4, 5, 6)
+        val stages = if (n >= 6) listOf(stage("Group Stage", StageType.GROUPS, start, t.formats.second.n, all, groups = 2, advance = 2, daysBetween = 1), stage("Knockout Stage", StageType.SINGLE_ELIM, start + 4, t.formats.second.n, all, daysBetween = 1))
+            else listOf(stage("Knockout Stage", StageType.SINGLE_ELIM, start, t.formats.second.n, all, daysBetween = 1))
+        val c = mk(w, t, season, "${l.name} Regional Finals $season", "${l.short} RF", CompTier.CHALLENGER, null, listOf("lcq:${worlds.id}:${l.id}:$n:$base:$mode"), stages,
+            t.prizeScale * 50_000, 35, emptyList(), key = "${t.id}:rf:L${l.id}")
+        c.realName = true
+        return c
+    }
+
+    /**
+     * The best of the rest (like LoL's Demacia Cup Global Invitational): during Worlds, two to four teams per
+     * league that missed it (the best-ranked leagues send four), chosen on circuit points within their league.
+     */
+    private fun invitational(w: World, t: TitleDef, season: Int, worlds: Competition, tier1: List<League>, rank: List<Int>) {
+        val per = IntArray(tier1.size)
+        rank.forEachIndexed { r, i -> per[i] = when { r < (tier1.size + 2) / 3 -> 4; r < (2 * tier1.size + 2) / 3 -> 3; else -> 2 } }
+        val n = per.sum()
+        val start = worlds.startDay + 2
+        val all = listOf(0, 1, 2, 3, 4, 5, 6)
+        val stages = when {
+            n >= 16 && n % 2 == 0 -> listOf(Stage("Swiss Stage", StageType.SWISS, start, t.formats.first.n, all, advance = 8, daysBetween = 1), stage("Knockout Stage", StageType.SINGLE_ELIM, start + 7, t.formats.second.n, all, daysBetween = 1))
+            n >= 8 -> listOf(stage("Group Stage", StageType.GROUPS, start, t.formats.first.n, all, groups = if (n >= 12) 4 else 2, advance = 2, daysBetween = 1), stage("Knockout Stage", StageType.SINGLE_ELIM, start + 6, t.formats.second.n, all, daysBetween = 1))
+            else -> listOf(stage("Knockout Stage", StageType.SINGLE_ELIM, start, t.formats.second.n, all, daysBetween = 1))
+        }
+        val (nm, short) = if (t.id == "lol") "Demacia Cup Global Invitational $season" to "DCGI" else "${t.short} Global Invitational $season" to "${t.short} GI"
+        val c = mk(w, t, season, nm, short, CompTier.INTERNATIONAL, null, tier1.indices.map { "rest:${worlds.id}:${tier1[it].id}:${per[it]}" }, stages,
+            t.prizeScale * 200_000, 45, emptyList(), key = "${t.id}:dcgi")
+        c.realName = t.id == "lol"
+    }
+
+    /**
+     * After MSI: its runner-up's region has an extra Worlds seed, which can call for regional finals (two
+     * places become three) or make planned ones unnecessary (three become four: the semi-finalists).
+     */
+    internal fun afterFinish(w: World, c: Competition) {
+        if (!Formats.applies(c.titleId) || c.defKey != "${c.titleId}:msi") return
+        val worlds = w.comps.firstOrNull { it.season == c.season && it.defKey == "${c.titleId}:worlds" && it.status == 0 && "msiseed:${c.id}" in it.entrants } ?: return
+        val runner = c.placements.getOrNull(1) ?: return
+        val league = w.leagues.getOrNull(w.teams[runner].leagueId)?.takeIf { it.tier == 1 } ?: return
+        val pi = w.comps.firstOrNull { it.season == c.season && it.defKey == worlds.defKey + ":playin" }
+        val rule = worlds.entrants.firstOrNull { it.startsWith("circuit:${league.id}:") }?.split(':')
+        val pr = pi?.entrants?.firstOrNull { it.startsWith("pseed:${worlds.id}:${league.id}:") }?.split(':')
+        val base = rule?.getOrNull(2)?.toIntOrNull() ?: pr?.getOrNull(4)?.toIntOrNull() ?: return
+        val mode = rule?.getOrNull(5) ?: pr?.getOrNull(5) ?: "placings"
+        val places = base + 1
+        val rf = w.comps.firstOrNull { it.season == c.season && it.defKey == "${c.titleId}:rf:L${league.id}" }
+        if (rf != null && rf.status == 0 && places - Formats.direct(places) <= 0) {
+            rf.status = 2
+            rf.name = "${rf.name} (cancelled)"
+            w.news.add(dev.uem.em.model.News(w.day, "${rf.short} cancelled", "${league.short} gets an extra Worlds seed as the region of the ${c.short} runner-up: its $places places go to the playoff semi-finalists, so the regional finals are not needed."))
+            return
+        }
+        if (rf == null && w.formats[c.titleId]?.lastChance != false) regionalFinals(w, Catalogue.get(c.titleId), c.season, worlds, league, places, base, mode)?.let {
+            w.news.add(dev.uem.em.model.News(w.day, "${it.short} added", "${league.short} gets an extra Worlds seed as the region of the ${c.short} runner-up: the finalists go, and the next six on circuit points play ${it.name} for the third place."))
         }
     }
 
@@ -674,7 +821,7 @@ object Progress {
                             if (inn.isNotEmpty() || outt.isNotEmpty()) w.news.add(dev.uem.em.model.News(w.day, "${tm.name} squad for ${c.short}",
                                 "Changes from the qualifier — in: ${inn.joinToString { w.players[it].handle }.ifEmpty { "none" }}; out: ${outt.joinToString { w.players[it].handle }.ifEmpty { "none" }}.", listOf(tm.id)))
                         }
-                        if (add(tid, rule, "qualifier", src.id, i)) taken++
+                        if (add(tid, rule, if (src.defKey.endsWith(":playin")) "through the play-in" else "qualifier", src.id, i)) taken++
                     }
                 }
                 // Up to a number of nations: the strongest national teams not already in (a qualifier without enough nations).
@@ -703,44 +850,61 @@ object Progress {
                 "top" -> {
                     val src = w.comps[p[1].toInt()]
                     if (!src.done) return null
+                    // Optional 4th part: places already taken by the main event (a play-in starts below them).
+                    var skip = p.getOrNull(3)?.toIntOrNull() ?: 0
                     var taken = 0
                     var passed = ""
                     for ((i, tid) in src.placements.withIndex()) {
                         if (taken >= p[2].toInt()) break
                         if (has(tid)) { passed = "${w.teams[tid].short} already qualified — place passed down"; continue }
-                        if (add(tid, rule, "placing", src.id, i, passed)) { taken++; passed = "" }
+                        if (skip > 0) { if (w.teams[tid].active) skip--; continue }
+                        if (add(tid, rule, if (p.size > 3) "placing (play-in seed)" else "placing", src.id, i, passed)) { taken++; passed = "" }
                     }
                 }
-                // A league's places at the world championship, earned in its last split's playoffs (upsets count):
-                // 1 place the champion, 2 the finalists, 3 the finalists and the best other team on circuit points,
-                // 4 the semi-finalists; more places, the semi-finalists then circuit points. A place already taken by a
-                // team qualified another way (the MSI winner) passes down the playoff order. The region of an earlier
-                // international's runner-up counts its extra seed in the total (see "msiseed").
+                // A league's play-in seeds for the world championship: its qualifiers below the main-event seeds.
+                "pseed" -> {
+                    val main = w.comps[p[1].toInt()]
+                    val league = w.leagues[p[2].toInt()]
+                    val list = leagueOrder(w, main, league, "circuit:${league.id}:${p[4]}:0:99:${p.getOrElse(5) { "placings" }}") ?: return null
+                    for (e in list.drop(p[3].toInt())) add(e.teamId, rule, e.how + " — play-in seed", e.src, e.place, e.note)
+                }
+                // Regional finals: the next teams on circuit points after the league's direct qualifiers.
+                "lcq" -> {
+                    val main = w.comps[p[1].toInt()]
+                    val league = w.leagues[p[2].toInt()]
+                    val direct = leagueOrder(w, main, league, "circuit:${league.id}:${p[4]}:0:99:${p.getOrElse(5) { "placings" }}", directOnly = true) ?: return null
+                    val winner = main.entrants.firstOrNull { it.startsWith("msiwin:") }?.let { w.comps[it.split(':')[1].toInt()].placements.firstOrNull() }
+                    val pts = circuitPoints(w, c.season, c.titleId)
+                    league.teamIds.filter { t -> w.teams[t].active && t != winner && direct.none { it.teamId == t } }
+                        .sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo }).take(p[3].toInt())
+                        .forEach { add(it, rule, "circuit points (next after the direct places)", note = "${(pts[it] ?: 0.0).toInt()} points in ${league.short}") }
+                }
+                // Best of the rest: a league's best teams on circuit points that are not at the world championship.
+                "rest" -> {
+                    val main = w.comps[p[1].toInt()]
+                    val league = w.leagues[p[2].toInt()]
+                    val pis = w.comps.filter { it.season == main.season && it.defKey == main.defKey + ":playin" }
+                    if (main.status == 0 || pis.any { it.status == 0 }) return null
+                    val busy = HashSet<Int>(main.teamIds)
+                    for (pi in pis) busy.addAll(pi.teamIds)
+                    // Teams defending their place in a promotion tournament stay home.
+                    for (pc in w.comps) if (pc.season == c.season && pc.promoLeague == league.id) for (r in pc.entrants.filter { it.startsWith("bottom:") }) {
+                        val src = w.comps[r.split(':')[1].toInt()]
+                        busy.addAll(src.placements.filter { w.teams[it].leagueId == league.id }.takeLast(r.split(':')[2].toInt()))
+                    }
+                    val pts = circuitPoints(w, c.season, c.titleId)
+                    league.teamIds.filter { w.teams[it].active && it !in busy && !has(it) && w.teams[it].parentId < 0 }
+                        .sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo }).take(p[3].toInt())
+                        .forEach { add(it, rule, "circuit points (missed ${main.short})", note = "${(pts[it] ?: 0.0).toInt()} points in ${league.short}") }
+                }
+                // A league's places at the world championship (see leagueOrder); with a play-in, the main event takes the
+                // first [from, from + count) of them and the play-in the rest.
                 "circuit" -> {
                     val league = w.leagues[p[1].toInt()]
-                    val splits = w.comps.filter { it.season == c.season && it.leagueId == league.id }
-                    if (splits.any { !it.done }) return null
-                    if (w.comps.any { it.season == c.season && it.titleId == c.titleId && it.tier == CompTier.INTERNATIONAL && !it.done && it.startDay < c.startDay && !Season.isEncQualifier(it) && it.promoLeague < 0 }) return null
-                    val pts = circuitPoints(w, c.season, c.titleId)
-                    val last = splits.maxByOrNull { it.split }
-                    val extra = c.entrants.firstOrNull { it.startsWith("msiseed:") }?.let { r -> w.comps.getOrNull(r.split(':')[1].toInt()) }
-                        ?.placements?.getOrNull(1)?.let { w.teams[it].leagueId == league.id } == true
-                    val places = p[2].toInt() + (if (extra) 1 else 0)
-                    val byPlayoffs = when (places) { 1 -> 1; 2, 3 -> 2; else -> 4 }
-                    val label = when (byPlayoffs) { 1 -> "champion"; 2 -> "finalist"; else -> "semi-finalist" }
-                    var chosen = 0
-                    var passed = ""
-                    val order = last?.placements?.withIndex()?.filter { (_, it) -> w.teams[it].leagueId == league.id }.orEmpty()
-                    for ((i, tid) in order) {
-                        if (chosen >= byPlayoffs) break
-                        if (has(tid)) { passed = "${w.teams[tid].short} already qualified — place passed down"; continue }
-                        val what = if (i == 0) "${league.short} champion" else if (i == 1) "${league.short} finalist" else "${league.short} ${dev.uem.em.core.ordinal(i + 1)} in the playoffs"
-                        if (add(tid, rule, "$what (last split, $label places)", last!!.id, i, passed)) { chosen++; passed = "" }
-                    }
-                    for (t in league.teamIds.sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo })) {
-                        if (chosen >= places) break
-                        if (add(t, rule, "circuit points", note = "${(pts[t] ?: 0.0).toInt()} points in ${league.short}")) chosen++
-                    }
+                    val list = leagueOrder(w, c, league, rule) ?: return null
+                    val from = p.getOrNull(3)?.toIntOrNull() ?: 0
+                    val count = p.getOrNull(4)?.toIntOrNull() ?: Int.MAX_VALUE
+                    for (e in list.drop(from).take(count)) add(e.teamId, rule, e.how, e.src, e.place, e.note)
                 }
                 // Championship points earned in a territory's events this season (VCT 2027: top two per territory).
                 "points" -> {
@@ -802,8 +966,8 @@ object Progress {
                     if (!src.done) return null
                     val runner = src.placements.getOrNull(1) ?: continue
                     val league = w.leagues.getOrNull(w.teams[runner].leagueId) ?: continue
-                    // The league's own rule already counted this seed (its playoff order fills it).
-                    if (c.entrants.any { it.startsWith("circuit:${league.id}:") }) continue
+                    // The league's own rule already counted this seed (its playoff order fills it), or the play-in's does.
+                    if (c.entrants.any { it.startsWith("circuit:${league.id}:") } || w.comps.any { it.season == c.season && it.defKey == c.defKey + ":playin" }) continue
                     val pts = circuitPoints(w, c.season, c.titleId)
                     league.teamIds.filter { !has(it) }.sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo }).firstOrNull()
                         ?.let { add(it, rule, "extra ${league.short} seed (${src.short} runner-up region)", note = "${(pts[it] ?: 0.0).toInt()} circuit points") }
@@ -814,6 +978,67 @@ object Progress {
             // Seeding by strength; the ledger keeps the order it was earned in.
             val order = ids.sortedByDescending { w.teams[it].elo }
             return out.filter { it.status != "in" } + order.map { id -> out.first { it.teamId == id && it.status == "in" } }
+        }
+        return out
+    }
+
+    /**
+     * A league's world-championship qualifiers in seed order ([rule] = "circuit:<league>:<places>[:from:count:mode]"),
+     * or null while a source is still running. Places come from the last split's playoffs (upsets count): one place
+     * the champion, two the finalists, three the finalists then one more, four the semi-finalists, more the
+     * semi-finalists then the rest; in "points" mode the same numbers go to the best on circuit points instead. The
+     * places beyond those go to the league's regional finals when it plays them, otherwise on circuit points. A
+     * place taken by a team qualified another way (the MSI winner) passes down; the region of the MSI runner-up
+     * counts its extra seed in the total.
+     */
+    internal fun leagueOrder(w: World, main: Competition, league: League, rule: String, directOnly: Boolean = false): List<QualEntry>? {
+        val p = rule.split(':')
+        val splits = w.comps.filter { it.season == main.season && it.leagueId == league.id }
+        if (splits.any { !it.done }) return null
+        if (w.comps.any { it.season == main.season && it.titleId == main.titleId && it.tier == CompTier.INTERNATIONAL && !it.done && it.startDay < main.startDay && !Season.isEncQualifier(it) && it.promoLeague < 0 && !it.defKey.startsWith(main.defKey + ":") }) return null
+        val pts = circuitPoints(w, main.season, main.titleId)
+        val last = splits.maxByOrNull { it.split }
+        val taken = HashSet<Int>()
+        main.entrants.firstOrNull { it.startsWith("msiwin:") }?.let { r -> val src = w.comps[r.split(':')[1].toInt()]; if (!src.done) return null; src.placements.firstOrNull()?.let { taken.add(it) } }
+        val extra = main.entrants.firstOrNull { it.startsWith("msiseed:") }?.let { r -> w.comps.getOrNull(r.split(':')[1].toInt()) }
+            ?.placements?.getOrNull(1)?.let { w.teams[it].leagueId == league.id } == true
+        val places = p[2].toInt() + (if (extra) 1 else 0)
+        val byPoints = p.getOrNull(5) == "points"
+        val direct = Formats.direct(places)
+        val label = when (direct) { 1 -> "champion"; 2 -> "finalist"; else -> "semi-finalist" }
+        val out = ArrayList<QualEntry>()
+        fun inOut(id: Int) = out.any { it.teamId == id }
+        val pointsOrder = league.teamIds.sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo })
+        var passed = ""
+        if (!byPoints) {
+            val order = last?.placements?.withIndex()?.filter { (_, it) -> w.teams[it].leagueId == league.id }.orEmpty()
+            for ((i, tid) in order) {
+                if (out.size >= direct) break
+                if (tid in taken) { passed = "${w.teams[tid].short} already qualified — place passed down"; continue }
+                if (!w.teams[tid].active) continue
+                val what = if (i == 0) "${league.short} champion" else if (i == 1) "${league.short} finalist" else "${league.short} ${dev.uem.em.core.ordinal(i + 1)} in the playoffs"
+                out.add(QualEntry(tid, rule, last!!.id, i, "$what (last split, $label places)", passed, "in", w.day)); passed = ""
+            }
+        } else for ((i, tid) in pointsOrder.withIndex()) {
+            if (out.size >= direct) break
+            if (tid in taken) { passed = "${w.teams[tid].short} already qualified — place passed down"; continue }
+            if (!w.teams[tid].active) continue
+            out.add(QualEntry(tid, rule, -1, -1, "${dev.uem.em.core.ordinal(i + 1)} on circuit points in ${league.short}", "${(pts[tid] ?: 0.0).toInt()} points" + if (passed.isNotEmpty()) " — $passed" else "", "in", w.day)); passed = ""
+        }
+        if (directOnly) return out
+        val rf = w.comps.firstOrNull { it.season == main.season && it.defKey == "${main.titleId}:rf:L${league.id}" && !it.name.endsWith("(cancelled)") }
+        if (rf != null && out.size < places) {
+            if (!rf.done) return null
+            for ((i, tid) in rf.placements.withIndex()) {
+                if (out.size >= places) break
+                if (tid in taken || inOut(tid) || !w.teams[tid].active) continue
+                out.add(QualEntry(tid, rule, rf.id, i, if (i == 0) "won ${rf.short}" else "${dev.uem.em.core.ordinal(i + 1)} in ${rf.short}", "", "in", w.day))
+            }
+        }
+        for (tid in pointsOrder) {
+            if (out.size >= places) break
+            if (tid in taken || inOut(tid) || !w.teams[tid].active) continue
+            out.add(QualEntry(tid, rule, -1, -1, "circuit points", "${(pts[tid] ?: 0.0).toInt()} points in ${league.short}", "in", w.day))
         }
         return out
     }
@@ -892,5 +1117,6 @@ object Progress {
         dev.uem.em.mgmt.Career.onCompetitionFinished(w, c)
         dev.uem.em.mgmt.Extras.onCompetitionFinished(w, c)
         dev.uem.em.mgmt.Supporters.onCompetitionFinished(w, c)
+        Season.afterFinish(w, c)
     }
 }

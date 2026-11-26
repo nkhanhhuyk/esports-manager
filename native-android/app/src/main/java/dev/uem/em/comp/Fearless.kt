@@ -55,6 +55,10 @@ object Fearless {
 
     fun scopeOf(c: Competition): String = when {
         c.tier == CompTier.WORLDS -> "worlds"
+        // An event's play-in plays under the event's rule (its entrants come from the main event's routes).
+        c.tier == CompTier.INTERNATIONAL && c.defKey.endsWith(":worlds:playin") -> "worlds"
+        c.tier == CompTier.INTERNATIONAL && c.defKey.endsWith(":msi") || c.defKey.endsWith(":msi:playin") -> "msi"
+        c.tier == CompTier.INTERNATIONAL && (c.defKey.endsWith(":fs") || c.defKey.endsWith(":fs:playin")) -> "firststand"
         c.entrants.any { it.startsWith("nations:") || it.startsWith("qual:") || it.startsWith("continent:") } -> "nations"
         c.tier == CompTier.INTERNATIONAL && (c.short.contains("FST") || c.name.contains("First Stand")) -> "firststand"
         c.tier == CompTier.INTERNATIONAL -> "msi"

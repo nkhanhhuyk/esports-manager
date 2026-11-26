@@ -127,6 +127,8 @@ class World(
     var natFix: Int = 0,
     /** MOBA rating calibration per game and lineup slot (see sim.StatBook.calibrate). */
     val ratingCal: MutableMap<String, DoubleArray> = HashMap(),
+    /** Competition formats per game (seeds, play-ins, stage formats, qualification), changed by major patches (see comp.Formats). */
+    val formats: MutableMap<String, TitleFormat> = HashMap(),
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -394,6 +396,56 @@ class League(
     var lowerId: Int = -1,
     var real: Boolean = false,
     var realSrc: String = "",
+    /** An academy league: second teams of the upper league's clubs (no promotion or relegation with it). */
+    var academy: Boolean = false,
+)
+
+/**
+ * One international event's format in a game (First Stand, MSI, Worlds): blank / 0 values keep the
+ * calendar's default. Changed only by major patches (comp.Formats.evolve).
+ */
+@Serializable
+class EventFormat(
+    /** First stage: "swiss", "groups" or "none" (straight to the bracket). */
+    var group: String = "",
+    /** Bracket: "single" or "double" elimination. */
+    var bracket: String = "",
+    /** Best-of in the bracket and in the first stage. */
+    var bo: Int = 0,
+    var groupBo: Int = 0,
+    /** Play-in before the main event: "decider", "group4", "group8", "swiss16", "knockout" (blank: none). */
+    var playIn: String = "",
+    var playInAdvance: Int = 0,
+    /** World championship places from the leagues: "placings" (last split's playoffs) or "points" (circuit points). */
+    var qual: String = "",
+    /** The mid-season champion qualifies directly / its runner-up's region gets an extra seed: -1 the game's default, 0 no, 1 yes. */
+    var winner: Int = -1,
+    var runner: Int = -1,
+    /** Main-event size when it has a play-in (0: every seed goes straight in). */
+    var size: Int = 0,
+)
+
+/** A change to a game's competitions, announced with a major patch. */
+@Serializable
+class FormatChange(val season: Int, val day: Int, val kind: String, val event: String, val text: String, val why: String = "", val leagues: List<Int> = emptyList(), val gain: List<Int> = emptyList())
+
+/** A game's evolving competition structure (see comp.Formats). */
+@Serializable
+class TitleFormat(
+    val titleId: String,
+    val events: MutableMap<String, EventFormat> = HashMap(),
+    /** Seeds per league and event ("worlds:17" → 4); a league without one uses the calendar's allocation. */
+    val seeds: MutableMap<String, Int> = HashMap(),
+    /** Leagues ranked by recent international results, best first (decides main-event and play-in seeds). */
+    var rank: List<Int> = emptyList(),
+    /** League id → true: promotion and relegation with its lower leagues; false: franchised. Absent: the calendar's default. */
+    val proRel: MutableMap<Int, Boolean> = HashMap(),
+    /** Regional finals (last-chance qualifiers) for the world championship places not decided by placings. */
+    var lastChance: Boolean = true,
+    /** The best-of-the-rest invitational for teams that missed the world championship. */
+    var invitational: Boolean = true,
+    var lastReview: Int = 0,
+    val log: MutableList<FormatChange> = ArrayList(),
 )
 
 enum class CompTier { LEAGUE, CHALLENGER, INTERNATIONAL, WORLDS, CUSTOM }

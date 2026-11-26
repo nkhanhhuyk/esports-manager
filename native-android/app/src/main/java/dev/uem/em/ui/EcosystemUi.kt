@@ -52,6 +52,7 @@ fun RoadScreen(vm: GameVm, w: World, teamId: Int) {
                 if (rules.source.isNotBlank()) Muted("Source: ${rules.source}", 10)
             }
         }
+        if (dev.uem.em.comp.Formats.applies(team.titleId)) item { FormatCard(w, team.titleId) }
         val pending = invites.filter { it.status == "pending" }
         if (pending.isNotEmpty()) item {
             Card("Invitations to answer") {
@@ -108,6 +109,7 @@ private fun tierName(c: Competition) = when (c.tier) {
 fun QualificationCard(vm: GameVm, w: World, c: Competition) {
     Card("How teams get in") {
         Rulesets.get(c.rules)?.let { Muted("Ruleset: ${it.label}. ${it.status}", 10) }
+        Muted("Format: ${dev.uem.em.comp.Formats.stagesText(c)}", 10)
         for (rule in c.entrants) Text("• " + Ecosystem.describe(w, c, rule), color = Ui.text, fontSize = 12.sp)
         if (c.entries.isNotEmpty()) {
             Gap(6)
@@ -132,6 +134,26 @@ fun QualificationCard(vm: GameVm, w: World, c: Competition) {
             Gap(6)
             Text("Places lead to", color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             for (o in next) for (r in o.entrants.filter { it.split(':').getOrNull(1) == c.id.toString() }) Text("• ${o.name}: ${Ecosystem.describe(w, o, r)}", color = Ui.accent, fontSize = 12.sp, modifier = Modifier.clickable { vm.go(Screen.Comp(o.id)) })
+        }
+    }
+}
+
+/** A game's international structure (as the latest major patch left it) and the competition changes so far. */
+@Composable
+fun FormatCard(w: World, titleId: String) {
+    val lines = dev.uem.em.comp.Formats.summary(w, titleId)
+    if (lines.isEmpty()) return
+    Card("Competition structure — ${Catalogue.get(titleId).short}") {
+        Muted("Next season's calendar, as the latest major patch left it. Formats change only with a major patch after the world championship, at most every two seasons.", 10)
+        for (l in lines) Text("• $l", color = Ui.text, fontSize = 11.sp)
+        val log = w.formats[titleId]?.log.orEmpty()
+        if (log.isNotEmpty()) {
+            Gap(6)
+            Text("Changes so far", color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            for (ch in log.asReversed().take(15)) {
+                Text("${ch.season + 1}: ${ch.text}", color = Ui.accent, fontSize = 11.sp)
+                if (ch.why.isNotBlank()) Muted(ch.why, 10)
+            }
         }
     }
 }

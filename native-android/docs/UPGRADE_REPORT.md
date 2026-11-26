@@ -760,3 +760,92 @@ The world's second teams start with generated staff, so the real former coaches 
 compares main teams for staff size.
 
 Full suite: 112 tests, 0 failures (3 skipped).
+
+## Twenty-fifth follow-up: academy leagues, regional finals, the best of the rest, formats that change with major patches
+
+* **Academy leagues.** Every top league of LoL, MLBB, Honor of Kings and Wild Rift now has one for its clubs'
+  second teams.
+  * **Names.** LCK CL and MDL Indonesia / Philippines were already there. The new ones use the names of real
+    academy leagues where they existed (LoL Development League under the LPL, LCS Academy League, CBLOL
+    Academy); the rest are "<league> Academy League". Rosters stay generated.
+  * **No promotion with them.** Academy leagues are never in a promotion tournament, and relegated teams never
+    land in one. A second team follows its club each new season: its club relegated, it becomes a development
+    squad; promoted, it joins the new league's academy league.
+  * **Unchanged:** second teams already in an independent Challengers division stay there, and VALORANT, CS2 and
+    Dota 2 second teams stay development squads (no franchised leagues to sit under).
+* **Regional finals (LPL-style last chance).** When a league has more Worlds places than its playoffs decide
+  (three places: the finalists go and the third is played for; five or more: the semi-finalists, then the
+  rest), the next six teams on circuit points play the league's Regional Finals in mid-September.
+  * **Format:** two groups of three, then semi-finals and a final. The winner (the top two when two places are
+    open) goes to Worlds.
+  * **An MSI extra seed** can call for regional finals (two places become three), or make planned ones
+    unnecessary (three become four, the semi-finalists); then they are cancelled, with a news item.
+* **The best of the rest.** During Worlds, the Demacia Cup Global Invitational (LoL; "<game> Global Invitational"
+  in the other three games) is played by teams that missed Worlds.
+  * **Places:** two to four per league (the best-ranked leagues send four), chosen on circuit points within
+    the league.
+  * **Excluded:** teams at Worlds or its play-in, and teams about to defend their place in a promotion
+    tournament.
+* **Formats that evolve (LoL, MLBB, HoK, Wild Rift).** Each game keeps its competition structure. It is
+  reviewed only with the major patch after Worlds, at most once every two seasons, and then only half the time.
+  A review makes one to three changes that apply from the next season:
+  * **Seeds follow results.** A league whose teams clearly did better at the last two seasons' internationals
+    than a league with as many seeds or more takes a seed from it. Example: Europe outperforms China, the LEC
+    goes 3 → 4 and the LPL 4 → 3. Applies to MSI and Worlds.
+  * **Expansion or reduction** of First Stand, MSI or Worlds. Extra places go to the best-ranked leagues;
+    places are removed from the worst-ranked.
+  * **Play-ins added, removed or reshaped.** The options are:
+    * a two-team decider;
+    * a four-team group (one or two through);
+    * eight teams in two groups, then a knockout;
+    * a sixteen-team Swiss stage;
+    * a straight knockout of four or eight teams.
+
+    The main event keeps its size. The best-ranked leagues' top seeds go straight in; the other seeds,
+    including seeds that used to be in the main event, play the play-in first.
+  * **Main-stage format:** Swiss ↔ groups (or straight to the bracket); single ↔ double elimination.
+  * **Best-of lengths:** first stage Bo1 ↔ Bo3, bracket Bo3 ↔ Bo5.
+  * **Worlds places:** the last split's playoff placings ↔ circuit points over the whole season.
+  * **Other switches, each on or off:**
+    * the MSI champion's direct Worlds place;
+    * the extra seed for the MSI runner-up's region;
+    * the regional finals;
+    * the best-of-the-rest invitational.
+  * **Franchise ↔ promotion and relegation** for a league that has independent lower leagues. This happens
+    rarely: never within three seasons of the league's last switch. A league that franchises plays this
+    season's promotion tournament as its last. A league that opens up puts its bottom two against the lower
+    leagues' best from the next season.
+
+  With no change made, the calendar is exactly the previous one.
+* **Where changes are announced and shown.**
+  * **Announced** in the patch notes ("Competitions — …"), the news and the inbox (for your game).
+  * **Shown** on the team's Road screen ("Competition structure", with every change so far and why).
+    Every competition's "How teams get in" card gives its format, for example
+    "Swiss Stage (Bo1, 3 wins) → Knockout Stage (single elimination, Bo5)".
+  * **Social media:** every change gets:
+    * an Agora thread with a poll and the arguments (praise, criticism, overreactions, memes, an analyst);
+    * an official Chirp post and quick takes;
+    * posts from the supporters' groups of the leagues that gained or lost.
+* **Fixes on the way.**
+  * An event's play-in plays under the event's draft rule.
+  * A main event with a play-in is no longer mistaken for a national-team event.
+  * Only one medium patch comes before an event (none before the invitational).
+
+Tests: `FormatsTest`.
+* **Planning (no simulation):**
+  * academy leagues for every top league of the four games;
+  * regional finals where a league has three places;
+  * the invitational's 2–4 places per league;
+  * each play-in kind with groups, Swiss, double elimination, points mode and no MSI-winner place;
+  * fourteen forced reviews (fourteen kinds of change, every next season still plans);
+  * social posts for the changes.
+* **Two LoL seasons played through:**
+  * the default calendar;
+  * then a 16-team Worlds with an eight-team play-in, groups and double elimination.
+
+  Checked in both: every event finishes; regional-finals winners reach Worlds; nobody at Worlds plays the
+  invitational; the play-in's top two (and only they) join the main event; no team plays twice on a day.
+
+Updated tests: `AcademiesTest` (top-league second teams play a league), `BatchFixesTest` (LCP's lower leagues
+exclude its academy league).
+

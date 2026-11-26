@@ -416,6 +416,8 @@ object WorldGen {
     /**
      * Academy teams: every LCK and MPL ID/PH team has one in its academy league (as in real life; the
      * rosters are generated), and the strongest teams of leagues with a Challengers division field one there.
+     * Every other club gets a second team too; those of LoL, MLBB, HoK and Wild Rift top leagues play in
+     * their league's academy league (Academies.ensureLeagues).
      */
     private fun seedAcademies(w: World) {
         val rng = Rng.of("${w.seed}|academies")
@@ -423,7 +425,7 @@ object WorldGen {
             if (league.tier != 1) continue
             val names = ACADEMY_LEAGUES["${league.titleId}|${league.region}"]
             if (names != null && league.lowerId < 0 && !w.fictional) {
-                val l2 = League(w.leagues.size, league.titleId, league.region, 2, names.first, names.second, upperId = league.id)
+                val l2 = League(w.leagues.size, league.titleId, league.region, 2, names.first, names.second, upperId = league.id, academy = true)
                 league.lowerId = l2.id
                 w.leagues.add(l2)
                 for (tid in league.teamIds.toList()) dev.uem.em.mgmt.Academies.found(w, w.teams[tid], false, rng)
@@ -439,6 +441,8 @@ object WorldGen {
             if (dev.uem.em.mgmt.Academies.of(w, team) != null) continue
             dev.uem.em.mgmt.Academies.found(w, team, false, rng, joinLeague = false, realStaff = false).team?.let { it.scrims = 1 }
         }
+        // Academy leagues for the second teams of every MOBA top league.
+        dev.uem.em.mgmt.Academies.ensureLeagues(w)
     }
 
     private fun fictionalNote(titleId: String) = if (titleId == "hok") "Fictional team: no verified current Honor of Kings roster source could be used, so the league, teams and players are generated" else "Fictional team (generated league, players and staff)"

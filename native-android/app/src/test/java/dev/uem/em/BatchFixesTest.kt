@@ -65,7 +65,9 @@ class BatchFixesTest {
     @Test
     fun pacificLowerLeaguesFeedTheLcp() {
         val lcp = w.leagues.first { it.titleId == "lol" && it.short == "LCP" }
-        val lowers = w.leagues.filter { it.upperId == lcp.id }
+        val lowers = w.leagues.filter { it.upperId == lcp.id && !it.academy }
+        // Its second teams have an academy league of their own (no promotion with it).
+        assertTrue(w.leagues.any { it.upperId == lcp.id && it.academy })
         assertEquals(setOf("LJL", "PCS", "VCS"), lowers.map { it.short }.toSet())
         assertTrue(lowers.all { it.tier == 2 && it.real && it.teamIds.size >= 5 })
         val dupes = w.teams.filter { it.titleId == "lol" && it.nationalOf.isEmpty() }.groupBy { it.name.lowercase() }.filter { it.value.size > 1 }.keys

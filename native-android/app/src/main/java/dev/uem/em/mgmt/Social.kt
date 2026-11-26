@@ -146,6 +146,7 @@ object Social {
         transfers(w, titleId, teams, out)
         selections(w, titleId, teams, out)
         patches(w, titleId, teams, out)
+        formatChanges(w, titleId, teams, out)
         streaks(w, titleId, teams, out)
         titlesWon(w, titleId, teams, out)
         form(w, titleId, teams, out)
@@ -415,6 +416,63 @@ object Social {
             out.add(Post("pc${p.titleId}${p.day}", CHIRP, p.day, p.day * 10.0 + imp - 0.1, rng.pick(ANALYSTS), null,
                 "Patch ${p.version}: ${(meta.firstOrNull()?.removePrefix("Meta — ")?.substringBefore(" (") ?: nerfs.firstOrNull()?.substringBefore(" (") ?: buffs.firstOrNull()?.substringBefore(" (") ?: "small changes")}. Winners and losers thread below 👇",
                 "news", t.id, emptyList(), emptyList(), (300 * imp * rng.float(0.6, 1.4)).roundToInt(), (40 * imp * rng.float(0.6, 1.4)).roundToInt(), IntArray(6), emptyList()))
+        }
+    }
+
+    // ------------------------------------------------------------------ competition changes
+    /**
+     * Every competition change a major patch announced (comp.Formats): a forum thread with a poll and the
+     * arguments (praise, criticism, overreactions, memes, an analyst), quick takes, and the supporters'
+     * groups of the leagues that gained or lost something.
+     */
+    private fun formatChanges(w: World, titleId: String?, teams: Set<Int>, out: MutableList<Post>) {
+        for ((tid, tf) in w.formats) {
+            if (titleId != null && tid != titleId) continue
+            val t = Catalogue.get(tid)
+            for ((ci, ch) in tf.log.withIndex()) {
+                if (ch.day < w.day - 14 || ch.day > w.day) continue
+                val involved = ch.leagues.mapNotNull { w.leagues.getOrNull(it) }
+                fun clubsOf(l: dev.uem.em.model.League) = l.teamIds.map { w.teams[it] }.filter { it.parentId < 0 && it.active }.sortedByDescending { fansOf(w, it) }
+                val clubs = involved.flatMap { clubsOf(it) }
+                if (teams.isNotEmpty() && clubs.none { it.id in teams }) continue
+                val rng = Rng.derive(w.seed, "social-format", tid, ch.day, ci)
+                val gainL = involved.filter { it.id in ch.gain }
+                val loseL = involved.filter { it.id !in ch.gain }
+                val gain = gainL.joinToString(" and ") { it.short }.ifEmpty { "the smaller regions" }
+                val lose = loseL.joinToString(" and ") { it.short }.ifEmpty { "the big regions" }
+                val ev = dev.uem.em.comp.Formats.eventName(tid, ch.event)
+                val talk = FormatTalk.lines(ch.kind, ch.text, ev, gain, lose, t.short)
+                val imp = 3.0 + clubs.take(6).sumOf { sqrt(fansOf(w, it) / 1e6) } * 0.3
+                fun sc(x: Double) = (x * imp * rng.float(0.5, 1.5)).roundToInt().coerceAtLeast(3)
+                val gainFan = gainL.firstOrNull()?.let { clubsOf(it).firstOrNull() }
+                val loseFan = loseL.firstOrNull()?.let { clubsOf(it).firstOrNull() }
+                val cm = ArrayList<Comment>()
+                cm.add(Comment(fan(rng, t, gainFan), SocialVoice.say(rng, "fc1", talk.praise), sc(60.0),
+                    listOf(Comment(fan(rng, t, loseFan), SocialVoice.say(rng, "fc2", talk.criticism), sc(35.0)))))
+                cm.add(Comment(rng.pick(ANALYSTS), SocialVoice.say(rng, "fc3", talk.analyst), sc(45.0)))
+                cm.add(Comment(fan(rng, t, loseFan), SocialVoice.say(rng, "fc4", talk.criticism), sc(40.0),
+                    listOf(Comment(fan(rng, t, null), SocialVoice.say(rng, "fc5", talk.praise), sc(18.0)))))
+                cm.add(Comment(fan(rng, t, null), SocialVoice.say(rng, "fc6", talk.over), sc(30.0)))
+                cm.add(Comment(rng.pick(MEMES), SocialVoice.say(rng, "fc7", talk.meme), sc(50.0)))
+                val love = sc(120.0); val hate = sc(100.0); val meh = sc(40.0)
+                out.add(Post("fm$tid${ch.day}-$ci", AGORA, ch.day, ch.day * 10.0 + imp + 0.2, rng.pick(PRESS), "[${t.short} ${ch.season + 1}] ${ch.text}",
+                    ch.why + " Announced with the major patch — it applies from next season.", "debate", tid, clubs.take(4).map { it.id }, emptyList(), sc(500.0), 0, IntArray(6), cm,
+                    poll = listOf("Good change" to love, "Bad change" to hate, "Don't care, just play" to meh), place = "a/${t.short.lowercase().filter { it.isLetterOrDigit() }}"))
+                out.add(Post("fc$tid${ch.day}-$ci", CHIRP, ch.day, ch.day * 10.0 + imp, rng.pick(PRESS), null,
+                    "OFFICIAL (${t.short}): ${ch.text}.", "news", tid, emptyList(), emptyList(), sc(300.0), sc(60.0), IntArray(6),
+                    listOf(Comment(fan(rng, t, null), SocialVoice.say(rng, "fc8", talk.over), sc(20.0)), Comment(fan(rng, t, null), SocialVoice.say(rng, "fc9", talk.praise + talk.criticism), sc(15.0)))))
+                out.add(Post("fq$tid${ch.day}-$ci", CHIRP, ch.day, ch.day * 10.0 + imp - 0.2, fan(rng, t, null), null,
+                    SocialVoice.say(rng, "fc10", talk.over + talk.meme), if (rng.chance(0.5)) "overreaction" else "meme", tid, emptyList(), emptyList(), sc(180.0), sc(30.0), IntArray(6), emptyList()))
+                // The supporters of the leagues that lost or gained something.
+                loseFan?.let { club ->
+                    out.add(Post("fl$tid${ch.day}-$ci", FANBASE, ch.day, ch.day * 10.0 + imp - 0.4, fan(rng, t, club), null, SocialVoice.say(rng, "fc11", talk.criticism),
+                        "criticism", tid, listOf(club.id), emptyList(), 0, 0, reactions(rng, engagement(w, rng, 0.5 * imp, club), "angry"),
+                        listOf(Comment(fan(rng, t, club), SocialVoice.say(rng, "fc12", talk.over), engagement(w, rng, 0.04 * imp, club))), place = "${club.name} Fans"))
+                }
+                if (gainFan != null && gainFan.id != loseFan?.id) out.add(Post("fg$tid${ch.day}-$ci", FANBASE, ch.day, ch.day * 10.0 + imp - 0.5, fan(rng, t, gainFan), null,
+                    SocialVoice.say(rng, "fc13", talk.praise), "appreciation", tid, listOf(gainFan.id), emptyList(), 0, 0, reactions(rng, engagement(w, rng, 0.5 * imp, gainFan), "joy"),
+                    listOf(Comment(fan(rng, t, gainFan), SocialVoice.say(rng, "fc14", talk.over), engagement(w, rng, 0.04 * imp, gainFan))), place = "${gainFan.name} Fans"))
+            }
         }
     }
 
