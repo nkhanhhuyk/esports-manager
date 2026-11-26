@@ -61,7 +61,8 @@ class LongEcosystemTest {
                 "${w.teams[tid].name} ${Dates.format(day)}: " + w.fixtures.filter { it.done && it.day == day && (it.a == tid || it.b == tid) }.joinToString { "${w.comps[it.compId].name} [${w.comps[it.compId].stages[it.stageIdx].name}]" }
             }
             assertEquals("double bookings in $s: $clashes; reforms ${w.formats.values.flatMap { tf -> tf.log.filter { it.season >= s - 2 } }.map { it.id + " " + it.text }}", 0, byDay.count { it.value > 1 })
-            for (v in w.prestige.values) { maxPrestige = maxOf(maxPrestige, v); minPrestige = minOf(minPrestige, v) }
+            // (Worlds is pinned at 100 by design; every other event family stays within 5..95.)
+            for ((k, v) in w.prestige) if (!k.endsWith(":worlds")) { maxPrestige = maxOf(maxPrestige, v); minPrestige = minOf(minPrestige, v) }
             val reforms = w.formats.values.flatMap { tf -> tf.log.filter { it.season == s } }
             out.appendLine("season $s: ${w.comps.count { it.season == s }} events, ${reforms.size} reform(s) ${reforms.joinToString { it.id + " " + it.kind }}, " +
                 "leagues ${w.leagues.count { it.tier == 1 && it.until == 0 }} top, ${(System.currentTimeMillis() - t0) / 1000}s")
