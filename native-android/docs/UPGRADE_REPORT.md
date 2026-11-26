@@ -857,3 +857,106 @@ which took top+jungle to 12 of 20. First teams alone: top+jungle hold 10 (LoL), 
 Full suite: 114 tests, 113 passed, `KdaTest` failed as above; after the change `KdaTest`, `AcademiesTest`,
 `BatchFixesTest` and `FormatsTest` pass (3 skipped in the full run).
 
+## Twenty-sixth follow-up: archives and navigation, connected competitions, evolving ecosystems
+
+The audit for this batch, with the status of every requirement in both addenda, is in
+`docs/AUDIT_REGIONAL_EVOLUTION.md`.
+
+**Phase 1: history and navigation**
+
+* **Patch notes.** A Year dropdown, then a Patch dropdown ("All patches in <year>" or a single patch). A single
+  patch shows:
+  * its meta: strongest and weakest characters, playstyles, objectives and role metas;
+  * the most played characters on that patch;
+  * the competitions played on it.
+
+  A past patch's balance is rebuilt from the saved patch records (`PatchState.metaAt`), so it is exact.
+  What was played on a patch and the role metas are archived with each patch; older saves say they were
+  not recorded.
+* **Tier lists.** Year and Patch dropdowns. Changing the year picks that year's latest patch. A past patch
+  shows its own balance and the picks played on it, and no character released after it.
+* **Solo queue.** Year and Week dropdowns over weekly snapshots, each holding the top 60 plus every server's
+  top 10. A season's 53rd Monday is shown as Week 53, so no week is dropped. Old weeks are never rewritten
+  or simulated again.
+* **Matches tab.** Each stage gets its own filter, and stages are never merged:
+  * league stage: Matchweek;
+  * groups: Group, then Matchday;
+  * Swiss: the record both teams had going in. The groups are 0-0, 1-0, 0-1, 1-1, 0-2, 2-0, 2-1, 1-2 and 2-2,
+    plus cross-record pairings when they happen. They are rebuilt from earlier rounds, so a played match
+    never changes group.
+  * playoffs: the bracket round.
+
+  There are previous / next buttons, a summary line, and the choice is kept on back navigation.
+* **Play-Ins.** An event's play-in is shown as its own "Play-Ins" stage on the event page, never inside
+  Swiss, groups or playoffs. The play-in page links back to the main event.
+
+**Phase 2: connected competitions**
+
+* **Promotion playoffs** (a format option): the bottom two face the lower leagues' best two in cross-seeded
+  semi-finals, and the semi-final winners take the places.
+* **Continental Academy Champions League.** The top two of each academy league, in late October: groups,
+  then a knockout.
+* **Academy awards:** MVP, Rookie of the Season, and Team of the Season with its head coach. Senior
+  awards now count first-team games only.
+* **Qualification race** (competition Teams tab). It reads the real routes and statuses:
+  * settled: Locked, LCQ-qualified, Main-stage berth, Play-In berth, Best of the Rest, Eliminated;
+  * open or projected: Awaiting decisions, Conditional, Direct berth (projected), LCQ eligible, Still
+    mathematically alive.
+
+  In points mode there is a clinch / elimination check against the points still available.
+
+**Phase 3: evolution**
+
+* **When reforms apply.** Most apply from next season. About a third are announced a season further ahead:
+  the new format is stored and the current one stays until then.
+* **IDs and statuses.** Every change has an id (e.g. `lol-2030-1`) shared by the patch note, inbox and
+  forum thread. Its status is announced, then effective (or rejected, with the reason).
+* **Impact preview.** A read-only preview of an announced format shows sizes, seeds, formats, series counts
+  and illustrative gains and losses from today's points table.
+* **League reforms,** at most one per game every five seasons: an expansion (two clubs from below), a
+  merger of two small leagues, or a split of a large multi-region league by home region.
+  * Each is carried out before its season.
+  * Clubs keep their identity and old leagues keep their history.
+  * Seeds move with the clubs, capped for a merged league.
+  * Academy leagues follow.
+* **Reform archive** with Year and change-type filters, and a list of former leagues and their successors.
+
+**Phase 4: living world**
+
+* **Host cities** for international events. The scoring is published: infrastructure, audience, continental
+  rotation, venue, appeal and cost. No city hosts two events at once. Hosting has no effect on matches.
+* **Prestige** per event family, smoothed season to season. It moves at most 1.5 points a season, secondary
+  events are capped below Worlds, and each edition keeps the value it started with.
+* **Rivalry cups** between the two best-ranked leagues of each MOBA after the Nations Cup. They track series
+  won and titles per league, and never count for seeds or points.
+* **Organisation ranking** (Rankings → Organisations): total, per-title average and development index,
+  over this season, last season, three seasons or all time.
+
+**Not built yet:**
+* region recognition and associate status;
+* the qualification what-if tool;
+* host rotation reforms;
+* all-star rivalry squads;
+* a survival-series promotion variant;
+* a 20–30 season stability run (see below).
+
+**Tests.**
+* `ArchiveNavTest`: a played-out 16-team Swiss, grouped by pre-match record, has every match exactly once,
+  with 8/4/4/4/2/2/3/3/3 matches. Also covered: league matchweeks, bracket rounds, patch metas reproduced
+  exactly with picks archived per patch, and solo queue weeks kept unchanged.
+* `EcosystemEvolutionTest`:
+  * the academy champions league and rivalry cup are in the calendar;
+  * hosts are never double-booked;
+  * promotion playoffs have four entrants;
+  * a merger is carried out before its season with one membership per club and seeds summed up to the cap;
+  * an advance announcement waits for its season with a read-only preview;
+  * the race shows projections only at the start of a season;
+  * prestige stays bounded;
+  * organisation-ranking weights are correct.
+* `FormatsTest`, two LoL seasons played through. It also checks that:
+  * the academy champions league plays academy teams only;
+  * the rivalry cup plays its 8 teams;
+  * the promotion playoffs (4 teams) are played;
+  * Worlds has a host;
+  * academy awards are given, and the Season MVP goes to a first-team player.
+

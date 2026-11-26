@@ -28,7 +28,7 @@ import dev.uem.em.mgmt.Rankings
 import dev.uem.em.model.World
 import dev.uem.em.titles.Catalogue
 
-private val RANK_TABS = listOf("Clubs", "Countries & territories")
+private val RANK_TABS = listOf("Clubs", "Countries & territories", "Organisations")
 
 /** World rankings: clubs (per game, organisations over all games) and countries / territories. */
 @Composable
@@ -93,6 +93,7 @@ fun RankingsScreen(vm: GameVm, w: World) {
                     }
                 }
             }
+            tab == 2 -> item { OrgRankingCard(vm, w) }
             else -> {
                 item {
                     val rows = remember(day, titleId) { if (titleId != null) Rankings.nations(w, titleId) else Rankings.nationsAll(w, titles) }
@@ -126,3 +127,35 @@ fun RankingsScreen(vm: GameVm, w: World) {
         }
     }
 }
+
+/**
+ * Organisations across the seven games: a window (this season, last season, the last three, all time) and a
+ * mode (total achievement, per-title average, development index), with each organisation's departments,
+ * points per game and best results.
+ */
+@Composable
+private fun OrgRankingCard(vm: GameVm, w: World) {
+    val windows = listOf("This season", "Last season", "Last 3 seasons", "All time")
+    val modes = listOf("Total achievement", "Per-title average", "Development index")
+    var wi by remember { mutableIntStateOf(2) }
+    var mi by remember { mutableIntStateOf(0) }
+    val (from, to) = when (wi) { 0 -> w.season to w.season; 1 -> (w.season - 1) to (w.season - 1); 2 -> (w.season - 2) to w.season; else -> 0 to w.season }
+    val rows = remember(wi, mi, w.day) { dev.uem.em.comp.OrgRankings.sorted(dev.uem.em.comp.OrgRankings.table(w, from, to), mi).filter { it.total + it.development > 0 }.take(60) }
+    Card("Organisation ranking") {
+        Row { Select("", windows, wi) { wi = it }; Select("", modes, mi) { mi = it } }
+        Muted("World championship 100 points for a title (60 final, 35 semi-final), internationals by prestige, league titles 25; academy and second-tier results only in the development index. Per-title average divides by the games the organisation plays, so size alone does not win.", 10)
+        if (rows.isEmpty()) Muted("No finished events in this window yet.", 11)
+        rows.forEachIndexed { i, r ->
+            Row(Modifier.clickable { vm.go(Screen.Org(r.orgId)) }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${i + 1}", color = if (i < 3) Ui.gold else Ui.muted, fontSize = 12.sp, modifier = Modifier.width(26.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(w.orgs[r.orgId].name, color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Muted(r.byTitle.entries.sortedByDescending { it.value }.joinToString(" · ") { "${Catalogue.get(it.key).short} ${it.value.toInt()}" }.ifEmpty { "${r.titles.size} games" } +
+                        (if (r.best.isNotEmpty()) " · best: " + r.best.joinToString { w.comps[it].short } else ""), 10)
+                }
+                Text("${(when (mi) { 1 -> r.perTitle; 2 -> r.development; else -> r.total }).toInt()}", color = Ui.gold, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+

@@ -203,6 +203,7 @@ object Ecosystem {
                 val slice = p.getOrNull(4)?.toIntOrNull()?.takeIf { it < n }?.let { " — the top $it of them in the main event, the rest in the play-in" } ?: ""
                 "$n from ${league(p[1])?.name}: $how$slice"
             }
+"rival" -> "The top ${p[3]} of ${league(p[1])?.name} and of ${league(p[2])?.name} on circuit points (pride and prestige only)"
             "pseed" -> "${league(p[2])?.name}'s Worlds seeds below its top ${p[3]} (of ${p[4]}): play-in seeds"
             "lcq" -> "The next ${p[3]} teams of ${league(p[2])?.name} on circuit points after its direct Worlds places"
             "rest" -> "${p[3]} team(s) of ${league(p[2])?.name} that missed ${comp(p[1])}, by circuit points"
@@ -264,6 +265,7 @@ object Ecosystem {
             "top", "qual", "bottom", "promo" -> w.comps.getOrNull(p[1].toInt())?.let { team.id in it.teamIds || (it.status == 0 && it.entrants.any { r -> ruleConcerns(w, r, team) }) } == true
             "circuit", "points" -> team.leagueId == p[1].removePrefix("L").toIntOrNull()
             "pseed", "lcq", "rest" -> team.leagueId == p[2].toIntOrNull()
+            "rival" -> team.leagueId == p[1].toIntOrNull() || team.leagueId == p[2].toIntOrNull()
             "invite", "open" -> team.titleId == p[1] && inRegion(w, team, leagueOf(w, p[2])) && (p[0] == "invite" || team.kind.isEmpty() || team.kind == "amateur")
             "amateur", "amateurpts" -> team.titleId == p[1] && team.kind == "amateur" && (leagueOf(w, p[2])?.region ?: team.region) == team.region
             "kind" -> team.titleId == p[1] && team.kind == p[3] && (leagueOf(w, p[2])?.region ?: team.region) == team.region

@@ -157,14 +157,24 @@ class FormatsTest {
         while (add > 0) for (i in tier1.indices) if (add > 0 && s[i] < Formats.cap("worlds", tier1[i])) { s[i]++; add-- }
         tier1.forEachIndexed { i, l -> tf.seeds["worlds:${l.id}"] = s[i] }
         Formats.force(w, t, "stage:msi", Rng.of("x"))
+        val lcp = w.leagues.first { it.titleId == "lol" && it.short == "LCP" }
+        tf.promo[lcp.id] = "playoff"
         val s1 = s0 + 1
         while (w.day < Season.endDay(s1) - 3) Advance.run(w, minOf(20, Season.endDay(s1) - 3 - w.day))
         check(w, s1, out)
         val pi = comp(w, s1, "lol:worlds:playin")!!
         val main = comp(w, s1, "lol:worlds")!!
+        val promo = w.comps.first { it.season == s1 && it.promoLeague == lcp.id }
+        assertTrue("promotion playoffs played", promo.done && promo.stages[0].type == dev.uem.em.model.StageType.SINGLE_ELIM && promo.teamIds.size == 4)
+        out.appendLine("${promo.name}: ${promo.teamIds.map { w.teams[it].short }} → places to ${promo.placements.take(2).map { w.teams[it].short }}")
         assertTrue("play-in played", pi.done && pi.teamIds.size >= 6)
         assertTrue("its top two in the main event", pi.placements.take(2).all { it in main.teamIds })
         assertTrue("its others not", pi.placements.drop(2).none { it in main.teamIds })
+        // The first season's awards (given when it ended): academy leagues have their own; senior awards go to first-team players.
+        val academyAwards = w.awards.filter { it.season == s0 && it.name.contains("Academy MVP") }
+        assertTrue("academy awards", academyAwards.isNotEmpty())
+        val mvp = w.awards.firstOrNull { it.season == s0 && it.name == "LoL Season MVP" }
+        out.appendLine("Awards $s0: ${academyAwards.joinToString { it.name + " " + w.players[it.playerId].handle }}; Season MVP ${mvp?.let { w.players[it.playerId].handle }}")
         println(out)
     }
 
@@ -187,6 +197,18 @@ class FormatsTest {
         out.appendLine("${inv.name} (${inv.teamIds.size}): ${inv.teamIds.map { w.teams[it].short }} → ${w.teams[inv.placements[0]].name}")
         assertTrue(inv.teamIds.size >= 8)
         assertTrue("nobody at Worlds plays the invitational", inv.teamIds.none { it in worlds.teamIds || (pi != null && it in pi.teamIds) })
+        // The academy champions league (second teams only), the rivalry cup, host cities, academy awards.
+        val cacl = comp(w, season, "lol:cacl")
+        if (cacl != null) {
+            assertTrue("${cacl.name} played", cacl.done && cacl.teamIds.size >= 4)
+            assertTrue("academy teams only", cacl.teamIds.all { w.teams[it].parentId >= 0 })
+            out.appendLine("${cacl.name}: ${cacl.teamIds.size} academies → ${w.teams[cacl.placements[0]].name}")
+        }
+        val riv = comp(w, season, "lol:rivalry")!!
+        assertTrue("${riv.name} played", riv.done && riv.teamIds.size == 8)
+        out.appendLine("${riv.name}: ${dev.uem.em.comp.Rivalry.score(w, riv).entries.joinToString { "${w.leagues[it.key].short} ${it.value}" }} → ${w.teams[riv.placements[0]].name}")
+        assertTrue("Worlds has a host", worlds.host.isNotEmpty())
+
         // No team plays two series on the same day.
         val byDay = HashMap<Long, Int>()
         for (f in w.fixtures) if (f.done && f.titleId == "lol" && w.comps[f.compId].season == season) for (tm in intArrayOf(f.a, f.b)) byDay.merge(tm.toLong() * 100000 + f.day, 1, Int::plus)

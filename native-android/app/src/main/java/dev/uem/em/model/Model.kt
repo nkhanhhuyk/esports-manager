@@ -133,6 +133,8 @@ class World(
     val patchRun: MutableMap<String, IntArray> = HashMap(),
     /** Weekly solo queue snapshots (each game's ladder top every Monday), kept for history. */
     val soloWeeks: MutableList<SoloWeek> = ArrayList(),
+    /** Prestige of each event family (defKey), smoothed season to season (see comp.Prestige); new editions start from it. */
+    val prestige: MutableMap<String, Double> = HashMap(),
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -531,6 +533,9 @@ class Competition(
     var circuit: String = "",
     /** Eligibility rule, evaluated per player when registering and fielding ("amateur", "enrolled;age<=25", "circuit:gc"). */
     var elig: String = "",
+    /** Host city ("Seoul, KR") and the bids it beat (blank: not hosted / older saves). */
+    var host: String = "",
+    var hostNote: String = "",
 ) {
     val done get() = status == 2
 }

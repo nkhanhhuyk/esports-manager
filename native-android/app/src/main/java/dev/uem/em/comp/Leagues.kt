@@ -90,6 +90,9 @@ object Leagues {
     /** Carry out a pending league reform before [season]'s calendar; false when it can no longer be done. */
     fun apply(w: World, tf: TitleFormat, p: PendingChange, season: Int): Boolean {
         val t = dev.uem.em.titles.Catalogue.get(tf.titleId)
+        // Seeds written out first, so the other leagues keep theirs when the number of leagues changes.
+        val t1 = Formats.tier1(w, tf.titleId)
+        for (key in Formats.KEYS) { val s = Formats.seeds(w, tf.titleId, key, t1); t1.forEachIndexed { i, l -> tf.seeds.putIfAbsent("$key:${l.id}", s[i]) } }
         when (p.kind) {
             "expandleague" -> {
                 val l = w.leagues.getOrNull(param(p, "l")?.toIntOrNull() ?: -1)?.takeIf { live(it) } ?: return false

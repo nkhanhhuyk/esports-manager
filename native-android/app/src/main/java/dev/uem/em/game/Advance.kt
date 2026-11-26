@@ -333,6 +333,7 @@ object Advance {
         dev.uem.em.mgmt.Ambitions.seasonReview(w, rng)
         for (p in w.players) if (!p.retired) p.caHistory.add(p.ca.toFloat())
         BoxStore.pruneReplays(w, w.day - 700)
+        dev.uem.em.comp.Prestige.update(w, w.season)
         w.season++
         dev.uem.em.mgmt.SoloQueue.rollover(w)
         dev.uem.em.mgmt.Deals.returnLoans(w)

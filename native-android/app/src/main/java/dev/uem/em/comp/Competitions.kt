@@ -77,9 +77,11 @@ object Season {
     }
 
     internal fun mk(w: World, t: TitleDef, season: Int, name: String, short: String, tier: CompTier, league: League?, entrants: List<String>, stages: List<Stage>, prize: Double, prestige: Int, points: List<Int>, split: Int = 0, key: String = ""): Competition {
+        val defKey = key.ifBlank { if (league != null) "${t.id}:L${league.id}:split$split" else "" }
+        // An event family's prestige evolves (comp.Prestige); each edition keeps the value it starts with.
         val c = Competition(w.comps.size, name, short, t.id, season, tier, league?.id ?: -1, split, league?.region ?: "", entrants, stages.toMutableList(),
-            startDay = stages[0].startDay, circuitPoints = points, prizePool = (prize / 1000).toInt() * 1000.0, prestige = prestige,
-            defKey = key.ifBlank { if (league != null) "${t.id}:L${league.id}:split$split" else "" }, rules = Rulesets.of(t.id, season).id)
+            startDay = stages[0].startDay, circuitPoints = points, prizePool = (prize / 1000).toInt() * 1000.0, prestige = if (defKey.isEmpty()) prestige else Prestige.of(w, defKey, prestige),
+            defKey = defKey, rules = Rulesets.of(t.id, season).id)
         w.comps.add(c)
         Fearless.assign(w, t, c)
         return c
@@ -203,6 +205,17 @@ object Season {
     }
 
     fun plan(w: World, season: Int) {
+        val first = w.comps.size
+        planTitles(w, season)
+        // Host cities for this season's international events (earliest first, so no city hosts two at once).
+        for (c in w.comps.drop(first).sortedBy { it.startDay }) {
+            if ((c.tier != CompTier.INTERNATIONAL && c.tier != CompTier.WORLDS) || isEncQualifier(c) || c.defKey.isEmpty()) continue
+            if (c.name.startsWith(EWC)) { c.host = "Riyadh, SA"; c.hostNote = "The Esports World Cup is held in Riyadh."; continue }
+            Hosts.choose(w, c)
+        }
+    }
+
+    private fun planTitles(w: World, season: Int) {
         w.titles.forEachIndexed { ti, titleId ->
             val t = Catalogue.get(titleId)
             val off = ti % 3
@@ -347,6 +360,13 @@ object Season {
         if (tf.lastChance) tier1.forEachIndexed { i, l -> regionalFinals(w, t, season, worlds, l, wSeeds[i], wSeeds[i], mode) }
         if (tf.invitational) invitational(w, t, season, worlds, tier1, rank)
         if (tf.academyCup) academyCup(w, t, season, splitComps, D)
+        // Rivalry cup of the two best-ranked leagues, after the Nations Cup.
+        if (tier1.size >= 2) {
+            val a = tier1[rank[0]]; val b = tier1[rank[1]]
+            val c = mk(w, t, season, "${a.short}–${b.short} Rivalry Cup $season", "${a.short}v${b.short}", CompTier.CHALLENGER, null, listOf("rival:${a.id}:${b.id}:4"),
+                listOf(stage("Knockout Stage", StageType.SINGLE_ELIM, D(11, 14), t.formats.second.n, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1)), t.prizeScale * 80_000, 40, emptyList(), key = "${t.id}:rivalry")
+            c.realName = true
+        }
     }
 
     /**
@@ -905,6 +925,17 @@ object Progress {
                     league.teamIds.filter { t -> w.teams[t].active && t != winner && direct.none { it.teamId == t } }
                         .sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo }).take(p[3].toInt())
                         .forEach { add(it, rule, "circuit points (next after the direct places)", note = "${(pts[it] ?: 0.0).toInt()} points in ${league.short}") }
+                }
+                // Rivalry cup: the two leagues' top teams on circuit points, alternately (so the bracket pairs them across).
+                "rival" -> {
+                    val la = w.leagues[p[1].toInt()]; val lb = w.leagues[p[2].toInt()]
+                    val pts = circuitPoints(w, c.season, c.titleId)
+                    fun top(l: League) = l.teamIds.filter { w.teams[it].active && w.teams[it].parentId < 0 }.sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo }).take(p[3].toInt())
+                    val ta = top(la); val tb = top(lb)
+                    for (i in 0 until maxOf(ta.size, tb.size)) {
+                        ta.getOrNull(i)?.let { add(it, rule, "${la.short} — ${dev.uem.em.core.ordinal(i + 1)} on circuit points", note = "L${la.id}") }
+                        tb.getOrNull(i)?.let { add(it, rule, "${lb.short} — ${dev.uem.em.core.ordinal(i + 1)} on circuit points", note = "L${lb.id}") }
+                    }
                 }
                 // Best of the rest: a league's best teams on circuit points that are not at the world championship.
                 "rest" -> {

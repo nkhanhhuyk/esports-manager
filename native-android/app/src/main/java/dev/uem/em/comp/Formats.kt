@@ -292,6 +292,8 @@ object Formats {
             if (effGroup(key, ea, ma) != effGroup(key, eb, mb) || effBracket(key, ea) != effBracket(key, eb)) lines.add("format ${effGroup(key, ea, ma)} + ${effBracket(key, ea)} → ${effGroup(key, eb, mb)} + ${effBracket(key, eb)}")
             if ((ea?.bo ?: 0) != (eb?.bo ?: 0) || (ea?.groupBo ?: 0) != (eb?.groupBo ?: 0)) lines.add("best-of: first stage Bo${effGroupBo(Catalogue.get(titleId), ea)} → Bo${effGroupBo(Catalogue.get(titleId), eb)}, bracket Bo${effBo(Catalogue.get(titleId), ea)} → Bo${effBo(Catalogue.get(titleId), eb)}")
             if ((ea?.playIn ?: "") != (eb?.playIn ?: "")) lines.add("play-in: ${ea?.playIn?.ifEmpty { null } ?: "none"} → ${eb?.playIn?.ifEmpty { null } ?: "none"}")
+            if (key == "worlds" && (ea?.qual ?: "") != (eb?.qual ?: "")) lines.add("league places by ${if (ea?.qual == "points") "circuit points" else "playoff placings"} → by ${if (eb?.qual == "points") "circuit points" else "playoff placings"}")
+            if (key == "worlds" && (winnerSpot(titleId, ea) != winnerSpot(titleId, eb) || runnerSeed(titleId, ea) != runnerSeed(titleId, eb))) lines.add("MSI winner's direct place ${if (winnerSpot(titleId, ea)) "yes" else "no"} → ${if (winnerSpot(titleId, eb)) "yes" else "no"}, runner-up region seed ${if (runnerSeed(titleId, ea)) "yes" else "no"} → ${if (runnerSeed(titleId, eb)) "yes" else "no"}")
             if (lines.isNotEmpty()) out.add("$ev: " + lines.joinToString("; ") + " · about ${estMatches(key, ea, ma) + (if (pa > 1) pa else 0)} → ${estMatches(key, eb, mb) + (if (pb > 1) pb else 0)} series")
             if (key == "worlds" && moved.isNotEmpty()) {
                 val pts = Progress.circuitPoints(w, w.season, titleId)
@@ -379,7 +381,7 @@ object Formats {
      * time. One to three changes for next season, written to the log (news, inbox, social media read it).
      * [force] > 0 makes that many changes now (tests, the commissioner).
      */
-    fun evolve(w: World, t: TitleDef, rng: Rng, force: Int = 0): List<String> {
+    fun evolve(w: World, t: TitleDef, rng: Rng, force: Int = 0, ahead: Boolean? = null): List<String> {
         if (!applies(t.id)) return emptyList()
         val tier1 = tier1(w, t.id)
         if (tier1.size < 2) return emptyList()
@@ -401,7 +403,7 @@ object Formats {
         if (tf.log.none { it.kind in LEAGUE_KINDS && w.season - it.season < 5 }) { kinds.add("expandleague" to 0.5); kinds.add("merge" to 0.35); kinds.add("split" to 0.35) }
         val want = if (force > 0) force else rng.int(1, 3)
         // Most reforms apply from next season; some are announced a season further ahead (time to plan rosters and budgets).
-        val longNotice = force <= 0 && rng.chance(0.3)
+        val longNotice = ahead ?: (force <= 0 && rng.chance(0.3))
         val effective = w.season + if (longNotice) 2 else 1
         val before = if (longNotice) snapshot(tf) else ""
         val made = ArrayList<FormatChange>()

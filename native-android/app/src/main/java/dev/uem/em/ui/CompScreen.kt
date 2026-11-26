@@ -159,6 +159,9 @@ fun CompScreen(vm: GameVm, w: World, id: Int) {
                         c.leagueId.takeIf { it >= 0 }?.let { lid -> w.teams.firstOrNull { it.leagueId == lid }?.let { add(dev.uem.em.mgmt.Imports.ruleText(w, it)) } }
                     }
                     Muted("Rules: " + rules.joinToString(" · "), 11)
+                    // Host city and prestige (each edition keeps the prestige it started with; the family's evolves).
+                    val prev = w.comps.filter { it.defKey == c.defKey && c.defKey.isNotEmpty() && it.season < c.season }.maxByOrNull { it.season }
+                    Muted(listOfNotNull(c.host.takeIf { it.isNotEmpty() }?.let { "Host: $it" }, "Prestige ${c.prestige}" + (prev?.let { p0 -> if (p0.prestige != c.prestige) " (${if (c.prestige > p0.prestige) "▲" else "▼"} from ${p0.prestige} in ${p0.season})" else "" } ?: "")).joinToString(" · "), 11)
                     if (w.role == "commissioner" && !c.done) Row {
                         if (t.isMoba) { Pill("Comms: rule") { c.coachComms = -1; vm.edit() }; Pill("allow") { c.coachComms = 1; vm.edit() }; Pill("ban") { c.coachComms = 0; vm.edit() } }
                         else for (k in listOf(1, 2, 3, 4)) Pill("$k timeouts") { c.timeouts = k; vm.edit() }
@@ -167,6 +170,19 @@ fun CompScreen(vm: GameVm, w: World, id: Int) {
             }
             if (editions.size > 1) Row(Modifier.padding(horizontal = 12.dp)) {
                 Select("Edition", editions.map { "${it.season}${if (it.split > 0) " S${it.split}" else ""}" }, editions.indexOf(c)) { vm.go(Screen.Comp(editions[it].id)) }
+            }
+        }
+        if (c.defKey.endsWith(":rivalry")) item {
+            // Region pride: series won by each league in this edition, and over every edition.
+            val leagues = c.entrants.firstOrNull()?.split(':')?.let { listOfNotNull(it.getOrNull(1)?.toIntOrNull(), it.getOrNull(2)?.toIntOrNull()) }.orEmpty().mapNotNull { w.leagues.getOrNull(it) }
+            val now = dev.uem.em.comp.Rivalry.score(w, c)
+            val all = HashMap<Int, Int>().also { m -> for (e in w.comps.filter { it.defKey == c.defKey && it.done }) dev.uem.em.comp.Rivalry.score(w, e).forEach { (k, v) -> m.merge(k, v, Int::plus) } }
+            val champs = w.comps.filter { it.defKey == c.defKey && it.done && it.placements.isNotEmpty() }.groupingBy { w.teams[it.placements[0]].leagueId }.eachCount()
+            if (leagues.size == 2) Card("Rivalry") {
+                Muted("Series won by each league. Pride and prestige only: rivalry cups never count for seeds or circuit points.", 10)
+                KV("This edition", "${leagues[0].short} ${now[leagues[0].id] ?: 0} – ${now[leagues[1].id] ?: 0} ${leagues[1].short}")
+                KV("All editions", "${leagues[0].short} ${all[leagues[0].id] ?: 0} – ${all[leagues[1].id] ?: 0} ${leagues[1].short}")
+                KV("Titles", "${leagues[0].short} ${champs[leagues[0].id] ?: 0} – ${champs[leagues[1].id] ?: 0} ${leagues[1].short}")
             }
         }
         if (c.name.startsWith(dev.uem.em.comp.Season.EWC)) item {
