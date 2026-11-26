@@ -135,7 +135,13 @@ fun CompScreen(vm: GameVm, w: World, id: Int) {
     val c = w.comps[id]
     val t = Catalogue.get(c.titleId)
     var tab by remember(id) { mutableIntStateOf(UiDefaults.tab.coerceAtMost(COMP_TABS.size - 1)) }
-    var si by remember(id) { mutableIntStateOf(c.current.coerceIn(0, maxOf(0, c.stages.size - 1))) }
+    // Stages shown: an event's play-in (its own competition) first, as a separate Play-Ins stage, then the event's stages.
+    val playIn = w.comps.firstOrNull { it.season == c.season && c.defKey.isNotEmpty() && it.defKey == c.defKey + ":playin" }
+    val mainOf = if (c.defKey.endsWith(":playin")) w.comps.firstOrNull { it.season == c.season && it.defKey == c.defKey.removeSuffix(":playin") } else null
+    val refs: List<Pair<Competition, Int>> = (playIn?.stages?.indices?.map { playIn to it } ?: emptyList()) + c.stages.indices.map { c to it }
+    var si by remember(id) { mutableIntStateOf(
+        if (playIn != null && c.status == 0) playIn.current.coerceIn(0, maxOf(0, playIn.stages.size - 1))
+        else (playIn?.stages?.size ?: 0) + c.current.coerceIn(0, maxOf(0, c.stages.size - 1))) }
     val editions = w.comps.filter { seriesKey(it) == seriesKey(c) }.sortedByDescending { it.season * 1000 + it.startDay }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
@@ -216,29 +222,33 @@ fun CompScreen(vm: GameVm, w: World, id: Int) {
         }
         item {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp)) {
-                c.stages.forEachIndexed { i, s ->
+                // A play-in competition's page leads to its main event (the play-in is that event's first stage).
+                if (mainOf != null) Column(Modifier.padding(end = 6.dp).background(Ui.card2, RoundedCornerShape(10.dp)).clickable { vm.go(Screen.Comp(mainOf.id)) }.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                    Text("Main event ›", color = Ui.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(mainOf.short, color = Ui.muted, fontSize = 10.sp)
+                }
+                refs.forEachIndexed { i, (rc, k) ->
+                    val s = rc.stages[k]
+                    val pi = rc.id != c.id
                     Column(
                         Modifier.padding(end = 6.dp).background(if (i == si) Ui.accent else Ui.card2, RoundedCornerShape(10.dp)).clickable { si = i }.padding(horizontal = 10.dp, vertical = 6.dp),
                     ) {
-                        Text(s.name, color = if (i == si) Color.White else Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(if (pi) "Play-Ins" + (if (rc.stages.size > 1) " · ${s.name.removePrefix("Play-In ").removePrefix("Play-In")}" else "") else s.name, color = if (i == si) Color.White else Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Text("${stageType(s.type)} · ${statusLabel(s.status)}", color = if (i == si) Color.White.copy(alpha = 0.8f) else Ui.muted, fontSize = 10.sp)
                     }
                 }
             }
         }
-        item { Tabs(COMP_TABS.mapIndexed { i, l -> if (i == 0 && c.stages.getOrNull(si)?.bracket?.isNotEmpty() == true) "Bracket" else l }, tab) { tab = it } }
-        val st = c.stages.getOrNull(si)
+        item { Tabs(COMP_TABS.mapIndexed { i, l -> if (i == 0 && refs.getOrNull(si)?.let { (rc, k) -> rc.stages[k].bracket.isNotEmpty() } == true) "Bracket" else l }, tab) { tab = it } }
+        val ref = refs.getOrNull(si)
+        val sc = ref?.first ?: c
+        val st = ref?.let { (rc, k) -> rc.stages[k] }
+        if (ref != null && sc.id != c.id && (tab == 0 || tab == 1)) item {
+            Muted("  Play-Ins (${sc.name}): ${sc.stages.size} stage${if (sc.stages.size > 1) "s" else ""}; the top ${c.entrants.firstOrNull { it.startsWith("qual:${sc.id}:") }?.substringAfterLast(':') ?: "?"} join the main event.", 11)
+        }
         when (tab) {
-            0 -> item { if (st != null) StageCard(vm, w, c, st) }
-            1 -> {
-                val fx = (st?.fixtureIds ?: emptyList()).map { w.fixtures[it] }.sortedBy { it.day }
-                val byDay = fx.groupBy { it.day }
-                if (fx.isEmpty()) item { Card { Muted("No matches scheduled yet.") } }
-                for ((day, list) in byDay) {
-                    item(key = "d$day") { Text(Dates.format(day, true), color = Ui.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 2.dp)) }
-                    items(list, key = { it.id }) { f -> FixtureRow(vm, w, f) }
-                }
-            }
+            0 -> item { if (st != null) StageCard(vm, w, sc, st) }
+            1 -> if (st != null) stageMatches(vm, w, sc, refs.indexOf(ref), st) else item { Card { Muted("No matches scheduled yet.") } }
             2 -> item { CompPlayerStats(vm, w, c) }
             3 -> item { Placements(vm, w, c) }
             5 -> item { CompHistory(vm, w, c) }
@@ -316,6 +326,58 @@ private fun BracketView(vm: GameVm, w: World, st: Stage) {
                         }
                         if (f != null && !f.done) Muted("${Dates.short(f.day)} · Bo${f.bestOf}", 9)
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A stage's matches behind a filter that fits the stage: matchweek (league stage), group and matchday (groups),
+ * the teams' records going in (Swiss) or the bracket round (playoffs). Previous / next step through it; the
+ * choice is remembered for the stage while the app is open.
+ */
+private fun androidx.compose.foundation.lazy.LazyListScope.stageMatches(vm: GameVm, w: World, c: Competition, si: Int, st: Stage) {
+    val fx = st.fixtureIds.map { w.fixtures[it] }
+    if (fx.isEmpty() && st.type != StageType.SWISS) { item { Card { Muted("No matches scheduled yet.") } }; return }
+    val kind = FixtureFilters.kind(st)
+    item(key = "filter-${c.id}-$si") {
+        val navKey = "${c.id}:$si"
+        val recs = remember(c.id, si, fx.size, fx.count { it.done }) { if (kind == "swiss") FixtureFilters.swissRecords(w, st) else emptyMap() }
+        val main = remember(c.id, si, fx.size, fx.count { it.done }) {
+            when (kind) {
+                "matchweek" -> FixtureFilters.matchweeks(fx)
+                "group" -> FixtureFilters.groups(fx)
+                "swiss" -> FixtureFilters.swiss(w, st, fx)
+                else -> FixtureFilters.rounds(w, st, fx)
+            }
+        }
+        val allLabel = when (kind) { "matchweek" -> "All matchweeks"; "group" -> "All groups"; "swiss" -> "All Swiss matches"; else -> "All rounds" }
+        val options = main + FixtureFilters.Bucket("all", allLabel, fx.sortedBy { it.day })
+        var pick by remember(navKey) { mutableIntStateOf(options.indexOfFirst { it.key == FixtureFilters.chosen[navKey] }.takeIf { it >= 0 } ?: FixtureFilters.defaultIndex(main)) }
+        val sel = pick.coerceIn(0, options.size - 1)
+        fun choose(i: Int) { pick = i; FixtureFilters.chosen[navKey] = options[i].key }
+        // Groups: a second filter, the matchday within the group.
+        var day by remember(navKey, sel) { mutableIntStateOf(0) }
+        val days = if (kind == "group") listOf(FixtureFilters.Bucket("all", "All matchdays", options[sel].fixtures)) + FixtureFilters.matchdays(options[sel].fixtures) else emptyList()
+        val shown = if (kind == "group") days.getOrElse(day) { days.first() } else options[sel]
+        Column {
+            Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Select("", options.map { it.label }, sel) { choose(it) }
+                if (kind == "group" && days.size > 2) Select("", days.map { it.label }, day.coerceIn(0, days.size - 1)) { day = it }
+            }
+            Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (sel > 0 && sel < main.size) Pill("‹ ${options[sel - 1].label}") { choose(sel - 1) }
+                if (sel < main.size - 1) Pill("${options[sel + 1].label} ›") { choose(sel + 1) }
+            }
+            Muted("  " + FixtureFilters.summary(shown), 11)
+            if (shown.fixtures.isEmpty()) Card { Muted(if (kind == "swiss") "No ${shown.label} yet: they are drawn once the earlier rounds are played." else "No matches here yet.") }
+            for ((d, list) in shown.fixtures.groupBy { it.day }) {
+                Text(Dates.format(d, true), color = Ui.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 2.dp))
+                for (f in list) {
+                    if (kind == "swiss" && (shown.key == "sx" || shown.key == "all")) Muted("    Round ${f.round + 1} · ${FixtureFilters.recordText(recs, f)}", 10)
+                    else if (kind == "swiss") Muted("    Round ${f.round + 1}", 10)
+                    FixtureRow(vm, w, f)
                 }
             }
         }

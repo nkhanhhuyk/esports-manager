@@ -788,59 +788,112 @@ fun JobOffersScreen(vm: GameVm, w: World) {
 @Composable
 fun PatchesScreen(vm: GameVm, w: World) {
     var title by remember { mutableStateOf(userTeams(w).firstOrNull()?.titleId ?: "lol") }
-    val list = w.patches.filter { it.titleId == title }.asReversed()
+    val t = Catalogue.get(title)
+    val recs = w.patches.filter { it.titleId == title }
+    // History by season: every patch of the chosen season, or one patch with its meta as it stood then.
+    val seasons = (recs.map { dev.uem.em.mgmt.PatchState.seasonOf(it) } + w.season).distinct().sortedDescending()
+    var year by remember(title) { mutableIntStateOf(w.season) }
+    val yearRecs = recs.filter { dev.uem.em.mgmt.PatchState.seasonOf(it) == year }
+    var pick by remember(title, year) { mutableIntStateOf(0) } // 0 = all patches of the season
+    val rec = yearRecs.getOrNull(pick - 1)
     LazyColumn(Modifier.fillMaxSize()) {
         item { Tabs(Catalogue.IDS.map { Catalogue.get(it).short }, Catalogue.IDS.indexOf(title)) { title = Catalogue.IDS[it] } }
         item {
-            val t = Catalogue.get(title)
-            val patch = dev.uem.em.sim.Patch.of(w, t)
-            Card("Current meta · ${list.firstOrNull()?.version ?: "launch"}") {
-                if (t.characters.isNotEmpty()) {
-                    val sorted = t.characters.sortedByDescending { patch.charMeta[it.id] ?: 0.0 }
-                    for ((label, group) in listOf("Strongest" to sorted.take(10), "Weakest" to sorted.takeLast(6).reversed())) {
-                        Muted(label, 11)
-                        Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
-                            for (c in group) Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(54.dp)) {
-                                CharPic(c.id, c.name, 36.dp, round = true)
-                                Text(c.name, color = Ui.text, fontSize = 8.sp, maxLines = 1)
-                                val m = patch.charMeta[c.id] ?: 0.0
-                                Text("%+.1f".format(m), color = if (m >= 0) Ui.win else Ui.loss, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
+            Row(Modifier.padding(horizontal = 12.dp)) {
+                Select("Year", seasons.map { "$it" }, seasons.indexOf(year).coerceAtLeast(0)) { year = seasons[it] }
+                if (yearRecs.isNotEmpty()) Select("Patch", listOf("All patches in $year") + yearRecs.map { "${it.version.substringAfterLast(' ')} · ${it.kind}" }, pick.coerceIn(0, yearRecs.size)) { pick = it }
+            }
+        }
+        if (rec == null) {
+            // The season's patches; the live meta for the current season.
+            if (year == w.season) item { MetaCard(w, t, recs.size, recs.lastOrNull(), "Current meta · ${recs.lastOrNull()?.version ?: "launch"}") }
+            if (yearRecs.isEmpty()) item { Card { Muted(if (year == w.season) "No patches yet this season. Minor patches come every few weeks, a bigger one before each international event, and a major patch after Worlds." else "No ${t.short} patches in $year.") } }
+            items(yearRecs.size) { i ->
+                val p = yearRecs[yearRecs.size - 1 - i]
+                PatchNotesCard(vm, w, t, p, recs)
+            }
+        } else {
+            val k = recs.indexOf(rec) + 1
+            item { MetaCard(w, t, k, rec, "Meta on ${rec.version}" + if (rec === recs.last()) " (current)" else "") }
+            item { PatchNotesCard(vm, w, t, rec, recs) }
+        }
+        item { Gap(16) }
+    }
+}
+
+/** A patch's notes and the competitions played on it. */
+@Composable
+private fun PatchNotesCard(vm: GameVm, w: World, t: dev.uem.em.titles.TitleDef, p: dev.uem.em.model.PatchRec, recs: List<dev.uem.em.model.PatchRec>) {
+    val next = recs.getOrNull(recs.indexOf(p) + 1)
+    val until = next?.day ?: Int.MAX_VALUE
+    val comps = w.comps.filter { c -> c.titleId == t.id && c.customId < 0 && c.status != 0 && c.startDay < until && dev.uem.em.mgmt.Rankings.endDay(w, c) >= p.day && c.teamIds.isNotEmpty() }
+        .sortedByDescending { it.tier.ordinal * 100000 + it.prestige }.take(8)
+    Card("${p.version} · ${p.kind} patch", right = { Muted(Dates.format(p.day)) }) {
+        for (n in p.notes) Text("• $n", color = Ui.text, fontSize = 13.sp, modifier = Modifier.padding(vertical = 2.dp))
+        if (comps.isNotEmpty()) {
+            Gap(4)
+            Muted("Played on this patch (${Dates.short(p.day)} – ${next?.let { Dates.short(it.day) } ?: "now"}):", 11)
+            androidx.compose.foundation.layout.FlowRow { for (c in comps) Pill(c.short) { vm.go(Screen.Comp(c.id)) } }
+        }
+    }
+}
+
+/**
+ * The meta after a game's first [k] patches: strongest and weakest characters (reproduced from the patch
+ * records, as the engines used them), playstyles, objectives, the role metas in force and what was played.
+ */
+@Composable
+private fun MetaCard(w: World, t: dev.uem.em.titles.TitleDef, k: Int, rec: dev.uem.em.model.PatchRec?, label: String) {
+    val live = rec == null || rec === w.patches.lastOrNull { it.titleId == t.id }
+    val patch = if (live) dev.uem.em.sim.Patch.of(w, t) else dev.uem.em.mgmt.PatchState.patchAt(w, t, k)
+    Card(label) {
+        if (t.characters.isNotEmpty()) {
+            val sorted = t.characters.sortedByDescending { patch.charMeta[it.id] ?: 0.0 }
+            for ((lbl, group) in listOf("Strongest" to sorted.take(10), "Weakest" to sorted.takeLast(6).reversed())) {
+                Muted(lbl, 11)
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 4.dp)) {
+                    for (c in group) Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(54.dp)) {
+                        CharPic(c.id, c.name, 36.dp, round = true)
+                        Text(c.name, color = Ui.text, fontSize = 8.sp, maxLines = 1)
+                        val m = patch.charMeta[c.id] ?: 0.0
+                        Text("%+.1f".format(m), color = if (m >= 0) Ui.win else Ui.loss, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                     }
-                }
-                if (patch.styles.isNotEmpty()) {
-                    Muted("Playstyles", 11)
-                    for ((st, v) in patch.styles.entries.sortedByDescending { it.value }) Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(st, color = Ui.text, fontSize = 12.sp, modifier = Modifier.width(100.dp))
-                        Text("%+.1f".format(v), color = if (v >= 0) Ui.win else Ui.loss, fontSize = 12.sp)
-                    }
-                }
-                if (patch.obj.isNotEmpty()) {
-                    Muted("Objectives", 11)
-                    for ((o, v) in patch.obj) KV(t.moba?.objectives?.firstOrNull { it.id == o }?.name ?: o, "×%.2f".format(v))
-                }
-                // Role metas: what each position does on this patch (the match engine plays them).
-                val metas = dev.uem.em.titles.RoleMeta.current(w, t.id)
-                if (metas.isNotEmpty()) {
-                    Muted("Role metas", 11)
-                    for ((i, id) in metas.withIndex()) Column(Modifier.padding(vertical = 3.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(dev.uem.em.titles.RoleMeta.GROUP_LABEL[dev.uem.em.titles.RoleMeta.GROUPS[i]] ?: "", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(64.dp))
-                            Text(dev.uem.em.titles.RoleMeta.label(t.id, id), color = Ui.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                        Muted(dev.uem.em.titles.RoleMeta.desc(id), 10)
-                    }
-                    val prio = dev.uem.em.titles.RoleMeta.killPriority(w, t.id).entries.sortedByDescending { it.value }
-                    Muted("Kill share expected: " + prio.joinToString(" > ") { dev.uem.em.titles.RoleMeta.posName(t.id, it.key) }, 10)
                 }
             }
         }
-        if (list.isEmpty()) item { Card { Muted("No patches yet. Minor patches come every few weeks, a bigger one before each international event, and a major patch after Worlds.") } }
-        items(list.size) { i ->
-            val p = list[i]
-            Card("${p.version} · ${p.kind} patch", right = { Muted(Dates.format(p.day)) }) { for (n in p.notes) Text("• $n", color = Ui.text, fontSize = 13.sp, modifier = Modifier.padding(vertical = 2.dp)) }
+        // What was played on it (a past patch: archived when the next patch came; the current one: so far).
+        val use = dev.uem.em.mgmt.PatchState.usage(w, rec, t.id).entries.filter { ':' !in it.key && '|' !in it.key && it.value[0] > 0 }.sortedByDescending { it.value[0] }.take(8)
+        if (use.isNotEmpty()) {
+            Muted(if (live) "Most played so far on this patch" else "Most played on this patch", 11)
+            for ((id, u) in use) KV(t.charIndex[id]?.name ?: id, "${u[0]} games · ${100 * u[1] / maxOf(1, u[0])}% wins${if (u[2] > 0) " · ${u[2]} bans" else ""}")
+        } else if (!live && rec != null && rec.usage.isEmpty()) Muted("Picks on this patch were not recorded (older save).", 10)
+        if (patch.styles.isNotEmpty()) {
+            Muted("Playstyles", 11)
+            for ((st, v) in patch.styles.entries.sortedByDescending { it.value }) Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(st, color = Ui.text, fontSize = 12.sp, modifier = Modifier.width(100.dp))
+                Text("%+.1f".format(v), color = if (v >= 0) Ui.win else Ui.loss, fontSize = 12.sp)
+            }
         }
+        if (patch.obj.isNotEmpty()) {
+            Muted("Objectives", 11)
+            for ((o, v) in patch.obj) KV(t.moba?.objectives?.firstOrNull { it.id == o }?.name ?: o, "×%.2f".format(v))
+        }
+        // Role metas: what each position does on this patch (the match engine plays them).
+        val metas = if (live) dev.uem.em.titles.RoleMeta.current(w, t.id) else rec?.roleMetas?.split(',')?.filter { it.isNotBlank() }.orEmpty()
+        if (metas.isNotEmpty()) {
+            Muted("Role metas", 11)
+            for ((i, id) in metas.withIndex()) Column(Modifier.padding(vertical = 3.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(dev.uem.em.titles.RoleMeta.GROUPS.getOrNull(i)?.let { dev.uem.em.titles.RoleMeta.GROUP_LABEL[it] } ?: "", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(64.dp))
+                    Text(dev.uem.em.titles.RoleMeta.label(t.id, id), color = Ui.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Muted(dev.uem.em.titles.RoleMeta.desc(id), 10)
+            }
+            if (live) {
+                val prio = dev.uem.em.titles.RoleMeta.killPriority(w, t.id).entries.sortedByDescending { it.value }
+                Muted("Kill share expected: " + prio.joinToString(" > ") { dev.uem.em.titles.RoleMeta.posName(t.id, it.key) }, 10)
+            }
+        } else if (!live && t.isMoba) Muted("Role metas of this patch were not recorded (older save); see its notes.", 10)
     }
 }
 

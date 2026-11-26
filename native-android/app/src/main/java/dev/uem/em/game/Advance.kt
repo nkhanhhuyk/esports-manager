@@ -261,6 +261,13 @@ object Advance {
                 }
             }
             for (b in g.bans) w.charStats.getOrPut("${w.season}|$b") { IntArray(3) }[2]++
+            // The same on the game's current patch (archived into the patch when the next one comes).
+            for (l in g.lines) if (l.charId.isNotEmpty()) for (key in listOfNotNull(l.charId, if (!t.isMoba) "${g.mapId}|${l.charId}" else null)) {
+                val a = w.patchRun.getOrPut("${t.id}|$key") { IntArray(3) }
+                a[0]++
+                if (l.team == g.winner) a[1]++
+            }
+            for (b in g.bans) w.patchRun.getOrPut("${t.id}|$b") { IntArray(3) }[2]++
         }
         // Ratings: every position's average stays level through meta changes.
         dev.uem.em.sim.StatBook.calibrate(w, t, o.record.games)

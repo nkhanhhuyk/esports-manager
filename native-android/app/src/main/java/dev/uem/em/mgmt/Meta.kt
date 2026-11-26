@@ -170,7 +170,7 @@ object Release {
         val roles = t.lineupRoles.filter { cls in it.classes }.ifEmpty { listOf(rng.pick(t.lineupRoles)) }
         val lanes = if (t.isMoba) rng.sample(roles, minOf(roles.size, rng.int(1, 2))).map { it.id } else emptyList()
         val id = "${t.id}-new-${w.customChars.size + 1}"
-        val c = CustomChar(t.id, id, nm, cls, listOf(cls), lanes, w.season, if (t.isMoba) rng.pick(EPITHET) else "", intArrayOf(rng.int(3, 9), rng.int(3, 9), rng.int(3, 9), rng.int(3, 9)), skillSet(cls, rng, t.isMoba))
+        val c = CustomChar(t.id, id, nm, cls, listOf(cls), lanes, w.season, if (t.isMoba) rng.pick(EPITHET) else "", intArrayOf(rng.int(3, 9), rng.int(3, 9), rng.int(3, 9), rng.int(3, 9)), skillSet(cls, rng, t.isMoba), day = w.day)
         w.customChars.add(c)
         Catalogue.applyCustom(w)
         delta[id] = rng.float(1.5, 3.5) // new releases launch strong
@@ -220,26 +220,41 @@ object TierList {
         return TIERS.mapIndexed { i, tier -> val to = if (i == TIERS.size - 1) n else minOf(n, cuts[i]); val part = sorted.subList(minOf(from, n), maxOf(minOf(from, n), to)); from = to; tier to part }
     }
 
-    private fun usage(w: World, key: String): IntArray? = w.charStats["${w.season}|$key"]?.takeIf { it[0] + it[2] >= 3 } ?: w.charStats["${w.season - 1}|$key"]?.takeIf { it[0] + it[2] >= 3 }
+    /**
+     * A past patch: its balance state (the first [k] patches of the game, as the engines used it then) and
+     * what was picked, won and banned on that patch. Null = the live view (current patch, this season's results).
+     */
+    class View(val patch: Patch, val use: Map<String, IntArray>, val k: Int, val season: Int, val day: Int)
+
+    /** The view for a game's patch record (null for the current patch: the live tier list). */
+    fun view(w: World, t: TitleDef, rec: dev.uem.em.model.PatchRec?): View? {
+        val mine = w.patches.filter { it.titleId == t.id }
+        if (rec == null || rec === mine.lastOrNull()) return null
+        val k = mine.indexOf(rec) + 1
+        return View(dev.uem.em.mgmt.PatchState.patchAt(w, t, k), dev.uem.em.mgmt.PatchState.usage(w, rec, t.id), k, dev.uem.em.mgmt.PatchState.seasonOf(rec), rec.day)
+    }
+
+    private fun usage(w: World, key: String, at: View? = null): IntArray? = if (at != null) at.use[key]?.takeIf { it[0] + it[2] >= 3 }
+        else w.charStats["${w.season}|$key"]?.takeIf { it[0] + it[2] >= 3 } ?: w.charStats["${w.season - 1}|$key"]?.takeIf { it[0] + it[2] >= 3 }
 
     private fun usageNote(u: IntArray?) = if (u == null) "" else "${u[0]} games, ${if (u[0] > 0) "${100 * u[1] / u[0]}% wins" else "—"}${if (u[2] > 0) ", ${u[2]} bans" else ""}"
 
-    fun charScore(w: World, t: TitleDef, patch: Patch, c: CharDef, mapId: String? = null): Pair<Double, String> {
+    fun charScore(w: World, t: TitleDef, patch: Patch, c: CharDef, mapId: String? = null, at: View? = null): Pair<Double, String> {
         val meta = patch.charMeta[c.id] ?: 0.0
-        val u = usage(w, if (mapId != null) "$mapId|${c.id}" else c.id)
+        val u = usage(w, if (mapId != null) "$mapId|${c.id}" else c.id, at)
         var score = meta
         if (u != null) {
             val wr = if (u[0] > 0) u[1].toDouble() / u[0] else 0.5
             val conf = minOf(1.0, (u[0] + u[2]) / 20.0)
             score += ((wr - 0.5) * 8 + ln(1.0 + u[0] + u[2]) * 0.6) * conf
         }
-        if (mapId != null) score += mapAffinity(w, t, c.id, mapId)
+        if (mapId != null) score += mapAffinity(w, t, c.id, mapId, at?.k)
         return score to usageNote(u)
     }
 
     /** The game's own view of how well an agent suits a map (changes with each patch of the game). */
-    fun mapAffinity(w: World, t: TitleDef, charId: String, mapId: String): Double {
-        val patches = w.patches.count { it.titleId == t.id }
+    fun mapAffinity(w: World, t: TitleDef, charId: String, mapId: String, k: Int? = null): Double {
+        val patches = k ?: w.patches.count { it.titleId == t.id }
         val h = (charId + "|" + mapId + "|" + patches / 3).hashCode()
         val sites = Maps.shooter("${t.id}:$mapId")?.sites?.size ?: 2
         val cls = t.charIndex[charId]?.cls?.lowercase() ?: ""
@@ -254,15 +269,17 @@ object TierList {
     fun classList(t: TitleDef, role: RoleDef? = null): List<String> =
         t.characters.filter { role == null || it.fits(role) }.flatMap { classesOf(it) }.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
 
-    fun characters(w: World, t: TitleDef, role: RoleDef?, mapId: String? = null, cls: String? = null): List<Pair<String, List<Entry>>> {
-        val patch = Patch.of(w, t)
-        val pool = t.characters.filter { (role == null || it.fits(role)) && (cls == null || cls in classesOf(it)) }
-        return tiers(pool.map { c -> val (s, n) = charScore(w, t, patch, c, mapId); Entry(c.id, c.name, s, n) })
+    fun characters(w: World, t: TitleDef, role: RoleDef?, mapId: String? = null, cls: String? = null, at: View? = null): List<Pair<String, List<Entry>>> {
+        val patch = at?.patch ?: Patch.of(w, t)
+        // A past patch: not the characters released after it (by day; older saves only know the season).
+        val later = if (at == null) emptySet() else w.customChars.filter { it.titleId == t.id && (if (it.day > 0) it.day > at.day else it.season > at.season) }.map { it.id }.toSet()
+        val pool = t.characters.filter { (role == null || it.fits(role)) && (cls == null || cls in classesOf(it)) && it.id !in later }
+        return tiers(pool.map { c -> val (s, n) = charScore(w, t, patch, c, mapId, at); Entry(c.id, c.name, s, n) })
     }
 
     /** Weapon strength from its stats within its category, plus patch changes. */
-    fun weaponScore(w: World, t: TitleDef, wp: GameInfo.Weapon): Double {
-        val patch = Patch.of(w, t)
+    fun weaponScore(w: World, t: TitleDef, wp: GameInfo.Weapon, at: View? = null): Double {
+        val patch = at?.patch ?: Patch.of(w, t)
         val costEff = if (wp.cost > 0) wp.dps / sqrt(wp.cost.toDouble()) else wp.dps / 10
         return ln(1 + wp.dps) * 2 + wp.headshot / 60 + wp.range / 40 + costEff * 0.6 + (patch.charMeta["w:${wp.id}"] ?: 0.0)
     }
@@ -276,13 +293,13 @@ object TierList {
         else -> listOf("Rifle", "Sniper", "SMG")
     }
 
-    fun weapons(w: World, t: TitleDef, role: RoleDef? = null, mapId: String? = null, category: String? = null): List<Pair<String, List<Entry>>> {
+    fun weapons(w: World, t: TitleDef, role: RoleDef? = null, mapId: String? = null, category: String? = null, at: View? = null): List<Pair<String, List<Entry>>> {
         val cats = role?.let { roleCategories(t, it) }
         val map = mapId?.let { Maps.shooter("${t.id}:$it") }
         val openness = map?.let { m -> m.links.map { (m.nodes[it.from].pos - m.nodes[it.to].pos).getDistance() }.average() } ?: 0.12
         val list = Release.weaponsOf(w, t.id).filter { (cats == null || it.category in cats) && (category == null || it.category == category) }
         return tiers(list.map { wp ->
-            var s = weaponScore(w, t, wp)
+            var s = weaponScore(w, t, wp, at)
             if (cats != null) s += (cats.size - cats.indexOf(wp.category)) * 0.8
             if (map != null) s += (openness - 0.12) * 20 * when (wp.category) { "Sniper" -> 1.0; "Rifle" -> 0.5; "SMG" -> -0.6; "Shotgun" -> -1.0; else -> 0.0 }
             Entry(wp.id, wp.name, s, "${wp.category} · ${if (t.id == "cs2") "$" else ""}${wp.cost}")
@@ -290,15 +307,15 @@ object TierList {
     }
 
     /** CS2 loadouts per role: a primary, a pistol and the role's utility. */
-    fun loadouts(w: World, t: TitleDef, role: RoleDef): List<Pair<String, List<Entry>>> {
+    fun loadouts(w: World, t: TitleDef, role: RoleDef, at: View? = null): List<Pair<String, List<Entry>>> {
         val all = Release.weaponsOf(w, t.id)
-        val pistols = all.filter { it.category == "Pistol" }.sortedByDescending { weaponScore(w, t, it) }.take(4)
+        val pistols = all.filter { it.category == "Pistol" }.sortedByDescending { weaponScore(w, t, it, at) }.take(4)
         val primaries = all.filter { it.category in roleCategories(t, role) && it.category != "Pistol" }
         val util = when (role.id) { "entry" -> "2 flashes, smoke, molotov"; "awper" -> "flash, smoke"; "support" -> "full utility: 2 flashes, smoke, molotov, HE"; "lurker" -> "flash, smoke, decoy"; else -> "flash, smoke, HE" }
         val out = ArrayList<Entry>()
         for (p in primaries) for (pi in pistols.take(2)) {
             val cost = p.cost + pi.cost + 1000
-            out.add(Entry("${p.id}+${pi.id}", "${p.name} + ${pi.name}", weaponScore(w, t, p) + weaponScore(w, t, pi) * 0.3 - (if (cost > 6000) 1.0 else 0.0), "$$cost with $util"))
+            out.add(Entry("${p.id}+${pi.id}", "${p.name} + ${pi.name}", weaponScore(w, t, p, at) + weaponScore(w, t, pi, at) * 0.3 - (if (cost > 6000) 1.0 else 0.0), "$$cost with $util"))
         }
         return tiers(out.sortedByDescending { it.score }.distinctBy { it.name.substringBefore(" +") }.take(24))
     }

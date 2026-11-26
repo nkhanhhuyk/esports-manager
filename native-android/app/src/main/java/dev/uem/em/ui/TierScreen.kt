@@ -93,37 +93,55 @@ fun TierScreen(vm: GameVm, w: World) {
         else -> emptyList()
     }
     val sel = pick.coerceIn(0, maxOf(0, options.size - 1))
+    // History: a season, then one of its patches (the latest by default; changing the season picks that season's latest).
+    val recs = w.patches.filter { it.titleId == title }
+    val seasons = (recs.map { dev.uem.em.mgmt.PatchState.seasonOf(it) } + w.season).distinct().sortedDescending()
+    var year by remember(title) { mutableIntStateOf(w.season) }
+    val yearRecs = recs.filter { dev.uem.em.mgmt.PatchState.seasonOf(it) == year }
+    var patchIdx by remember(title, year) { mutableIntStateOf(yearRecs.size - 1) }
+    val rec = yearRecs.getOrNull(patchIdx.coerceIn(-1, yearRecs.size - 1))
+    val at = remember(title, rec, vm.version) { TierList.view(w, t, rec) }
+    val noPatch = yearRecs.isEmpty() && year != w.season
     // By role, split by class too: the role's classes (a champion with two classes is in both).
     val roleClasses = if (views.getOrNull(view) == "By role") listOf("All classes") + TierList.classList(t, t.lineupRoles.getOrNull(sel)) else emptyList()
     val csel = clsPick.coerceIn(0, maxOf(0, roleClasses.size - 1))
-    val rows = remember(title, view, sel, csel, vm.version) {
+    val rows = remember(title, view, sel, csel, rec, vm.version) {
         val role = t.lineupRoles.getOrNull(sel)
         val map = t.maps.getOrNull(sel)?.id
         when (views[view]) {
-            "By role" -> TierList.characters(w, t, role, cls = roleClasses.getOrNull(csel)?.takeIf { csel > 0 })
-            "By class" -> TierList.characters(w, t, null, cls = options.getOrNull(sel))
-            "Agents by role" -> TierList.characters(w, t, role)
-            "Overall" -> if (title == "cs2") TierList.weapons(w, t) else TierList.characters(w, t, null)
-            "Agents by map" -> TierList.characters(w, t, null, map)
-            "Guns by role" -> TierList.weapons(w, t, role)
-            "Guns by map" -> TierList.weapons(w, t, mapId = map)
-            "Guns by type" -> TierList.weapons(w, t, category = cats.getOrNull(sel))
-            "Loadouts by role" -> TierList.loadouts(w, t, role!!)
+            "By role" -> TierList.characters(w, t, role, cls = roleClasses.getOrNull(csel)?.takeIf { csel > 0 }, at = at)
+            "By class" -> TierList.characters(w, t, null, cls = options.getOrNull(sel), at = at)
+            "Agents by role" -> TierList.characters(w, t, role, at = at)
+            "Overall" -> if (title == "cs2") TierList.weapons(w, t, at = at) else TierList.characters(w, t, null, at = at)
+            "Agents by map" -> TierList.characters(w, t, null, map, at = at)
+            "Guns by role" -> TierList.weapons(w, t, role, at = at)
+            "Guns by map" -> TierList.weapons(w, t, mapId = map, at = at)
+            "Guns by type" -> TierList.weapons(w, t, category = cats.getOrNull(sel), at = at)
+            "Loadouts by role" -> TierList.loadouts(w, t, role!!, at = at)
             else -> emptyList()
         }
     }
-    val patch = w.patches.lastOrNull { it.titleId == title }
+    val patch = rec ?: w.patches.lastOrNull { it.titleId == title }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                Muted("${t.name} · patch ${patch?.version ?: "launch"} · from the patch's balance (what the matches use) and this season's results. Tap any icon for its stats and skills.", 11)
+                Muted("${t.name} · patch ${patch?.version ?: "launch"} · " + (if (at == null) "live: the patch's balance (what the matches use) and this season's picks, bans and wins."
+                    else "archived: that patch's balance as the engines used it, and the picks, bans and wins played on it (simulation-derived).") + " Tap any icon for its stats and skills.", 11)
             }
         }
         item { Tabs(Catalogue.IDS.map { Catalogue.get(it).short }, Catalogue.IDS.indexOf(title)) { title = Catalogue.IDS[it] } }
+        item {
+            Row(Modifier.padding(horizontal = 12.dp)) {
+                Select("Year", seasons.map { "$it" }, seasons.indexOf(year).coerceAtLeast(0)) { year = seasons[it] }
+                if (yearRecs.isNotEmpty()) Select("Patch", yearRecs.map { it.version.substringAfterLast(' ') + if (it === recs.last()) " (current)" else "" }, patchIdx.coerceIn(0, yearRecs.size - 1)) { patchIdx = it }
+                else Muted(if (year == w.season) "No patch yet this season: launch balance." else "No patches that season.", 11)
+            }
+        }
         item { Tabs(views, view) { view = it; pick = 0 } }
         if (options.isNotEmpty()) item { Tabs(options, sel) { pick = it } }
         if (roleClasses.size > 2) item { Tabs(roleClasses, csel) { clsPick = it } }
-        item {
+        if (noPatch) item { Card { Muted("No patch was released for ${t.short} in $year, so there is no tier list to show for it.") } }
+        else item {
             Card {
                 val isWeapon = views[view].startsWith("Guns") || (title == "cs2" && views[view] == "Overall")
                 val isLoadout = views[view] == "Loadouts by role"

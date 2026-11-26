@@ -8,6 +8,7 @@ import dev.uem.em.model.News
 import dev.uem.em.model.PatchRec
 import dev.uem.em.model.World
 import dev.uem.em.titles.Catalogue
+import dev.uem.em.titles.RoleMeta
 import dev.uem.em.titles.TitleDef
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -174,7 +175,10 @@ object Patches {
                 notes.add(0, "Competitive rules: coach comms during fights are withdrawn (competitions can still allow them).")
             }
         }
-        w.patches.add(PatchRec(t.id, "${t.short} $version", w.day, kind, notes, delta, style, obj))
+        // The patch that ends now keeps what was played on it; the new one starts counting.
+        w.patches.lastOrNull { it.titleId == t.id }?.let { prev -> if (prev.usage.isEmpty()) prev.usage = PatchState.usageOf(w, t.id) }
+        w.patchRun.keys.removeAll { it.startsWith("${t.id}|") }
+        w.patches.add(PatchRec(t.id, "${t.short} $version", w.day, kind, notes, delta, style, obj, roleMetas = RoleMeta.current(w, t.id).joinToString(",")))
         // Every team has to relearn part of the game; good analysts and draft coaches lose less.
         val drop = when (kind) { "major" -> 8.0; "medium" -> 4.0; else -> 1.5 }
         for (team in w.teams) if (team.active && team.titleId == t.id) team.metaAdapt = dev.uem.em.core.clamp(team.metaAdapt - drop * (1.15 - 0.6 * Staffing.adaptLevel(w, team) / 100), 30.0, 99.0)
@@ -229,4 +233,44 @@ object PatchState {
     }
 
     fun current(w: World, t: TitleDef) = w.patches.lastOrNull { it.titleId == t.id }
+
+    /**
+     * The balance state after the title's first [k] patches (0 = launch): the same computation as [metaOf]
+     * on the patches up to then, so a past patch's meta is reproduced from the saved patch records.
+     */
+    fun metaAt(w: World, t: TitleDef, k: Int): Map<String, Double> {
+        val m = HashMap(base(w, t))
+        var i = 0
+        for (p in w.patches) if (p.titleId == t.id) { if (i++ >= k) break; for ((key, v) in p.charDelta) m[key] = ((m[key] ?: 0.0) * 0.97 + v).coerceIn(-10.0, 10.0) }
+        val spread = 0.55 + 0.9 * Rng.derive(w.seed, "spread", t.id, k).next()
+        for (key in m.keys.toList()) m[key] = (m[key]!! * spread).coerceIn(-10.0, 10.0)
+        return m
+    }
+
+    /** Styles and objective modifiers after the first [k] patches. */
+    fun patchAt(w: World, t: TitleDef, k: Int): dev.uem.em.sim.Patch {
+        val styles = HashMap<String, Double>(); for (s in t.styles) styles[s] = 1.0
+        val obj = HashMap<String, Double>()
+        var i = 0
+        for (p in w.patches) if (p.titleId == t.id) {
+            if (i++ >= k) break
+            for ((key, v) in p.styleDelta) styles[key] = dev.uem.em.core.clamp((styles[key] ?: 1.0) + v, 0.7, 1.3)
+            for ((key, v) in p.objMods) obj[key] = if (key == "defender") (obj[key] ?: 0.0) + v else dev.uem.em.core.clamp((obj[key] ?: 1.0) * v, 0.5, 2.0)
+        }
+        return dev.uem.em.sim.Patch(metaAt(w, t, k), styles, obj, w.seed, k)
+    }
+
+    /** The current patch's usage, most played first (top 40): "key:games:wins:bans;...". */
+    fun usageOf(w: World, titleId: String): String = w.patchRun.entries.filter { it.key.startsWith("$titleId|") }
+        .sortedByDescending { it.value[0] + it.value[2] }.take(40).joinToString(";") { "${it.key.substringAfter('|')}:${it.value[0]}:${it.value[1]}:${it.value[2]}" }
+
+    /** A patch's usage as key → games, wins, bans (the live counter for the game's current patch). */
+    fun usage(w: World, rec: dev.uem.em.model.PatchRec?, titleId: String): Map<String, IntArray> {
+        val cur = w.patches.lastOrNull { it.titleId == titleId }
+        if (rec == null || rec === cur) return w.patchRun.entries.filter { it.key.startsWith("$titleId|") }.associate { it.key.substringAfter('|') to it.value }
+        return rec.usage.split(';').filter { it.isNotBlank() }.mapNotNull { e -> val x = e.split(':'); if (x.size < 4) null else x.dropLast(3).joinToString(":") to intArrayOf(x[x.size - 3].toInt(), x[x.size - 2].toInt(), x[x.size - 1].toInt()) }.toMap()
+    }
+
+    /** The season a patch belongs to (its version "27.3" → 2027). */
+    fun seasonOf(rec: dev.uem.em.model.PatchRec): Int = rec.version.substringAfterLast(' ').substringBefore('.').toIntOrNull()?.let { 2000 + it } ?: dev.uem.em.core.Dates.year(rec.day)
 }

@@ -129,6 +129,10 @@ class World(
     val ratingCal: MutableMap<String, DoubleArray> = HashMap(),
     /** Competition formats per game (seeds, play-ins, stage formats, qualification), changed by major patches (see comp.Formats). */
     val formats: MutableMap<String, TitleFormat> = HashMap(),
+    /** Picks, wins and bans on each game's current patch ("titleId|charKey" → games, wins, bans); archived into the patch when the next one comes. */
+    val patchRun: MutableMap<String, IntArray> = HashMap(),
+    /** Weekly solo queue snapshots (each game's ladder top every Monday), kept for history. */
+    val soloWeeks: MutableList<SoloWeek> = ArrayList(),
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -768,6 +772,10 @@ class PatchRec(
     val charDelta: Map<String, Double> = emptyMap(),
     val styleDelta: Map<String, Double> = emptyMap(),
     val objMods: Map<String, Double> = emptyMap(),
+    /** Role metas in force after this patch (snapshot; blank in older saves). */
+    val roleMetas: String = "",
+    /** What was played on this patch, written when the next patch arrives: "charKey:games:wins:bans;..." (most played first). */
+    var usage: String = "",
 )
 
 @Serializable
@@ -787,9 +795,22 @@ class LiveState(
     val subs: List<String> = emptyList(),
 )
 
+/**
+ * A game's solo queue ladder top in one week of a season (week 1 = the season's first seven days; a 53rd week
+ * appears only when the season has one): players, their rating, games, wins, the week's change, server and team then.
+ */
+@Serializable
+class SoloWeek(
+    val titleId: String, val season: Int, val week: Int, val day: Int,
+    @ProtoPacked val ids: IntArray, @ProtoPacked val mmr: IntArray, @ProtoPacked val games: IntArray, @ProtoPacked val wins: IntArray,
+    @ProtoPacked val delta: IntArray, @ProtoPacked val teams: IntArray, val servers: List<String>,
+)
+
 /** A fictional champion / hero / agent released by a patch (drawn with generated art). */
 @Serializable
-class CustomChar(val titleId: String, val id: String, val name: String, val cls: String, val classes: List<String>, val lanes: List<String>, val season: Int, val epithet: String = "", @ProtoPacked val kit: IntArray = IntArray(0), val skills: List<String> = emptyList())
+class CustomChar(val titleId: String, val id: String, val name: String, val cls: String, val classes: List<String>, val lanes: List<String>, val season: Int, val epithet: String = "", @ProtoPacked val kit: IntArray = IntArray(0), val skills: List<String> = emptyList(),
+    /** Day of release (0 in older saves: only the season is known). */
+    val day: Int = 0)
 
 /** A fictional weapon released by a patch. */
 @Serializable

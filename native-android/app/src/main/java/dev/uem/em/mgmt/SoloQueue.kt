@@ -121,6 +121,33 @@ object SoloQueue {
             p.soloDelta = p.soloMmr - before
             if (p.soloMmr > p.soloPeak) p.soloPeak = p.soloMmr
         }
+        snapshot(w)
+    }
+
+    /** The week of the season a day falls in: week 1 = the season's first seven days (a season can have a 53rd). */
+    fun weekOf(w: World, day: Int): Int = maxOf(1, (day - dev.uem.em.comp.Season.endDay(w.season - 1)) / 7 + 1)
+
+    /**
+     * This week's ladders, kept for history: each game's 60 best and every server's top 10, with rating, games,
+     * wins, the week's change, server and team at the time. Seasons before the last one keep their top 30.
+     */
+    fun snapshot(w: World) {
+        val week = weekOf(w, w.day)
+        w.soloWeeks.removeAll { it.season == w.season && it.week == week }
+        for (id in w.titles) {
+            val all = ladder(w, id, null)
+            if (all.isEmpty()) continue
+            val servers = all.associateWith { server(w, it) }
+            val pick = LinkedHashSet(all.take(60))
+            all.groupBy { servers[it]!! }.values.forEach { pick.addAll(it.take(10)) }
+            val list = pick.sortedByDescending { it.soloMmr }
+            w.soloWeeks.add(dev.uem.em.model.SoloWeek(id, w.season, week, w.day, list.map { it.id }.toIntArray(), list.map { it.soloMmr.roundToInt() }.toIntArray(),
+                list.map { it.soloGames }.toIntArray(), list.map { it.soloWins }.toIntArray(), list.map { it.soloDelta.roundToInt() }.toIntArray(), list.map { it.teamId }.toIntArray(), list.map { servers[it]!! }))
+        }
+        for (i in w.soloWeeks.indices) {
+            val s = w.soloWeeks[i]
+            if (s.season < w.season - 1 && s.ids.size > 30) w.soloWeeks[i] = dev.uem.em.model.SoloWeek(s.titleId, s.season, s.week, s.day, s.ids.copyOf(30), s.mmr.copyOf(30), s.games.copyOf(30), s.wins.copyOf(30), s.delta.copyOf(30), s.teams.copyOf(30), s.servers.take(30))
+        }
     }
 
     /**
