@@ -61,6 +61,31 @@ class EcosystemEvolutionTest {
         assertEquals("Promotion Playoffs", pc.stages[0].name)
         assertEquals(4, pc.entrants.sumOf { it.split(':')[2].toInt() })
 
+        // Survival series: the second-last against the lower leagues' second-best (the ends go directly).
+        Formats.of(w, "lol").promo[lcp.id] = "survival"
+        first = w.comps.size
+        Season.plan(w, s1 + 10)
+        val sv = w.comps.drop(first).first { it.promoLeague == lcp.id }
+        assertTrue(sv.name.contains("Survival Series") && sv.entrants.any { it.startsWith("bottomnth:") } && sv.entrants.any { it.startsWith("promonth:") })
+        Formats.of(w, "lol").promo[lcp.id] = "playoff"
+        // All-star showdown: representative squads (not clubs) of the two best-ranked leagues.
+        val show = w.comps.drop(first).first { it.defKey == "lol:allstar" }
+        val lck = w.leagues.first { it.short == "LCK" }
+        val squad = dev.uem.em.comp.AllStars.select(w, lck, show.id)
+        out.appendLine("${show.name}: ${squad.name} ${squad.roster.map { w.players[it].handle }}")
+        assertTrue(squad.nationalOf.startsWith("*") && squad.roster.size == Catalogue.get("lol").teamSize + 2)
+        assertTrue("players stay with their clubs", squad.roster.all { w.players[it].teamId != squad.id && w.teams[w.players[it].teamId].leagueId == lck.id })
+        dev.uem.em.mgmt.Nations.stepDown(w, squad, -1)
+        // Host policy: a permanent home keeps the last host city.
+        val tfl = Formats.of(w, "lol")
+        tfl.hosts["worlds"] = "fixed"
+        first = w.comps.size
+        Season.plan(w, s1 + 11)
+        val fixedWorlds = w.comps.drop(first).first { it.defKey == "lol:worlds" }
+        val prevHost = w.comps.filter { it.defKey == "lol:worlds" && it.season < s1 + 11 && it.host.isNotEmpty() }.maxBy { it.season }.host
+        assertEquals("permanent home", prevHost, fixedWorlds.host)
+        tfl.hosts.remove("worlds")
+
         // A merger and an expansion, announced and carried out before their season.
         val t = Catalogue.get("hok")
         val tf = Formats.of(w, "hok")
@@ -91,6 +116,25 @@ class EcosystemEvolutionTest {
             assertEquals(m0 + 2, target.teamIds.size)
             membershipOk(w)
         } else out.appendLine("No league could expand (${big.short} has $n0 clubs)")
+
+        // Region recognition and associate status (Wild Rift): one membership per club after each.
+        val wr = Catalogue.get("wildrift"); val wtf = Formats.of(w, "wildrift")
+        val rec = Leagues.propose(w, wr, wtf, Formats.tier1(w, "wildrift"), "recognize", Rng.of("r"), s1 + 3)
+        out.appendLine("Recognition: ${rec?.first ?: "no lower league qualifies"}")
+        wtf.rank = Formats.tier1(w, "wildrift").sortedByDescending { Season.leagueStrength(it) }.map { it.id }
+        val asc = Leagues.propose(w, wr, wtf, Formats.tier1(w, "wildrift"), "associate", Rng.of("a"), s1 + 3)
+        out.appendLine("Associate: ${asc?.first ?: "none"}")
+        val n1 = Formats.tier1(w, "wildrift").size
+        Season.plan(w, s1 + 3)
+        membershipOk(w)
+        out.appendLine("Wild Rift top leagues: $n1 → ${Formats.tier1(w, "wildrift").size}: ${Formats.tier1(w, "wildrift").joinToString { it.short }}")
+        if (asc != null) {
+            val weak = w.leagues[asc.third[0]]
+            assertTrue("${weak.short} ended", weak.until == s1 + 2)
+            val assoc = w.leagues[weak.successors.single()]
+            assertEquals(2, assoc.tier); assertEquals(asc.third[1], assoc.upperId)
+            assertTrue("its seeds went to other leagues", (wtf.seeds["worlds:${weak.id}"] ?: 0) == 0)
+        }
 
         // Announced a season ahead: the format waits for its season; the preview changes nothing.
         val lol = Catalogue.get("lol")

@@ -966,3 +966,35 @@ in the History and Stats screens, `MgmtTest` passes. The 20–30 season stabilit
 not run in this batch; the longest runs here are the two-season LoL playthrough and the three-season
 `QualificationTest`.
 
+## Twenty-seventh follow-up: the rest of the addenda, bug fixes
+
+* **Solo queue:** a "Live ladder" tab (the ladder now) and a "Weekly history" tab (Year + Week). Weekly
+  snapshots now store each server name once (smaller saves); older snapshots still read.
+* **Survival series** (promotion format): the last place goes down and the lower leagues' best comes up
+  directly; the second-last plays the next-best lower team in one series (final length) for the last place.
+* **What-if on the qualification race:** pick a team and "wins / is runner-up in" the next points event; the
+  race is recomputed in memory only (labelled "not saved"), decided results never change.
+* **Region recognition and associate status** (league reforms, at most one per game every five seasons):
+  * a lower league whose best clubs match the bottom of its top league becomes a top league with its own
+    international places (Worlds keeps its size when the former top league can give a seed);
+  * a small top league ranked last on results becomes an associate (lower) league of a larger league of the
+    same macro-region; its places go to the best-ranked leagues with room.
+* **Host policies** (reform): rotation across continents, the last champion's region, or a permanent home.
+* **All-star showdown** of the two best-ranked leagues (after the rivalry cup): each league's best player at
+  every position on form, plus two substitutes. Club contracts are untouched, the squads step down after the
+  event, and the games are not club results (no club ranking points, no senior awards).
+* **Filters:** team schedule by season and competition; player career timeline by season.
+* **Bugs fixed:**
+  * prestige drifted upward every season (each edition built on the last): the target now uses the family's
+    designed prestige, so it stays bounded;
+  * a format announced ahead could overwrite the seeds of a league merger taking effect the same season:
+    formats now apply before league reforms;
+  * the development index counted rivalry cups, regional finals and promotion series: now second teams and
+    second-tier leagues only;
+  * survival-series direct moves were skipped when the top-flight team won its series;
+  * associate status could join leagues of different continents (Europe into China): same macro-region only.
+
+Tests: `EcosystemEvolutionTest` (survival series, all-star squads, permanent host, recognition / associate with
+one membership per club), `LongEcosystemTest` (opt-in: `UEM_LONG=1`, 20 seasons of the four MOBA ecosystems
+with a save and reload mid-season).
+

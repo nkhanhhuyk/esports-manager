@@ -29,14 +29,14 @@ implementation order (1 = navigation and archives, 2 = connected competition vie
 
 | § | Requirement | Status | Where / phase |
 |---|---|---|---|
-| 1 | Region expansion, merger, split | done | `comp/Leagues.kt` (announced, carried out before the season, histories kept, seeds moved); new-region recognition and associate status: not built |
+| 1 | Region expansion, merger, split, recognition, associate status | done | `comp/Leagues.kt`: expansion, merger, split, a lower league recognised as a top league, a weak top league becoming an associate of a same-region league |
 | 2 | Continental Academy Champions League | done | `Season.academyCup` (academy leagues' top two, groups → knockout) |
-| 3 | Promotion/relegation playoffs | done | cross-seeded semi-finals format (`TitleFormat.promo`), round robin kept; survival-series variant: not built |
-| 4 | Qualification Race | done | `comp/Race.kt`, `RaceCard` on Worlds and league pages (Teams tab); scenario what-if tool: not built |
-| 5 | Hosting bids and venues | done | `Hosts.choose` (published scoring, rotation, no double booking); host-cycle reforms: not built |
+| 3 | Promotion/relegation playoffs | done | round robin, cross-seeded semi-finals, survival series (last down / best up directly, one series for the last place) |
+| 4 | Qualification Race | done | `comp/Race.kt`, `RaceCard` on Worlds and league pages (Teams tab), with an in-memory what-if (a team's result in the next points event) |
+| 5 | Hosting bids and venues | done | `Hosts.choose` (published scoring, no double booking) with host policies changed by reforms: rotation, last champion's region, permanent home |
 | 6 | Reform impact preview (read-only) | done | `Formats.preview` for announced reforms (sizes, seeds, formats, series counts, illustrative teams) |
 | 7 | Evolving tournament prestige | done | `Prestige.update` (smoothed, bounded, secondary events capped; each edition keeps its value) |
-| 8 | Regional rivalry cups | done (club mode) | `Rivalry`, rivalry cup in the calendar; representative all-star mode: not built |
+| 8 | Regional rivalry cups | done | club rivalry cup and the all-star showdown (`AllStars`: representative squads, contracts untouched, step down after the event) |
 | 9 | Multi-title organisation rankings | done | `OrgRankings` (total, per-title average, development index; four windows), Rankings → Organisations |
 | 10 | Reform timing and archive timeline | done | Year + change-type filters in the Competition structure card (Road screen, Worlds page) |
 | 11A | Patch notes and metas by year, patch dropdown, stored meta snapshot per patch | **done (phase 1)** | `PatchesScreen`, `PatchState.metaAt/patchAt/usage`, `PatchRec.roleMetas/usage` |
@@ -67,7 +67,7 @@ implementation order (1 = navigation and archives, 2 = connected competition vie
 | Competition Matches tab | one list per stage | filters per stage type (phase 1) |
 | Patch notes | every patch on one page | Year + Patch (phase 1) |
 | Tier lists | current patch only | Year + Patch (phase 1) |
-| Solo queue | live ladder only | Year + Week (phase 1) |
+| Solo queue | live ladder only | Live ladder tab + Weekly history (Year + Week) |
 | Competitions directory | Season / All tabs + edition select | unchanged: the season tabs and edition dropdown already do the job |
-| Team match history, transfers, player career | lists by date | phase 2: season filter |
+| Team match history, transfers, player career | lists by date | season + competition filter (team schedule), season filter (career timeline); transfers already had one |
 | Social feed | game and team filters | unchanged: the feed covers the last two weeks only |

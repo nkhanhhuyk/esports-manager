@@ -89,8 +89,8 @@ object Leagues {
                 val order = tf.rank
                 val weak = tier1.filter { clubs(w, it).size <= 8 }.maxByOrNull { l -> order.indexOf(l.id).let { if (it < 0) 99 else it } * 100 - Season.leagueStrength(l) } ?: return null
                 if (order.isNotEmpty() && order.lastOrNull() != weak.id) return null
-                val host = tier1.filter { it.id != weak.id && macroOf(it.region) == macroOf(weak.region) }.maxByOrNull { Season.leagueStrength(it) }
-                    ?: tier1.filter { it.id != weak.id }.maxByOrNull { Season.leagueStrength(it) } ?: return null
+                // Only into a league of the same macro-region (a European scene never joins an Asian pyramid).
+                val host = tier1.filter { it.id != weak.id && macroOf(it.region) == macroOf(weak.region) }.maxByOrNull { Season.leagueStrength(it) } ?: return null
                 tf.pending.add(PendingChange("associate", effective, w.day, "${weak.short} becomes an associate league of ${host.short}", state = "l=${weak.id};h=${host.id}"))
                 return Triple("${weak.short} becomes an associate league of ${host.short} from $effective: its clubs reach the top flight through ${host.short}'s promotion, and its Worlds places go to the strongest leagues",
                     "Results and audience no longer carry a separate top league; the scene keeps its league as a qualifier and its clubs keep their history.", listOf(weak.id, host.id))
