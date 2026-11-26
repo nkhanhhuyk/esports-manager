@@ -623,4 +623,6 @@ Tests: `SubsTest.academyCallUpGoesBackWhenTheRegularReturns`:
 The 90-day run: academy call-ups where a club had one, stand-ins only at clubs without an academy player
 for the position, and no game out of position.
 
+Full suite: 108 tests, 0 failures (3 skipped).
+
 Saves: new player fields `callUpFrom` and `callUpFor` (appended, with defaults).
