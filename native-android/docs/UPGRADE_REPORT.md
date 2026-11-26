@@ -665,3 +665,5 @@ Tests: `SubsTest.shortAbsenceAcademyLongAbsenceSigning`:
 * Taipei Assassins are a dormant real team with their 2012 roster;
 * all five 2012 champions have player pages;
 * no LoL champion or finalist roster player is missing.
+
+Full suite: 109 tests, 0 failures (3 skipped).
