@@ -112,6 +112,29 @@ in real-data worlds: a fictional world has no real history. Scoring: world title
 5–9, league titles 2–4, cups 1.5, a lost final 30% of the title; compiled events count double because only the
 biggest events of those games are recorded.
 
+### More history for the other games (26 Nov 2026, `scripts/data/history_more.py`)
+
+| Game | Events added | Source | With the champions' players |
+|---|---|---|---|
+| VALORANT | 196 (every VCT league, Kickoff, Stage, regional Challengers and LCQ, 2021–2026) | vlr.gg event pages (prize distribution; players from the event stats page, by team tag) | 188 of 210 (with Masters / Champions) |
+| CS2 | 118 S-tier tournaments, 2020–2026 (IEM, BLAST, ESL Pro League, PGL...) | bo3.gg API: each tournament's last match | 105 of 140 (with the Majors) |
+| Dota 2 | 39 premium events (Majors and others) | OpenDota: each premium league's last match | 27 of 53 (with The International) |
+| MLBB | MPL Indonesia seasons 12, 15, 16, 18 | the official MPL ID site's season schedules (grand final) and season team pages | 3 of 4 |
+
+* **League History tabs.** VCT and MPL leagues' History tabs show their region's events: VCT Americas
+  lists its Kickoffs and Stages, and before them the Challengers of North America, Brazil and Latin
+  America.
+* **Not covered:**
+  * the other MPL Indonesia seasons, which the site no longer keeps (old season addresses show the
+    current season);
+  * MPL Philippines, whose site loads results with JavaScript;
+  * M-series and MSC;
+  * CS events before bo3.gg's records (2020), other than the Majors;
+  * Dota 2 events without a premium tier on OpenDota;
+  * Wild Rift and HoK.
+* **Missing line-ups.** Some finals have no line-up, where the source lists none (OpenDota has no player
+  records for many older Dota 2 finals).
+
 ## Real staff (staff.json, 25 Nov 2026)
 
 `src/data/real/staff.json`, built by `scripts/data/staff.py` and read by `mgmt/Staffing.loadReal`: 616 people.
