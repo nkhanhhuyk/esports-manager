@@ -1020,3 +1020,5 @@ Limits: a 20-season world of four games is a 43 MB save; on a phone a save of th
 Fixtures and box scores are the bulk of it, and the weekly ladders keep the top 30 per game after a season.
 The test ran on a JVM, not on a device.
 
+Full suite: 117 tests, 0 failures (4 opt-in long runs skipped); debug APK built.
+
