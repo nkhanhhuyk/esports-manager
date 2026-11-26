@@ -30,6 +30,15 @@ class Recorder {
         snapT.add(t)
         for (v in values) snap.add(v)
     }
+
+    /** The state at the end of a game: replaces a snapshot already taken in the same second (gold paid after it). */
+    fun finalSnapshot(t: Int, values: IntArray) {
+        if (snapT.lastOrNull() == t && snap.size >= values.size) {
+            snapT.removeAt(snapT.size - 1)
+            repeat(values.size) { snap.removeAt(snap.size - 1) }
+        }
+        snapshot(t, values)
+    }
 }
 
 object ReplayCodec {

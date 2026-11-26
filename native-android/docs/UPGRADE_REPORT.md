@@ -707,3 +707,9 @@ Tests:
   * an AI club keeps or sends back the player when the regular returns;
   * a long absence is a promotion or a signing;
   * your club is asked when the regular returns.
+* **Replay fix found by the tests.** A MOBA game's last replay snapshot now always shows the final state.
+  Before, a snapshot taken earlier in the same second could miss gold paid at the game's end, so the replay's
+  last gold could differ from the box score.
+
+Full suite: 110 tests, 1 failure fixed and re-run (`ReplayTest`, the snapshot above), 3 skipped. The
+replay tests (`ReplayTest`, `BroadcastTest`, `LiveDepthTest`) pass.

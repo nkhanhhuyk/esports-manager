@@ -525,7 +525,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             r.pos.add(MobaEngine.packWave(p?.f ?: (if (side == 0) 0f else 1f), n, packets[li][side].any { it.sup }))
         }
     }
-    fun snapshot() {
+    fun snapshot(final: Boolean = false) {
         val r = rec ?: return
         val v = IntArray(heroes.size * 6)
         var k = 0
@@ -537,7 +537,7 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
             v[k++] = (h.spent / 100).roundToInt()
             v[k++] = h.acts.indexOfFirst { it.ult }.let { if (it < 0) 0 else max(0f, h.cdReady[it] - nowF).roundToInt() }
         }
-        r.snapshot(now, v)
+        if (final) r.finalSnapshot(now, v) else r.snapshot(now, v)
     }
 
     // ------------------------------------------------------------------------------- helpers
@@ -962,7 +962,8 @@ private class MobaSim(val t: TitleDef, val teams: List<TeamCtx>, val comp: Array
         }
         for (h in heroes) stat(h, GOLD, h.earned.toDouble())
         for (h in heroes) book.lines.firstOrNull { it.playerId == h.pc.p.id }?.let { l -> l.items.addAll(h.inv.map { it.id }); h.runePage?.let { pg -> l.runes.addAll(pg.entries.map { it.id }) }; l.spells.addAll(h.spells.map { it.id }) }
-        if (rec != null && rec.snapT.lastOrNull() != now) snapshot()
+        // The final state (a snapshot earlier in this second may predate gold paid by the game's end).
+        if (rec != null) snapshot(final = true)
         if (rec != null && now % MobaEngine.SAMPLE_STEP != 0) sample()
         book.finalise()
         book.metaWorld = world
