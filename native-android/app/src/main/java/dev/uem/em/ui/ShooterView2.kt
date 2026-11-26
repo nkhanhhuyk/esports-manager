@@ -95,7 +95,10 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
     val n = rp.pids.size
     fun unit(i: Int): FloatArray {
         val a = rp.pos.getOrElse(s0 * rp.posN + i) { 0 }; val b = rp.pos.getOrElse(s1 * rp.posN + i) { 0 }
-        val k = fr
+        // Between two samples the player moved along the graph; when the straight line between them is not open
+        // (a teleporter, a corner), the marker jumps instead of sliding through a wall.
+        val open = dev.uem.em.sim.ShooterGrid.clear(map, MobaEngine.unitX(a) / 1000f, MobaEngine.unitY(a) / 1000f, MobaEngine.unitX(b) / 1000f, MobaEngine.unitY(b) / 1000f)
+        val k = if (open) fr else if (fr < 0.5f) 0f else 1f
         return floatArrayOf((MobaEngine.unitX(a) + (MobaEngine.unitX(b) - MobaEngine.unitX(a)) * k) / 1000f, (MobaEngine.unitY(a) + (MobaEngine.unitY(b) - MobaEngine.unitY(a)) * k) / 1000f,
             MobaEngine.unitHp(if (k < 0.5f) a else b).toFloat(), MobaEngine.unitFlags(if (k < 0.5f) a else b).toFloat())
     }

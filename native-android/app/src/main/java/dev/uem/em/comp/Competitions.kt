@@ -728,6 +728,20 @@ object Stages {
         }
     }
 
+    /** A pairing of the whole pool without a rematch (strongest first, lowest-ranked opponent first), or null if there is none. */
+    private fun noRematch(pool: List<Int>, played: Set<Long>, key: (Int, Int) -> Long, depth: Int = 0): List<Pair<Int, Int>>? {
+        if (pool.isEmpty()) return emptyList()
+        if (pool.size % 2 == 1 || depth > 12) return null
+        val a = pool[0]
+        for (j in pool.size - 1 downTo 1) {
+            if (key(a, pool[j]) in played) continue
+            val rest = pool.filterIndexed { i, _ -> i != 0 && i != j }
+            val sub = noRematch(rest, played, key, depth + 1) ?: continue
+            return listOf(a to pool[j]) + sub
+        }
+        return null
+    }
+
     private fun swissRound(w: World, c: Competition, si: Int): Boolean {
         val stage = c.stages[si]
         val active = stage.standings.filter { it.w < stage.swissWins && it.l < stage.swissLosses }
@@ -739,15 +753,27 @@ object Stages {
         val pairs = ArrayList<Pair<Int, Int>>()
         var carry: List<Standing> = emptyList()
         for ((_, rows) in pools) {
-            val pool = (carry + rows).sortedWith(compareByDescending<Standing> { it.gw - it.gl }.thenBy { stage.teamIds.indexOf(it.teamId) }).map { it.teamId }.toMutableList()
+            val order = (carry + rows).sortedWith(compareByDescending<Standing> { it.gw - it.gl }.thenBy { stage.teamIds.indexOf(it.teamId) }).map { it.teamId }
             carry = emptyList()
+            // The usual draw: the strongest against the lowest-ranked team it has not met.
+            val pool = order.toMutableList()
+            val greedy = ArrayList<Pair<Int, Int>>()
             while (pool.size >= 2) {
                 val a = pool.removeAt(0)
                 var j = pool.size - 1
                 while (j > 0 && key(a, pool[j]) in played) j--
-                pairs.add(a to pool.removeAt(j))
+                greedy.add(a to pool.removeAt(j))
             }
-            if (pool.isNotEmpty()) carry = stage.standings.filter { it.teamId == pool[0] }
+            var left = pool.firstOrNull()
+            var chosen: List<Pair<Int, Int>> = greedy
+            // That draw forced a rematch: look for one without (the team left over may change); a rematch stays only when none exists.
+            if (greedy.any { key(it.first, it.second) in played }) {
+                val alt = if (order.size % 2 == 0) noRematch(order, played, ::key)?.let { it to null }
+                else order.indices.reversed().firstNotNullOfOrNull { k -> noRematch(order.filterIndexed { i, _ -> i != k }, played, ::key)?.let { it to order[k] } }
+                if (alt != null) { chosen = alt.first; left = alt.second }
+            }
+            pairs.addAll(chosen)
+            if (left != null) carry = stage.standings.filter { it.teamId == left }
         }
         if (pairs.isEmpty()) return false
         val day = maxOf(stage.startDay + stage.swissRound * stage.daysBetween, w.day + 1)

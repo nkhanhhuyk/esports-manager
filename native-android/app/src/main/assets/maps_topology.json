@@ -1,5 +1,5 @@
 {
- "about": "Curated traversal for the shooter map graphs in maps.json: node levels (0 = ground) and typed links. Types: walk, stairs, ladder, door, vent, breakable, drop (one-way down), teleport (one-way). 'retype' changes an existing edge; 'add' adds a link. Facts from the Valorant and Counter-Strike Fandom wikis (CC BY-SA), checked 21 Nov 2026. The graphs are simplified 2D callout networks, not official geometry.",
+ "about": "Curated traversal for the shooter map graphs in maps.json: node levels (0 = ground) and typed links. Types: walk, stairs, ladder, door, vent, breakable, drop (one-way down), teleport (one-way). 'retype' changes an existing edge; 'add' adds a link. Facts from the Valorant and Counter-Strike Fandom wikis (CC BY-SA), checked 21 Nov 2026. The graphs are simplified 2D callout networks, not official geometry. 'carve' opens a corridor of the given half-width (map units) through the drawn walls along a link (a layout correction).",
  "maps": {
   "valorant:bind": {
    "source": "https://valorant.fandom.com/wiki/Bind — 'two one-way teleporters. One takes players from A Short to B Short and the other takes players from B Long to A Lobby.'",
@@ -54,14 +54,15 @@
     [
      1,
      2,
-     "walk"
+     "drop"
     ],
     [
      6,
      15,
      "breakable"
     ]
-   ]
+   ],
+   "note": "A Drop is a ledge: dropped onto from A Top and dropped off into A Site (both one-way; the 2D raster draws the ledge as a wall, so the link down into the site is a drop, not a walk)."
   },
   "valorant:haven": {
    "source": "https://valorant.fandom.com/wiki/Haven — three bomb sites (A, B, C).",
@@ -113,6 +114,23 @@
      8,
      11,
      "stairs"
+    ]
+   ]
+  },
+  "valorant:sunset": {
+   "source": "Layout correction (QA, 27 Nov 2026): on Sunset B Main runs from B Lobby into B site. The exported graph had B Main as a dead end reachable only from the site, so every attack on B went through Market from Mid and attackers won 9% of rounds on the map (16 seeded games, MapStatsProbeTest); with the link restored they win 53%. A corridor is carved through the drawn walls along the link. Simplified 2D layout from the map's public lane structure, not measured geometry.",
+   "add": [
+    [
+     5,
+     4,
+     "walk"
+    ]
+   ],
+   "carve": [
+    [
+     5,
+     4,
+     22
     ]
    ]
   }

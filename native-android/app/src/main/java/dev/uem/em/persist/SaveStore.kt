@@ -14,9 +14,12 @@ import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
 /**
- * Native saves: the world as compact binary (protobuf), gzip-compressed, written to a temporary
- * file and renamed into place (a crash mid-save never damages the previous save). The previous
- * save is kept as `<slot>.bak`. Box-score pages live in `<slot>.pages/`.
+ * Native saves: the world as compact binary (protobuf), gzip-compressed (its CRC is checked on every
+ * load), written to `<slot>.tmp`, flushed to the storage device, then moved into place; the save it
+ * replaces is moved to `<slot>.bak` (atomic renames, nothing large is copied). A crash or a full disk at
+ * any point leaves at least one complete save: loading tries the save, then an unfinished save that was
+ * fully written, then the backup, and reports which one it used ([lastLoad]). Box-score pages live in
+ * `<slot>.pages/`.
  */
 @OptIn(ExperimentalSerializationApi::class)
 class SaveStore(private val root: File) {
@@ -38,14 +41,39 @@ class SaveStore(private val root: File) {
     private fun file(slot: String) = File(root, "$slot.uem")
     fun pagesDir(name: String) = File(root, "${name.replace(Regex("[^A-Za-z0-9_-]"), "_")}.pages").also { it.mkdirs() }
 
+    /** How the last load went: which copy was opened, what could not be read, and integrity problems found (nothing is changed). */
+    class LoadReport(val slot: String, val source: String, val failed: List<String>, val problems: List<String>) {
+        val recovered get() = source != "save"
+    }
+    @Volatile var lastLoad: LoadReport? = null
+
+    /** Write a file and flush it to the storage device before it is renamed into place. */
+    private fun writeDurably(f: File, write: (java.io.OutputStream) -> Unit) {
+        java.io.FileOutputStream(f).use { fos ->
+            val buf = java.io.BufferedOutputStream(fos, 1 shl 16)
+            write(buf)
+            buf.flush()
+            runCatching { fos.fd.sync() }
+        }
+    }
+
+    private fun move(from: File, to: File) {
+        try {
+            java.nio.file.Files.move(from.toPath(), to.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+        } catch (e: Exception) {
+            if (!from.renameTo(to)) { from.copyTo(to, overwrite = true); from.delete() }
+        }
+    }
+
     /** Page store for box scores (attach with BoxStore.store = saveStore.pages()). */
     fun pages() = object : BoxStore.PageStore {
         override fun write(saveName: String, page: Int, records: List<MatchRecord>) {
             // Written to a temporary file and renamed, so a page is never half-written.
             val f = File(pagesDir(saveName), "$page.bin")
             val tmp = File(pagesDir(saveName), "$page.tmp")
-            GZIPOutputStream(tmp.outputStream().buffered()).use { it.write(ProtoBuf.encodeToByteArray(ListSerializer(MatchRecord.serializer()), records)) }
-            if (!tmp.renameTo(f)) { tmp.copyTo(f, overwrite = true); tmp.delete() }
+            val bytes = ProtoBuf.encodeToByteArray(ListSerializer(MatchRecord.serializer()), records)
+            writeDurably(tmp) { out -> GZIPOutputStream(out).let { it.write(bytes); it.finish() } }
+            move(tmp, f)
         }
 
         override fun read(saveName: String, page: Int): List<MatchRecord>? {
@@ -60,10 +88,16 @@ class SaveStore(private val root: File) {
     fun save(slot: String, w: World, label: String? = null) {
         val bytes = ProtoBuf.encodeToByteArray(SaveFile(w, BoxStore.unpaged()))
         val tmp = File(root, "$slot.tmp")
-        GZIPOutputStream(tmp.outputStream().buffered(1 shl 16)).use { it.write(bytes) }
+        try {
+            writeDurably(tmp) { out -> GZIPOutputStream(out).let { it.write(bytes); it.finish() } }
+        } catch (e: Exception) {
+            // A full disk or a write error: the existing save and its backup are untouched.
+            runCatching { tmp.delete() }
+            throw java.io.IOException("Could not write the save (${e.message ?: e.javaClass.simpleName}); your previous save is unchanged", e)
+        }
         val target = file(slot)
-        if (target.exists()) target.copyTo(File(root, "$slot.bak"), overwrite = true)
-        if (!tmp.renameTo(target)) { tmp.copyTo(target, overwrite = true); tmp.delete() }
+        if (target.exists()) move(target, File(root, "$slot.bak"))
+        move(tmp, target)
         writeMeta(slot, w, label ?: readMeta(slot)?.get("label") ?: slot)
     }
 
@@ -77,7 +111,9 @@ class SaveStore(private val root: File) {
             put("day", kotlinx.serialization.json.JsonPrimitive(w.day))
             put("pages", kotlinx.serialization.json.JsonPrimitive(w.pagesName()))
         }
-        metaFile(slot).writeText(j.toString())
+        val tmp = File(root, "$slot.meta.tmp")
+        tmp.writeText(j.toString())
+        move(tmp, metaFile(slot))
     }
 
     private fun readMeta(slot: String): Map<String, String>? = runCatching {
@@ -119,13 +155,25 @@ class SaveStore(private val root: File) {
     }
 
     fun load(slot: String): World {
-        val f = file(slot).takeIf { it.exists() } ?: File(root, "$slot.bak")
-        val sf = try { read(f) } catch (e: Exception) { read(File(root, "$slot.bak")) }
+        // The save; else a save that was completely written but not yet moved into place (a crash between the two
+        // renames); else the backup (the save before). Each is checked whole (gzip CRC, decoding) before use.
+        val failed = ArrayList<String>()
+        var sf: SaveFile? = null
+        var source = ""
+        for ((name, f) in listOf("save" to file(slot), "unfinished save" to File(root, "$slot.tmp"), "backup" to File(root, "$slot.bak"))) {
+            if (!f.exists()) continue
+            try { sf = read(f); source = name; break } catch (e: Throwable) { failed.add("$name (${f.name}): ${e.message ?: e.javaClass.simpleName}") }
+        }
+        if (sf == null) throw java.io.IOException("No readable copy of $slot" + (if (failed.isEmpty()) " (no file)" else ": " + failed.joinToString("; ")) + ". The files are kept as they are.")
         val w = sf.world
         fixUp(w)
         w.rebuildSchedule()
         BoxStore.clear()
         BoxStore.restore(sf.records)
+        val problems = runCatching { dev.uem.em.comp.Invariants.world(w).violations.toList() }.getOrElse { listOf("integrity check failed: ${it.message}") }
+        lastLoad = LoadReport(slot, source, failed, problems)
+        if (source != "save") w.inbox.add(dev.uem.em.model.Message(w.day, "Save files", "Save recovered",
+            "The latest save of this career could not be read (${failed.joinToString("; ").ifEmpty { "missing" }}). The game opened the $source instead (${dev.uem.em.core.Dates.format(w.day)}). Nothing was reset; save again to replace the damaged file."))
         return w
     }
 
@@ -139,8 +187,9 @@ class SaveStore(private val root: File) {
 
     private fun read(f: File): SaveFile = GZIPInputStream(f.inputStream().buffered(1 shl 16)).use { ProtoBuf.decodeFromByteArray<SaveFile>(it.readBytes()) }
 
-    fun list(): List<Meta> = root.listFiles { f -> f.name.endsWith(".uem") }.orEmpty().mapNotNull { f ->
-        val slot = f.nameWithoutExtension
+    /** Every save, including one whose latest file is missing but whose backup survives (it opens from the backup). */
+    fun list(): List<Meta> = root.listFiles { f -> f.name.endsWith(".uem") || (f.name.endsWith(".bak") && !File(root, f.name.removeSuffix(".bak") + ".uem").exists()) }.orEmpty().mapNotNull { f ->
+        val slot = f.name.removeSuffix(".uem").removeSuffix(".bak")
         val m = readMeta(slot)
         Meta(slot, m?.get("label") ?: slot, m?.get("day")?.toIntOrNull() ?: 0, m?.get("season")?.toIntOrNull() ?: 0, f.lastModified(), f.length(), m?.get("career") ?: "", m?.get("club") ?: "", m?.get("pages") ?: "")
     }.sortedByDescending { it.modified }
@@ -241,6 +290,7 @@ class SaveStore(private val root: File) {
         val key = readMeta(slot)?.get("pages")
         file(slot).delete()
         File(root, "$slot.bak").delete()
+        File(root, "$slot.tmp").delete()
         metaFile(slot).delete()
         val inUse = list().map { it.pagesKey.ifBlank { it.slot } }.toSet()
         if (key != null && key !in inUse) pagesDir(key).deleteRecursively()

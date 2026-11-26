@@ -72,9 +72,16 @@ object Maps {
             }
         }
 
-        /** Shortest directed path (node indexes), respecting one-way drops and teleporters; empty if unreachable. */
-        fun path(from: Int, to: Int): List<Int> {
+        /** Links leaving a node in the direction they can be travelled. */
+        fun out(u: Int): List<Pair<Int, Link>> = adj[u]
+
+        /**
+         * Shortest directed path (node indexes), respecting one-way drops and teleporters; empty if unreachable.
+         * [closed]: links that cannot be used right now (an intact breakable wall, a utility wall standing on it).
+         */
+        fun path(from: Int, to: Int, closed: ((Link) -> Boolean)? = null): List<Int> {
             val n = nodes.size
+            if (from !in 0 until n || to !in 0 until n) return emptyList()
             val dist = FloatArray(n) { Float.MAX_VALUE }
             val prev = IntArray(n) { -1 }
             val done = BooleanArray(n)
@@ -84,7 +91,7 @@ object Maps {
                 for (i in 0 until n) if (!done[i] && (u < 0 || dist[i] < dist[u])) u = i
                 if (u < 0 || dist[u] == Float.MAX_VALUE) return@repeat
                 done[u] = true
-                for ((v, l) in adj[u]) { val nd = dist[u] + cost(u, v, l); if (nd < dist[v]) { dist[v] = nd; prev[v] = u } }
+                for ((v, l) in adj[u]) { if (closed != null && closed(l)) continue; val nd = dist[u] + cost(u, v, l); if (nd < dist[v]) { dist[v] = nd; prev[v] = u } }
             }
             if (dist[to] == Float.MAX_VALUE) return emptyList()
             val path = ArrayList<Int>()
@@ -162,9 +169,41 @@ object Maps {
                 if (l != null) { links.remove(l); links.add(Link(a, b, type)) }
             }
             o["add"]?.jsonArray?.forEach { e -> links.add(Link(e.jsonArray[0].jsonPrimitive.int, e.jsonArray[1].jsonPrimitive.int, e.jsonArray[2].jsonPrimitive.content)) }
-            out[id] = Shooter(m.name, m.nodes, links, m.sites, m.atk, m.def, m.walls, o.s("source"))
+            val carve = o["carve"]?.jsonArray?.map { e -> Triple(e.jsonArray[0].jsonPrimitive.int, e.jsonArray[1].jsonPrimitive.int, e.jsonArray[2].jsonPrimitive.int / 1000f) }.orEmpty()
+            out[id] = Shooter(m.name, m.nodes, links, m.sites, m.atk, m.def, if (carve.isEmpty()) m.walls else carved(m, carve), o.s("source"))
         }
         shooter = out
+    }
+
+    /**
+     * Walls with corridors opened along links (layout corrections): the walls are a 100 x 100 raster drawn as row
+     * runs of 10 map units; cells within the half-width of a link are cleared and the rows written back as runs.
+     */
+    private fun carved(m: Shooter, corridors: List<Triple<Int, Int, Float>>): List<FloatArray> {
+        val n = 100
+        val g = BooleanArray(n * n)
+        for (c in 0 until n * n) { val cx = ((c % n) + 0.5f) / n; val cy = ((c / n) + 0.5f) / n; g[c] = m.walls.any { r -> cx >= r[0] && cx < r[0] + r[2] && cy >= r[1] && cy < r[1] + r[3] } }
+        for ((a, b, hw) in corridors) {
+            val p = m.nodes[a].pos; val q = m.nodes[b].pos
+            val dx = q.x - p.x; val dy = q.y - p.y; val l2 = dx * dx + dy * dy
+            for (c in 0 until n * n) {
+                val cx = ((c % n) + 0.5f) / n; val cy = ((c / n) + 0.5f) / n
+                val t = if (l2 < 1e-9f) 0f else (((cx - p.x) * dx + (cy - p.y) * dy) / l2).coerceIn(0f, 1f)
+                val ex = p.x + t * dx - cx; val ey = p.y + t * dy - cy
+                if (ex * ex + ey * ey <= hw * hw) g[c] = false
+            }
+        }
+        val out = ArrayList<FloatArray>()
+        for (y in 0 until n) {
+            var x = 0
+            while (x < n) {
+                if (!g[y * n + x]) { x++; continue }
+                val x0 = x
+                while (x < n && g[y * n + x]) x++
+                out.add(floatArrayOf(x0 / 100f, y / 100f, (x - x0) / 100f, 0.01f))
+            }
+        }
+        return out
     }
 
     fun moba(titleId: String): Moba? = moba[titleId]

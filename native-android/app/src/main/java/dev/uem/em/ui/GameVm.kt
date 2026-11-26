@@ -361,6 +361,8 @@ class GameVm(app: Application) : AndroidViewModel(app) {
                 touch()
                 tab(if (w.userOrg >= 0 || w.spectator) Screen.Home else Screen.PickOrg)
                 rememberSession()
+                // The latest file was damaged or missing: say which copy opened (the inbox has the details).
+                store.lastLoad?.takeIf { it.slot == slotName && it.recovered }?.let { r -> unsaved = true; toast = "The latest save could not be read: opened the ${r.source}. Save to replace the damaged file." }
             } catch (e: Exception) {
                 toast = "Could not load: ${e.message}"
             } finally {
@@ -436,6 +438,7 @@ class GameVm(app: Application) : AndroidViewModel(app) {
         cancel.set(false)
         busy = Busy("Simulating $years seasons…", 0, total)
         simJob = viewModelScope.launch {
+            saveLock.withLock { }
             w.autopilot = true
             try {
                 while (w.day < endDay && !cancel.get()) {
@@ -476,6 +479,8 @@ class GameVm(app: Application) : AndroidViewModel(app) {
         cancel.set(false)
         busy = Busy("Simulating…", 0, days)
         simJob = viewModelScope.launch {
+            // An autosave may still be writing this world: the simulation changes it, so it waits for the save.
+            saveLock.withLock { }
             val res = withContext(Dispatchers.Default) {
                 Advance.run(w, days, stopForUser = span == Span.NEXT_MATCH, onDay = { d -> if (d % 2 == 0 || d == days) busy = Busy("Simulating…", d, days) }, cancelled = { cancel.get() })
             }
@@ -542,6 +547,7 @@ class GameVm(app: Application) : AndroidViewModel(app) {
         cancel.set(false)
         busy = Busy("Simulating to match day…", 0, days)
         simJob = viewModelScope.launch {
+            saveLock.withLock { }
             val res = withContext(Dispatchers.Default) {
                 Advance.run(w, days, stopForUser = true, onDay = { d -> busy = Busy("Simulating to match day…", d, days) }, cancelled = { cancel.get() })
             }

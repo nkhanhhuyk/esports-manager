@@ -63,7 +63,7 @@ class ShooterRound(
 ) {
     /** First-shot edge of a defender holding an angle (Valorant's abilities give attackers more ways to clear angles). */
     // CS2 maps are CT-sided (pros win about 47 % of T rounds): the hold matters more there.
-    private val holdEdge = if (t.id == "valorant") 0.25f else 0.55f
+    private val holdEdge = if (t.id == "valorant") 0.34f else 0.68f
     interface Host {
         fun kill(ks: Int, killer: PlayerCtx, victim: PlayerCtx, assister: PlayerCtx?, headshot: Boolean, where: Int, damage: Double)
         fun plant(p: PlayerCtx)
@@ -96,6 +96,7 @@ class ShooterRound(
         var seenEnemyAt = -9f
         var target = -1
         var channel = 0f // planting / defusing progress
+        var opT = 0f // operating a door / breaking a wall before going through
         val w get() = weapons[side][i]
         val util get() = utility[side][i]
         fun z(p: Phase) = ((pc.phase[p.ordinal] - 68.0) / 14.0).toFloat().coerceIn(-2.5f, 2.5f)
@@ -120,25 +121,60 @@ class ShooterRound(
     /** Areas that block sight (smokes, walls) and hurt (mollies): x, y, r, until, kind(0 smoke 1 molly 2 wall), side. */
     val areas = ArrayList<FloatArray>()
 
+    // Map mechanisms (only where the map has them, see assets/maps_topology.json): a breakable wall is closed until
+    // someone breaks it (it stays open for the rest of the round); a door has to be operated (it then stays open for
+    // DOOR_OPEN seconds, for both sides); a utility wall standing across a link closes it while it lasts.
+    val broken = HashSet<Maps.Link>()
+    val doorOpen = HashMap<Int, Float>()
+    val DOOR_TIME = 2.5f; val DOOR_OPEN = 10f; val BREAK_TIME = 3f
+    private val hasLevels = map.nodes.any { it.level != 0f }
+    private val doorNodes = map.links.filter { it.type == "door" }.map { doorNode(it) }.toSet()
+    fun doorNode(l: Maps.Link): Int = if (map.nodes[l.to].name.contains("Door", true)) l.to else if (map.nodes[l.from].name.contains("Door", true)) l.from else l.to
+    fun wallOn(l: Maps.Link): Boolean {
+        if (areas.isEmpty()) return false
+        val a = pos(l.from); val b = pos(l.to)
+        for (ar in areas) if (ar[4] == 2f && ar[3] > now && segDist(ar[0], ar[1], a.x, a.y, b.x, b.y) < ar[2]) return true
+        return false
+    }
+    fun closed(l: Maps.Link) = (l.type == "breakable" && l !in broken) || wallOn(l)
+
+    /** Height of a unit: its node's level, or between two levels on a ramp / stairs / ladder. */
+    fun levelOf(u: U): Float {
+        val l0 = map.nodes[u.node].level
+        if (u.path.size < 2 || atEnd(u)) return l0
+        val na = u.path[u.pathIdx]; val nb = u.path[u.pathIdx + 1]
+        val pa = pos(na); val pb = pos(nb)
+        val tot = dist(pa.x, pa.y, pb.x, pb.y)
+        if (tot < 1e-5f) return map.nodes[nb].level
+        val f = (1f - dist(u.x, u.y, pb.x, pb.y) / tot).coerceIn(0f, 1f)
+        return map.nodes[na].level + (map.nodes[nb].level - map.nodes[na].level) * f
+    }
+    private fun nearNode(u: U): Int {
+        if (u.path.size < 2 || atEnd(u)) return u.node
+        val nb = u.path[u.pathIdx + 1]; val pa = pos(u.path[u.pathIdx]); val pb = pos(nb)
+        return if (dist(u.x, u.y, pb.x, pb.y) < dist(u.x, u.y, pa.x, pa.y)) nb else u.path[u.pathIdx]
+    }
+
     fun ev(e: Ev) { rec?.events?.add(e) }
     fun T() = timeBase + now.toInt()
     fun pos(n: Int) = map.nodes[n].pos
     fun dist(ax: Float, ay: Float, bx: Float, by: Float): Float { val dx = ax - bx; val dy = ay - by; return sqrt(dx * dx + dy * dy) }
     fun packed(x: Float, y: Float) = MobaEngine.packPos(x * 1000f, y * 1000f)
 
-    // Line of sight through the map's walls (grid sampling) and sight-blocking utility.
+    // Line of sight: floors (a level apart, unless one overlooks the other by stairs, a ladder or a drop), the
+    // map's walls (cell by cell along the line), closed doors, an intact breakable wall and sight-blocking utility.
     fun los(a: U, b: U): Boolean {
+        if (hasLevels && !ShooterGrid.levelsSee(map, nearNode(a), levelOf(a), nearNode(b), levelOf(b))) return false
         val d = dist(a.x, a.y, b.x, b.y)
         if (d < 0.035f) return true
         for (ar in areas) if (ar[3] > now && (ar[4] == 0f || ar[4] == 2f)) {
             if (segDist(ar[0], ar[1], a.x, a.y, b.x, b.y) < ar[2]) return false
         }
-        val steps = (d / 0.012f).toInt().coerceAtLeast(2)
-        for (k in 1 until steps) {
-            val f = k.toFloat() / steps
-            if (ShooterGrid.blocked(map, a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f)) return false
+        for (dn in doorNodes) if ((doorOpen[dn] ?: -1f) < now) {
+            val p = pos(dn)
+            if (segDist(p.x, p.y, a.x, a.y, b.x, b.y) < 0.012f && dist(p.x, p.y, a.x, a.y) > 0.03f && dist(p.x, p.y, b.x, b.y) > 0.03f) return false
         }
-        return true
+        return ShooterGrid.clear(map, a.x, a.y, b.x, b.y, broken)
     }
     fun segDist(px: Float, py: Float, ax: Float, ay: Float, bx: Float, by: Float): Float {
         val dx = bx - ax; val dy = by - ay; val l2 = dx * dx + dy * dy
@@ -154,8 +190,14 @@ class ShooterRound(
         site = rng.int(0, map.sites.size - 1)
         val plan = rng.weighted(listOf(0, 1, 2)) { when (it) { 0 -> 0.45; 1 -> 0.3 + (igl - 60) / 200; else -> 0.25 } } // execute, split, default
         val atkSpawn = map.atk; val defSpawn = map.def
-        for (u in bySide[attack]) { u.node = atkSpawn; val p = pos(atkSpawn); u.x = p.x + (u.i - 2) * 0.018f; u.y = p.y + (u.i % 2) * 0.018f }
-        for (u in bySide[def]) { u.node = defSpawn; val p = pos(defSpawn); u.x = p.x + (u.i - 2) * 0.018f; u.y = p.y + (u.i % 2) * 0.018f }
+        // Spread around the spawn point, never inside a wall (then on the spawn point itself).
+        fun place(u: U, n: Int) {
+            u.node = n; val p = pos(n)
+            val x = p.x + (u.i - 2) * 0.018f; val y = p.y + (u.i % 2) * 0.018f
+            if (!ShooterGrid.blocked(map, x, y) && ShooterGrid.clear(map, p.x, p.y, x, y)) { u.x = x; u.y = y } else { u.x = p.x; u.y = p.y }
+        }
+        for (u in bySide[attack]) place(u, atkSpawn)
+        for (u in bySide[def]) place(u, defSpawn)
         // Defenders: anchors on each site (site node and its approach), the rest mid / rotating.
         val holds = ArrayList<Int>()
         for (s in map.sites) { holds.add(s.node); map.links.filter { it.from == s.node || it.to == s.node }.map { if (it.from == s.node) it.to else it.from }.minByOrNull { pathLen(it, atkSpawn) }?.let { holds.add(it) } }
@@ -181,7 +223,37 @@ class ShooterRound(
     fun pathLen(a: Int, b: Int): Float { val p = map.path(a, b); var l = 0f; for (k in 1 until p.size) l += dist(pos(p[k - 1]).x, pos(p[k - 1]).y, pos(p[k]).x, pos(p[k]).y); return if (p.isEmpty()) 9f else l }
     /** The node just before the site on the attackers' path (where they gather and use utility). */
     fun staging(siteN: Int): Int { val p = map.path(map.atk, siteN); return if (p.size >= 3) p[p.size - 2] else siteN }
-    fun go(u: U, target: Int) { u.path = map.path(u.node, target).ifEmpty { listOf(u.node, target) }; u.pathIdx = 0 }
+    /** A route over the graph: through open links if there is one, otherwise through a closed one (to break / wait at it). */
+    private fun route(from: Int, to: Int): List<Int> = if (from == to) listOf(from) else map.path(from, to) { closed(it) }.ifEmpty { map.path(from, to) }
+    private fun routeLen(p: List<Int>): Float { var l = 0f; for (k in 1 until p.size) l += dist(pos(p[k - 1]).x, pos(p[k - 1]).y, pos(p[k]).x, pos(p[k]).y); return if (p.isEmpty()) 9f else l }
+
+    /**
+     * Head for a node along the graph. A unit part-way along a link first finishes it or turns back along it (whichever
+     * is shorter; never back up a one-way drop), so it never cuts across to the new route. No route: it stays put.
+     */
+    fun go(u: U, target: Int) {
+        u.opT = 0f
+        val midway = u.path.size >= 2 && !atEnd(u) && (u.x != pos(u.node).x || u.y != pos(u.node).y)
+        if (midway) {
+            val a = u.path[u.pathIdx]; val b = u.path[u.pathIdx + 1]
+            val link = map.linkBetween(a, b)
+            val ahead = route(b, target)
+            val back = if (link != null && !link.oneWay) route(a, target) else emptyList()
+            val costAhead = if (ahead.isEmpty()) Float.MAX_VALUE else dist(u.x, u.y, pos(b).x, pos(b).y) + routeLen(ahead)
+            val costBack = if (back.isEmpty()) Float.MAX_VALUE else dist(u.x, u.y, pos(a).x, pos(a).y) + routeLen(back)
+            u.path = when {
+                costBack < costAhead -> listOf(b) + back
+                ahead.isNotEmpty() -> listOf(a) + ahead
+                else -> listOf(a, b) // nowhere to go from here: finish the link and stop
+            }
+            u.pathIdx = 0
+            return
+        }
+        // Standing off the node (spread around a spawn point): back to the node first, then along the graph.
+        val off = u.x != pos(u.node).x || u.y != pos(u.node).y
+        u.path = (if (off) listOf(u.node) else emptyList()) + route(u.node, target).ifEmpty { listOf(u.node) }
+        u.pathIdx = 0
+    }
     fun atEnd(u: U) = u.pathIdx >= u.path.size - 1
 
     fun step(u: U) {
@@ -190,6 +262,12 @@ class ShooterRound(
         while (left > 0f && !atEnd(u)) {
             val a = u.path[u.pathIdx]; val b = u.path[u.pathIdx + 1]
             val link = map.linkBetween(a, b)
+            // Mechanisms are dealt with at the start of the link: break the wall, operate the door, wait for a utility wall.
+            if (link != null && u.x == pos(a).x && u.y == pos(a).y) {
+                if (link.type == "breakable" && link !in broken) { u.opT += DT; if (u.opT < BREAK_TIME) return; broken.add(link); u.opT = 0f }
+                if (wallOn(link)) return
+                if (link.type == "door" && (doorOpen[doorNode(link)] ?: -1f) < now) { u.opT += DT; if (u.opT < DOOR_TIME) return; doorOpen[doorNode(link)] = now + DOOR_OPEN; u.opT = 0f }
+            }
             if (link?.type == "teleport") { val p = pos(b); u.x = p.x; u.y = p.y; u.node = b; u.pathIdx++; continue }
             val pb = pos(b)
             val d = dist(u.x, u.y, pb.x, pb.y)
@@ -236,7 +314,7 @@ class ShooterRound(
             if (aAlive == 0 && planted) { // defenders go and defuse
                 if (now - plantAt >= BOMB) return end(attack, explode = true)
                 val d = bySide[def].filter { it.alive }.minByOrNull { dist(it.x, it.y, plantX, plantY) }!!
-                if (d.node != siteNode) { if (d.path.lastOrNull() != siteNode) go(d, siteNode); step(d) } else if (defuseTick(d)) return end(def, defuse = true)
+                if (d.node != siteNode || !atEnd(d)) { if (d.path.lastOrNull() != siteNode) go(d, siteNode); step(d) } else if (defuseTick(d)) return end(def, defuse = true)
                 tickSample(); continue
             }
             if (!planted && now >= ROUND) return end(def)
@@ -388,19 +466,76 @@ class ShooterRound(
     }
 }
 
-/** Walls of a shooter map rasterised to a grid for line-of-sight checks (approximate layout). */
+/**
+ * Walls of a shooter map as a grid for line-of-sight and position checks. The maps' walls are drawn on a 100 x 100
+ * raster (rectangles of 10 map units), so a 100-cell grid reproduces them exactly (an earlier 80-cell grid missed
+ * thin walls, which were then see-through).
+ */
 object ShooterGrid {
-    private const val N = 80
+    const val N = 100
     private val grids = java.util.concurrent.ConcurrentHashMap<Maps.Shooter, BooleanArray>()
-    fun blocked(m: Maps.Shooter, x: Float, y: Float): Boolean {
-        val g = grids.getOrPut(m) {
-            val b = BooleanArray(N * N)
-            for (c in 0 until N * N) { val cx = ((c % N) + 0.5f) / N; val cy = ((c / N) + 0.5f) / N; b[c] = m.walls.any { r -> cx >= r[0] && cx < r[0] + r[2] && cy >= r[1] && cy < r[1] + r[3] } }
-            // Nodes and the straight links between them are open (the drawn walls are coarse).
-            for (l in m.links) { if (l.type == "teleport") continue; val a = m.nodes[l.from].pos; val bb = m.nodes[l.to].pos
-                var f = 0f; while (f <= 1f) { val x0 = a.x + (bb.x - a.x) * f; val y0 = a.y + (bb.y - a.y) * f; b[((y0 * N).toInt().coerceIn(0, N - 1)) * N + (x0 * N).toInt().coerceIn(0, N - 1)] = false; f += 0.02f } }
-            b
+    private fun grid(m: Maps.Shooter) = grids.getOrPut(m) {
+        val b = BooleanArray(N * N)
+        for (c in 0 until N * N) { val cx = ((c % N) + 0.5f) / N; val cy = ((c / N) + 0.5f) / N; b[c] = m.walls.any { r -> cx >= r[0] && cx < r[0] + r[2] && cy >= r[1] && cy < r[1] + r[3] } }
+        b
+    }
+    private fun cell(v: Float) = (v * N).toInt().coerceIn(0, N - 1)
+
+    /**
+     * Height and sight: two players a floor or more apart (level difference 0.75+) see each other only where one
+     * overlooks the other — at the two ends of the same stairs, ladder or drop (Heaven over A on Nuke), or at the
+     * same node. Floors and ceilings block everything else (Nuke's A site is above B).
+     */
+    fun levelsSee(m: Maps.Shooter, na: Int, la: Float, nb: Int, lb: Float): Boolean {
+        if (kotlin.math.abs(la - lb) < 0.75f || na == nb) return true
+        return m.links.any { l -> ((l.from == na && l.to == nb) || (l.from == nb && l.to == na)) && (l.type == "stairs" || l.type == "ladder" || l.type == "drop") }
+    }
+    fun blocked(m: Maps.Shooter, x: Float, y: Float): Boolean = grid(m)[cell(y) * N + cell(x)]
+
+    /**
+     * Whether the straight line from a to b crosses no wall cell (every cell it passes through is visited, so no
+     * thin wall is skipped). [openings]: broken breakable walls, whose cells are open along their link.
+     */
+    fun clear(m: Maps.Shooter, ax: Float, ay: Float, bx: Float, by: Float, openings: Collection<Maps.Link> = emptyList()): Boolean {
+        val g = grid(m)
+        val x0 = cell(ax); val y0 = cell(ay)
+        var x = x0; var y = y0
+        val ex = cell(bx); val ey = cell(by)
+        // Double precision: a line through a grid corner must not wander into a diagonal neighbour by rounding.
+        val dx = (bx - ax).toDouble(); val dy = (by - ay).toDouble()
+        val sx = if (dx > 0) 1 else -1; val sy = if (dy > 0) 1 else -1
+        val inv = 1.0 / N
+        var tMaxX = if (dx != 0.0) (((x + (if (sx > 0) 1 else 0)) * inv - ax) / dx) else Double.MAX_VALUE
+        var tMaxY = if (dy != 0.0) (((y + (if (sy > 0) 1 else 0)) * inv - ay) / dy) else Double.MAX_VALUE
+        val tdX = if (dx != 0.0) inv / kotlin.math.abs(dx) else Double.MAX_VALUE
+        val tdY = if (dy != 0.0) inv / kotlin.math.abs(dy) else Double.MAX_VALUE
+        var guard = 0
+        while (guard++ < 4 * N) {
+            // The segment ends in this cell once both next boundaries lie beyond its end (t > 1).
+            val last = minOf(tMaxX, tMaxY) > 1.0 || (x == ex && y == ey)
+            if (g[y * N + x] && !(x == x0 && y == y0) && !last && !opened(m, x, y, openings)) return false
+            if (last) return true
+            when {
+                // Exactly through a corner: straight to the diagonal cell (the line touches the side cells at one point only).
+                kotlin.math.abs(tMaxX - tMaxY) < 1e-9 -> { tMaxX += tdX; tMaxY += tdY; x += sx; y += sy }
+                tMaxX < tMaxY -> { tMaxX += tdX; x += sx }
+                else -> { tMaxY += tdY; y += sy }
+            }
+            if (x !in 0 until N || y !in 0 until N) return true
         }
-        return g[((y * N).toInt().coerceIn(0, N - 1)) * N + (x * N).toInt().coerceIn(0, N - 1)]
+        return true
+    }
+
+    private fun opened(m: Maps.Shooter, x: Int, y: Int, openings: Collection<Maps.Link>): Boolean {
+        if (openings.isEmpty()) return false
+        val cx = (x + 0.5f) / N; val cy = (y + 0.5f) / N
+        for (l in openings) {
+            val a = m.nodes[l.from].pos; val b = m.nodes[l.to].pos
+            val ddx = b.x - a.x; val ddy = b.y - a.y; val l2 = ddx * ddx + ddy * ddy
+            val t = if (l2 < 1e-9f) 0f else (((cx - a.x) * ddx + (cy - a.y) * ddy) / l2).coerceIn(0f, 1f)
+            val px = a.x + t * ddx - cx; val py = a.y + t * ddy - cy
+            if (px * px + py * py < 0.012f * 0.012f) return true
+        }
+        return false
     }
 }

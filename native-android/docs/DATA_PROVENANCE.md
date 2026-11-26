@@ -266,3 +266,16 @@ Added at the player's request, not from a data source, and labelled on the team 
   founder) as head coach and Shaves (their real 2025–26 assistant coach) as assistant coach. Starting team
   strength 72, like SK Gaming or Team Heretics. In reality the club has no LEC place, and YamatoCannon, their
   head coach in 2025–26, stays at Cloud9 Kia in the game.
+
+## Shooter map layout corrections (27 Nov 2026)
+
+The VALORANT and CS2 maps are simplified 2D callout graphs with a drawn wall raster (`assets/maps.json`),
+plus curated traversal in `assets/maps_topology.json` (each entry names its source). Two corrections were made
+from the maps' public layout, not from measured geometry:
+
+* **Sunset:** B Lobby → B Main restored. The exported graph had B Main as a dead end reachable only from the
+  site; a corridor is carved through the drawn walls along the link.
+* **Lotus:** the link from A Drop into A Site is a one-way drop (A Drop is a ledge), not a walk through the drawn
+  ledge.
+
+No other map geometry was changed. No site was scraped for this (no Liquipedia or Fandom requests).
