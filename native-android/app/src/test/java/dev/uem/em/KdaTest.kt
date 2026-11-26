@@ -68,6 +68,10 @@ class KdaTest {
             val qualified = byPlayer.filter { it.value[3] >= maxG * 0.5 }
             val top20 = qualified.entries.sortedByDescending { kda(it.value) }.take(20)
             val roles = top20.groupingBy { pos[w.players[it.key].mainRole] ?: "?" }.eachCount()
+            // First teams' leaderboard (academy leagues' wider skill gaps put more of their players at the top: reported apart).
+            fun isAcad(pid: Int) = w.teams.getOrNull(w.players[pid].teamId)?.parentId?.let { it >= 0 } == true
+            val firstRoles = qualified.entries.filter { !isAcad(it.key) }.sortedByDescending { kda(it.value) }.take(20).groupingBy { pos[w.players[it.key].mainRole] ?: "?" }.eachCount()
+            out.appendLine("  top-20 overall: ${top20.count { isAcad(it.key) }} academy players; first teams only: $firstRoles")
             out.appendLine("  top-20 KDA by position: $roles · deaths a game: winners %.1f, losers %.1f".format(wl[0] / wl[2], wl[1] / wl[2]))
             // Correlation of KDA with the share of games won.
             val xs = qualified.values.map { it[4] / it[3] }; val ys = qualified.values.map { kda(it) }
@@ -75,8 +79,8 @@ class KdaTest {
             val cov = xs.indices.sumOf { (xs[it] - mx) * (ys[it] - my) }
             val r = cov / sqrt(xs.sumOf { (it - mx) * (it - mx) } * ys.sumOf { (it - my) * (it - my) }).coerceAtLeast(1e-9)
             out.appendLine("  KDA vs win share: r = %.2f (%d players)".format(r, qualified.size))
-            val tj = (roles["top"] ?: 0) + (roles["jungle"] ?: 0)
-            if (tj > 11) problems.add("${t.short}: top+jungle take $tj of the top 20")
+            val tj = (firstRoles["top"] ?: 0) + (firstRoles["jungle"] ?: 0)
+            if (tj > 11) problems.add("${t.short}: top+jungle take $tj of the first teams' top 20")
             val kd = t.lineup.associate { pos[it] to (byRole[it]?.let(::kda) ?: 0.0) }
             if ((kd["top"] ?: 0.0) > maxOf(kd["bot"] ?: 0.0, kd["mid"] ?: 0.0)) problems.add("${t.short}: top KDA above both carries")
             // Reported, not asserted, for Honor of Kings: objectives still decide its games more than fights do, so

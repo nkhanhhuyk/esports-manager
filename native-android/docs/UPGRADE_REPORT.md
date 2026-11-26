@@ -849,3 +849,11 @@ Tests: `FormatsTest`.
 Updated tests: `AcademiesTest` (top-league second teams play a league), `BatchFixesTest` (LCP's lower leagues
 exclude its academy league).
 
+`KdaTest` now checks the positional KDA balance on first teams. With the academy leagues, more LoL players
+qualify for the leaderboard (599). Their wider skill gaps put eight academy players in the overall top 20,
+which took top+jungle to 12 of 20. First teams alone: top+jungle hold 10 (LoL), 9 (MLBB), 8 (Wild Rift) and
+9 (HoK) of their top 20. The overall figures are still printed.
+
+Full suite: 114 tests, 113 passed, `KdaTest` failed as above; after the change `KdaTest`, `AcademiesTest`,
+`BatchFixesTest` and `FormatsTest` pass (3 skipped in the full run).
+
