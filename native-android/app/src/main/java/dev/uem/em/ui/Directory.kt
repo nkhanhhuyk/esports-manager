@@ -270,7 +270,7 @@ fun HistoryScreen(vm: GameVm, w: World) {
                             Text("Awards", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             for (a in aw) Row(Modifier.fillMaxWidth().clickable(enabled = a.playerId >= 0) { vm.go(Screen.Player(a.playerId)) }.padding(vertical = 2.dp)) {
                                 Text(a.name, color = Ui.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                                Text(w.players.getOrNull(a.playerId)?.handle ?: "—", color = Ui.text, fontSize = 12.sp)
+                                Text(w.players.getOrNull(a.playerId)?.handle ?: w.teams.getOrNull(a.teamId)?.short ?: "—", color = Ui.text, fontSize = 12.sp)
                             }
                         }
                     }

@@ -239,7 +239,7 @@ private fun SeasonView(vm: GameVm, w: World, title: String) {
             if (aw.isEmpty()) Muted("Awards are given at the end of the season.")
             for (a in aw) Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(a.name, color = Ui.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                if (a.playerId >= 0) PlayerChip(w.players[a.playerId], vm, 18.dp)
+                if (a.playerId >= 0) PlayerChip(w.players[a.playerId], vm, 18.dp) else if (a.teamId >= 0) TeamChip(w, a.teamId, vm, 18.dp)
             }
         }
         Card("Biggest risers") {

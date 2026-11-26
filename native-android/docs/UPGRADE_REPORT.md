@@ -960,3 +960,9 @@ The audit for this batch, with the status of every requirement in both addenda, 
   * Worlds has a host;
   * academy awards are given, and the Season MVP goes to a first-team player.
 
+Full suite: 116 tests, 115 passed, 3 skipped; `MgmtTest` failed because it assumed every award has a player
+(the new Academy Team of the Season is a team award). After fixing the test and showing team awards by team
+in the History and Stats screens, `MgmtTest` passes. The 20–30 season stability run the addendum asks for was
+not run in this batch; the longest runs here are the two-season LoL playthrough and the three-season
+`QualificationTest`.
+

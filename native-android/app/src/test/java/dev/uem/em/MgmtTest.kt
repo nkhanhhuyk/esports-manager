@@ -35,7 +35,7 @@ class MgmtTest {
         println("transfers ${w.transfers.size} (fees ${w.transfers.count { it.fee > 0 }}), offers ${w.offers.size}, inbox ${w.inbox.size}")
         val byKind = w.patches.groupBy { it.kind }.mapValues { it.value.size }
         println("patches $byKind; sample: ${w.patches.firstOrNull { it.kind == "major" }?.notes?.take(3)}")
-        println("awards ${w.awards.size}: ${w.awards.filter { it.titleId == "lol" }.joinToString { it.name + "=" + w.players[it.playerId].handle }}")
+        println("awards ${w.awards.size}: ${w.awards.filter { it.titleId == "lol" }.joinToString { it.name + "=" + (w.players.getOrNull(it.playerId)?.handle ?: w.teams.getOrNull(it.teamId)?.short) }}")
         println("board season ${w.board?.season} confidence ${w.board?.confidence?.toInt()} sacked ${w.sacked}; objectives ${w.board?.objectives?.map { it.text }}")
         val nc = w.comps.filter { it.name.startsWith(dev.uem.em.comp.Season.ENC) && !dev.uem.em.comp.Season.isEncQualifier(it) }
         println("nations cups ${nc.size}: " + nc.joinToString { "${it.short}=${it.placements.firstOrNull()?.let { tid -> w.teams[tid].name } ?: "?"}" })
