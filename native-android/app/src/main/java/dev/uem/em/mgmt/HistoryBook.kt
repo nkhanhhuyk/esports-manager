@@ -95,6 +95,15 @@ object HistoryBook {
     private val ALIAS = mapOf("LCK" to setOf("LCK", "CHAMPIONS"), "LEC" to setOf("LEC", "EU"), "LCS" to setOf("LCS", "NA", "LTA"), "LCP" to setOf("LCP", "PCS", "LMS"),
         "CBLOL" to setOf("CBLOL", "BRAZILIAN"))
 
+    /** A league's region in event names, with the circuits before it (VALORANT 2021-2022 Challengers by country or region). */
+    private val REGION_WORDS = mapOf(
+        "AMERICAS" to setOf("AMERICAS", "NORTH AMERICA", "BRAZIL", "LATAM", "LATIN AMERICA"),
+        "EMEA" to setOf("EMEA", "EUROPE", "TURKEY", "CIS", "MENA"),
+        "PACIFIC" to setOf("PACIFIC", "KOREA", "JAPAN", "SOUTHEAST ASIA", "SOUTH ASIA", "OCEANIA", "APAC"),
+        "CHINA" to setOf("CHINA", "EAST ASIA"),
+        "ID" to setOf("INDONESIA", "MPL ID"), "PH" to setOf("PHILIPPINES", "MPL PH"), "MY" to setOf("MALAYSIA", "MPL MY"),
+    )
+
     /** Real editions of a competition before the save: its league's titles, the same international event, the world championship. */
     fun forComp(c: dev.uem.em.model.Competition, leagueShort: String?): List<Event> {
         val evs = events.filter { it.titleId == c.titleId && it.winner.isNotBlank() }
@@ -113,9 +122,16 @@ object HistoryBook {
                 evs.filter { it.tier == "international" && first(it) in keys }
             }
             dev.uem.em.model.CompTier.LEAGUE -> {
-                val key = (leagueShort ?: c.short).split(' ').first().uppercase()
-                val keys = ALIAS[key] ?: setOf(key)
-                evs.filter { it.tier == "league" && first(it) in keys }
+                val words = (leagueShort ?: c.short).split(' ').filter { it.isNotBlank() }
+                if (c.titleId != "lol" && words.size >= 2) {
+                    // VCT Americas, MPL ID...: the region's events, its earlier circuits included (Challengers North America...).
+                    val keys = REGION_WORDS[words.last().uppercase()] ?: setOf(words.last().uppercase())
+                    evs.filter { e -> e.tier == "league" && keys.any { k -> "${e.league} ${e.name}".uppercase().contains(k) } }
+                } else {
+                    val key = words.firstOrNull()?.uppercase() ?: ""
+                    val keys = ALIAS[key] ?: setOf(key)
+                    evs.filter { it.tier == "league" && first(it) in keys }
+                }
             }
             else -> emptyList()
         }.sortedWith(compareByDescending<Event> { it.year }.thenByDescending { it.name })

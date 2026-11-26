@@ -233,6 +233,13 @@ def main():
             # The handle as written: careers keys are normalised, so take it from the other files when possible.
             add(ti, tgt, team, key.split("|", 1)[1], role, frm, to,
                 {"wiki": "Leaguepedia tenures", "honours": "title rosters"}.get(src, "real-data snapshot"), staff=rk[1])
+    # Champion and runner-up rosters of every real event (honours.json), for that year.
+    for e in honours:
+        for side, plist in (("w", "wp"), ("r", "rp")):
+            tgt = resolve(e["t"], e.get(side))
+            if not tgt: continue
+            for h in e.get(plist) or []:
+                add(e["t"], tgt, e.get(side), h, "", str(e["y"]), str(e["y"]), "title rosters")
     # Display handles for the normalised career keys.
     handles = defaultdict(dict)
     for t in rosters["teams"]:

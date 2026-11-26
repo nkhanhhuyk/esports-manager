@@ -13,6 +13,8 @@ Sources, for players that have no photo link yet:
     the real name (facts snapshot), a team the player was on (P54 against the rosters), or, for a handle
     that only one Wikidata gamer and one game have, the same country. MLBB / HoK need the name or a team.
   * VALORANT: the player's vlr.gg page (ids from the cached vlr.gg transaction pages), its avatar.
+  * VALORANT, the rest: vlr.gg search, kept only when the player's page names a team they were on.
+  * MLBB: MPL Philippines team pages (every season): the photo on the league's public storage.
   * CS2: the bo3.gg public player list (nickname → photo), as for the current players.
 Requests are spaced (Wikidata 2 s, vlr.gg 1.3 s, bo3.gg 1.2 s) and cached; a 429 stops that source.
 """
@@ -214,6 +216,49 @@ def main():
         added["vlr.gg"] += 1
         missing.pop(k)
 
+    # VALORANT players without an id in the cached pages: vlr.gg search, the result whose page names a team they were on.
+    for k, p in list(missing.items()):
+        if p["t"] != "valorant" or "vlr.gg" in stopped: continue
+        res = fetch("https://www.vlr.gg/search/?q=%s&type=players" % urllib.parse.quote(p["h"]), 1.3)
+        for pid, label in re.findall(r'href="/player/(\d+)/[^"]*"[^>]*>(.*?)</a>', res or "", re.S)[:3]:
+            name = re.sub(r"<[^>]+>", " ", label)
+            if norm(p["h"]) not in norm(name): continue
+            page = fetch("https://www.vlr.gg/player/%s/" % pid, 1.3) or ""
+            teams = {tkey(t) for t in re.findall(r'<div style="font-weight: 500;"[^>]*>\s*([^<]+?)\s*</div>', page)}
+            if not (teams & p["teams"]): continue
+            m = re.search(r'wf-avatar mod-player[\s\S]{0,200}?<img src="([^"]+)"', page)
+            if not m or "/base/ph/" in m.group(1) or "sil.png" in m.group(1): break
+            url = m.group(1)
+            have[k] = ("https:" + url) if url.startswith("//") else url
+            added["vlr.gg search"] += 1
+            missing.pop(k)
+            break
+
+    # ------------------------------------------------------------------ MLBB: MPL Philippines team pages (public photo storage)
+    # The MPL PH site keeps each season's player photos on a public storage bucket (the signed links on its pages expire;
+    # the plain address does not). MPL Indonesia's storage is private, so it gives none.
+    mpl = {}
+    if pr_cache and os.path.isdir(pr_cache):
+        for f in os.listdir(pr_cache):
+            try: d = json.load(open(os.path.join(pr_cache, f)))
+            except Exception: continue
+            if "ph-mpl.com" not in (d.get("final") or "") or "/team/" not in (d.get("final") or ""): continue
+            text = d.get("text") or ""
+            fields = defaultdict(dict)
+            for i, fld, v in re.findall(r'id="player-(\d+)-(ign|photo|role)" value="([^"]*)"', text): fields[i][fld] = v
+            for e in fields.values():
+                ph = (e.get("photo") or "").split("?")[0]
+                if not e.get("ign") or "digitaloceanspaces.com" not in ph or re.search(r"coach|analyst|manager", e.get("role", ""), re.I): continue
+                sm = re.search(r"/season(\d+)/", ph)
+                season = int(sm.group(1)) if sm else 0
+                key = "mlbb|" + norm(e["ign"])
+                if key not in mpl or season > mpl[key][0]: mpl[key] = (season, ph)
+    for k, (season, url) in mpl.items():
+        if k in have: continue
+        have[k] = url
+        added["mpl ph"] += 1
+        missing.pop(k, None)
+
     # ------------------------------------------------------------------ CS2: bo3.gg players
     want = {norm(p["h"]): k for k, p in missing.items() if p["t"] == "cs2"}
     if want:
@@ -232,7 +277,7 @@ def main():
                 added["bo3.gg"] += 1
                 missing.pop(k, None)
 
-    images["sources"]["pastplayers"] = "Past players: Wikidata / Wikimedia Commons (P18 photos), LoL Esports gateway, vlr.gg player pages, bo3.gg API"
+    images["sources"]["pastplayers"] = "Past players: Wikidata / Wikimedia Commons (P18 photos), LoL Esports gateway, vlr.gg player pages, MPL PH photo storage, bo3.gg API"
     for k, v in list(have.items()): have[k] = re.sub(r"^http://", "https://", v)
     json.dump(images, open(os.path.join(REAL, "images.json"), "w"), ensure_ascii=False, separators=(",", ":"))
     left = defaultdict(int)
