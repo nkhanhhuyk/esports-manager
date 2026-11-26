@@ -141,12 +141,18 @@ object SoloQueue {
             val pick = LinkedHashSet(all.take(60))
             all.groupBy { servers[it]!! }.values.forEach { pick.addAll(it.take(10)) }
             val list = pick.sortedByDescending { it.soloMmr }
+            val names = list.map { servers[it]!! }.distinct()
             w.soloWeeks.add(dev.uem.em.model.SoloWeek(id, w.season, week, w.day, list.map { it.id }.toIntArray(), list.map { it.soloMmr.roundToInt() }.toIntArray(),
-                list.map { it.soloGames }.toIntArray(), list.map { it.soloWins }.toIntArray(), list.map { it.soloDelta.roundToInt() }.toIntArray(), list.map { it.teamId }.toIntArray(), list.map { servers[it]!! }))
+                list.map { it.soloGames }.toIntArray(), list.map { it.soloWins }.toIntArray(), list.map { it.soloDelta.roundToInt() }.toIntArray(), list.map { it.teamId }.toIntArray(), emptyList(),
+                names, list.map { names.indexOf(servers[it]!!) }.toIntArray()))
         }
         for (i in w.soloWeeks.indices) {
             val s = w.soloWeeks[i]
-            if (s.season < w.season - 1 && s.ids.size > 30) w.soloWeeks[i] = dev.uem.em.model.SoloWeek(s.titleId, s.season, s.week, s.day, s.ids.copyOf(30), s.mmr.copyOf(30), s.games.copyOf(30), s.wins.copyOf(30), s.delta.copyOf(30), s.teams.copyOf(30), s.servers.take(30))
+            if (s.season < w.season - 1 && s.ids.size > 30) {
+                val sv = (0 until 30).map { s.server(it) }
+                val names = sv.distinct()
+                w.soloWeeks[i] = dev.uem.em.model.SoloWeek(s.titleId, s.season, s.week, s.day, s.ids.copyOf(30), s.mmr.copyOf(30), s.games.copyOf(30), s.wins.copyOf(30), s.delta.copyOf(30), s.teams.copyOf(30), emptyList(), names, sv.map { names.indexOf(it) }.toIntArray())
+            }
         }
     }
 

@@ -76,8 +76,9 @@ object Prestige {
             val field = c.teamIds.map { w.teams[it].elo }.sortedDescending().take(8).average()
             val quality = ((field - (top - 600)) / 600).coerceIn(0.0, 1.0)            // 0 weak field … 1 the best teams
             val editions = w.comps.count { it.defKey == key && it.done }
-            val base = c.prestige.toDouble()
-            val target = (base * (0.85 + 0.3 * quality) + minOf(8, editions)).coerceAtMost(if (c.tier == CompTier.INTERNATIONAL) 90.0 else 80.0)
+            // The family's designed prestige (its first edition's), not the last edition's: no drift season after season.
+            val base = w.comps.first { it.defKey == key }.prestige.toDouble()
+            val target = (base * (0.85 + 0.3 * quality) + minOf(8, editions) * 0.5).coerceAtMost(if (c.tier == CompTier.INTERNATIONAL) 90.0 else 80.0)
             val old = w.prestige[key] ?: base
             val next = old + (target - old).coerceIn(-3.0, 3.0) * 0.5
             w.prestige[key] = next.coerceIn(5.0, 95.0)
@@ -125,11 +126,13 @@ object OrgRankings {
             for ((i, tid) in c.placements.withIndex()) {
                 val team = w.teams[tid]
                 val org = team.orgId
-                if (team.parentId >= 0 || c.tier == CompTier.CHALLENGER) {
+                // Development index: second teams' results and second-tier leagues only (not qualifiers, promotion or rivalry cups).
+                if (team.parentId >= 0 || (c.tier == CompTier.CHALLENGER && w.leagues.getOrNull(c.leagueId)?.tier == 2)) {
                     val d = when (i) { 0 -> 5.0; 1 -> 2.0; else -> 0.0 }
                     if (d > 0) dev.merge(org, d, Double::plus)
                     continue
                 }
+                if (c.tier == CompTier.CHALLENGER) continue
                 val p = points(c, i)
                 if (p <= 0) continue
                 tot.merge(org, p, Double::plus)

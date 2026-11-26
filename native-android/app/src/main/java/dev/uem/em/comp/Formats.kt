@@ -463,7 +463,8 @@ object Formats {
      */
     fun applyPending(w: World, titleId: String, season: Int) {
         val tf = w.formats[titleId] ?: return
-        for (p in tf.pending) {
+        // A new format first, then league reforms (so seeds a merger or split moves are not overwritten).
+        for (p in tf.pending.sortedBy { if (it.kind == "format") 0 else 1 }) {
             if (p.status != "announced" || p.effective > season) continue
             val ok = when (p.kind) {
                 "format" -> { restore(tf, p.state); true }

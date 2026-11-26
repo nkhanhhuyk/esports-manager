@@ -834,7 +834,12 @@ class SoloWeek(
     val titleId: String, val season: Int, val week: Int, val day: Int,
     @ProtoPacked val ids: IntArray, @ProtoPacked val mmr: IntArray, @ProtoPacked val games: IntArray, @ProtoPacked val wins: IntArray,
     @ProtoPacked val delta: IntArray, @ProtoPacked val teams: IntArray, val servers: List<String>,
-)
+    /** Compact servers (newer snapshots): each name once, and an index per entry ([servers] is then empty). */
+    val serverNames: List<String> = emptyList(),
+    @ProtoPacked val serverIdx: IntArray = IntArray(0),
+) {
+    fun server(i: Int): String = servers.getOrNull(i) ?: serverNames.getOrNull(serverIdx.getOrElse(i) { -1 }) ?: ""
+}
 
 /** A fictional champion / hero / agent released by a patch (drawn with generated art). */
 @Serializable

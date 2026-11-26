@@ -37,19 +37,20 @@ fun SoloQueueScreen(vm: GameVm, w: World) {
     var title by remember { mutableStateOf(mine ?: w.titles.first()) }
     var server by remember { mutableStateOf<String?>(null) }
     var unsigned by remember { mutableStateOf(false) }
-    // History: a season, then one of its weeks (stored snapshots; nothing is simulated again). "Live" = the ladder now.
+    // Two views: the live ladder (now), and the weekly history (a season, then one of its weeks: stored snapshots,
+    // nothing is simulated again).
+    var history by remember { mutableStateOf(false) }
     val snaps = w.soloWeeks.filter { it.titleId == title }
     val seasons = (snaps.map { it.season } + w.season).distinct().sortedDescending()
     var season by remember(title) { mutableIntStateOf(w.season) }
     val weeks = snaps.filter { it.season == season }.sortedByDescending { it.week }
-    val live = season == w.season
     var weekPick by remember(title, season) { mutableIntStateOf(0) }
-    val weekOpts = (if (live) listOf("Live (now)") else emptyList()) + weeks.map { "Week ${it.week} · ${Dates.short(it.day)}" }
-    val sel = weekPick.coerceIn(0, maxOf(0, weekOpts.size - 1))
-    val snap = if (live) weeks.getOrNull(sel - 1) else weeks.getOrNull(sel)
-    val rows: List<Ladder> = remember(title, snap, vm.version) {
-        if (snap == null) SoloQueue.ladder(w, title, null).map { Ladder(it, it.soloMmr, it.soloGames, it.soloWins, it.soloDelta, it.teamId, SoloQueue.server(w, it), true) }
-        else snap.ids.indices.map { i -> Ladder(w.players[snap.ids[i]], snap.mmr[i].toDouble(), snap.games[i], snap.wins[i], snap.delta[i].toDouble(), snap.teams[i], snap.servers[i], false) }
+    val sel = weekPick.coerceIn(0, maxOf(0, weeks.size - 1))
+    val snap = if (history) weeks.getOrNull(sel) else null
+    val rows: List<Ladder> = remember(title, history, snap, vm.version) {
+        if (!history) SoloQueue.ladder(w, title, null).map { Ladder(it, it.soloMmr, it.soloGames, it.soloWins, it.soloDelta, it.teamId, SoloQueue.server(w, it), true) }
+        else if (snap == null) emptyList()
+        else snap.ids.indices.map { i -> Ladder(w.players[snap.ids[i]], snap.mmr[i].toDouble(), snap.games[i], snap.wins[i], snap.delta[i].toDouble(), snap.teams[i], snap.server(i), false) }
     }
     val servers = remember(rows) { rows.groupingBy { it.server }.eachCount().entries.sortedByDescending { it.value }.map { it.key } }
     val list = remember(rows, server, unsigned) {
@@ -62,17 +63,20 @@ fun SoloQueueScreen(vm: GameVm, w: World) {
                 Muted("Ranked ladders of each game's servers. The ladder rewards mechanics and time spent queueing; teamwork, macro and shotcalling count for much more in professional play, so ladder stars are not always good professionals (and some strong professionals rank lower). Unsigned players near the top are worth scouting.", 11)
             }
             Tabs(w.titles.map { Catalogue.get(it).short }, w.titles.indexOf(title)) { title = w.titles[it]; server = null }
-            Row(Modifier.padding(horizontal = 12.dp)) {
-                Select("Year", seasons.map { "$it" }, seasons.indexOf(season).coerceAtLeast(0)) { season = seasons[it]; server = null }
-                if (weekOpts.isNotEmpty()) Select("Week", weekOpts, sel) { weekPick = it; server = null }
-            }
-            if (snap != null) Muted("  Week ${snap.week} of season ${snap.season} (${Dates.format(snap.day)}): the ladder as it stood that week — the top 60 and each server's top 10${if (snap.season < w.season - 1) " (older seasons keep their top 30)" else ""}. Teams as they were then.", 10)
-            else if (!live) Muted("  No weekly ladders were kept for $season (older save).", 10)
+            Tabs(listOf("Live ladder", "Weekly history"), if (history) 1 else 0) { history = it == 1; server = null }
+            if (history) {
+                Row(Modifier.padding(horizontal = 12.dp)) {
+                    Select("Year", seasons.map { "$it" }, seasons.indexOf(season).coerceAtLeast(0)) { season = seasons[it]; server = null }
+                    if (weeks.isNotEmpty()) Select("Week", weeks.map { "Week ${it.week} · ${Dates.short(it.day)}" }, sel) { weekPick = it; server = null }
+                }
+                if (snap != null) Muted("  Week ${snap.week} of season ${snap.season} (${Dates.format(snap.day)}): the ladder as it stood that week — the top 60 and each server's top 10${if (snap.season < w.season - 1) " (older seasons keep their top 30)" else ""}. Teams as they were then.", 10)
+                else Muted(if (season == w.season) "  No week played yet this season: the first weekly ladder is kept on the first Monday." else "  No weekly ladders were kept for $season (older save).", 10)
+            } else Muted("  The ladder now: ratings, this season's games and the change since last week.", 10)
             Tabs(listOf("All servers") + servers.take(12).map { GameData.regionShort(it) }, if (server == null) 0 else servers.indexOf(server) + 1) { server = if (it == 0) null else servers[it - 1] }
             Tabs(listOf("Everyone", "Unsigned only"), if (unsigned) 1 else 0) { unsigned = it == 1 }
         }
         items(list, key = { it.value.p.id }) { (place, r) -> LadderRow(vm, w, r, place + 1) }
-        if (list.isEmpty()) item { Card { Muted(if (snap != null || !live) "Nobody on this ladder that week." else "Nobody on this ladder yet: ratings appear after the first week of play.") } }
+        if (list.isEmpty()) item { Card { Muted(if (history) "Nobody on this ladder that week." else "Nobody on this ladder yet: ratings appear after the first week of play.") } }
         item { Gap(16) }
     }
 }
