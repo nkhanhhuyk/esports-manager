@@ -94,7 +94,7 @@ object Advance {
     fun day(w: World) {
         w.day++
         val d = w.day
-        timed(0) { dev.uem.em.mgmt.Circuits.ensure(w); dev.uem.em.mgmt.Circuits.daily(w); dev.uem.em.comp.Ecosystem.daily(w); dev.uem.em.mgmt.Nations.daily(w); Progress.startDue(w, d); dev.uem.em.mgmt.Patches.daily(w) }
+        timed(0) { dev.uem.em.mgmt.Academies.callUpsDaily(w); dev.uem.em.mgmt.Circuits.ensure(w); dev.uem.em.mgmt.Circuits.daily(w); dev.uem.em.comp.Ecosystem.daily(w); dev.uem.em.mgmt.Nations.daily(w); Progress.startDue(w, d); dev.uem.em.mgmt.Patches.daily(w) }
         timed(1) { playFixtures(w, d) }
         timed(2) { daily(w) }
         timed(3) {
@@ -135,7 +135,8 @@ object Advance {
             if (ids.isEmpty()) return
             val fixtures = ids.map { w.fixtures[it] }
             // Lineups are settled first (this writes to teams), then series run in parallel read-only.
-            fun prio(f: Fixture): Int { val a = w.teams[f.a]; val b = w.teams[f.b]; return when { a.kind.isNotEmpty() || b.kind.isNotEmpty() || w.comps[f.compId].circuit.isNotBlank() -> 2; a.nationalOf.isNotEmpty() || b.nationalOf.isNotEmpty() -> 1; else -> 0 } }
+            // Academies after the main teams (a main team may call an academy player up for the day).
+            fun prio(f: Fixture): Int { val a = w.teams[f.a]; val b = w.teams[f.b]; return when { a.kind.isNotEmpty() || b.kind.isNotEmpty() || w.comps[f.compId].circuit.isNotBlank() -> 2; a.nationalOf.isNotEmpty() || b.nationalOf.isNotEmpty() || a.parentId >= 0 || b.parentId >= 0 -> 1; else -> 0 } }
             val lineups = HashMap<Int, Array<List<Int>>>()
             val notes = HashMap<Int, List<String>>()
             for (f in fixtures.sortedBy { prio(it) }) {
@@ -282,7 +283,7 @@ object Advance {
         BoxStore.put(w, o.record)
         // Your coach's substitutions in a series you did not play live.
         for ((gn, g) in o.record.games.withIndex()) for (n in g.subs.mapNotNull { dev.uem.em.sim.Subs.parse(it) }) {
-            if (n.reason == "coach" || n.reason == "stand-in" || !w.isUserTeam(teamIds[n.side])) continue
+            if (n.reason == "coach" || n.reason in dev.uem.em.sim.Subs.BEFORE || !w.isUserTeam(teamIds[n.side])) continue
             w.inbox.add(dev.uem.em.model.Message(w.day, "Head coach", "Substitution: ${w.players[n.inPid].handle}",
                 "Game ${gn + 1} against ${w.teams[teamIds[1 - n.side]].name}: " + dev.uem.em.sim.Subs.describe(w, t, n) + "."))
         }

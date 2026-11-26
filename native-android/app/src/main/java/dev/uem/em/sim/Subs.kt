@@ -15,9 +15,13 @@ import dev.uem.em.titles.RoleDef
  * champion pool left under Fearless). A substitute always plays one of their own positions (main or second).
  *
  * Notes kept on a game (GameRecord.subs): "side|slot|out|in|reason", out = -1 for an empty seat; reasons
- * "form", "map", "pool", "back", "coach" (your call), "stand-in".
+ * "form", "map", "pool", "back", "coach" (your call), and before the series "call-up" / "promoted" (from the
+ * academy) or "stand-in" (an unsigned player, when the academy has nobody for the position).
  */
 object Subs {
+    /** Reasons of changes made before a series starts (not a coach's substitution between games). */
+    val BEFORE = setOf("stand-in", "call-up", "promoted")
+
     /** 0: main position, 1: second position, 2: out of position. */
     fun tier(p: Player, roleId: String) = if (p.roles.firstOrNull() == roleId) 0 else if (p.roles.getOrNull(1) == roleId) 1 else 2
     /** Whether a player plays a position: main or second, and any player can take a "flex" slot (Valorant's flex is the role that switches agents). */
@@ -49,8 +53,10 @@ object Subs {
 
     /**
      * A seat that is empty or held by a player out of position goes to someone who plays it: a roster
-     * player first, then (an emergency stand-in for the day) the best unsigned player of the game who plays
-     * the position, of the nation for a national team. Returns the lineup and the stand-in notes.
+     * player first, then a player of the team's academy (called up while the regular is out, or promoted
+     * full-time; see [dev.uem.em.mgmt.Academies.callUp]), and only when the academy has nobody for the position
+     * an emergency stand-in for the day: the best unsigned player of the game who plays it (of the nation for a
+     * national team). Returns the lineup and the notes.
      */
     fun standIns(w: World, c: Competition?, team: Team, lineup: List<Int>, busy: Set<Int>, side: Int = 0): Pair<List<Int>, List<String>> {
         val t = Catalogue.get(team.titleId)
@@ -61,7 +67,8 @@ object Subs {
         val notes = ArrayList<String>()
         for (i in out.indices) {
             val role = t.lineupRoles[i]
-            val cur = out[i].takeIf { it >= 0 }?.let { w.players[it] }
+            // An injured or unavailable player in the lineup (a short roster's last resort) counts as an empty seat.
+            val cur = out[i].takeIf { it >= 0 }?.let { w.players[it] }?.takeIf { Lineups.available(w, it) }
             if (cur != null && plays(cur, role.id)) continue
             val curEff = cur?.let { Ratings.effectiveness(it, t, role) } ?: 0.0
             // Somebody on the roster who plays it (the lineup may have come from a registration or busy swap).
@@ -69,18 +76,42 @@ object Subs {
                 .filter { it.id !in out && it.id !in busy && plays(it, role.id) && canPlay(w, c, team, it) && importsOk(w, team, out, i, it) }
                 .minWithOrNull(compareBy<Player>({ tier(it, role.id) }, { -Ratings.effectiveness(it, t, role) }))
             if (fromRoster != null) { out[i] = fromRoster.id; continue }
+            // The player who would normally play here (injured, on a break, waiting for a visa).
+            val absentP = team.roster.map { w.players[it] }.filter { it.roles.firstOrNull() == role.id && !Lineups.available(w, it) }.minByOrNull { maxOf(it.injuryUntil, it.visaUntil) }
+            // The academy first: someone who plays the position comes up.
+            val academy = if (team.nationalOf.isEmpty() && team.parentId < 0) dev.uem.em.mgmt.Academies.of(w, team) else null
+            val kid = academy?.roster?.asSequence()?.map { w.players[it] }
+                ?.filter { it.id !in busy && it.id !in out && it.loanFrom < 0 && plays(it, role.id) && Lineups.available(w, it) && Dates.ageAt(it.birth, w.day) >= t.minAge &&
+                    (c == null || dev.uem.em.mgmt.Circuits.eligible(w, c, it) == null) && importsOk(w, team, out, i, it) }
+                ?.minWithOrNull(compareBy<Player>({ tier(it, role.id) }, { -Ratings.effectiveness(it, t, role) }))
+            // Someone who plays the position comes up even when a star could fill in out of position (as clubs do).
+            if (kid != null) {
+                // AI clubs promote for good when the regular is out for long (over three weeks) or nobody plays the position;
+                // your club calls the player up (back when the regular returns), and you decide whether to keep them.
+                val outFor = absentP?.let { maxOf(it.injuryUntil, it.visaUntil) - w.day } ?: Int.MAX_VALUE
+                val permanent = !w.isUserTeam(team.id) && outFor > 21
+                dev.uem.em.mgmt.Academies.callUp(w, kid, team, absentP?.id ?: -1, permanent)
+                // An emergency registration for the competition, when it keeps a list.
+                c?.registrations?.get(team.id)?.players?.let { if (kid.id !in it) it.add(kid.id) }
+                out[i] = kid.id
+                notes.add("$side|$i|${absentP?.id ?: -1}|${kid.id}|${if (permanent) "promoted" else "call-up"}")
+                if (w.isUserTeam(team.id)) w.inbox.add(Message(w.day, "Head coach", "Called up: ${kid.handle}",
+                    "${kid.handle} comes up from ${academy.name} to play ${role.name}${if (c != null) " in ${c.short}" else ""}" +
+                        (if (absentP != null) " while ${absentP.handle} is out (until ${Dates.format(maxOf(absentP.injuryUntil, absentP.visaUntil))}). They go back to the academy when ${absentP.handle} is available again" else ": nobody else on the roster plays the position") +
+                        ". Keep them full-time or send them back from their page."))
+                continue
+            }
             val nat = team.nationalOf
             val fa = w.players.asSequence().filter { it.titleId == team.titleId && it.teamId < 0 && !it.retired && it.id !in busy && it.id !in out &&
                 plays(it, role.id) && Lineups.available(w, it) && Dates.ageAt(it.birth, w.day) >= t.minAge && (nat.isEmpty() || it.nat == nat || it.nat2 == nat) &&
                 (c == null || dev.uem.em.mgmt.Circuits.eligible(w, c, it) == null) && importsOk(w, team, out, i, it) }
                 .maxByOrNull { Ratings.effectiveness(it, t, role) - 4 * tier(it, role.id) } ?: continue
-            if (cur != null && Ratings.effectiveness(fa, t, role) <= curEff) continue
-            // The player who would normally play here (injured, on a break, waiting for a visa).
-            val absent = team.roster.map { w.players[it] }.firstOrNull { it.roles.firstOrNull() == role.id && !Lineups.available(w, it) }?.id ?: -1
+            if (cur != null && Ratings.effectiveness(fa, t, role) < curEff - 5) continue
+            val absent = absentP?.id ?: -1
             out[i] = fa.id
             notes.add("$side|$i|$absent|${fa.id}|stand-in")
             if (w.isUserTeam(team.id) && c != null) w.inbox.add(Message(w.day, "Head coach", "Stand-in: ${fa.handle}",
-                "${fa.handle} (free agent) stands in at ${role.name} for ${c.short} today${if (absent >= 0) " while ${w.players[absent].handle} is out" else ""}: nobody available on the roster plays the position."))
+                "${fa.handle} (free agent) stands in at ${role.name} for ${c.short} today${if (absent >= 0) " while ${w.players[absent].handle} is out" else ""}: nobody available on the roster${if (team.parentId < 0 && team.nationalOf.isEmpty()) " or in the academy" else ""} plays the position."))
         }
         return out to notes
     }
@@ -155,6 +186,8 @@ object Subs {
         "back" -> "the starter returns"
         "coach" -> "your call"
         "stand-in" -> "stand-in"
+        "call-up" -> "called up from the academy"
+        "promoted" -> "promoted from the academy"
         else -> r
     }
 
@@ -172,6 +205,7 @@ object Subs {
         val out = w.players.getOrNull(n.out)?.handle
         val role: RoleDef? = t.lineupRoles.getOrNull(n.slot)
         return if (n.reason == "stand-in") "$inn stands in at ${role?.name ?: "?"}${if (out != null) " for $out" else ""}"
+        else if (n.reason == "call-up" || n.reason == "promoted") "$inn ${if (n.reason == "promoted") "promoted" else "called up"} from the academy at ${role?.name ?: "?"}${if (out != null) " for $out" else ""}"
         else "$inn in for ${out ?: "?"} at ${role?.name ?: "?"} (${reasonText(n.reason)})"
     }
 }

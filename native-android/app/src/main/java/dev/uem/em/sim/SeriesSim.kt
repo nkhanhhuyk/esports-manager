@@ -232,7 +232,7 @@ class LiveSeries(val w: World, val f: Fixture, lineups0: Array<List<Int>>, prepP
             wins[g.winner]++
             lastLoser = 1 - g.winner
             gi++
-            for (n in g.subs) Subs.parse(n)?.let { if (it.reason != "stand-in") subsMade[it.side]++ }
+            for (n in g.subs) Subs.parse(n)?.let { if (it.reason !in Subs.BEFORE) subsMade[it.side]++ }
         }
         val n = lineups[0].size
         if (st.lineups.size == n + lineups[1].size) {
@@ -245,7 +245,7 @@ class LiveSeries(val w: World, val f: Fixture, lineups0: Array<List<Int>>, prepP
             }
         }
         pendingSubs.clear(); pendingSubs.addAll(st.subs)
-        for (x in st.subs) Subs.parse(x)?.let { if (it.reason != "stand-in") subsMade[it.side]++ }
+        for (x in st.subs) Subs.parse(x)?.let { if (it.reason !in Subs.BEFORE) subsMade[it.side]++ }
     }
 
     fun liveState(spectator: Boolean) = dev.uem.em.model.LiveState(f.id, games.toMutableList(), maps, fearless.toList(), spectator, lineups[0] + lineups[1], pendingSubs.toList())

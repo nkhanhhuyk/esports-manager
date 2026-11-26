@@ -4,6 +4,7 @@ import dev.uem.em.core.Dates
 import dev.uem.em.game.Advance
 import dev.uem.em.game.BoxStore
 import dev.uem.em.gen.WorldGen
+import dev.uem.em.mgmt.Academies
 import dev.uem.em.model.LiveState
 import dev.uem.em.sim.LiveSeries
 import dev.uem.em.sim.Lineups
@@ -28,15 +29,20 @@ class SubsTest {
         var lines = 0; var oop = 0; var series = 0; var withSub = 0; var standIns = 0
         val reasons = HashMap<String, Int>()
         val oopEx = ArrayList<String>()
+        val standEx = ArrayList<String>()
         for (r in BoxStore.unpaged()) {
             val f = w.fixtures[r.fixtureId]
             val t = Catalogue.get(f.titleId)
             series++
-            if (r.games.any { g -> g.subs.any { Subs.parse(it)?.reason != "stand-in" } }) withSub++
+            if (r.games.any { g -> g.subs.any { Subs.parse(it)?.reason !in Subs.BEFORE } }) withSub++
             for (g in r.games) {
                 for (n in g.subs.mapNotNull { Subs.parse(it) }) {
                     reasons[n.reason] = (reasons[n.reason] ?: 0) + 1
-                    if (n.reason == "stand-in") standIns++
+                    if (n.reason in Subs.BEFORE) {
+                        standIns++
+                        val tm = w.teams[if (n.side == 0) f.a else f.b]
+                        if (standEx.size < 15) standEx.add("${n.reason} ${f.titleId} ${tm.name} (${w.comps[f.compId].short}, academy ${Academies.of(w, tm)?.name ?: "none"}): ${Subs.describe(w, t, n)}")
+                    }
                     val role = t.lineupRoles[n.slot].id
                     assertTrue("${w.players[n.inPid].handle} subbed in at $role (${w.players[n.inPid].roles})", Subs.plays(w.players[n.inPid], role))
                     // The substitute played that game in that position.
@@ -51,8 +57,9 @@ class SubsTest {
                 }
             }
         }
-        println("series $series, with a substitution between games $withSub (${"%.1f".format(100.0 * withSub / series)}%), stand-ins $standIns, reasons $reasons")
+        println("series $series, with a substitution between games $withSub (${"%.1f".format(100.0 * withSub / series)}%), before the series (academy / stand-in) $standIns, reasons $reasons")
         println("player-games $lines, out of position $oop"); oopEx.forEach { println("  $it") }
+        standEx.forEach { println("  $it") }
         assertTrue("coaches substitute between games", withSub > 0)
         assertTrue("substitutions stay occasional: $withSub of $series", withSub < series * 0.15)
         // Out of position only when nobody free plays the position at all (none expected in practice).
@@ -109,5 +116,55 @@ class SubsTest {
         assertTrue(resumed.substitute(0, slot, fa.id, "coach"))
         assertTrue(resumed.pending().isEmpty())
         println("sub: " + Subs.describe(w, t, n))
+    }
+
+    @Test
+    fun academyCallUpGoesBackWhenTheRegularReturns() {
+        TestData.init(); BoxStore.clear()
+        val w = WorldGen.create(TestData.source, "acad", "AC", Dates.day(2026, 11, 21), titles = listOf("lol"))
+        val t = Catalogue.get("lol")
+        fun ready(pid: Int) = w.players[pid].let { it.roles[0] == "jungle" && Lineups.available(w, it) && Dates.ageAt(it.birth, w.day) >= t.minAge }
+        val team = w.teams.first { it.active && it.parentId < 0 && it.nationalOf.isEmpty() && !w.isUserTeam(it.id) && (Academies.of(w, it)?.roster?.count { ready(it) } ?: 0) >= 2 }
+        val academy = Academies.of(w, team)!!
+        val slot = t.lineupRoles.indexOfFirst { it.id == "jungle" }
+        // Every jungler of the main team is out for ten days.
+        val junglers = team.roster.map { w.players[it] }.filter { Subs.plays(it, "jungle") }
+        junglers.forEach { it.injuryUntil = w.day + 10; it.injury = "Wrist strain" }
+        val (lu, notes) = Subs.standIns(w, null, team, Lineups.ensure(w, team), emptySet(), 0)
+        val kid = w.players[lu[slot]]
+        println("call-up: " + Subs.describe(w, t, Subs.parse(notes.single())!!))
+        assertTrue("from the academy: ${notes}", notes.single().endsWith("|call-up"))
+        assertEquals(academy.id, kid.callUpFrom)
+        assertTrue(kid.id in team.roster && kid.id !in academy.roster && kid.teamId == team.id)
+        assertTrue("covers an injured jungler", kid.callUpFor in junglers.map { it.id })
+        // Still out the next day: the call-up stays.
+        Academies.callUpsDaily(w)
+        assertEquals(team.id, kid.teamId)
+        // The regular is back: down to the academy again.
+        junglers.forEach { it.injuryUntil = w.day }
+        Academies.callUpsDaily(w)
+        assertEquals(academy.id, kid.teamId)
+        assertTrue(kid.id in academy.roster && kid.id !in team.roster)
+        assertEquals(-1, kid.callUpFrom)
+        // Out for six weeks: an AI club promotes full-time.
+        junglers.forEach { it.injuryUntil = w.day + 42 }
+        team.lineupSig = 0
+        val (lu2, notes2) = Subs.standIns(w, null, team, Lineups.ensure(w, team), emptySet(), 0)
+        val up = w.players[lu2[slot]]
+        assertTrue("promoted: $notes2", notes2.single().endsWith("|promoted"))
+        assertEquals(-1, up.callUpFrom); assertEquals(team.id, up.teamId); assertEquals("promoted", up.career.last().type)
+        // Your club: a call-up whatever the absence; you keep the player or not.
+        w.userOrg = team.orgId
+        up.injuryUntil = w.day + 42
+        team.lineupSig = 0
+        val (lu3, notes3) = Subs.standIns(w, null, team, Lineups.ensure(w, team), emptySet(), 0)
+        val mine = w.players[lu3[slot]]
+        assertTrue("your club calls up: $notes3", notes3.single().endsWith("|call-up"))
+        assertTrue(w.inbox.any { it.subject.startsWith("Called up: ${mine.handle}") })
+        assertTrue(Academies.keep(w, mine).ok)
+        assertEquals(-1, mine.callUpFrom)
+        junglers.forEach { it.injuryUntil = w.day }; up.injuryUntil = w.day
+        Academies.callUpsDaily(w)
+        assertEquals("kept full-time", team.id, mine.teamId)
     }
 }

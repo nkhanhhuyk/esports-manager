@@ -157,6 +157,7 @@ private fun TeamRoster(vm: GameVm, w: World, team: Team, t: TitleDef) {
         KV("Nationalities", roster.map { it.nat }.distinct().joinToString(" ") { flag(it).ifEmpty { it } })
         KV("Starting five average CA", team.lineup.filter { it >= 0 }.map { w.players[it].ca }.average().takeIf { !it.isNaN() }?.let { "%.1f".format(it) } ?: "—")
         KV("Bench", "${roster.count { it.id !in team.lineup }} players")
+        roster.filter { it.callUpFrom >= 0 }.takeIf { it.isNotEmpty() }?.let { up -> KV("Called up from the academy", up.joinToString { p -> p.handle + (w.players.getOrNull(p.callUpFor)?.let { " (for ${it.handle})" } ?: "") }) }
         KV("Injured", "${roster.count { it.injuryUntil > w.day }}")
         KV("Contracts ending this season", "${roster.count { it.contractEnd <= w.season }}")
         KV("Scrims per week", "${team.scrims}")

@@ -71,8 +71,90 @@ object Academies {
         return Result(true, "${team.name} founded. $where", team)
     }
 
+    /**
+     * Bring an academy player up to the main team. `permanent`: promoted full-time (like [move]). Otherwise a
+     * call-up for the main team's matches while `forPid` is out: they go back to the academy when that player
+     * is available again (or when sent back); the contract stays the same either way.
+     */
+    fun callUp(w: World, p: Player, team: Team, forPid: Int, permanent: Boolean): Result {
+        val academy = w.teams.getOrNull(p.teamId)?.takeIf { it.parentId == team.id } ?: return Result(false, "${p.handle} is not in ${team.name}'s academy.")
+        if (p.loanFrom >= 0) return Result(false, "Loaned players cannot be called up.")
+        academy.roster.remove(p.id)
+        academy.lineup = academy.lineup.map { if (it == p.id) -1 else it }.toMutableList()
+        academy.lineupSig = 0
+        if (permanent) {
+            join(w, p, team, "promoted")
+            p.callUpFrom = -1; p.callUpFor = -1
+        } else {
+            p.teamId = team.id
+            team.roster.add(p.id)
+            p.callUpFrom = academy.id; p.callUpFor = forPid
+            p.career.add(CareerEntry(w.season, w.day, team.id, "called up"))
+        }
+        team.lineupSig = 0
+        val cover = w.players.getOrNull(forPid)?.handle
+        return Result(true, if (permanent) "${p.handle} is promoted from ${academy.name} to ${team.name}."
+            else "${p.handle} is called up from ${academy.name}${if (cover != null) " while $cover is out" else ""}.")
+    }
+
+    /** A called-up player goes back to the academy they came from. */
+    fun sendBack(w: World, p: Player): Result {
+        val academy = w.teams.getOrNull(p.callUpFrom)?.takeIf { it.active } ?: run { p.callUpFrom = -1; p.callUpFor = -1; return Result(false, "${p.handle} has no academy to go back to.") }
+        val team = w.teams.getOrNull(p.teamId)
+        if (team != null) {
+            team.roster.remove(p.id)
+            team.lineup = team.lineup.map { if (it == p.id) -1 else it }.toMutableList()
+            team.lineupSig = 0
+            if (team.lineup.any { it < 0 }) { team.manualLineup = false }
+        }
+        p.teamId = academy.id
+        academy.roster.add(p.id)
+        academy.lineupSig = 0
+        p.callUpFrom = -1; p.callUpFor = -1
+        p.career.add(CareerEntry(w.season, w.day, academy.id, "back to the academy"))
+        return Result(true, "${p.handle} goes back to ${academy.name}.")
+    }
+
+    /** A called-up player stays on the main team full-time (a promotion). */
+    fun keep(w: World, p: Player): Result {
+        val academy = w.teams.getOrNull(p.callUpFrom) ?: return Result(false, "${p.handle} was not called up.")
+        val team = w.teams.getOrNull(p.teamId) ?: return Result(false, "${p.handle} has no team.")
+        w.transfers.add(dev.uem.em.model.Transfer(w.day, w.season, p.id, academy.id, team.id, 0.0, "promoted"))
+        p.career.add(CareerEntry(w.season, w.day, team.id, "promoted"))
+        p.callUpFrom = -1; p.callUpFor = -1
+        return Result(true, "${p.handle} stays with ${team.name} full-time.")
+    }
+
+    /**
+     * Each day, before the matches: called-up players go back once the player they cover is available again.
+     * A call-up whose team or academy changed ends (the player stays where they are).
+     */
+    fun callUpsDaily(w: World) {
+        for (p in w.players) {
+            if (p.callUpFrom < 0) continue
+            val academy = w.teams.getOrNull(p.callUpFrom)
+            val team = w.teams.getOrNull(p.teamId)
+            if (academy == null || !academy.active || team == null || academy.parentId != team.id || p.retired) { p.callUpFrom = -1; p.callUpFor = -1; continue }
+            val cover = w.players.getOrNull(p.callUpFor) ?: continue
+            when {
+                // The covered player left: AI teams keep the call-up for good; yours stays called up until you decide.
+                cover.teamId != team.id -> if (!w.isUserTeam(team.id)) keep(w, p) else {
+                    p.callUpFor = -1
+                    w.inbox.add(dev.uem.em.model.Message(w.day, "Head coach", "${p.handle} stays called up", "${cover.handle} has left ${team.name}, so ${p.handle} stays with the main team until you keep them full-time or send them back (their page)."))
+                }
+                Lineups.available(w, cover) -> {
+                    val r = sendBack(w, p)
+                    if (r.ok && w.isUserTeam(team.id)) w.inbox.add(dev.uem.em.model.Message(w.day, "Head coach", "${p.handle} back to the academy",
+                        "${cover.handle} is available again, so ${p.handle} returns to ${academy.name}. Call them up again or promote them from their page."))
+                }
+            }
+        }
+    }
+
     /** Move a player between a main team and its academy (no fee, same contract). */
     fun move(w: World, p: Player): Result {
+        // A called-up player moving down simply goes back.
+        if (p.callUpFrom >= 0 && w.teams.getOrNull(p.teamId)?.let { isAcademy(it) } == false) return sendBack(w, p)
         val from = w.teams.getOrNull(p.teamId) ?: return Result(false, "Free agents cannot be moved.")
         val to = (if (isAcademy(from)) parent(w, from) else of(w, from)) ?: return Result(false, "${from.name} has no academy.")
         if (p.loanFrom >= 0) return Result(false, "Loaned players cannot be moved.")

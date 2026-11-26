@@ -232,6 +232,10 @@ class Player(
     var soloK: Double = 0.0,
     var soloD: Double = 0.0,
     var soloA: Double = 0.0,
+    /** Academy team this player was called up from for the main team's matches (-1: not called up). */
+    var callUpFrom: Int = -1,
+    /** The main-team player they cover: when that player is available again, they go back to the academy (-1: until sent back). */
+    var callUpFor: Int = -1,
 ) {
     val retired get() = retiredSeason != 0
     /** Every nationality (the first is the main one). */

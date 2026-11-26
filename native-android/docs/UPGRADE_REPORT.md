@@ -594,3 +594,33 @@ Full suite: 107 tests, 0 failures (3 skipped).
 
 Saves: new fields `GameRecord.subs`, `LiveState.lineups` and `LiveState.subs` (appended, with defaults). Older
 saves load unchanged; past players are added to new worlds only.
+
+## Twenty-first follow-up: academy call-ups before unsigned stand-ins
+
+* **The academy comes first.** When nobody available on a main team plays a position, a player of the
+  club's academy who plays it comes up. This happens even when a star could fill the seat out of
+  position, as clubs do.
+  * **AI clubs:** a call-up for the matches while the regular is out. The player goes back to the academy
+    the day the regular is available again. If the regular is out for over three weeks, or nobody plays
+    the position at all, the academy player is promoted full-time.
+  * **Your club:** always a call-up, with an inbox note saying who is covered and until when.
+  * **Your controls.** On the called-up player's page you can **Keep full-time** (a promotion, with a
+    transfer record) or **Send back to the academy**. On an academy player's page you can also **Call up
+    for matches** yourself (next to Promote). The team page lists who is called up and for whom.
+  * **Details.** A called-up player is registered for the competition as an emergency change. The match
+    report shows "X called up from the academy at Jungle for Y". Contracts stay the same. Academy matches
+    are now set after the main teams' each day, so a call-up never plays twice in one day.
+* **Unsigned stand-ins only as a last resort,** when there is no academy player for the position. These are
+  clubs without an academy, an academy left short by a call-up, and national teams.
+* **No injured players on short rosters.** A roster short of fit players used to field injured ones. Those
+  seats are now covered the same way (academy, else a stand-in).
+
+Tests: `SubsTest.academyCallUpGoesBackWhenTheRegularReturns`:
+* a ten-day injury means a call-up, which goes back when the regular is fit;
+* a six-week absence on an AI club means a full-time promotion;
+* your club always gets a call-up, with an inbox note, and you can keep the player.
+
+The 90-day run: academy call-ups where a club had one, stand-ins only at clubs without an academy player
+for the position, and no game out of position.
+
+Saves: new player fields `callUpFrom` and `callUpFor` (appended, with defaults).

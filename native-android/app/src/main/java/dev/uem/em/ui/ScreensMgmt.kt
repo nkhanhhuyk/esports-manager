@@ -426,7 +426,26 @@ fun PlayerActions(vm: GameVm, w: World, p: Player) {
             }
             if (canT && Dates.ageAt(p.birth, w.day) <= 22) Ghost("Loan out until season end") { vm.toast = dev.uem.em.mgmt.Deals.loanOut(w, p.id).text; vm.edit() }
             val other = if (Academies.isAcademy(myTeam)) Academies.parent(w, myTeam) else Academies.of(w, myTeam)
-            if (other != null && (canT || Roles.can(w, "tactics"))) Ghost(if (Academies.isAcademy(myTeam)) "Promote to ${other.short}" else "Move to ${other.short}") { vm.toast = Academies.move(w, p).text; vm.edit() }
+            val squad = canT || Roles.can(w, "tactics")
+            if (p.callUpFrom >= 0) {
+                // Called up from the academy: back when the player they cover returns, unless kept.
+                val cover = w.players.getOrNull(p.callUpFor)
+                Muted("Called up from ${w.teams.getOrNull(p.callUpFrom)?.name ?: "the academy"}${if (cover != null) " while ${cover.handle} is out: back to the academy when ${cover.handle} is available again" else ""}.", 11)
+                if (squad) Row {
+                    Ghost("Keep full-time") { vm.toast = Academies.keep(w, p).text; vm.edit() }
+                    Ghost("Send back to the academy") { vm.toast = Academies.sendBack(w, p).text; vm.edit() }
+                }
+            } else if (other != null && squad) {
+                Row {
+                    Ghost(if (Academies.isAcademy(myTeam)) "Promote to ${other.short}" else "Move to ${other.short}") { vm.toast = Academies.move(w, p).text; vm.edit() }
+                    // From the academy for the main team's matches while a regular of the position is out.
+                    if (Academies.isAcademy(myTeam)) Ghost("Call up for matches") {
+                        val cover = other.roster.map { w.players[it] }.filter { it.roles.firstOrNull() in p.roles.take(2) && !dev.uem.em.sim.Lineups.available(w, it) }.minByOrNull { maxOf(it.injuryUntil, it.visaUntil) }
+                        vm.toast = Academies.callUp(w, p, other, cover?.id ?: -1, permanent = false).text + if (cover == null) " They stay until you send them back." else ""
+                        vm.edit()
+                    }
+                }
+            }
             if (!canT && !canC) Muted(Roles.denyReason(w, "transfers"), 11)
         } else if (!canT) {
             Muted(Roles.denyReason(w, "transfers"), 12)
