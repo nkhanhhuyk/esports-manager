@@ -74,7 +74,9 @@ object Leagues {
             }
             // A lower league whose best clubs match the bottom of its top league becomes a top league of its own.
             "recognize" -> {
+                // A new region only: a lower league of the same region as a top league is a second division, not a new scene.
                 val cand = tier1.flatMap { up -> Formats.independentLowers(w, up).map { up to it } }.filter { (up, low) ->
+                    if (tier1.any { it.region == low.region } || low.region == up.region) return@filter false
                     val lc = clubs(w, low); val uc = clubs(w, up)
                     lc.size >= 6 && uc.size >= 4 && lc.sortedByDescending { it.elo }.take(4).map { it.elo }.average() >= uc.sortedBy { it.elo }.take(4).map { it.elo }.average()
                 }

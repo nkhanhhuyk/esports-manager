@@ -56,7 +56,11 @@ class LongEcosystemTest {
             assertTrue("a club in two leagues after $s", inLeagues.values.all { it == 1 })
             val byDay = HashMap<Long, Int>()
             for (f in w.fixtures) if (f.done && w.comps[f.compId].season == s) for (tm in intArrayOf(f.a, f.b)) byDay.merge(tm.toLong() * 100000 + f.day, 1, Int::plus)
-            assertEquals("double bookings in $s", 0, byDay.count { it.value > 1 })
+            val clashes = byDay.filter { it.value > 1 }.keys.take(8).map { key ->
+                val tid = (key / 100000).toInt(); val day = (key % 100000).toInt()
+                "${w.teams[tid].name} ${Dates.format(day)}: " + w.fixtures.filter { it.done && it.day == day && (it.a == tid || it.b == tid) }.joinToString { "${w.comps[it.compId].name} [${w.comps[it.compId].stages[it.stageIdx].name}]" }
+            }
+            assertEquals("double bookings in $s: $clashes; reforms ${w.formats.values.flatMap { tf -> tf.log.filter { it.season >= s - 2 } }.map { it.id + " " + it.text }}", 0, byDay.count { it.value > 1 })
             for (v in w.prestige.values) { maxPrestige = maxOf(maxPrestige, v); minPrestige = minOf(minPrestige, v) }
             val reforms = w.formats.values.flatMap { tf -> tf.log.filter { it.season == s } }
             out.appendLine("season $s: ${w.comps.count { it.season == s }} events, ${reforms.size} reform(s) ${reforms.joinToString { it.id + " " + it.kind }}, " +

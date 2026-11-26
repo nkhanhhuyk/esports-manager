@@ -215,8 +215,16 @@ object Circuits {
     }
 
     /** Teams of a development kind in a league's region (for the entrant rules). */
-    fun teamsOf(w: World, titleId: String, league: dev.uem.em.model.League?, kind: String): List<Team> =
-        w.teams.filter { it.titleId == titleId && it.active && it.kind == kind && (league == null || it.region == league.region) }
+    fun teamsOf(w: World, titleId: String, league: dev.uem.em.model.League?, kind: String): List<Team> {
+        // A development club belongs to one top league's circuit: the first live top league covering its region
+        // (exactly, or as one of a merged / multi-region league's sub-regions). Never two at once.
+        val owner = HashMap<String, Int>()
+        fun ownerOf(region: String) = owner.getOrPut(region) {
+            val live = w.leagues.filter { it.titleId == titleId && it.tier == 1 && it.until == 0 }
+            (live.firstOrNull { it.region == region } ?: live.firstOrNull { region in dev.uem.em.data.GameData.expand(it.region) })?.id ?: -1
+        }
+        return w.teams.filter { it.titleId == titleId && it.active && it.kind == kind && (league == null || ownerOf(it.region) == league.id) }
+    }
 
     /** Each day: signed or retired players leave development rosters, which refill from the region's unsigned players. */
     fun daily(w: World) {
