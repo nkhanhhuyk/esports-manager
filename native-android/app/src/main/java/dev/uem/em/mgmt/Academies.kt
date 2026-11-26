@@ -36,7 +36,7 @@ object Academies {
     class Result(val ok: Boolean, val text: String, val team: Team? = null)
 
     /** Found an academy for [parent] (paid by its organisation). */
-    fun found(w: World, parent: Team, charge: Boolean = true, rng: Rng = Rng.derive(w.seed, "academy", parent.id, w.day)): Result {
+    fun found(w: World, parent: Team, charge: Boolean = true, rng: Rng = Rng.derive(w.seed, "academy", parent.id, w.day), joinLeague: Boolean = true): Result {
         if (isAcademy(parent)) return Result(false, "An academy cannot have its own academy.")
         if (parent.nationalOf.isNotEmpty()) return Result(false, "National teams have no academy.")
         if (of(w, parent) != null) return Result(false, "${parent.name} already has an academy.")
@@ -45,7 +45,8 @@ object Academies {
         if (charge && org.balance < cost) return Result(false, "Founding an academy costs ${formatMoney(cost)}.")
         if (charge) Economy.ledger(w, org, "academy", -cost, "${parent.name} Academy founded")
         val t = Catalogue.get(parent.titleId)
-        val league = leagueFor(w, parent)
+        // A Challengers place only for a top-flight club's academy (a second-division club's second team is a development squad).
+        val league = if (joinLeague && w.leagues.getOrNull(parent.leagueId)?.tier == 1) leagueFor(w, parent) else null
         val team = Team(w.teams.size, org.id, parent.titleId, "${parent.name} Academy", (parent.short.take(4) + ".A"), parent.region, leagueId = league?.id ?: -1,
             style = parent.style, aggression = parent.aggression, chemistry = 55.0, elo = parent.elo - 180, metaAdapt = parent.metaAdapt - 4, coach = clamp(parent.coach - 10, 25.0, 85.0),
             real = false, dataNote = if (parent.real) "Academy of a real organisation: generated roster (no verified academy roster source)" else "Fictional academy team (generated roster)", parentId = parent.id)

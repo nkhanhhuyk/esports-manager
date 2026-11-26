@@ -711,6 +711,11 @@ object Progress {
                         if (add(tid, rule, "placing", src.id, i, passed)) { taken++; passed = "" }
                     }
                 }
+                // A league's places at the world championship, earned in its last split's playoffs (upsets count):
+                // 1 place the champion, 2 the finalists, 3 the finalists and the best other team on circuit points,
+                // 4 the semi-finalists; more places, the semi-finalists then circuit points. A place already taken by a
+                // team qualified another way (the MSI winner) passes down the playoff order. The region of an earlier
+                // international's runner-up counts its extra seed in the total (see "msiseed").
                 "circuit" -> {
                     val league = w.leagues[p[1].toInt()]
                     val splits = w.comps.filter { it.season == c.season && it.leagueId == league.id }
@@ -718,10 +723,22 @@ object Progress {
                     if (w.comps.any { it.season == c.season && it.titleId == c.titleId && it.tier == CompTier.INTERNATIONAL && !it.done && it.startDay < c.startDay && !Season.isEncQualifier(it) && it.promoLeague < 0 }) return null
                     val pts = circuitPoints(w, c.season, c.titleId)
                     val last = splits.maxByOrNull { it.split }
+                    val extra = c.entrants.firstOrNull { it.startsWith("msiseed:") }?.let { r -> w.comps.getOrNull(r.split(':')[1].toInt()) }
+                        ?.placements?.getOrNull(1)?.let { w.teams[it].leagueId == league.id } == true
+                    val places = p[2].toInt() + (if (extra) 1 else 0)
+                    val byPlayoffs = when (places) { 1 -> 1; 2, 3 -> 2; else -> 4 }
+                    val label = when (byPlayoffs) { 1 -> "champion"; 2 -> "finalist"; else -> "semi-finalist" }
                     var chosen = 0
-                    last?.placements?.firstOrNull()?.let { if (w.teams[it].leagueId == league.id && add(it, rule, "${league.short} champion (last split)", last.id, 0)) chosen++ }
+                    var passed = ""
+                    val order = last?.placements?.withIndex()?.filter { (_, it) -> w.teams[it].leagueId == league.id }.orEmpty()
+                    for ((i, tid) in order) {
+                        if (chosen >= byPlayoffs) break
+                        if (has(tid)) { passed = "${w.teams[tid].short} already qualified — place passed down"; continue }
+                        val what = if (i == 0) "${league.short} champion" else if (i == 1) "${league.short} finalist" else "${league.short} ${dev.uem.em.core.ordinal(i + 1)} in the playoffs"
+                        if (add(tid, rule, "$what (last split, $label places)", last!!.id, i, passed)) { chosen++; passed = "" }
+                    }
                     for (t in league.teamIds.sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo })) {
-                        if (chosen >= p[2].toInt()) break
+                        if (chosen >= places) break
                         if (add(t, rule, "circuit points", note = "${(pts[t] ?: 0.0).toInt()} points in ${league.short}")) chosen++
                     }
                 }
@@ -785,6 +802,8 @@ object Progress {
                     if (!src.done) return null
                     val runner = src.placements.getOrNull(1) ?: continue
                     val league = w.leagues.getOrNull(w.teams[runner].leagueId) ?: continue
+                    // The league's own rule already counted this seed (its playoff order fills it).
+                    if (c.entrants.any { it.startsWith("circuit:${league.id}:") }) continue
                     val pts = circuitPoints(w, c.season, c.titleId)
                     league.teamIds.filter { !has(it) }.sortedWith(compareByDescending<Int> { pts[it] ?: 0.0 }.thenByDescending { w.teams[it].elo }).firstOrNull()
                         ?.let { add(it, rule, "extra ${league.short} seed (${src.short} runner-up region)", note = "${(pts[it] ?: 0.0).toInt()} circuit points") }

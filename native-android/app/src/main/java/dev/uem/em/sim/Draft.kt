@@ -122,6 +122,8 @@ class DraftSession(
     val intel: SeriesIntel = SeriesIntel.NONE,
     /** The top-lane metas in force (see RoleMeta.top): what the top laner drafts. */
     val topLane: String = "",
+    /** The map of this game (VALORANT: agents are chosen for it). */
+    val mapId: String = "",
 ) {
     val picks = arrayOf(ArrayList<String>(), ArrayList<String>())
     val assign = arrayOf(HashMap<Int, String>(), HashMap<Int, String>())
@@ -489,9 +491,36 @@ class DraftSession(
 
     /** Per-team agent choice (Valorant): each player takes his best available preferred agent. */
     fun autoTeam(s: Int) {
+        if (t.id == "valorant" && mapId.isNotEmpty()) { mapTeam(s); return }
         val taken = HashSet(picks[s])
         lineups[s].indices.filter { it in open[s] }.sortedBy { (it * 7919 + s * 31 + step) % 11 }.forEach { i ->
             val c = prefs[s][i].firstOrNull { it.id !in taken && it.id !in locked[s] } ?: t.characters.firstOrNull { it.id !in taken && it.id !in locked[s] } ?: t.characters.first { it.id !in taken }
+            taken.add(c.id)
+            place(s, i, c.id)
+        }
+    }
+
+    /**
+     * VALORANT: each player's agent for this map. A player weighs their own agent pool (comfort), the patch,
+     * the agents the map's compositions are built around, what worked in the team's scrims, and a little
+     * game-to-game variety; the flex player picks last and fills the class the map asks for, or the one the
+     * composition still lacks (always a controller and an initiator).
+     */
+    private fun mapTeam(s: Int) {
+        val taken = HashSet(picks[s])
+        val bonus = scrimBonus?.getOrNull(s)
+        val flexCls = dev.uem.em.titles.MapMeta.flexClass(mapId)
+        val order = lineups[s].indices.filter { it in open[s] }.sortedBy { if (t.lineupRoles.getOrNull(it)?.id == "flex") 1 else 0 }
+        for (i in order) {
+            val role = t.lineupRoles.getOrNull(i) ?: continue
+            val flex = role.id == "flex"
+            val have = picks[s].mapNotNull { t.charIndex[it]?.cls }.toSet()
+            val cf = comfortOf[s][i]
+            val c = t.characters.filter { it.id !in taken && it.id !in locked[s] && (flex || it.fits(role)) }.maxByOrNull { c ->
+                cf(c) / 100 * 1.1 + (patch.charMeta[c.id] ?: 0.0) / 10 * 0.8 + dev.uem.em.titles.MapMeta.fit(mapId, c.id) + (bonus?.get(c.id) ?: 0.0) * 0.5 +
+                    (if (flex && c.cls == flexCls) 0.2 else 0.0) + (if (flex && c.cls in setOf("Controller", "Initiator") && c.cls !in have) 0.6 else 0.0) +
+                    rng.float(0.0, 0.08)
+            } ?: t.characters.firstOrNull { it.id !in taken } ?: continue
             taken.add(c.id)
             place(s, i, c.id)
         }

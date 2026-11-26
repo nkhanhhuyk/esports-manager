@@ -191,7 +191,9 @@ object Ecosystem {
         return when (p[0]) {
             "league" -> "Every team of ${league(p[1])?.name ?: "the league"}"
             "top" -> "Top ${p[2]} of ${comp(p[1])}"
-            "circuit" -> "${p[2]} from ${league(p[1])?.name}: the last split's champion, then circuit points"
+            "circuit" -> "${p[2]} from ${league(p[1])?.name}: " + when (p[2].toIntOrNull() ?: 0) {
+                1 -> "the last split's champion"; 2 -> "the last split's two finalists"; 3 -> "the last split's two finalists, then the best on circuit points"
+                4 -> "the last split's four semi-finalists"; else -> "the last split's four semi-finalists, then circuit points" }
             "bottom" -> "The bottom ${p[2]} of ${comp(p[1])} (defending their places)"
             "promo" -> "The best ${p[2]} independent team(s) of ${comp(p[1])}"
             "qual" -> "Top ${p[2]} of ${comp(p[1])}"

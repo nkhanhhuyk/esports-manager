@@ -114,6 +114,27 @@ class QualificationTest {
             assertTrue("unfinished editions of $season: ${left.take(5).map { it.name }}", left.isEmpty())
             for (id in w.titles) assertTrue("$id world championship $season", w.comps.any { it.season == season && it.titleId == id && it.tier == CompTier.WORLDS && it.placements.isNotEmpty() })
         }
+        // Worlds places come from the last split's playoffs: the champion (1 place), the finalists (2), the finalists and
+        // one team on circuit points (3), the semi-finalists (4, an extra seed included); a place taken by a team already
+        // in (the MSI winner) passes down the playoff order.
+        for (season in 2027..2029) {
+            val wc = w.comps.first { it.titleId == "lol" && it.season == season && it.defKey == "lol:worlds" }
+            for (rule in wc.entrants.filter { it.startsWith("circuit:") }) {
+                val league = w.leagues[rule.split(':')[1].toInt()]
+                val inn = wc.entries.filter { it.route == rule && it.status == "in" }
+                val last = w.comps.filter { it.season == season && it.leagueId == league.id }.maxBy { it.split }
+                val fromPlayoffs = inn.filter { it.src == last.id }
+                val pointsOnly = inn.filter { it.src != last.id }
+                out.appendLine("Worlds $season ${league.short} (${inn.size}): " + inn.joinToString { "${w.teams[it.teamId].short} ${it.how}" })
+                val total = inn.size + wc.entries.count { it.route.startsWith("msiwin") && it.status == "in" && w.teams[it.teamId].leagueId == league.id }
+                when {
+                    total <= 2 -> assertTrue("${league.short} $season: only playoff places", pointsOnly.isEmpty())
+                    total == 3 -> assertTrue("${league.short} $season: at most one place on points", pointsOnly.size <= 1)
+                    total >= 4 -> assertTrue("${league.short} $season: semi-finalists", fromPlayoffs.size >= minOf(inn.size, 4) - 1)
+                }
+                assertTrue("playoff places are top-four finishes", fromPlayoffs.all { it.place in 0..5 })
+            }
+        }
         // No team plays two series on the same day.
         val byTeamDay = HashMap<Long, Int>()
         for (f in w.fixtures) if (f.done) for (t in intArrayOf(f.a, f.b)) if (t >= 0) byTeamDay.merge(t.toLong() * 100000 + f.day, 1, Int::plus)

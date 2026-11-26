@@ -35,7 +35,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        // Leaving the app: save progress in the background (never while the simulation runs).
-        if (vm.world != null && vm.unsaved && vm.busy == null) vm.save(silent = true)
+        // Leaving the app (screen off, another app, Home): remember the open save so the game reopens it if Android
+        // ends the app in the background, and save progress (right away, or when a running simulation ends).
+        if (vm.world != null) {
+            vm.rememberSession()
+            if (vm.busy == null) { if (vm.unsaved) vm.save(silent = true) } else vm.saveWhenIdle = true
+        }
     }
 }

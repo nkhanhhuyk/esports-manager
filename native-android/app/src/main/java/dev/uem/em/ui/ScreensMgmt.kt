@@ -746,7 +746,7 @@ fun BoardScreen(vm: GameVm, w: World) {
                                 if (pos != null && pos > 0) "now ${dev.uem.em.core.ordinal(pos)} in ${comp.short} (target: top ${o.target})" else "target: top ${o.target}"
                             }
                             "balance" -> "balance ${formatMoney(w.orgs[w.userOrg].balance)} (floor ${formatMoney(o.target.toDouble())})"
-                            "worlds" -> "Worlds qualification decided by circuit points"
+                            "worlds" -> "Worlds qualification decided by the last split's playoffs (and circuit points for a third place)"
                             else -> ""
                         }
                         Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {

@@ -432,6 +432,13 @@ object WorldGen {
                 for (t in parents) dev.uem.em.mgmt.Academies.found(w, t, false, rng)
             }
         }
+        // Every other club of every game has a second team too: a development squad that trains, scrims and feeds the
+        // main team (call-ups, promotions); it plays no league, so leagues keep their size.
+        for (team in w.teams.toList()) {
+            if (!team.active || team.parentId >= 0 || team.nationalOf.isNotEmpty() || team.kind.isNotEmpty() || team.leagueId < 0) continue
+            if (dev.uem.em.mgmt.Academies.of(w, team) != null) continue
+            dev.uem.em.mgmt.Academies.found(w, team, false, rng, joinLeague = false).team?.let { it.scrims = 1 }
+        }
     }
 
     private fun fictionalNote(titleId: String) = if (titleId == "hok") "Fictional team: no verified current Honor of Kings roster source could be used, so the league, teams and players are generated" else "Fictional team (generated league, players and staff)"

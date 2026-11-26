@@ -90,7 +90,16 @@ class GameVm(app: Application) : AndroidViewModel(app) {
         private set
     var version by mutableIntStateOf(0)
         private set
-    var busy by mutableStateOf<Busy?>(null)
+    private val busyState = mutableStateOf<Busy?>(null)
+    /** A long task running (simulation, loading, saving); when it ends, a save asked for while it ran is made. */
+    var busy: Busy?
+        get() = busyState.value
+        set(v) {
+            busyState.value = v
+            if (v == null && saveWhenIdle && world != null) { saveWhenIdle = false; save(silent = true) }
+        }
+    /** The app went to the background while a simulation ran: save as soon as it ends. */
+    @Volatile var saveWhenIdle = false
     /** True once the game data (titles, characters, maps, pictures, history) is loaded: no screen draws before. */
     var ready by mutableStateOf(false)
     /** What went wrong at start-up, if loading the game data failed (shown instead of crashing). */
@@ -137,14 +146,40 @@ class GameVm(app: Application) : AndroidViewModel(app) {
                 startupError = e.stackTraceToString().take(4000)
                 CrashLog.write(e, "start-up")
             }
-            withContext(Dispatchers.Main) { ready = startupError == null }
+            withContext(Dispatchers.Main) { ready = startupError == null; if (ready) resumeIfInterrupted() }
         }
+    }
+
+    // ------------------------------------------------------------------ the open save across app restarts
+    /** The save file in play, remembered while the app is in the background (cleared at the title screen). */
+    fun rememberSession() { if (world != null) prefs.edit().putString("resume", slot).apply() }
+    fun forgetSession() { prefs.edit().remove("resume").apply() }
+
+    /**
+     * Android may end the app's process while it is in the background (screen off, another app in front):
+     * the next start reopens the save that was open. Not after the user swiped the app away from Recents (or
+     * stopped it), nor after a crash: then the title screen.
+     */
+    private fun resumeIfInterrupted() {
+        val name = prefs.getString("resume", null) ?: return
+        if (world != null || busy != null || store.list().none { it.slot == name }) return
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            val app = getApplication<Application>()
+            val am = app.getSystemService(android.app.ActivityManager::class.java) ?: return
+            val last = runCatching { am.getHistoricalProcessExitReasons(app.packageName, 0, 1).firstOrNull() }.getOrNull() ?: return
+            val r = last.reason
+            val byUser = r == android.app.ApplicationExitInfo.REASON_USER_REQUESTED || (android.os.Build.VERSION.SDK_INT >= 35 && r == android.app.ApplicationExitInfo.REASON_USER_STOPPED) ||
+                (last.description ?: "").contains("remove task", ignoreCase = true)
+            val crashed = r == android.app.ApplicationExitInfo.REASON_CRASH || r == android.app.ApplicationExitInfo.REASON_CRASH_NATIVE || r == android.app.ApplicationExitInfo.REASON_ANR
+            if (byUser || crashed) { forgetSession(); return }
+        }
+        load(name)
     }
 
     val screen get() = stack.last()
     fun go(s: Screen) { stack.add(s) }
     fun back(): Boolean = if (stack.size > 1) { stack.removeAt(stack.size - 1); true } else false
-    fun tab(s: Screen) { stack.clear(); stack.add(s) }
+    fun tab(s: Screen) { stack.clear(); stack.add(s); if (s == Screen.Start) forgetSession() }
     fun touch() { version++ }
 
     /** A change made from a screen (tactics, signings…): marks the game unsaved. */
@@ -325,6 +360,7 @@ class GameVm(app: Application) : AndroidViewModel(app) {
                 unsaved = false
                 touch()
                 tab(if (w.userOrg >= 0 || w.spectator) Screen.Home else Screen.PickOrg)
+                rememberSession()
             } catch (e: Exception) {
                 toast = "Could not load: ${e.message}"
             } finally {
