@@ -252,7 +252,7 @@ fun CompScreen(vm: GameVm, w: World, id: Int) {
             2 -> item { CompPlayerStats(vm, w, c) }
             3 -> item { Placements(vm, w, c) }
             5 -> item { CompHistory(vm, w, c) }
-            else -> item { Entrants(vm, w, c) }
+            else -> { item { Entrants(vm, w, c) }; item { RaceCard(vm, w, c) }; if (c.tier == CompTier.WORLDS && dev.uem.em.comp.Formats.applies(c.titleId)) item { FormatCard(w, c.titleId) } }
         }
         item { Gap(16) }
     }

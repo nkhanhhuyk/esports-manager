@@ -36,7 +36,7 @@ object Formats {
     fun of(w: World, titleId: String): TitleFormat = w.formats.getOrPut(titleId) { TitleFormat(titleId) }
     fun event(w: World, titleId: String, key: String): EventFormat? = w.formats[titleId]?.events?.get(key)
 
-    fun tier1(w: World, titleId: String): List<League> = w.leagues.filter { it.titleId == titleId && it.tier == 1 }.sortedByDescending { Season.leagueStrength(it) }
+    fun tier1(w: World, titleId: String): List<League> = w.leagues.filter { it.titleId == titleId && it.tier == 1 && it.until == 0 }.sortedByDescending { Season.leagueStrength(it) }
 
     /** An event's short name in a game (MSC, M-Series, KIC...). */
     fun eventName(titleId: String, key: String): String = Season.REAL_EVENTS[titleId]?.get(key)?.second ?: when (key) { "fs" -> "First Stand"; "msi" -> "MSI"; else -> "Worlds" }
@@ -58,9 +58,9 @@ object Formats {
     }
 
     /** Seeds per league (in [tier1] order) at an event this season. */
-    fun seeds(w: World, titleId: String, key: String, tier1: List<League>): IntArray {
+    fun seeds(w: World, titleId: String, key: String, tier1: List<League>, format: TitleFormat? = w.formats[titleId]): IntArray {
         val def = defaultSeeds(titleId, key, tier1)
-        val tf = w.formats[titleId] ?: return def
+        val tf = format ?: return def
         return IntArray(tier1.size) { i -> (tf.seeds["$key:${tier1[i].id}"] ?: def[i]).coerceIn(0, tier1[i].teamIds.size) }
     }
 
@@ -247,6 +247,68 @@ object Formats {
         return out
     }
 
+    // ------------------------------------------------------------------ impact preview (read-only)
+
+    /** About how many series a stage set plays with [n] teams (estimate for previews). */
+    private fun estMatches(key: String, ef: EventFormat?, n: Int): Int {
+        if (n < 2) return 0
+        val g = effGroup(key, ef, n); val b = effBracket(key, ef)
+        var m = 0; var ko = n
+        when (g) {
+            "swiss" -> { m += (n * (if (n >= 16) 33 else 10)) / (if (n >= 16) 16 else 8); ko = if (n >= 16) 8 else 4 }
+            "groups" -> { val gs = maxOf(2, (n / 4.0).roundToInt()); val per = ceil(n.toDouble() / gs).toInt(); m += gs * per * (per - 1) / 2; ko = gs * 2 }
+        }
+        m += if (b == "double") 2 * ko - 1 else ko - 1
+        return m
+    }
+
+    /** Teams at an event under a format: (main event, play-in). */
+    private fun sizes(w: World, titleId: String, key: String, tier1: List<League>, tf: TitleFormat?): Pair<Int, Int> {
+        val s = seeds(w, titleId, key, tier1, tf).sum()
+        val ef = tf?.events?.get(key)
+        val win = if (key == "worlds" && winnerSpot(titleId, ef)) 1 else 0
+        val run = if (key == "worlds" && runnerSeed(titleId, ef)) 1 else 0
+        if (ef != null && ef.playIn.isNotEmpty() && ef.size > 0) return ef.size to (s - (ef.size - ef.playInAdvance - win) + run)
+        return (s + win + run) to 0
+    }
+
+    /**
+     * Old vs proposed for an announced format, and — illustrative only — which teams today's points table would
+     * move in or out of the Worlds places. Pure: nothing in the world changes.
+     */
+    fun preview(w: World, titleId: String, next: TitleFormat): List<String> {
+        val cur = w.formats[titleId]
+        val tier1 = tier1(w, titleId)
+        val out = ArrayList<String>()
+        for (key in KEYS) {
+            val ev = eventName(titleId, key)
+            val (ma, pa) = sizes(w, titleId, key, tier1, cur); val (mb, pb) = sizes(w, titleId, key, tier1, next)
+            val ea = cur?.events?.get(key); val eb = next.events[key]
+            val sa = seeds(w, titleId, key, tier1, cur); val sb = seeds(w, titleId, key, tier1, next)
+            val lines = ArrayList<String>()
+            if (ma != mb || pa != pb) lines.add("teams ${ma + pa} → ${mb + pb} (main event $ma → $mb, play-in $pa → $pb)")
+            val moved = tier1.indices.filter { sa[it] != sb[it] }
+            if (moved.isNotEmpty()) lines.add("seeds " + moved.joinToString { "${tier1[it].short} ${sa[it]} → ${sb[it]}" })
+            if (effGroup(key, ea, ma) != effGroup(key, eb, mb) || effBracket(key, ea) != effBracket(key, eb)) lines.add("format ${effGroup(key, ea, ma)} + ${effBracket(key, ea)} → ${effGroup(key, eb, mb)} + ${effBracket(key, eb)}")
+            if ((ea?.bo ?: 0) != (eb?.bo ?: 0) || (ea?.groupBo ?: 0) != (eb?.groupBo ?: 0)) lines.add("best-of: first stage Bo${effGroupBo(Catalogue.get(titleId), ea)} → Bo${effGroupBo(Catalogue.get(titleId), eb)}, bracket Bo${effBo(Catalogue.get(titleId), ea)} → Bo${effBo(Catalogue.get(titleId), eb)}")
+            if ((ea?.playIn ?: "") != (eb?.playIn ?: "")) lines.add("play-in: ${ea?.playIn?.ifEmpty { null } ?: "none"} → ${eb?.playIn?.ifEmpty { null } ?: "none"}")
+            if (lines.isNotEmpty()) out.add("$ev: " + lines.joinToString("; ") + " · about ${estMatches(key, ea, ma) + (if (pa > 1) pa else 0)} → ${estMatches(key, eb, mb) + (if (pb > 1) pb else 0)} series")
+            if (key == "worlds" && moved.isNotEmpty()) {
+                val pts = Progress.circuitPoints(w, w.season, titleId)
+                for (i in moved) {
+                    val order = tier1[i].teamIds.sortedByDescending { pts[it] ?: 0.0 }.map { w.teams[it].short }
+                    val (lo, hi) = minOf(sa[i], sb[i]) to maxOf(sa[i], sb[i])
+                    val who = order.subList(minOf(lo, order.size), minOf(hi, order.size))
+                    if (who.isNotEmpty()) out.add("Illustrative (today's points table as if final): ${tier1[i].short} — ${who.joinToString()} would ${if (sb[i] > sa[i]) "gain" else "lose"} a Worlds place")
+                }
+            }
+        }
+        if (cur?.lastChance != next.lastChance) out.add("Regional finals: ${if (next.lastChance) "added" else "removed"}")
+        if (cur?.invitational != next.invitational) out.add("Best-of-the-rest invitational: ${if (next.invitational) "added" else "removed"}")
+        if (cur?.academyCup != next.academyCup) out.add("Continental Academy Champions League: ${if (next.academyCup) "added" else "removed"}")
+        return out.ifEmpty { listOf("No structural difference from the current format.") }
+    }
+
     // ------------------------------------------------------------------ results by region
 
     /**
@@ -333,21 +395,84 @@ object Formats {
             "seeds:worlds" to 3.0, "seeds:msi" to 2.0, "size:worlds" to 1.1, "size:msi" to 0.9, "size:fs" to 0.5,
             "playin:worlds" to 1.6, "playin:msi" to 1.0, "stage:worlds" to 1.2, "stage:msi" to 0.9, "stage:fs" to 0.6,
             "bo:worlds" to 0.8, "bo:msi" to 0.6, "qual" to 0.8, "winner" to 0.4, "runner" to 0.4, "lcq" to 0.5, "dcgi" to 0.35, "prorel" to 1.0,
+            "promofmt" to 0.5, "cacl" to 0.25,
         )
+        // League reforms (expansion, merger, split) are rarer still: at most one every five seasons.
+        if (tf.log.none { it.kind in LEAGUE_KINDS && w.season - it.season < 5 }) { kinds.add("expandleague" to 0.5); kinds.add("merge" to 0.35); kinds.add("split" to 0.35) }
         val want = if (force > 0) force else rng.int(1, 3)
+        // Most reforms apply from next season; some are announced a season further ahead (time to plan rosters and budgets).
+        val longNotice = force <= 0 && rng.chance(0.3)
+        val effective = w.season + if (longNotice) 2 else 1
+        val before = if (longNotice) snapshot(tf) else ""
         val made = ArrayList<FormatChange>()
         var guard = 0
         while (made.size < want && kinds.isNotEmpty() && guard++ < 40) {
             val k = rng.weighted(kinds) { it.second }
             kinds.remove(k)
-            change(x, k.first)?.let { made.add(it) }
+            change(x, k.first, effective)?.let { made.add(it) }
         }
         if (made.isEmpty()) return emptyList()
-        tf.log.addAll(made)
-        val head = "${t.short} competition changes for ${w.season + 1}"
-        w.news.add(News(w.day, head, made.joinToString(" ") { it.text + "." }))
-        if (w.userOrg >= 0 && w.orgs[w.userOrg].teams.any { w.teams[it].titleId == t.id }) w.inbox.add(Message(w.day, "Competition office", head, made.joinToString("\n\n") { it.text + ". " + it.why }))
-        return made.map { "Competitions — ${it.text}" }
+        val n0 = tf.log.count { it.season == w.season }
+        val ids = made.mapIndexed { i, _ -> "${t.id}-${w.season}-${n0 + i + 1}" }
+        val logged = made.mapIndexed { i, c -> FormatChange(c.season, c.day, c.kind, c.event, (if (longNotice) "From $effective: " else "") + c.text, c.why, c.leagues, c.gain, ids[i], effective, "announced") }
+        tf.log.addAll(logged)
+        for (c in logged) if (c.kind in LEAGUE_KINDS) tf.pending.lastOrNull { it.kind == c.kind && it.ids.isEmpty() }?.ids = listOf(c.id)
+        // Advance notice: the new format is stored and the current one restored until its season (league reforms are already pending).
+        if (longNotice) {
+            val formatIds = logged.filter { it.kind !in LEAGUE_KINDS }.map { it.id }
+            if (formatIds.isNotEmpty()) {
+                val after = snapshot(tf)
+                restore(tf, before)
+                tf.pending.add(dev.uem.em.model.PendingChange("format", effective, w.day, logged.filter { it.id in formatIds }.joinToString("; ") { it.text.removePrefix("From $effective: ") }, "", state = after, ids = formatIds))
+            }
+        }
+        val head = "${t.short} competition changes for $effective"
+        w.news.add(News(w.day, head, (if (longNotice) "Announced now, in effect from the $effective season: " else "In effect from next season: ") + made.joinToString(" ") { it.text + "." }))
+        if (w.userOrg >= 0 && w.orgs[w.userOrg].teams.any { w.teams[it].titleId == t.id }) w.inbox.add(Message(w.day, "Competition office", head, logged.joinToString("\n\n") { "[${it.id}] ${it.text}. ${it.why}" }))
+        return logged.map { "Competitions [${it.id}] — ${it.text}" }
+    }
+
+    val LEAGUE_KINDS = setOf("expandleague", "merge", "split")
+
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    /** The structural part of a game's format as JSON (log, announcements and review dates left out). */
+    private fun snapshot(tf: TitleFormat): String = json.encodeToString(TitleFormat.serializer(),
+        TitleFormat(tf.titleId, HashMap(tf.events), HashMap(tf.seeds), tf.rank, HashMap(tf.proRel), tf.lastChance, tf.invitational, 0, ArrayList(), HashMap(tf.promo), tf.academyCup))
+
+    private fun restore(tf: TitleFormat, state: String) {
+        val s = json.decodeFromString(TitleFormat.serializer(), state)
+        tf.events.clear(); tf.events.putAll(s.events)
+        tf.seeds.clear(); tf.seeds.putAll(s.seeds)
+        tf.rank = s.rank
+        tf.proRel.clear(); tf.proRel.putAll(s.proRel)
+        tf.lastChance = s.lastChance; tf.invitational = s.invitational
+        tf.promo.clear(); tf.promo.putAll(s.promo)
+        tf.academyCup = s.academyCup
+    }
+
+    /** The game's format as an announcement will make it (for the preview), or null. */
+    fun pendingFormat(p: dev.uem.em.model.PendingChange): TitleFormat? = if (p.kind == "format" && p.state.isNotEmpty()) json.decodeFromString(TitleFormat.serializer(), p.state) else null
+
+    /**
+     * Before a season's calendar is drawn up: announcements for this season take effect (a new format, or a league
+     * expanded, merged or split), and the season's log entries become effective. A league reform that can no
+     * longer be carried out (a league too small or gone) is rejected, with the reason in the news.
+     */
+    fun applyPending(w: World, titleId: String, season: Int) {
+        val tf = w.formats[titleId] ?: return
+        for (p in tf.pending) {
+            if (p.status != "announced" || p.effective > season) continue
+            val ok = when (p.kind) {
+                "format" -> { restore(tf, p.state); true }
+                else -> Leagues.apply(w, tf, p, season)
+            }
+            p.status = if (ok) "effective" else "rejected"
+            for (c in tf.log) if (c.id in p.ids) c.status = p.status
+            if (!ok) w.news.add(News(w.day, "${Catalogue.get(titleId).short} reform not carried out", "${p.text} — rejected: the leagues no longer meet the conditions it was announced under."))
+            else if (p.effective > p.announced.let { dev.uem.em.core.Dates.year(it) }) w.news.add(News(w.day, "${Catalogue.get(titleId).short}: now in effect", p.text))
+        }
+        for (c in tf.log) if (c.status == "announced" && c.effective in 1..season && tf.pending.none { c.id in it.ids }) c.status = "effective"
     }
 
     /** Before changes: seeds written out (the calendar's allocation becomes explicit) and leagues ranked on recent results. */
@@ -367,12 +492,14 @@ object Formats {
         val tier1 = tier1(w, t.id)
         if (tier1.size < 2) return null
         val tf = of(w, t.id)
-        val ch = change(review(w, t, tf, tier1, rng), kind) ?: return null
+        val c = change(review(w, t, tf, tier1, rng), kind) ?: return null
+        val ch = FormatChange(c.season, c.day, c.kind, c.event, c.text, c.why, c.leagues, c.gain, "${t.id}-${w.season}-${tf.log.count { it.season == w.season } + 1}", w.season + 1, "announced")
         tf.log.add(ch)
+        if (ch.kind in LEAGUE_KINDS) tf.pending.lastOrNull { it.kind == ch.kind && it.ids.isEmpty() }?.ids = listOf(ch.id)
         return ch
     }
 
-    private fun change(x: Ctx, kind: String): FormatChange? {
+    private fun change(x: Ctx, kind: String, effective: Int = x.w.season + 1): FormatChange? {
         val w = x.w; val rng = x.rng
         val key = kind.substringAfter(':', "worlds")
         val ev = eventName(x.t.id, key)
@@ -519,6 +646,20 @@ object Formats {
                 val name = if (x.t.id == "lol") "the Demacia Cup Global Invitational" else "the ${x.t.short} Global Invitational"
                 return fc("dcgi", if (x.tf.invitational) "Back next season: $name for the teams that miss Worlds" else "$name is cancelled", if (x.tf.invitational) "Teams that miss Worlds get an international stage." else "The calendar after Worlds gets lighter.")
             }
+            "promofmt" -> {
+                val l = x.tier1.filter { hasProRel(w, it) }.let { if (it.isEmpty()) null else rng.pick(it) } ?: return null
+                val now = x.tf.promo[l.id] ?: "rr"
+                val next = if (now == "playoff") "rr" else "playoff"
+                x.tf.promo[l.id] = next
+                return fc("promofmt", if (next == "playoff") "${l.short} promotion becomes playoffs: its bottom two against the lower leagues' best two, cross-seeded; the semi-final winners take the places"
+                    else "${l.short} promotion goes back to a round robin of the bottom two and the lower leagues' best", if (next == "playoff") "Win-or-go-home series for a top-flight place." else "Every candidate plays every other: fewer upsets.", listOf(l.id))
+            }
+            "cacl" -> {
+                x.tf.academyCup = !x.tf.academyCup
+                return fc("cacl", if (x.tf.academyCup) "The Continental Academy Champions League returns: each academy league's top two after the season" else "The Continental Academy Champions League is discontinued",
+                    if (x.tf.academyCup) "Academy prospects get international games against other regions." else "The academy calendar ends with the domestic leagues.")
+            }
+            "expandleague", "merge", "split" -> return Leagues.propose(x.w, x.t, x.tf, x.tier1, kind, rng, effective)?.let { (text, why, leagues) -> fc(kind, text, why, leagues, leagues) }
             // A league switches between promotion / relegation and franchising (rarely: not within three seasons of its last switch).
             "prorel" -> {
                 val cands = x.tier1.filter { l -> independentLowers(w, l).isNotEmpty() && x.tf.log.none { it.kind.startsWith("prorel") && l.id in it.leagues && w.season - it.season < 3 } }

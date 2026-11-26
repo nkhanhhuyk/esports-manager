@@ -402,6 +402,11 @@ class League(
     var realSrc: String = "",
     /** An academy league: second teams of the upper league's clubs (no promotion or relegation with it). */
     var academy: Boolean = false,
+    /** League reforms: the leagues this one came from / became (a merger or a split), and the seasons it played. */
+    val predecessors: MutableList<Int> = ArrayList(),
+    val successors: MutableList<Int> = ArrayList(),
+    var since: Int = 0,
+    var until: Int = 0,
 )
 
 /**
@@ -431,7 +436,13 @@ class EventFormat(
 
 /** A change to a game's competitions, announced with a major patch. */
 @Serializable
-class FormatChange(val season: Int, val day: Int, val kind: String, val event: String, val text: String, val why: String = "", val leagues: List<Int> = emptyList(), val gain: List<Int> = emptyList())
+class FormatChange(val season: Int, val day: Int, val kind: String, val event: String, val text: String, val why: String = "", val leagues: List<Int> = emptyList(), val gain: List<Int> = emptyList(),
+    /** Canonical id shared by the patch note, news and social posts ("lol-2029-2"). */
+    val id: String = "",
+    /** The season it applies from (0 in older saves: the next one). */
+    val effective: Int = 0,
+    /** announced → effective (or deferred / rejected when it could not be applied). */
+    var status: String = "")
 
 /** A game's evolving competition structure (see comp.Formats). */
 @Serializable
@@ -450,7 +461,21 @@ class TitleFormat(
     var invitational: Boolean = true,
     var lastReview: Int = 0,
     val log: MutableList<FormatChange> = ArrayList(),
+    /** Promotion format per league with promotion/relegation: "rr" (round robin of all candidates) or "playoff" (bottom two vs the lower leagues' best two, cross-seeded semi-finals; the semi-final winners take the places). */
+    val promo: MutableMap<Int, String> = HashMap(),
+    /** The Continental Academy Champions League (the academy leagues' best two each). */
+    var academyCup: Boolean = true,
+    /** Changes announced ahead of time: they apply from their season (FormatChange.season + 1 is the announcement's next season; see Formats.pending). */
+    val pending: MutableList<PendingChange> = ArrayList(),
 )
+
+/** A competition change announced in advance: applied when [effective]'s calendar is drawn up. */
+@Serializable
+class PendingChange(val kind: String, val effective: Int, val announced: Int, val text: String, val why: String = "", var status: String = "announced",
+    /** "format": the game's format as it will be (JSON); a league reform: its parameters ("a=12;b=14"). */
+    val state: String = "",
+    /** The log entries (FormatChange ids) this announcement covers. */
+    var ids: List<String> = emptyList())
 
 enum class CompTier { LEAGUE, CHALLENGER, INTERNATIONAL, WORLDS, CUSTOM }
 enum class StageType { RR, DRR, GROUPS, SWISS, SINGLE_ELIM, DOUBLE_ELIM }

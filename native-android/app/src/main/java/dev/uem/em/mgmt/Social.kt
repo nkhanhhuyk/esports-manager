@@ -455,7 +455,7 @@ object Social {
                 cm.add(Comment(fan(rng, t, null), SocialVoice.say(rng, "fc6", talk.over), sc(30.0)))
                 cm.add(Comment(rng.pick(MEMES), SocialVoice.say(rng, "fc7", talk.meme), sc(50.0)))
                 val love = sc(120.0); val hate = sc(100.0); val meh = sc(40.0)
-                out.add(Post("fm$tid${ch.day}-$ci", AGORA, ch.day, ch.day * 10.0 + imp + 0.2, rng.pick(PRESS), "[${t.short} ${ch.season + 1}] ${ch.text}",
+                out.add(Post("fm$tid${ch.day}-$ci", AGORA, ch.day, ch.day * 10.0 + imp + 0.2, rng.pick(PRESS), "[${if (ch.id.isNotEmpty()) ch.id else "${t.short} ${ch.season + 1}"}] ${ch.text}",
                     ch.why + " Announced with the major patch — it applies from next season.", "debate", tid, clubs.take(4).map { it.id }, emptyList(), sc(500.0), 0, IntArray(6), cm,
                     poll = listOf("Good change" to love, "Bad change" to hate, "Don't care, just play" to meh), place = "a/${t.short.lowercase().filter { it.isLetterOrDigit() }}"))
                 out.add(Post("fc$tid${ch.day}-$ci", CHIRP, ch.day, ch.day * 10.0 + imp, rng.pick(PRESS), null,

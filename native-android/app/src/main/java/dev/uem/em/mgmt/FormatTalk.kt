@@ -151,6 +151,36 @@ object FormatTalk {
                 listOf("A big name will be relegated within two seasons, watch.", "The lower leagues will produce a champion within five years."),
                 listOf("Bottom of the table teams opening the news: 😰", "Relegation zone enjoyers: 🍿"),
                 listOf("Relegation risk changes everything: expect panic signings before the last split.", "The bottom two now play for their place against the best of the lower leagues."))
+            "promofmt" -> Lines(
+                listOf("Promotion series are pure drama. Love it.", "A proper playoff for a top-flight place — finally."),
+                listOf("One bad series and a club loses its place? Harsh.", "The round robin was fairer: more games, fewer flukes."),
+                listOf("A giant is getting relegated in a Bo5, calling it.", "Lower-league teams are going to upset everyone."),
+                listOf("Bottom two teams watching the bracket reveal: 😬", "Promotion playoffs: the real finals"),
+                listOf("Cross-seeding gives the 9th-placed side the tougher draw — every league point matters to the end.", "Short series favour prepared drafts over depth."))
+            "cacl" -> Lines(
+                listOf("Academy teams against other regions — best scouting event of the year.", "Prospects need international games. Great call."),
+                listOf("Another event for teenagers in a packed calendar.", "Nobody watches academy games anyway."),
+                listOf("Next year's Worlds MVP is playing in this, watch.", "The academy final will outdraw Worlds, mark it."),
+                listOf("Academy kids flying overseas for the first time: ✈️🥹", "Scouts with notebooks: 📝📝📝"),
+                listOf("A stage for the best second teams: watch the promotions that follow.", "Head coaches will finally see their academy against real opposition."))
+            "expandleague" -> Lines(
+                listOf("Two more clubs in $gain — more local derbies, more stories.", "Expansion shows the scene is growing."),
+                listOf("Expanding $gain waters down the league.", "More teams, same talent pool: weaker rosters everywhere."),
+                listOf("One of the new clubs will make Worlds in year one.", "This league will be twenty teams by 2040."),
+                listOf("New clubs joining the league: 👋", "Schedulers seeing two more teams: 😵"),
+                listOf("The new places go to the strongest clubs below the league; the Worlds places do not change.", "Expect a busier transfer window as the new clubs build rosters."))
+            "merge" -> Lines(
+                listOf("Merging makes one competitive league instead of two weak ones.", "Better games every week. Good for players and viewers."),
+                listOf("Two scenes lose their own league. Sad day.", "The smaller region will be swallowed by the bigger one."),
+                listOf("The end of an era for both leagues.", "Rivalries that never existed are about to be born."),
+                listOf("Both fanbases arguing over the new league's name: 🥊", "Two leagues enter, one league leaves"),
+                listOf("Both leagues' histories are kept; seeds move with the clubs, up to the new league's cap.", "Travel and time zones will be the hidden challenge."))
+            "split" -> Lines(
+                listOf("Two leagues means two champions and more teams with something to play for.", "Regional leagues build local fanbases."),
+                listOf("Splitting weakens both halves.", "The best teams will never meet in the regular season now."),
+                listOf("One half is going to be way stronger than the other, mark it.", "The weaker half will never win a Worlds game again."),
+                listOf("The league after the split: 🧩🧩", "Fans checking which half their team is in: 👀"),
+                listOf("Clubs go to their home region's league; the Worlds seeds are shared between the two.", "Two sets of playoffs means two sets of upsets."))
             else -> Lines(listOf("Good change."), listOf("Bad change."), listOf("This changes everything."), listOf("Patch notes enjoyers 📜"), listOf("We'll see how it plays out."))
         }
     }

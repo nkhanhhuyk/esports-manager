@@ -118,7 +118,9 @@ object Career {
     fun awards(w: World) {
         for (id in w.titles) {
             val t = Catalogue.get(id)
-            val lines = w.players.mapNotNull { p -> p.stats.filter { it.season == w.season && it.titleId == id }.takeIf { it.isNotEmpty() }?.let { s -> Triple(p, s.sumOf { it.gp }, s.sumOf { it.ratingSum }) } }
+            // Senior awards count first-team games only (second teams have their own awards below).
+            fun senior(teamId: Int) = w.teams.getOrNull(teamId)?.parentId?.let { it < 0 } != false
+            val lines = w.players.mapNotNull { p -> p.stats.filter { it.season == w.season && it.titleId == id && senior(it.teamId) }.takeIf { it.isNotEmpty() }?.let { s -> Triple(p, s.sumOf { it.gp }, s.sumOf { it.ratingSum }) } }
             if (lines.isEmpty()) continue
             val maxGp = lines.maxOf { it.second }
             val eligible = lines.filter { it.second >= maxGp * 0.6 }
@@ -127,6 +129,33 @@ object Career {
             eligible.filter { Dates.ageAt(it.first.birth, w.day) <= 20 }.maxByOrNull { avg(it) }?.let { (p, _, _) -> give(w, id, "${t.short} Rookie of the Year", p.id) }
             for (role in t.lineup) eligible.filter { it.first.mainRole == role }.maxByOrNull { avg(it) }?.let { (p, _, _) -> give(w, id, "${t.short} All-Pro ${t.role(role).short}", p.id) }
             w.comps.firstOrNull { it.season == w.season && it.titleId == id && it.tier == CompTier.WORLDS && it.mvp >= 0 }?.let { give(w, id, "${it.short} MVP", it.mvp, it.id) }
+            academyAwards(w, id)
+        }
+    }
+
+    /**
+     * Academy league awards: the MVP and the Rookie of the Season (19 or younger) from the league's games this
+     * season, and the Academy Team of the Season (best record over the splits, its head coach named).
+     */
+    private fun academyAwards(w: World, titleId: String) {
+        for (al in w.leagues.filter { it.titleId == titleId && it.academy }) {
+            val comps = w.comps.filter { it.season == w.season && it.leagueId == al.id && it.done }
+            if (comps.isEmpty()) continue
+            val gp = HashMap<Int, Int>(); val r = HashMap<Int, Double>()
+            for (c in comps) for ((pid, st) in c.pstats) { gp.merge(pid, st.gp, Int::plus); r.merge(pid, st.r, Double::plus) }
+            val maxGp = gp.values.maxOrNull() ?: continue
+            val elig = gp.keys.filter { gp[it]!! >= maxGp * 0.6 }
+            fun avg(pid: Int) = r[pid]!! / gp[pid]!!
+            elig.maxByOrNull { avg(it) }?.let { give(w, titleId, "${al.short} Academy MVP", it) }
+            elig.filter { Dates.ageAt(w.players[it].birth, w.day) <= 19 }.maxByOrNull { avg(it) }?.let { give(w, titleId, "${al.short} Rookie of the Season", it) }
+            val wins = HashMap<Int, Int>()
+            for (c in comps) for (st in c.stages) for (row in st.standings) wins.merge(row.teamId, row.w, Int::plus)
+            for (c in comps) c.placements.firstOrNull()?.let { wins.merge(it, 3, Int::plus) }
+            wins.maxByOrNull { it.value }?.key?.let { tid ->
+                w.awards.add(Award(w.season, titleId, "${al.short} Academy Team of the Season", -1, tid))
+                val coach = w.staff.firstOrNull { it.teamId == tid && it.role == "head-coach" }
+                w.news.add(News(w.day, "${al.short} Academy Team of the Season: ${w.teams[tid].name}", "${w.teams[tid].name}${coach?.let { " (head coach ${it.name()})" } ?: ""} had the best season of ${al.name}."))
+            }
         }
     }
 

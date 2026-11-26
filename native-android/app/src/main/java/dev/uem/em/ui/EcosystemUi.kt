@@ -12,6 +12,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -138,22 +142,84 @@ fun QualificationCard(vm: GameVm, w: World, c: Competition) {
     }
 }
 
-/** A game's international structure (as the latest major patch left it) and the competition changes so far. */
+/**
+ * A game's competition structure (as the latest major patch left it), the reforms announced for later seasons with a
+ * read-only preview of their effect, the archive of every change (by year and type, with ids and status) and the
+ * leagues' lineage (mergers, splits).
+ */
 @Composable
 fun FormatCard(w: World, titleId: String) {
     val lines = dev.uem.em.comp.Formats.summary(w, titleId)
     if (lines.isEmpty()) return
+    val tf = w.formats[titleId]
     Card("Competition structure — ${Catalogue.get(titleId).short}") {
-        Muted("Next season's calendar, as the latest major patch left it. Formats change only with a major patch after the world championship, at most every two seasons.", 10)
+        Muted("Next season's calendar, as the latest major patch left it. Formats change only with a major patch after the world championship, at most every two seasons — announced for next season or, sometimes, a season further ahead. Fictional future decisions, not real announcements.", 10)
         for (l in lines) Text("• $l", color = Ui.text, fontSize = 11.sp)
-        val log = w.formats[titleId]?.log.orEmpty()
+        // Announced for later seasons: what will change, and a preview.
+        val pend = tf?.pending?.filter { it.status == "announced" }.orEmpty()
+        if (pend.isNotEmpty()) {
+            Gap(6)
+            Text("Announced", color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            for (p in pend) {
+                Text("From ${p.effective}${if (p.ids.isNotEmpty()) " [${p.ids.joinToString()}]" else ""}: ${p.text}", color = Ui.accent, fontSize = 11.sp)
+                val next = dev.uem.em.comp.Formats.pendingFormat(p)
+                if (next != null) for (d in dev.uem.em.comp.Formats.preview(w, titleId, next)) Muted("   · $d", 10)
+                else Muted("   · Carried out before the ${p.effective} season starts.", 10)
+            }
+        }
+        val log = tf?.log.orEmpty()
         if (log.isNotEmpty()) {
             Gap(6)
-            Text("Changes so far", color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            for (ch in log.asReversed().take(15)) {
-                Text("${ch.season + 1}: ${ch.text}", color = Ui.accent, fontSize = 11.sp)
-                if (ch.why.isNotBlank()) Muted(ch.why, 10)
+            Text("Reform archive", color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            val years = listOf("All years") + log.map { it.season }.distinct().sortedDescending().map { "$it" }
+            val types = listOf("All changes", "Seeds", "Event size", "Play-ins", "Stage format", "Best-of", "Qualification", "Leagues", "Promotion / franchising", "Other")
+            fun typeOf(k: String) = when (k) { "seeds" -> 1; "expand", "shrink" -> 2; "playin+", "playin-", "playin~" -> 3; "group", "bracket" -> 4; "bo" -> 5; "qual", "winner", "runner", "lcq" -> 6
+                "expandleague", "merge", "split" -> 7; "prorel+", "prorel-", "promofmt" -> 8; else -> 9 }
+            var yi by remember(titleId) { mutableIntStateOf(0) }
+            var ti by remember(titleId) { mutableIntStateOf(0) }
+            Row { Select("", years, yi) { yi = it }; Select("", types, ti) { ti = it } }
+            val shown = log.asReversed().filter { (yi == 0 || "${it.season}" == years[yi]) && (ti == 0 || typeOf(it.kind) == ti) }
+            if (shown.isEmpty()) Muted("No change of that kind.", 10)
+            for (ch in shown.take(30)) {
+                Text("${ch.season} · ${if (ch.id.isNotEmpty()) "[${ch.id}] " else ""}${ch.text}", color = Ui.accent, fontSize = 11.sp)
+                Muted("Effective ${if (ch.effective > 0) ch.effective else ch.season + 1} · ${ch.status.ifEmpty { "effective" }}${if (ch.why.isNotBlank()) " · ${ch.why}" else ""}", 10)
             }
+        }
+        // Leagues that ended in a merger or a split: their seasons stay in their own history.
+        val former = w.leagues.filter { it.titleId == titleId && it.until > 0 && !it.academy }
+        if (former.isNotEmpty()) {
+            Gap(6)
+            Text("Former leagues", color = Ui.text, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            for (l in former) Muted("${l.name}: until ${l.until} → ${l.successors.mapNotNull { w.leagues.getOrNull(it)?.short }.joinToString().ifEmpty { "—" }}", 10)
         }
     }
 }
+
+/**
+ * Qualification race toward the world championship for a league (the Worlds page: pick the league): each team's
+ * circuit points and status — locked, a berth, the regional finals, the best of the rest, still alive or out.
+ * Projections are labelled; nothing here changes the save.
+ */
+@Composable
+fun RaceCard(vm: GameVm, w: World, c: Competition) {
+    if (!dev.uem.em.comp.Formats.applies(c.titleId)) return
+    val leagues = if (c.leagueId >= 0) listOfNotNull(w.leagues.getOrNull(c.leagueId)?.takeIf { it.tier == 1 }) else dev.uem.em.comp.Formats.tier1(w, c.titleId)
+    if (leagues.isEmpty() || (c.tier != dev.uem.em.model.CompTier.WORLDS && c.leagueId < 0)) return
+    var li by androidx.compose.runtime.saveable.rememberSaveable(c.id) { androidx.compose.runtime.mutableIntStateOf(0) }
+    val league = leagues[li.coerceIn(0, leagues.size - 1)]
+    val rows = androidx.compose.runtime.remember(league.id, c.season, vm.version) { dev.uem.em.comp.Race.league(w, league, c.season) }
+    val worlds = dev.uem.em.comp.Race.worldsOf(w, c.titleId, c.season)
+    Card("Qualification race — ${worlds?.short ?: "Worlds"} ${c.season}") {
+        if (leagues.size > 1) Select("League", leagues.map { it.short }, li) { li = it }
+        Muted("Circuit points this season and each team's route. \"Projected\" and \"Conditional\" lines follow today's table and can change; \"Locked\" and \"Eliminated\" are settled.", 10)
+        for (r in rows) Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Team(r.teamId)) }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            TeamPic(w.teams[r.teamId], 18.dp); HGap(6)
+            Column(Modifier.weight(1f)) {
+                Text(w.teams[r.teamId].short + "  ·  ${r.points} pts", color = Ui.text, fontSize = 12.sp)
+                Muted(r.detail, 10)
+            }
+            Text(r.status, color = when (r.good) { true -> Ui.win; false -> Ui.loss; null -> Ui.gold }, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+

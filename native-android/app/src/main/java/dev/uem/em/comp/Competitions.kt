@@ -207,8 +207,10 @@ object Season {
             val t = Catalogue.get(titleId)
             val off = ti % 3
             fun D(m: Int, d: Int) = Dates.day(season, m, d) + off
-            val tier1 = w.leagues.filter { it.titleId == titleId && it.tier == 1 }.sortedByDescending { leagueStrength(it) }
-            val tier2 = w.leagues.filter { it.titleId == titleId && it.tier == 2 }
+            // Reforms announced for this season take effect first (a new format, leagues expanded, merged or split).
+            if (Formats.applies(titleId)) Formats.applyPending(w, titleId, season)
+            val tier1 = w.leagues.filter { it.titleId == titleId && it.tier == 1 && it.until == 0 }.sortedByDescending { leagueStrength(it) }
+            val tier2 = w.leagues.filter { it.titleId == titleId && it.tier == 2 && it.until == 0 }
             if (titleId == "valorant" && Rulesets.vctOpen(season) && tier1.isNotEmpty()) {
                 planVctOpen(w, t, season, tier1, ::D)
                 nationsCup(w, t, season, ti)
@@ -247,9 +249,14 @@ object Season {
                 val lowers = Formats.promotionLowers(w, upper)
                 if (lowers.isEmpty() || upper.teamIds.size < 6) continue
                 val last = splitComps[upper.id]?.lastOrNull() ?: continue
-                val rules = listOf("bottom:${last.id}:2") + lowers.mapIndexed { i, l -> "promo:${splitComps[l.id]!!.last().id}:${if (i == 0) 2 else 1}" }
-                val pc = mk(w, t, season, "${upper.name} Promotion $season", "${upper.short} PRO", CompTier.CHALLENGER, null, rules,
-                    listOf(stage("Promotion", StageType.RR, D(10, 13), t.formats.second.n, listOf(1, 2, 3), daysBetween = 1)), t.prizeScale * 60_000, 20, emptyList())
+                val playoff = w.formats[titleId]?.promo?.get(upper.id) == "playoff"
+                // Playoffs: the bottom two against the lower leagues' best two, cross-seeded (9th vs the best, 10th vs the second);
+                // the two semi-final winners take the places (the final decides nothing but the title).
+                val rules = listOf("bottom:${last.id}:2") + if (playoff) (if (lowers.size == 1) listOf("promo:${splitComps[lowers[0].id]!!.last().id}:2") else lowers.take(2).map { "promo:${splitComps[it.id]!!.last().id}:1" })
+                    else lowers.mapIndexed { i, l -> "promo:${splitComps[l.id]!!.last().id}:${if (i == 0) 2 else 1}" }
+                val pc = mk(w, t, season, if (playoff) "${upper.name} Promotion Playoffs $season" else "${upper.name} Promotion $season", "${upper.short} PRO", CompTier.CHALLENGER, null, rules,
+                    listOf(if (playoff) stage("Promotion Playoffs", StageType.SINGLE_ELIM, D(10, 13), t.formats.second.n, listOf(1, 2, 3), daysBetween = 1)
+                        else stage("Promotion", StageType.RR, D(10, 13), t.formats.second.n, listOf(1, 2, 3), daysBetween = 1)), t.prizeScale * 60_000, 20, emptyList())
                 pc.promoLeague = upper.id
                 pc.realName = true
             }
@@ -339,6 +346,26 @@ object Season {
         // Regional finals (LPL-style last chance) for the places the placings do not decide.
         if (tf.lastChance) tier1.forEachIndexed { i, l -> regionalFinals(w, t, season, worlds, l, wSeeds[i], wSeeds[i], mode) }
         if (tf.invitational) invitational(w, t, season, worlds, tier1, rank)
+        if (tf.academyCup) academyCup(w, t, season, splitComps, D)
+    }
+
+    /**
+     * Continental Academy Champions League: the champion and runner-up of each academy league's last split, after
+     * the senior season (late October): groups of four (two groups up to 8 teams, four groups beyond), the top
+     * two of each group to a knockout. Academy teams only; none of it counts for senior seeds or circuit points.
+     */
+    private fun academyCup(w: World, t: TitleDef, season: Int, splitComps: Map<Int, List<Competition>>, D: (Int, Int) -> Int) {
+        val als = w.leagues.filter { it.titleId == t.id && it.academy && splitComps[it.id] != null && it.teamIds.size >= 4 }.sortedByDescending { leagueStrength(it) }.take(8)
+        if (als.size < 2) return
+        val n = als.size * 2
+        val groups = if (n <= 8) 2 else 4
+        val start = D(10, 20)
+        val all = listOf(0, 1, 2, 3, 4, 5, 6)
+        val stages = listOf(stage("Group Stage", StageType.GROUPS, start, t.formats.first.n, all, groups = groups, advance = 2, daysBetween = 1),
+            stage("Knockout Stage", StageType.SINGLE_ELIM, start + ceil(n.toDouble() / groups).toInt() + 2, t.formats.second.n, all, daysBetween = 1))
+        val c = mk(w, t, season, "${t.short} Continental Academy Champions League $season", "${t.short} CACL", CompTier.CHALLENGER, null,
+            als.map { "top:${splitComps[it.id]!!.last().id}:2" }, stages, t.prizeScale * 40_000, 28, emptyList(), key = "${t.id}:cacl")
+        c.realName = true
     }
 
     /**
