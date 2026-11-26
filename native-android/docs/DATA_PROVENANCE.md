@@ -179,9 +179,17 @@ T1 → T1, Samsung Galaxy / KSV → Gen.G, DAMWON → Dplus KIA, MAD Lions → M
 Weibo Gaming); slot purchases are not joined. Roles that are neither playing nor coaching (streamer, content
 creator) are left out.
 
-**Every player on these rosters is in the game.** The 2,296 who were not in the real-data snapshot or the
-history pack join a new world as real free agents (5,209 different players across the six games). What the
-game knows about them, and what it estimates:
+**Historical teams.** Champions and finalists of the real events (honours.json) that are not teams of the
+snapshot join as well: 150 dormant real teams (132 LoL, 9 Dota 2, 6 CS2, 3 VALORANT), such as Taipei
+Assassins, Azubu Frost or Moscow Five, with their rosters by year from the same sources (career records,
+title rosters, Games of Legends). They are matched by exact name only, after the game's own teams, so no
+roster of a current team changes.
+
+**Every player on these rosters, and every player of the career and honours records, is in the game.**
+The 3,175 who were not in the real-data snapshot or the history pack join a new world as real free agents
+(6,037 different past-roster players across the six games, plus the career-record players on no roster).
+A former player who coaches today also has their staff page. What the game knows about them, and what it
+estimates:
 
 | Fact | Where it comes from |
 |---|---|

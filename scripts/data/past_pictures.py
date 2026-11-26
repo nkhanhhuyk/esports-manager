@@ -6,7 +6,9 @@ records (development-time only; only LINKS go into src/data/real/images.json, no
     python3 scripts/data/past_pictures.py <cache dir> [--offline]
 
 Sources, for players that have no photo link yet:
-  * Wikidata (CC0) professional gamers with a pseudonym and an image (P18), every game: the photo on
+  * LoL: the LoL Esports gateway (getTeams lists archived teams with their last rosters), matched by handle
+    and a team the player was on.
+  * Wikidata (CC0) professional gamers with an image (P18) and a pseudonym, nickname or alias, every game: the photo on
     Wikimedia Commons (free licences), as a 240 px thumbnail. A match needs the handle AND one more fact:
     the real name (facts snapshot), a team the player was on (P54 against the rosters), or, for a handle
     that only one Wikidata gamer and one game have, the same country. MLBB / HoK need the name or a team.
@@ -36,7 +38,7 @@ stopped = set()
 stats = {"requests": 0, "cached": 0}
 
 
-def fetch(url, gap, accept=None):
+def fetch(url, gap, accept=None, extra=None):
     key = urllib.parse.urlparse(url).netloc
     path = os.path.join(CACHE, hashlib.sha1(url.encode()).hexdigest() + ".json")
     if os.path.exists(path):
@@ -48,6 +50,7 @@ def fetch(url, gap, accept=None):
     if wait > 0: time.sleep(wait)
     headers = {"User-Agent": UA}
     if accept: headers["Accept"] = accept
+    if extra: headers.update(extra)
     text = None
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=180) as r:
@@ -138,8 +141,10 @@ def main():
     added = defaultdict(int)
 
     # ------------------------------------------------------------------ Wikidata / Wikimedia Commons
+    # Handles: the pseudonym (P742), the nickname (P1449) or an English alias.
     q = """SELECT ?p ?label ?pseud ?img ?cc ?teamLabel WHERE {
-  ?p wdt:P106 wd:Q4379701 ; wdt:P742 ?pseud ; wdt:P18 ?img .
+  ?p wdt:P106 wd:Q4379701 ; wdt:P18 ?img .
+  { ?p wdt:P742 ?pseud } UNION { ?p wdt:P1449 ?pseud } UNION { ?p skos:altLabel ?pseud . FILTER(LANG(?pseud) = "en") }
   OPTIONAL { ?p rdfs:label ?label . FILTER(LANG(?label) = "en") }
   OPTIONAL { ?p wdt:P27 ?c . ?c wdt:P297 ?cc . }
   OPTIONAL { ?p wdt:P54 ?team . ?team rdfs:label ?teamLabel . FILTER(LANG(?teamLabel) = "en") }
@@ -172,6 +177,20 @@ def main():
         added["wikidata"] += 1
         missing.pop(k)
     print("wikidata gamers with a photo %d, matched %d" % (len(ents), added["wikidata"]), file=sys.stderr)
+
+    # ------------------------------------------------------------------ LoL: LoL Esports gateway (every team it lists, archived too)
+    # The same public gateway as the current players' photos; a match needs the handle and a team the player was on.
+    gw = fetch("https://esports-api.lolesports.com/persisted/gw/getTeams?hl=en-US", 1.0, extra={"x-api-key": "0TvQnueqKa5mxJntVWt0w4LpLfEkrV1Ta8rQBb9Z"})
+    for t in ((json.loads(gw) if gw else {}).get("data") or {}).get("teams") or []:
+        for pl in t.get("players") or []:
+            k = "lol|" + norm(pl.get("summonerName"))
+            p = missing.get(k)
+            img = pl.get("image") or ""
+            if p is None or not img or re.search(r"default|silhouette", img, re.I): continue
+            if tkey(t.get("name")) not in p["teams"] and tkey(t.get("code")) not in p["teams"]: continue
+            have[k] = img
+            added["lolesports"] += 1
+            missing.pop(k)
 
     # ------------------------------------------------------------------ VALORANT: vlr.gg player pages
     pr_cache = sys.argv[sys.argv.index("--vlr-cache") + 1] if "--vlr-cache" in sys.argv else None
@@ -213,7 +232,7 @@ def main():
                 added["bo3.gg"] += 1
                 missing.pop(k, None)
 
-    images["sources"]["pastplayers"] = "Past players: Wikidata / Wikimedia Commons (P18 photos), vlr.gg player pages, bo3.gg API"
+    images["sources"]["pastplayers"] = "Past players: Wikidata / Wikimedia Commons (P18 photos), LoL Esports gateway, vlr.gg player pages, bo3.gg API"
     for k, v in list(have.items()): have[k] = re.sub(r"^http://", "https://", v)
     json.dump(images, open(os.path.join(REAL, "images.json"), "w"), ensure_ascii=False, separators=(",", ":"))
     left = defaultdict(int)

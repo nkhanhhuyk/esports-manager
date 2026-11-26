@@ -18,8 +18,6 @@ class PastRosterPlayersTest {
         TestData.init()
         val w = WorldGen.create(TestData.source, "pastp", "PP", Dates.day(2026, 11, 21))
         val real = w.players.filter { it.real }.groupBy { "${it.titleId}|${Careers.norm(it.handle)}" }
-        // A former player who coaches today is in the game as staff.
-        val staff = w.staff.filter { it.real }.map { "${it.titleId}|${Careers.norm(it.handle)}" }.toSet()
         val root = Json.parseToJsonElement(TestData.source.read("pastRosters.json")).jsonObject
         var total = 0
         val missing = ArrayList<String>()
@@ -31,7 +29,7 @@ class PastRosterPlayersTest {
                 val k = "$title|${Careers.norm(h)}"
                 if (Careers.norm(h).isEmpty() || !handles.add(k)) continue
                 total++
-                if (real[k] == null && k !in staff) missing.add(k)
+                if (real[k] == null) missing.add(k)
             }
         }
         val added = w.players.count { it.realSrc.startsWith("Past rosters") }
@@ -69,9 +67,9 @@ class PastRosterPlayersTest {
             val p = w.players.firstOrNull { it.titleId == "lol" && Careers.norm(it.handle) == h }
             assertTrue("$h has a player page", p != null && p.real)
         }
-        // Every player of every real champion and finalist roster is in the game (or coaches in it).
+        // Every player of every real champion and finalist roster is in the game.
         val root = Json.parseToJsonElement(TestData.source.read("honours.json")).jsonObject["events"]!!.jsonArray
-        val have = (w.players.filter { it.real }.map { Careers.norm(it.handle) } + w.staff.filter { it.real }.map { Careers.norm(it.handle) }).toSet()
+        val have = w.players.filter { it.real && it.titleId == "lol" }.map { Careers.norm(it.handle) }.toSet()
         val missing = root.map { it.jsonObject }.filter { it["t"]!!.jsonPrimitive.content == "lol" }
             .flatMap { e -> listOf("wp", "rp").flatMap { k -> e[k]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList() } }
             .filter { Careers.norm(it).isNotEmpty() && Careers.norm(it) !in have }.distinct()

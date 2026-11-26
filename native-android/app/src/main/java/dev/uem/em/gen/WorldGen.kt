@@ -738,6 +738,8 @@ object WorldGen {
     }
 
     private fun addPastRosterPlayers(b: Build) {
+        // One normalisation for every source here (the past rosters, the careers keys and the UI use it: "Noob™" is noobtm).
+        fun norm(h: String) = dev.uem.em.mgmt.Careers.norm(h)
         val w = b.world
         val text = runCatching { b.src.read("pastRosters.json") }.getOrNull() ?: return
         val root = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return
@@ -746,8 +748,6 @@ object WorldGen {
         val titles = w.titles.toSet()
         val have = HashMap<String, HashSet<String>>()
         for (p in w.players) if (p.real) have.getOrPut(p.titleId) { HashSet() }.add(norm(p.handle))
-        // A former player who is a real coach today is in the game as staff (one person, one page).
-        for (st in w.staff) if (st.real) have.getOrPut(st.titleId) { HashSet() }.add(norm(st.handle))
         class Agg(val title: String, val handle: String) {
             var first = 9999; var last = 0; var lastTeam = ""
             val roles = HashMap<String, Int>(); val flags = HashMap<String, Int>(); val src = sortedSetOf<Int>()
@@ -785,10 +785,12 @@ object WorldGen {
         }
         val careers = runCatching { Json.parseToJsonElement(b.src.read("careers.json")).jsonObject["careers"]!!.jsonObject }.getOrNull()
         val playing = setOf("", "sub") + titles.flatMap { Catalogue.get(it).roles.map { r -> r.id } }
+        // Players already on the past rosters keep those (their teams are resolved to the game's names there).
+        val onRosters = agg.keys.toHashSet()
         if (careers != null) for ((key, v) in careers) {
             val title = key.substringBefore('|')
             val n = key.substringAfter('|')
-            if (title !in titles || n.isEmpty() || have[title]?.contains(n) == true) continue
+            if (title !in titles || n.isEmpty() || have[title]?.contains(n) == true || key in onRosters) continue
             val spells = v.jsonArray.map { it.jsonArray }.filter { sp -> (sp.getOrNull(3)?.jsonPrimitive?.contentOrNull ?: "").lowercase() in playing }
             if (spells.isEmpty()) continue
             val g = agg.getOrPut("$title|$n") { Agg(title, spelled["$title|$n"] ?: n) }

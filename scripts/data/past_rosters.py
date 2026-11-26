@@ -239,6 +239,10 @@ def main():
         for p in t.get("roster", []): handles[t["title_id"]].setdefault(norm(p.get("handle")), p.get("handle"))
     for p in history["players"]: handles[p["title_id"]].setdefault(norm(p["handle"]), p["handle"])
     for s in json.load(open(os.path.join(REAL, "staff.json")))["staff"]: handles[s["title"]].setdefault(norm(s["handle"]), s["handle"])
+    # The honours rosters spell the handles of past champions and finalists ("MiSTakE", "Bebe").
+    for e in honours:
+        for k in ("wp", "rp"):
+            for h in e.get(k) or []: handles[e["t"]].setdefault(norm(h), h)
     for (ti, _), d in out.items():
         for p in d["people"]:
             p[0] = handles[ti].get(p[0], p[0]) if p[4] in (0, 7, 8) else p[0]
