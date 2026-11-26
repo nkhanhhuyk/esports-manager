@@ -140,22 +140,24 @@ class SubsTest {
         // Still out the next day: the call-up stays.
         Academies.callUpsDaily(w)
         assertEquals(team.id, kid.teamId)
-        // The regular is back: down to the academy again.
+        // The regular is back: the AI club keeps the player (played well, close to the regular) or sends them back.
         junglers.forEach { it.injuryUntil = w.day }
         Academies.callUpsDaily(w)
-        assertEquals(academy.id, kid.teamId)
-        assertTrue(kid.id in academy.roster && kid.id !in team.roster)
         assertEquals(-1, kid.callUpFrom)
-        // Out for six weeks: an AI club signs a free agent who plays the position as cover.
+        val kept = kid.teamId == team.id
+        println("regular back: ${kid.handle} ${if (kept) "kept" else "back to the academy"}")
+        if (!kept) assertTrue(kid.teamId == academy.id && kid.id in academy.roster && kid.id !in team.roster)
+        // Out for six weeks: an AI club promotes its prospect or signs a free agent who plays the position.
         junglers.forEach { it.injuryUntil = w.day + 42 }
         team.lineupSig = 0
         val (lu2, notes2) = Subs.standIns(w, null, team, Lineups.ensure(w, team), emptySet(), 0)
         val cover = w.players[lu2[slot]]
         println("long absence: " + Subs.describe(w, t, Subs.parse(notes2.single())!!))
-        assertTrue("signed: $notes2", notes2.single().endsWith("|signed"))
-        assertEquals(team.id, cover.teamId); assertEquals(w.season, cover.contractEnd); assertTrue(cover.id in team.roster)
+        assertTrue("promoted or signed: $notes2", notes2.single().endsWith("|signed") || notes2.single().endsWith("|call-up"))
+        assertEquals(team.id, cover.teamId); assertTrue(cover.id in team.roster)
         assertTrue(Subs.plays(cover, "jungle"))
-        assertTrue(w.news.any { it.title == "${team.name} sign ${cover.handle}" })
+        if (notes2.single().endsWith("|signed")) { assertEquals(w.season, cover.contractEnd); assertTrue(w.news.any { it.title == "${team.name} sign ${cover.handle}" }) }
+        else assertTrue("promoted while the regular is out", cover.callUpFrom >= 0 && cover.callUpFor in junglers.map { it.id })
         // Nobody plays the position any more (the junglers leave): the club promotes its prospect or signs one.
         for (p in junglers + cover) { team.roster.remove(p.id); p.teamId = -1 }
         team.lineupSig = 0
@@ -173,9 +175,15 @@ class SubsTest {
         assertTrue("your club calls up: $notes3", notes3.single().endsWith("|call-up"))
         val msg = w.inbox.last { it.subject.startsWith("Called up: ${mine.handle}") }
         assertTrue("free agents suggested: ${msg.body}", msg.body.contains("sign a free agent"))
+        // The regular is back: nothing changes on its own, you are asked.
+        val covers = mine.callUpFor == filled.id
+        filled.injuryUntil = w.day
+        Academies.callUpsDaily(w)
+        assertEquals("still in the main team", team.id, mine.teamId)
+        assertTrue(mine.callUpFrom >= 0)
+        if (covers) assertTrue(w.inbox.any { it.subject == "${filled.handle} is back: keep ${mine.handle}?" })
         assertTrue(Academies.keep(w, mine).ok)
         assertEquals(-1, mine.callUpFrom)
-        filled.injuryUntil = w.day
         Academies.callUpsDaily(w)
         assertEquals("kept full-time", team.id, mine.teamId)
     }

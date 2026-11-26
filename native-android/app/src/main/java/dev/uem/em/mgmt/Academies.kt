@@ -126,8 +126,10 @@ object Academies {
     }
 
     /**
-     * Each day, before the matches: called-up players go back once the player they cover is available again.
-     * A call-up whose team or academy changed ends (the player stays where they are).
+     * Each day, before the matches, for called-up players whose regular is available again: an AI club keeps
+     * the player in the main team when they played well and are close to the regular (or better), else sends
+     * them back; your club decides (an inbox note; the player stays until you keep or send them back). A
+     * call-up whose team or academy changed ends (the player stays where they are).
      */
     fun callUpsDaily(w: World) {
         for (p in w.players) {
@@ -142,13 +144,29 @@ object Academies {
                     p.callUpFor = -1
                     w.inbox.add(dev.uem.em.model.Message(w.day, "Head coach", "${p.handle} stays called up", "${cover.handle} has left ${team.name}, so ${p.handle} stays with the main team until you keep them full-time or send them back (their page)."))
                 }
-                Lineups.available(w, cover) -> {
-                    val r = sendBack(w, p)
-                    if (r.ok && w.isUserTeam(team.id)) w.inbox.add(dev.uem.em.model.Message(w.day, "Head coach", "${p.handle} back to the academy",
-                        "${cover.handle} is available again, so ${p.handle} returns to ${academy.name}. Call them up again or promote them from their page."))
-                }
+                Lineups.available(w, cover) -> if (w.isUserTeam(team.id)) {
+                    p.callUpFor = -1
+                    val line = p.stats.lastOrNull { it.season == w.season && it.teamId == team.id }
+                    w.inbox.add(dev.uem.em.model.Message(w.day, "Head coach", "${cover.handle} is back: keep ${p.handle}?",
+                        "${cover.handle} is available again. ${p.handle} played ${line?.gp ?: 0} game${if (line?.gp == 1) "" else "s"} for ${team.name}" +
+                            (if (line != null && line.gp > 0) " (average rating %.2f)".format(line.ratingSum / line.gp) else "") +
+                            ". Keep them in the main team or send them back to ${academy.name} from their page."))
+                } else if (keepsCallUp(w, p, cover, team)) {
+                    keep(w, p)
+                    w.news.add(dev.uem.em.model.News(w.day, "${team.name} keep ${p.handle}", "${p.handle} stays with ${team.name} after covering for ${cover.handle}.", listOf(team.id)))
+                } else sendBack(w, p)
             }
         }
+    }
+
+    /** An AI club keeps a called-up player who played well and is close to the regular, or better. */
+    private fun keepsCallUp(w: World, p: Player, regular: Player, team: Team): Boolean {
+        val t = Catalogue.get(team.titleId)
+        val role = t.role(regular.mainRole)
+        val gap = dev.uem.em.sim.Ratings.effectiveness(regular, t, role) - dev.uem.em.sim.Ratings.effectiveness(p, t, role)
+        val line = p.stats.lastOrNull { it.season == w.season && it.teamId == team.id }
+        val form = if (line != null && line.gp >= 3) line.ratingSum / line.gp else 0.0
+        return gap < -1 || (gap < 3 && form >= 1.05 && team.roster.size <= t.teamSize + 3)
     }
 
     /** Move a player between a main team and its academy (no fee, same contract). */

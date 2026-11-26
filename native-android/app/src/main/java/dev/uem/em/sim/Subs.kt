@@ -60,11 +60,11 @@ object Subs {
      *  1. a roster player who plays it;
      *  2. the regular is out for a short time (four weeks or less): an academy player is called up, and goes
      *     back when the regular is available again ([dev.uem.em.mgmt.Academies.callUp]);
-     *  3. the regular is out for long, or nobody plays the position full-time: an AI club decides. A long
-     *     absence: it signs a free agent who plays it (an emergency signing until the season ends). Nobody at
-     *     the position: it promotes its own prospect or signs a free agent, whichever suits the club better (a
-     *     strong academy and a tight budget lean to the prospect). Your club gets the academy call-up for the
-     *     match and a list of free agents to sign, and decides;
+     *  3. the regular is out for long, or nobody plays the position full-time: an AI club promotes its own
+     *     prospect or signs a free agent who plays it (an emergency signing until the season ends), whichever
+     *     suits the club better (a strong academy and a tight budget lean to the prospect, a clearly better free
+     *     agent is signed). Your club gets the academy call-up for the match and a list of free agents to sign,
+     *     and decides;
      *  4. nobody in the academy either: an unsigned player stands in for the day (of the nation for a national team).
      * Returns the lineup and the notes (reasons "call-up", "promoted", "signed", "stand-in").
      */
@@ -108,9 +108,10 @@ object Subs {
                 // A free agent who can play today (no visa wait) and whom the club can pay.
                 val fa = freeAgents().filter { !dev.uem.em.mgmt.Imports.isImport(w, it, team) }
                     .filter { salaryFor(t, it) <= org.balance * 0.5 }.maxByOrNull { eff(it) }
-                // A strong academy and a tight budget make the prospect the better choice.
+                // Promote or sign, whichever suits the club: a strong academy and a tight budget make the prospect the
+                // better choice; a clearly better free agent is signed.
                 val lean = (org.facilities.getOrElse(2) { 3 } - 3) * 1.5 + (if (fa != null && org.balance < salaryFor(t, fa) * 4) 4.0 else 0.0)
-                val promote = kid != null && (fa == null || (absentP == null && eff(kid) + lean >= eff(fa) - 3))
+                val promote = kid != null && (fa == null || eff(kid) + lean >= eff(fa) - 3)
                 if (!promote && fa != null) {
                     signCover(w, team, fa, absentP)
                     c?.registrations?.get(team.id)?.players?.let { if (fa.id !in it) it.add(fa.id) }
@@ -119,7 +120,8 @@ object Subs {
                     continue
                 }
                 if (kid != null) {
-                    // A long absence with nobody to sign: called up until the regular is back; nobody at the position: promoted.
+                    // A long absence: promoted to the main team while the regular is out (kept or sent back when the regular
+                    // returns, see Academies.callUpsDaily); nobody at the position: promoted for good.
                     val permanent = absentP == null
                     dev.uem.em.mgmt.Academies.callUp(w, kid, team, absentP?.id ?: -1, permanent)
                     c?.registrations?.get(team.id)?.players?.let { if (kid.id !in it) it.add(kid.id) }
