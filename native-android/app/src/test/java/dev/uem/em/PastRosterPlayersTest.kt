@@ -18,6 +18,8 @@ class PastRosterPlayersTest {
         TestData.init()
         val w = WorldGen.create(TestData.source, "pastp", "PP", Dates.day(2026, 11, 21))
         val real = w.players.filter { it.real }.groupBy { "${it.titleId}|${Careers.norm(it.handle)}" }
+        // A former player who coaches today is in the game as staff.
+        val staff = w.staff.filter { it.real }.map { "${it.titleId}|${Careers.norm(it.handle)}" }.toSet()
         val root = Json.parseToJsonElement(TestData.source.read("pastRosters.json")).jsonObject
         var total = 0
         val missing = ArrayList<String>()
@@ -29,7 +31,7 @@ class PastRosterPlayersTest {
                 val k = "$title|${Careers.norm(h)}"
                 if (Careers.norm(h).isEmpty() || !handles.add(k)) continue
                 total++
-                if (real[k] == null) missing.add(k)
+                if (real[k] == null && k !in staff) missing.add(k)
             }
         }
         val added = w.players.count { it.realSrc.startsWith("Past rosters") }
@@ -50,5 +52,31 @@ class PastRosterPlayersTest {
         // Nobody is in the game twice.
         val dup = real.filter { it.value.size > 1 && it.value.any { p -> p.realSrc.startsWith("Past rosters") } }.keys
         assertTrue("twice: $dup", dup.isEmpty())
+    }
+
+    @Test
+    fun historicalTeamsAndChampions() {
+        TestData.init()
+        val w = WorldGen.create(TestData.source, "pastt", "PT", Dates.day(2026, 11, 21), titles = listOf("lol"))
+        // Taipei Assassins (World champions 2012) are a dormant real team with their rosters, and every player has a page.
+        val tpa = w.teams.single { it.titleId == "lol" && it.name == "Taipei Assassins" }
+        assertTrue(tpa.real && !tpa.active)
+        val years = dev.uem.em.mgmt.PastRosters.of("lol", tpa.name)
+        assertTrue("TPA rosters: ${years.map { it.year }}", years.any { it.year == 2012 })
+        val y2012 = years.first { it.year == 2012 }.players.map { Careers.norm(it.handle) }.toSet()
+        for (h in listOf("bebe", "lilballz", "mistake", "stanley", "toyz")) {
+            assertTrue("$h on the 2012 roster: $y2012", h in y2012)
+            val p = w.players.firstOrNull { it.titleId == "lol" && Careers.norm(it.handle) == h }
+            assertTrue("$h has a player page", p != null && p.real)
+        }
+        // Every player of every real champion and finalist roster is in the game (or coaches in it).
+        val root = Json.parseToJsonElement(TestData.source.read("honours.json")).jsonObject["events"]!!.jsonArray
+        val have = (w.players.filter { it.real }.map { Careers.norm(it.handle) } + w.staff.filter { it.real }.map { Careers.norm(it.handle) }).toSet()
+        val missing = root.map { it.jsonObject }.filter { it["t"]!!.jsonPrimitive.content == "lol" }
+            .flatMap { e -> listOf("wp", "rp").flatMap { k -> e[k]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList() } }
+            .filter { Careers.norm(it).isNotEmpty() && Careers.norm(it) !in have }.distinct()
+        println("LoL honours rosters missing: ${missing.size} ${missing.take(10)}")
+        assertTrue("missing: $missing", missing.isEmpty())
+        println("historical LoL teams: " + w.teams.count { it.titleId == "lol" && it.dataNote.startsWith("Historical team") })
     }
 }

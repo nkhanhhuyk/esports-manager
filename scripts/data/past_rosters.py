@@ -168,7 +168,7 @@ def main():
         for name, al in ALIASES.get(ti, {}).items():
             if norm(name) not in d: continue
             for a in al: index[ti].setdefault(norm(a), name)
-    def resolve(ti, team):
+    def resolve_game(ti, team):
         """The game's team for a team name in a source (exact, earlier name, or a unique loose match)."""
         if not team: return None
         k = norm(team)
@@ -176,6 +176,23 @@ def main():
         c = loose[ti].get(norm2(team))
         if c and len(c) == 1 and len(norm2(team)) >= 3: return next(iter(c))
         return None
+
+    # Historical teams: champions and finalists of the real events (honours.json) that are not teams of the
+    # game (Taipei Assassins, Azubu Frost, Moscow Five...). Matched by exact name only, after the game's teams,
+    # so nothing the game's teams had changes. The game adds them as dormant real teams.
+    honours = json.load(open(os.path.join(REAL, "honours.json")))["events"]
+    hist_index = defaultdict(dict)
+    for e in honours:
+        for k in ("w", "r"):
+            nm = (e.get(k) or "").strip()
+            if nm and not resolve_game(e["t"], nm): hist_index[e["t"]].setdefault(norm(nm), nm)
+    historical = {(ti, name) for ti, d in hist_index.items() for name in d.values()}
+    for ti, d in hist_index.items():
+        for k, name in d.items(): targets[ti].setdefault(k, name)
+
+    def resolve(ti, team):
+        if not team: return None
+        return resolve_game(ti, team) or hist_index[ti].get(norm(team))
 
     out = defaultdict(lambda: {"names": defaultdict(set), "people": []})  # (title, display) -> data
     SRC = ["Leaguepedia tenures", "Games of Legends (gol.gg)", "OpenDota pro matches", "vlr.gg transactions",
@@ -461,9 +478,9 @@ def main():
                 "s": [[e["h"], e["r"], e["n"], e["a"], e["b"], sorted(e["s"])] for e in rows if e["st"]],
                 "as": sorted({norm(n): n for n in sorted(d["names"].get(y, set())) if norm(n) != norm(team)}.values()),
             }
-        if ys: res[ti + "|" + norm(team)] = {"n": team, "y": ys}
+        if ys: res[ti + "|" + norm(team)] = dict({"n": team, "y": ys}, **({"h": 1} if (ti, team) in historical else {}))
     doc = {"snapshot_id": 1, "as_of": time.strftime("%Y-%m-%d"), "sources": SRC,
-           "format": "title|norm(team) -> {n: name, y: {year: {p: players, s: staff, as: earlier names that year}}}; "
+           "format": "title|norm(team) -> {n: name, y: {year: {p: players, s: staff, as: earlier names that year}}, h: 1 for a historical team not in the real-data snapshot}; "
                      "a person: [handle, role, flag, from YYYY-MM or '', to YYYY-MM or '', [source index]]",
            "teams": res}
     json.dump(doc, open(os.path.join(REAL, "pastRosters.json"), "w"), ensure_ascii=False, separators=(",", ":"))

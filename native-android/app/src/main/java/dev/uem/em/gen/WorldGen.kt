@@ -175,7 +175,7 @@ object WorldGen {
         seedAcademies(world)
         for (id in titles) world.poolTarget[id] = world.players.count { !it.retired && it.titleId == id }
         // After the pool's target size: these extra veterans retire over the seasons without a matching youth boom.
-        if (!fictional) addPastRosterPlayers(b)
+        if (!fictional) { addHistoricalTeams(b); addPastRosterPlayers(b) }
         Season.plan(world, season)
         world.rebuildSchedule()
         return world
@@ -697,6 +697,46 @@ object WorldGen {
      * added last, from their own random streams, so the rest of the world is generated exactly as without
      * them; the oldest retire over the next seasons like any unsigned veteran.
      */
+    /**
+     * Historical teams (pastRosters.json entries marked h: champions and finalists of the real events that are
+     * not teams of the snapshot, such as Taipei Assassins or Azubu Frost) join the world as dormant real teams
+     * with their rosters by year; their players are added as free agents by [addPastRosterPlayers]. Each from its
+     * own random stream, after the rest of the world.
+     */
+    private fun addHistoricalTeams(b: Build) {
+        val w = b.world
+        val text = runCatching { b.src.read("pastRosters.json") }.getOrNull() ?: return
+        val teams = runCatching { Json.parseToJsonElement(text).jsonObject["teams"]?.jsonObject }.getOrNull() ?: return
+        val titles = w.titles.toSet()
+        val names = w.teams.map { "${it.titleId}|${norm(it.name)}" }.toHashSet()
+        for ((key, v) in teams) {
+            val o = v.jsonObject
+            if (o["h"] == null) continue
+            val title = key.substringBefore('|')
+            val name = o.str("n") ?: continue
+            if (title !in titles || !names.add("$title|${norm(name)}")) continue
+            val t = Catalogue.get(title)
+            val rng = Rng.of("hist|$title|${norm(name)}")
+            // The country most of its players come from (roster flags, else the facts snapshot).
+            val flags = HashMap<String, Int>()
+            for ((_, y) in o["y"]!!.jsonObject) for (e in y.jsonObject["p"]?.jsonArray ?: continue) {
+                val a = e.jsonArray
+                val h = a.getOrNull(0)?.jsonPrimitive?.contentOrNull ?: continue
+                val cc = valid(a.getOrNull(2)?.jsonPrimitive?.contentOrNull) ?: valid(facts["$title|${norm(h)}"]?.cc) ?: continue
+                flags[cc] = (flags[cc] ?: 0) + 1
+            }
+            val country = flags.entries.sortedWith(compareBy({ -it.value }, { it.key })).firstOrNull()?.key ?: if (title == "cs2" || title == "dota2") "SE" else "US"
+            val region = GameData.countries[country]?.region ?: "NA"
+            val org = Org(w.orgs.size, cleanOrg(name), shortOf(name, null), country, region, rep = clamp(rng.normal(30.0, 8.0), 10.0, 60.0).roundToInt().toDouble())
+            org.real = true
+            w.orgs.add(org)
+            val team = Team(w.teams.size, org.id, title, name, shortOf(name, null), region, style = rng.pick(t.styles), elo = 1450.0, real = true, active = false,
+                dataNote = "Historical team: real rosters and results before the save, no league place now; its players are free agents")
+            w.teams.add(team)
+            org.teams.add(team.id)
+        }
+    }
+
     private fun addPastRosterPlayers(b: Build) {
         val w = b.world
         val text = runCatching { b.src.read("pastRosters.json") }.getOrNull() ?: return
@@ -706,6 +746,8 @@ object WorldGen {
         val titles = w.titles.toSet()
         val have = HashMap<String, HashSet<String>>()
         for (p in w.players) if (p.real) have.getOrPut(p.titleId) { HashSet() }.add(norm(p.handle))
+        // A former player who is a real coach today is in the game as staff (one person, one page).
+        for (st in w.staff) if (st.real) have.getOrPut(st.titleId) { HashSet() }.add(norm(st.handle))
         class Agg(val title: String, val handle: String) {
             var first = 9999; var last = 0; var lastTeam = ""
             val roles = HashMap<String, Int>(); val flags = HashMap<String, Int>(); val src = sortedSetOf<Int>()
@@ -733,15 +775,43 @@ object WorldGen {
                 }
             }
         }
+        // Players of the career records and the honours rosters who were on no past roster (careers keys are
+        // normalised handles: the spelling comes from the honours rosters when they have it).
+        val spelled = HashMap<String, String>()
+        runCatching { Json.parseToJsonElement(b.src.read("honours.json")).jsonObject["events"]!!.jsonArray }.getOrNull()?.forEach { ev ->
+            val o = ev.jsonObject
+            val ti = o.str("t") ?: return@forEach
+            for (k in listOf("wp", "rp")) o[k]?.jsonArray?.forEach { h -> h.jsonPrimitive.contentOrNull?.let { spelled.putIfAbsent("$ti|${norm(it)}", it) } }
+        }
+        val careers = runCatching { Json.parseToJsonElement(b.src.read("careers.json")).jsonObject["careers"]!!.jsonObject }.getOrNull()
+        val playing = setOf("", "sub") + titles.flatMap { Catalogue.get(it).roles.map { r -> r.id } }
+        if (careers != null) for ((key, v) in careers) {
+            val title = key.substringBefore('|')
+            val n = key.substringAfter('|')
+            if (title !in titles || n.isEmpty() || have[title]?.contains(n) == true) continue
+            val spells = v.jsonArray.map { it.jsonArray }.filter { sp -> (sp.getOrNull(3)?.jsonPrimitive?.contentOrNull ?: "").lowercase() in playing }
+            if (spells.isEmpty()) continue
+            val g = agg.getOrPut("$title|$n") { Agg(title, spelled["$title|$n"] ?: n) }
+            g.src.add(sources.indexOf("title rosters").coerceAtLeast(0))
+            for (sp in spells) {
+                val team = sp.getOrNull(0)?.jsonPrimitive?.contentOrNull ?: continue
+                val y0 = sp.getOrNull(1)?.jsonPrimitive?.contentOrNull?.take(4)?.toIntOrNull() ?: continue
+                val y1 = sp.getOrNull(2)?.jsonPrimitive?.contentOrNull?.take(4)?.toIntOrNull() ?: w.season - 1
+                g.first = minOf(g.first, y0)
+                if (y1 > g.last || (y1 == g.last && team < g.lastTeam)) { g.last = y1; g.lastTeam = team }
+                sp.getOrNull(3)?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() && it != "sub" }?.let { g.roles[it] = (g.roles[it] ?: 0) + 1 }
+            }
+        }
         if (agg.isEmpty()) return
         val avg = titles.associateWith { id -> w.players.filter { it.titleId == id && it.teamId >= 0 && it.real }.map { it.ca }.ifEmpty { listOf(62.0) }.average() }
-        val teamByName = w.teams.filter { it.real }.associateBy { "${it.titleId}|${it.name}" }
+        val teamByName = HashMap<String, Team>()
+        for (tm in w.teams) if (tm.real) { teamByName.putIfAbsent("${tm.titleId}|${tm.name}", tm); teamByName.putIfAbsent("${tm.titleId}|${norm(tm.name)}", tm) }
         for (g in agg.values.sortedWith(compareBy({ it.title }, { norm(it.handle) }))) {
             val t = Catalogue.get(g.title)
             val listed = g.roles.entries.filter { (r, _) -> t.roles.any { it.id == r } }.sortedWith(compareBy({ -it.value }, { it.key })).firstOrNull()?.key
             val factRole = if (listed == null) facts["${g.title}|${norm(g.handle)}"]?.role?.let { r -> factRoleId(g.title, r) }?.takeIf { r -> t.roles.any { it.id == r } } else null
             val roleId = listed ?: factRole
-            val team = teamByName["${g.title}|${g.lastTeam}"]
+            val team = teamByName["${g.title}|${g.lastTeam}"] ?: teamByName["${g.title}|${norm(g.lastTeam)}"]
             val pctx = realCtx(b, g.title, g.handle)
             val flag = g.flags.entries.sortedWith(compareBy({ -it.value }, { it.key })).firstOrNull()?.key
             val nat = flag ?: team?.let { tm -> w.orgs.getOrNull(tm.orgId)?.country?.takeIf { GameData.countries.containsKey(it) } ?: GameData.pickCountry(pctx.rng, tm.region) } ?: "US"

@@ -119,7 +119,7 @@ class SubsTest {
     }
 
     @Test
-    fun academyCallUpGoesBackWhenTheRegularReturns() {
+    fun shortAbsenceAcademyLongAbsenceSigning() {
         TestData.init(); BoxStore.clear()
         val w = WorldGen.create(TestData.source, "acad", "AC", Dates.day(2026, 11, 21), titles = listOf("lol"))
         val t = Catalogue.get("lol")
@@ -146,24 +146,36 @@ class SubsTest {
         assertEquals(academy.id, kid.teamId)
         assertTrue(kid.id in academy.roster && kid.id !in team.roster)
         assertEquals(-1, kid.callUpFrom)
-        // Out for six weeks: an AI club promotes full-time.
+        // Out for six weeks: an AI club signs a free agent who plays the position as cover.
         junglers.forEach { it.injuryUntil = w.day + 42 }
         team.lineupSig = 0
         val (lu2, notes2) = Subs.standIns(w, null, team, Lineups.ensure(w, team), emptySet(), 0)
-        val up = w.players[lu2[slot]]
-        assertTrue("promoted: $notes2", notes2.single().endsWith("|promoted"))
-        assertEquals(-1, up.callUpFrom); assertEquals(team.id, up.teamId); assertEquals("promoted", up.career.last().type)
-        // Your club: a call-up whatever the absence; you keep the player or not.
+        val cover = w.players[lu2[slot]]
+        println("long absence: " + Subs.describe(w, t, Subs.parse(notes2.single())!!))
+        assertTrue("signed: $notes2", notes2.single().endsWith("|signed"))
+        assertEquals(team.id, cover.teamId); assertEquals(w.season, cover.contractEnd); assertTrue(cover.id in team.roster)
+        assertTrue(Subs.plays(cover, "jungle"))
+        assertTrue(w.news.any { it.title == "${team.name} sign ${cover.handle}" })
+        // Nobody plays the position any more (the junglers leave): the club promotes its prospect or signs one.
+        for (p in junglers + cover) { team.roster.remove(p.id); p.teamId = -1 }
+        team.lineupSig = 0
+        val (lu4, notes4) = Subs.standIns(w, null, team, Lineups.ensure(w, team), emptySet(), 0)
+        val filled = w.players[lu4[slot]]
+        println("empty position: " + Subs.describe(w, t, Subs.parse(notes4.single())!!))
+        assertTrue("promoted or signed: $notes4", notes4.single().endsWith("|promoted") || notes4.single().endsWith("|signed"))
+        assertEquals(team.id, filled.teamId); assertEquals(-1, filled.callUpFrom)
+        // Your club: a call-up whatever the absence, with free agents to sign suggested for a long one; you decide.
         w.userOrg = team.orgId
-        up.injuryUntil = w.day + 42
+        filled.injuryUntil = w.day + 42
         team.lineupSig = 0
         val (lu3, notes3) = Subs.standIns(w, null, team, Lineups.ensure(w, team), emptySet(), 0)
         val mine = w.players[lu3[slot]]
         assertTrue("your club calls up: $notes3", notes3.single().endsWith("|call-up"))
-        assertTrue(w.inbox.any { it.subject.startsWith("Called up: ${mine.handle}") })
+        val msg = w.inbox.last { it.subject.startsWith("Called up: ${mine.handle}") }
+        assertTrue("free agents suggested: ${msg.body}", msg.body.contains("sign a free agent"))
         assertTrue(Academies.keep(w, mine).ok)
         assertEquals(-1, mine.callUpFrom)
-        junglers.forEach { it.injuryUntil = w.day }; up.injuryUntil = w.day
+        filled.injuryUntil = w.day
         Academies.callUpsDaily(w)
         assertEquals("kept full-time", team.id, mine.teamId)
     }
