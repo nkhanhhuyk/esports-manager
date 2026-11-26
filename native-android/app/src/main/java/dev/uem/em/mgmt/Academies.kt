@@ -36,7 +36,7 @@ object Academies {
     class Result(val ok: Boolean, val text: String, val team: Team? = null)
 
     /** Found an academy for [parent] (paid by its organisation). */
-    fun found(w: World, parent: Team, charge: Boolean = true, rng: Rng = Rng.derive(w.seed, "academy", parent.id, w.day), joinLeague: Boolean = true): Result {
+    fun found(w: World, parent: Team, charge: Boolean = true, rng: Rng = Rng.derive(w.seed, "academy", parent.id, w.day), joinLeague: Boolean = true, realStaff: Boolean = true): Result {
         if (isAcademy(parent)) return Result(false, "An academy cannot have its own academy.")
         if (parent.nationalOf.isNotEmpty()) return Result(false, "National teams have no academy.")
         if (of(w, parent) != null) return Result(false, "${parent.name} already has an academy.")
@@ -66,7 +66,8 @@ object Academies {
             p.salary = Economy.expectedSalary(p, region = team.region) * 0.6
             if (w.isUserTeam(team.id)) w.scouting[p.id] = 100
         }
-        Staffing.fill(w, team, rng, news = false)
+        // The world's second teams start with staff of their own (the real former coaches stay on the market).
+        Staffing.fill(w, team, rng, pool = if (realStaff) null else ArrayList(), news = false)
         team.lineup = Lineups.auto(w, team)
         val where = if (league != null) "It joins ${league.name} (Challengers) — fixtures start with the next split." else "Your region has no Challengers league, so it trains and scrims as a development squad."
         return Result(true, "${team.name} founded. $where", team)

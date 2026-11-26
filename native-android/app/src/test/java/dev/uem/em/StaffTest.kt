@@ -58,7 +58,8 @@ class StaffTest {
         // Every active club has a head coach; bigger clubs run a bigger staff.
         val active = w.teams.filter { it.active }
         assertTrue("head coach everywhere", active.all { t -> Staffing.members(w, t).any { it.role == "head-coach" } })
-        val big = active.filter { w.orgs[it.orgId].rep >= 62 }.map { Staffing.members(w, it).size }.average()
+        // Main teams on both sides (every club also runs a second team with a small staff).
+        val big = active.filter { w.orgs[it.orgId].rep >= 62 && it.kind.isEmpty() && it.parentId < 0 }.map { Staffing.members(w, it).size }.average()
         val small = active.filter { w.orgs[it.orgId].rep < 40 && it.kind.isEmpty() && it.parentId < 0 }.map { Staffing.members(w, it).size }.average()
         println("staff per club: big %.1f, small %.1f".format(big, small))
         assertTrue("big clubs employ more staff", big >= small + 5)

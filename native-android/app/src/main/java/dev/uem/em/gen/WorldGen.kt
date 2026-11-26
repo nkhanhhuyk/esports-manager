@@ -437,7 +437,7 @@ object WorldGen {
         for (team in w.teams.toList()) {
             if (!team.active || team.parentId >= 0 || team.nationalOf.isNotEmpty() || team.kind.isNotEmpty() || team.leagueId < 0) continue
             if (dev.uem.em.mgmt.Academies.of(w, team) != null) continue
-            dev.uem.em.mgmt.Academies.found(w, team, false, rng, joinLeague = false).team?.let { it.scrims = 1 }
+            dev.uem.em.mgmt.Academies.found(w, team, false, rng, joinLeague = false, realStaff = false).team?.let { it.scrims = 1 }
         }
     }
 
