@@ -146,15 +146,16 @@ object Career {
             val maxGp = gp.values.maxOrNull() ?: continue
             val elig = gp.keys.filter { gp[it]!! >= maxGp * 0.6 }
             fun avg(pid: Int) = r[pid]!! / gp[pid]!!
-            elig.maxByOrNull { avg(it) }?.let { give(w, titleId, "${al.short} Academy MVP", it) }
+            val label = if (al.short.contains("Academy")) al.short else "${al.short} Academy"
+            elig.maxByOrNull { avg(it) }?.let { give(w, titleId, "$label MVP", it) }
             elig.filter { Dates.ageAt(w.players[it].birth, w.day) <= 19 }.maxByOrNull { avg(it) }?.let { give(w, titleId, "${al.short} Rookie of the Season", it) }
             val wins = HashMap<Int, Int>()
             for (c in comps) for (st in c.stages) for (row in st.standings) wins.merge(row.teamId, row.w, Int::plus)
             for (c in comps) c.placements.firstOrNull()?.let { wins.merge(it, 3, Int::plus) }
             wins.maxByOrNull { it.value }?.key?.let { tid ->
-                w.awards.add(Award(w.season, titleId, "${al.short} Academy Team of the Season", -1, tid))
+                w.awards.add(Award(w.season, titleId, "$label Team of the Season", -1, tid))
                 val coach = w.staff.firstOrNull { it.teamId == tid && it.role == "head-coach" }
-                w.news.add(News(w.day, "${al.short} Academy Team of the Season: ${w.teams[tid].name}", "${w.teams[tid].name}${coach?.let { " (head coach ${it.name()})" } ?: ""} had the best season of ${al.name}."))
+                w.news.add(News(w.day, "$label Team of the Season: ${w.teams[tid].name}", "${w.teams[tid].name}${coach?.let { " (head coach ${it.name()})" } ?: ""} had the best season of ${al.name}."))
             }
         }
     }

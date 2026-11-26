@@ -188,7 +188,8 @@ class FormatsTest {
             if (!rf.name.endsWith("(cancelled)")) {
                 assertTrue(rf.teamIds.size >= 3)
                 assertTrue("${rf.short} winner at Worlds", rf.placements[0] in worlds.teamIds || rf.placements[0] in (comp(w, season, "lol:worlds:playin")?.teamIds ?: emptyList()))
-                assertTrue("${rf.short} entrants not already at Worlds through the playoffs", rf.teamIds.none { tid -> worlds.entries.any { it.teamId == tid && it.src != rf.id && it.status == "in" } })
+                // (A regional-finals winner that came through the play-in enters the main event from the play-in: that is not a second route.)
+                assertTrue("${rf.short} entrants not already at Worlds through the playoffs", rf.teamIds.none { tid -> worlds.entries.any { it.teamId == tid && it.src != rf.id && it.status == "in" && !it.route.startsWith("qual:") } })
             }
         }
         val inv = comp(w, season, "lol:dcgi")!!
