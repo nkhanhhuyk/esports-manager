@@ -756,3 +756,7 @@ replay tests (`ReplayTest`, `BroadcastTest`, `LiveDepthTest`) pass.
 Tests: `PickVarietyTest` (VALORANT agents change with the map; repeat rates for every game), `AcademiesTest` (every
 club has an academy; development squads play no league; none in its parent's league), `QualificationTest` (Worlds
 2027–2029: each league's places come from its last split's playoffs, at most one on points for a third place).
+The world's second teams start with generated staff, so the real former coaches stay on the market. `StaffTest`
+compares main teams for staff size.
+
+Full suite: 112 tests, 0 failures (3 skipped).
