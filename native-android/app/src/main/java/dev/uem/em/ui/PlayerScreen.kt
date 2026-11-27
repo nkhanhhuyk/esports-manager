@@ -282,7 +282,7 @@ private fun PlayerProficiency(w: World, p: Player, t: TitleDef) {
         for ((k, v) in p.profWeapon.entries.sortedByDescending { it.value }) KV(k) { Rating(v) }
     }
     if (p.profMap.isNotEmpty()) Card("Maps & modes") {
-        for ((k, v) in p.profMap.entries.sortedByDescending { it.value }) KV(t.maps.firstOrNull { it.id == k }?.name ?: k) { Rating(v) }
+        for ((k, v) in p.profMap.entries.sortedByDescending { it.value }) KV(t.mapName(k)) { Rating(v) }
     }
     Card("Cross-title projection (if switched today)") {
         val rows = w.titles.filter { it != t.id }.map { x ->

@@ -104,6 +104,14 @@ object Catalogue {
         }
         BY_ID = ALL.associateBy { it.id }
         for (t in ALL) base[t.id] = t.characters
+        // Every real shooter map (the pool first, then the maps outside it), and the starting pools.
+        for (t in ALL) if (!t.isMoba) {
+            val all = (if (t.id == "valorant") valMaps.map { MapDef("valorant:${it.lowercase()}", it) } else CS2_POOL.map { MapDef("cs2:${it.first}", it.second) } + CS2_RESERVE.map { MapDef("cs2:${it.first}", it.second) })
+                .filter { dev.uem.em.ui.Maps.shooter(it.id) != null }
+            basePool[t.id] = t.maps
+            realMaps[t.id] = t.maps + all.filter { m -> t.maps.none { it.id == m.id } }
+            t.allMaps = realMaps[t.id]!!
+        }
         loaded = true
         // Real esports history before the save (honours, GOAT, Hall of Fame): once, after the core data.
         runCatching { dev.uem.em.mgmt.HistoryBook.init(src) }
@@ -112,6 +120,12 @@ object Catalogue {
     }
 
     private val base = HashMap<String, List<CharDef>>()
+    private val basePool = HashMap<String, List<MapDef>>()
+    private val realMaps = HashMap<String, List<MapDef>>()
+    /** The starting competitive pool of a shooter. */
+    fun startingPool(titleId: String): List<MapDef> = basePool[titleId] ?: get(titleId).maps
+    /** Every real map of a shooter, in the pool or not. */
+    fun realMaps(titleId: String): List<MapDef> = realMaps[titleId] ?: get(titleId).maps
 
     /** The real roster of each game plus the fictional characters this world's patches released. */
     fun applyCustom(w: dev.uem.em.model.World) {
@@ -123,6 +137,24 @@ object Catalogue {
                 CharDef(c.id, c.name, c.cls, c.classes, c.lanes, styles, c.kit.getOrElse(0) { 5 })
             }
             t.characters = (base[t.id] ?: t.characters) + custom
+        }
+        applyMaps(w)
+    }
+
+    /**
+     * Shooter maps of this world: the real ones plus the fictional maps its patches released (geometry
+     * compiled and registered for the engine and the viewer), and the competitive pool in force.
+     */
+    fun applyMaps(w: dev.uem.em.model.World) {
+        val geo = HashMap<String, dev.uem.em.ui.Maps.Shooter>()
+        for (cm in w.customMaps) runCatching { dev.uem.em.sim.MapForge.compile(cm) }.getOrNull()?.let { geo[cm.id] = it }
+        dev.uem.em.ui.Maps.setCustom(geo)
+        dev.uem.em.titles.MapMeta.setCustom(w.customMaps)
+        for (t in ALL) if (!t.isMoba) {
+            val real = realMaps[t.id] ?: continue
+            t.allMaps = real + w.customMaps.filter { it.titleId == t.id && it.id in geo }.map { MapDef(it.id, it.name) }
+            val pool = w.mapPools[t.id]?.split(',')?.filter { it.isNotBlank() }?.mapNotNull { id -> t.allMaps.firstOrNull { it.id == id } }
+            t.maps = if (pool.isNullOrEmpty()) basePool[t.id] ?: t.maps else pool
         }
     }
 
@@ -251,6 +283,8 @@ object Catalogue {
     }
 
     private val VAL_POOL = setOf("summit", "abyss", "sunset", "lotus", "corrode", "haven", "bind")
+    /** Real CS2 maps outside the starting pool (they can rotate in with a major patch). */
+    private val CS2_RESERVE = listOf("train" to "Train", "overpass" to "Overpass")
     private val CS2_POOL = listOf("mirage" to "Mirage", "inferno" to "Inferno", "dust2" to "Dust II", "anubis" to "Anubis", "ancient" to "Ancient", "nuke" to "Nuke", "cache" to "Cache")
 
     /** Region popularity of each title (0-100), for fan bases and generation. */

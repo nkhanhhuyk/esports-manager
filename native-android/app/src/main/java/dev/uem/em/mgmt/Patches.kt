@@ -165,6 +165,8 @@ object Patches {
         if (kind == "major") notes.addAll(dev.uem.em.comp.Fearless.evolve(w, t, rng))
         // Competition formats (seeds, play-ins, stages, qualification, franchising): reviewed every few seasons, never mid-season.
         if (kind == "major") notes.addAll(dev.uem.em.comp.Formats.evolve(w, t, Rng.derive(w.seed, "formats", t.id, w.season)))
+        // Shooter map pools: a map may leave, a real one return or a new fictional map arrive (from next season).
+        if (kind == "major" && !t.isMoba) MapPools.patch(w, t, "${t.short} $version", Rng.derive(w.seed, "mappool", t.id, w.season)).asReversed().forEach { notes.add(0, it) }
         // Competitive ruleset: coach comms in fights (MOBAs), introduced or withdrawn with a major patch.
         if (kind == "major" && t.isMoba) {
             if (t.id !in w.coachCommsTitles && rng.chance(0.4)) {

@@ -63,7 +63,7 @@ class ShooterRound(
 ) {
     /** First-shot edge of a defender holding an angle (Valorant's abilities give attackers more ways to clear angles). */
     // CS2 maps are CT-sided (pros win about 47 % of T rounds): the hold matters more there.
-    private val holdEdge = if (t.id == "valorant") 0.34f else 0.68f
+    private val holdEdge = (if (t.id == "valorant") 0.34f else 0.68f) * map.holdScale
     interface Host {
         fun kill(ks: Int, killer: PlayerCtx, victim: PlayerCtx, assister: PlayerCtx?, headshot: Boolean, where: Int, damage: Double)
         fun plant(p: PlayerCtx)

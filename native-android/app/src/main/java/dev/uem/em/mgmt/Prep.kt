@@ -179,7 +179,7 @@ object Prep {
             lines.add("Ban approach (analyst's reading)" to r.banApproach)
             lines.add("Sides (observed)" to "blue ${r.sideWins[0]}/${r.sideGames[0]}, red ${r.sideWins[1]}/${r.sideGames[1]}")
         } else {
-            if (r.maps.isNotEmpty()) lines.add("Maps (observed)" to r.maps.sortedByDescending { it.second }.take(4).joinToString { "${t.maps.firstOrNull { m -> m.id == it.first }?.name ?: it.first} ${it.third}/${it.second}" })
+            if (r.maps.isNotEmpty()) lines.add("Maps (observed)" to r.maps.sortedByDescending { it.second }.take(4).joinToString { "${t.mapName(it.first)} ${it.third}/${it.second}" })
             lines.add("Sides (observed)" to "first side ${r.sideWins[0]}/${r.sideGames[0]}, second ${r.sideWins[1]}/${r.sideGames[1]}")
         }
         lines.add("Style (assumed from the team's profile)" to (opp.style.ifBlank { "balanced" }))
@@ -206,7 +206,7 @@ object Prep {
         val why = when (p.emphasis) {
             "rest" -> "The starters are tired; resting them is worth more than study this week."
             "counter" -> "There is enough recorded play of the opponent (${p.note}) for the analysts to prepare counters."
-            "map" -> "Our best map in practice is ${Catalogue.get(team.titleId).maps.firstOrNull { it.id == p.map }?.name ?: p.map}; keep it in the veto."
+            "map" -> "Our best map in practice is ${Catalogue.get(team.titleId).mapName(p.map)}; keep it in the veto."
             else -> "Little to go on about the opponent: sharpen our own comfort picks."
         }
         return p to why

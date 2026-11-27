@@ -61,7 +61,7 @@ fun TeamScrims(vm: GameVm, w: World, team: Team, showTraining: Boolean = true) {
                 for (g in 0 until games) Row(Modifier.padding(start = 78.dp, top = 2.dp).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
                     val won = b.results.getOrNull(g) == 'W'
                     Text(if (won) "W" else "L", color = if (won) Ui.win else Ui.loss, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(14.dp))
-                    b.maps.getOrNull(g)?.let { m -> Text(t.maps.firstOrNull { it.id == m }?.name ?: m, color = Ui.muted, fontSize = 10.sp, modifier = Modifier.padding(end = 4.dp)) }
+                    b.maps.getOrNull(g)?.let { m -> Text(t.mapName(m), color = Ui.muted, fontSize = 10.sp, modifier = Modifier.padding(end = 4.dp)) }
                     for (c in b.picks.getOrNull(g)?.split(',').orEmpty()) if (c.isNotBlank()) { CharPic(c, t.charIndex[c]?.name ?: c, 18.dp); HGap(1) }
                     if (b.oppPicks.getOrNull(g)?.isNotBlank() == true) { Text(" vs ", color = Ui.muted, fontSize = 9.sp); for (c in b.oppPicks[g].split(',')) if (c.isNotBlank()) { CharPic(c, t.charIndex[c]?.name ?: c, 18.dp); HGap(1) } }
                 }
@@ -85,7 +85,7 @@ fun TeamScrims(vm: GameVm, w: World, team: Team, showTraining: Boolean = true) {
         }
         for ((k, st) in maps) Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             val id = k.removePrefix("map:")
-            Text(t.maps.firstOrNull { it.id == id }?.name ?: id, color = Ui.text, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            Text(t.mapName(id), color = Ui.text, fontSize = 12.sp, modifier = Modifier.weight(1f))
             Text("${st.w}–${st.g - st.w}", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.width(44.dp))
             val b = Scrims.bonusOf(st)
             Text(if (b > 0.08) "strong" else if (b < -0.08) "weak" else "even", color = if (b > 0.08) Ui.win else if (b < -0.08) Ui.loss else Ui.muted, fontSize = 11.sp, modifier = Modifier.width(62.dp))

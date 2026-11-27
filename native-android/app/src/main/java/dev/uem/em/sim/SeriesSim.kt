@@ -312,7 +312,7 @@ class VetoSession(val s: LiveSeries) {
         if (map !in pool) return false
         pool.remove(map)
         if (!cur.second) picks.add(map)
-        log.add("${s.teams[cur.first].short} ${if (cur.second) "ban" else "pick"} ${s.t.maps.first { it.id == map }.name}")
+        log.add("${s.teams[cur.first].short} ${if (cur.second) "ban" else "pick"} ${s.t.mapName(map)}")
         step++
         if (done) finish()
         return true
@@ -334,7 +334,7 @@ class VetoSession(val s: LiveSeries) {
     }
 
     private fun finish() {
-        if (pool.isNotEmpty() && picks.size < s.f.bestOf) { picks.add(pool[0]); log.add("Decider: ${s.t.maps.first { it.id == pool[0] }.name}") }
+        if (pool.isNotEmpty() && picks.size < s.f.bestOf) { picks.add(pool[0]); log.add("Decider: ${s.t.mapName(pool[0])}") }
         s.maps = picks.toList()
     }
 }

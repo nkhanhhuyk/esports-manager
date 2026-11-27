@@ -188,10 +188,10 @@ private fun GameCard(vm: GameVm, w: World, f: Fixture, t: TitleDef, g: GameRecor
     val order = if (t.isMoba && g.blue == 1) intArrayOf(1, 0) else intArrayOf(0, 1)
     val mvp = g.lines.filter { it.team == g.winner }.maxByOrNull { it.rating }
     val kills = IntArray(2).also { a -> g.lines.forEach { a[it.team] += stat(t, it, "k").toInt() } }
-    Card("${if (t.isMoba) "Game" else "Map"} ${gi + 1}${if (!t.isMoba) " — ${t.maps.firstOrNull { it.id == g.mapId }?.name ?: g.mapId}" else ""}", right = { Muted(if (t.isMoba) "%d:%02d".format(g.duration / 60, g.duration % 60) else "${g.score.getOrElse(0) { 0 }}–${g.score.getOrElse(1) { 0 }} rounds") }) {
+    Card("${if (t.isMoba) "Game" else "Map"} ${gi + 1}${if (!t.isMoba) " — ${t.mapName(g.mapId)}" else ""}", right = { Muted(if (t.isMoba) "%d:%02d".format(g.duration / 60, g.duration % 60) else "${g.score.getOrElse(0) { 0 }}–${g.score.getOrElse(1) { 0 }} rounds") }) {
         Text(
             if (t.isMoba) "${w.teams[teams[g.winner]].name} win in %d:%02d, kills ${kills[g.winner]}–${kills[1 - g.winner]}".format(g.duration / 60, g.duration % 60)
-            else "${w.teams[teams[g.winner]].name} take ${t.maps.firstOrNull { it.id == g.mapId }?.name ?: "the map"} ${maxOf(g.score.getOrElse(0) { 0 }, g.score.getOrElse(1) { 0 })}–${minOf(g.score.getOrElse(0) { 0 }, g.score.getOrElse(1) { 0 })}",
+            else "${w.teams[teams[g.winner]].name} take ${t.mapName(g.mapId)} ${maxOf(g.score.getOrElse(0) { 0 }, g.score.getOrElse(1) { 0 })}–${minOf(g.score.getOrElse(0) { 0 }, g.score.getOrElse(1) { 0 })}",
             color = Ui.text, fontWeight = FontWeight.Bold, fontSize = 14.sp,
         )
         if (mvp != null) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { vm.go(Screen.Player(mvp.playerId)) }.padding(top = 4.dp)) {
@@ -385,7 +385,7 @@ private fun SeriesTotals(vm: GameVm, w: World, f: Fixture, t: TitleDef, games: L
         ), initialSort = 4, onRow = { vm.go(Screen.Player(it.key)) }, highlight = { it.key == f.mvp })
     }
     if (!t.isMoba) Card("Maps") {
-        FlowRow { games.forEachIndexed { i, g -> Pill("${i + 1}. ${t.maps.firstOrNull { it.id == g.mapId }?.name ?: g.mapId}: ${g.score.getOrElse(0) { 0 }}-${g.score.getOrElse(1) { 0 }}", if (g.winner == 0) Ui.blue.copy(alpha = 0.35f) else Ui.red.copy(alpha = 0.35f)) } }
+        FlowRow { games.forEachIndexed { i, g -> Pill("${i + 1}. ${t.mapName(g.mapId)}: ${g.score.getOrElse(0) { 0 }}-${g.score.getOrElse(1) { 0 }}", if (g.winner == 0) Ui.blue.copy(alpha = 0.35f) else Ui.red.copy(alpha = 0.35f)) } }
     }
 }
 
@@ -461,7 +461,7 @@ private fun ScoutingCard(vm: GameVm, w: World, f: Fixture, t: TitleDef) {
         charRow("Their bans", r.bans)
         charRow("Their first picks", r.firstPicks)
         charRow("Banned against them", r.bansAgainst)
-        if (r.maps.isNotEmpty()) { Gap(4); Text("Maps", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold); FlowRow { for ((m, g, wn) in r.maps) Pill("${t.maps.firstOrNull { it.id == m }?.name ?: m} $wn-${g - wn}") } }
+        if (r.maps.isNotEmpty()) { Gap(4); Text("Maps", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold); FlowRow { for ((m, g, wn) in r.maps) Pill("${t.mapName(m)} $wn-${g - wn}") } }
         if (t.characters.isNotEmpty()) {
             Gap(4); Text("Players: most played · most comfortable", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             for (n in r.players) Row(Modifier.fillMaxWidth().clickable { vm.go(Screen.Player(n.playerId)) }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {

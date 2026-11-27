@@ -75,7 +75,7 @@ internal object SocialTalk {
                     out.add(Fact(side(s), true, "${tm.short} taking ${n[s]} ${name}s in ${gameWord(c)} ${gi + 1}", tm.short, 1.1, "objective"))
                 }
             } else {
-                val map = t.maps.firstOrNull { it.id == g.mapId }?.name ?: g.mapId
+                val map = t.mapName(g.mapId)
                 if (g.score.size == 2) {
                     val hi = maxOf(g.score[0], g.score[1]); val lo = minOf(g.score[0], g.score[1])
                     val need = t.tactical?.roundsToWin ?: 13
@@ -372,7 +372,7 @@ internal object SocialTalk {
             val gw = if (g.winner == c.winIdx) c.win else c.lose
             val best = g.lines.filter { it.team == g.winner }.maxByOrNull { it.rating }
             val line = best?.let { l -> " · ${h(c, l.playerId)}${t.charIndex[l.charId]?.name?.let { " ($it)" } ?: ""} ${k?.let { l.s[it].roundToInt() } ?: 0}/${d?.let { l.s[it].roundToInt() } ?: 0}/${a?.let { l.s[it].roundToInt() } ?: 0}" } ?: ""
-            val detail = if (t.isMoba) "${mins(g.duration)}${if (g.score.size == 2) ", kills ${g.score[0]}–${g.score[1]}" else ""}" else "${t.maps.firstOrNull { it.id == g.mapId }?.name ?: g.mapId} ${g.score.joinToString("–")}"
+            val detail = if (t.isMoba) "${mins(g.duration)}${if (g.score.size == 2) ", kills ${g.score[0]}–${g.score[1]}" else ""}" else "${t.mapName(g.mapId)} ${g.score.joinToString("–")}"
             sb.append("${cap(gameWord(c))} ${gi + 1}: ${gw.short} — $detail$line\n")
         }
         if (mvp >= 0) sb.append("Series MVP: ${h(c, mvp)}\n")

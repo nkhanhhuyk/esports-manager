@@ -74,8 +74,8 @@ object Scouting {
             }
             bans.entries.maxByOrNull { it.value }?.let { (cid, c) -> if (c >= 2) ideas.add("They have banned ${t.charIndex[cid]?.name ?: cid} $c times: have a second option ready.") }
         } else if (maps.isNotEmpty()) {
-            maps.entries.maxByOrNull { it.value[1] * 10 + it.value[0] }?.let { ideas.add("Their best map lately: ${t.maps.firstOrNull { m -> m.id == it.key }?.name ?: it.key} (${it.value[1]}-${it.value[0] - it.value[1]}); consider banning it.") }
-            maps.entries.filter { it.value[0] >= 2 && it.value[1] * 2 < it.value[0] }.minByOrNull { it.value[1].toDouble() / it.value[0] }?.let { ideas.add("They struggle on ${t.maps.firstOrNull { m -> m.id == it.key }?.name ?: it.key} (${it.value[1]}-${it.value[0] - it.value[1]}).") }
+            maps.entries.maxByOrNull { it.value[1] * 10 + it.value[0] }?.let { ideas.add("Their best map lately: ${t.mapName(it.key)} (${it.value[1]}-${it.value[0] - it.value[1]}); consider banning it.") }
+            maps.entries.filter { it.value[0] >= 2 && it.value[1] * 2 < it.value[0] }.minByOrNull { it.value[1].toDouble() / it.value[0] }?.let { ideas.add("They struggle on ${t.mapName(it.key)} (${it.value[1]}-${it.value[0] - it.value[1]}).") }
         }
         val sideNames = if (t.isMoba) (if (t.id == "dota2") "Radiant" to "Dire" else "blue" to "red") else "attack-first" to "defence-first"
         if (sideG[0] >= 3 && sideG[1] >= 3) {

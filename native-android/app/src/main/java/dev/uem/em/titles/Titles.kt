@@ -124,7 +124,8 @@ class TitleDef(
     val charLabel: String,
     val charClasses: List<String>,
     var characters: List<CharDef>,
-    val maps: List<MapDef>,
+    /** The competitive map pool (shooters: rotates with major patches; see Catalogue.applyCustom). */
+    var maps: List<MapDef>,
     val draft: DraftRules,
     val formats: Triple<SeriesFormat, SeriesFormat, SeriesFormat>,
     val styles: List<String>,
@@ -138,6 +139,10 @@ class TitleDef(
     val prizeScale: Double,
 ) {
     val isMoba get() = engine == Engine.MOBA
+    /** Every map of the game, in the pool or not (real ones and those this world's patches released). */
+    var allMaps: List<MapDef> = maps
+    /** A map's name, also for maps no longer in the pool. */
+    fun mapName(id: String): String = (maps.firstOrNull { it.id == id } ?: allMaps.firstOrNull { it.id == id })?.name ?: id.substringAfter(':').replaceFirstChar { it.uppercase() }
     fun role(id: String): RoleDef = roles.firstOrNull { it.id == id } ?: roles[0]
     val lineupRoles: List<RoleDef> by lazy { lineup.map { role(it) } }
     @Volatile private var indexed: List<CharDef>? = null

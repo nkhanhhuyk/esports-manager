@@ -648,7 +648,7 @@ fun TacticalViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable () -
             Text("${teams[1].short} ", color = Ui.red, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             TeamPic(teams[1], 26.dp)
         }
-        Text("Round ${r + 1} · ${map?.name ?: t.maps.firstOrNull { it.id == g.mapId }?.name ?: ""}", color = Ui.text, fontSize = 13.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+        Text("Round ${r + 1} · ${map?.name ?: t.mapName(g.mapId)}", color = Ui.text, fontSize = 13.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         val buys = start?.text?.split("|") ?: emptyList()
         Text("${teams[attack].short} ${sideName(attack).lowercase()} (${buys.getOrElse(0) { "?" }} buy) on ${site?.id ?: "?"} · ${teams[1 - attack].short} ${sideName(1 - attack).lowercase()} (${buys.getOrElse(1) { "?" }} buy)", color = Ui.muted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 12.dp))
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {

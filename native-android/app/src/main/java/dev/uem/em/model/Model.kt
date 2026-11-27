@@ -135,6 +135,14 @@ class World(
     val soloWeeks: MutableList<SoloWeek> = ArrayList(),
     /** Prestige of each event family (defKey), smoothed season to season (see comp.Prestige); new editions start from it. */
     val prestige: MutableMap<String, Double> = HashMap(),
+    /** Fictional shooter maps released by major patches (see sim.MapForge). */
+    val customMaps: MutableList<CustomMap> = ArrayList(),
+    /** Competitive map pool per shooter: titleId → map ids, comma-separated, oldest first; none = the starting pool. */
+    val mapPools: MutableMap<String, String> = HashMap(),
+    /** Map pool changes announced by major patches (applied when the next season starts). */
+    val mapPoolLog: MutableList<MapPoolChange> = ArrayList(),
+    /** Rounds by map ("season|mapId", see mgmt.MapPools.F_*) and team records by map ("season|mapId|teamId": games, wins, rounds won, rounds lost; two seasons kept). */
+    val mapStats: MutableMap<String, IntArray> = HashMap(),
 ) {
     /** Where this world's box-score pages live. */
     fun pagesName() = pagesKey.ifBlank { name }
@@ -923,3 +931,33 @@ class DevPlan(val playerId: Int, var stage: String = "", var focus: String = "",
 @Serializable
 class PrepPlan(val fixtureId: Int, val teamId: Int, var emphasis: String = "balanced", var style: String = "", var map: String = "", var by: String = "user",
                var locked: Boolean = false, var lockedDay: Int = 0, var effect: Double = 1.0, var note: String = "")
+
+/** A callout of a fictional shooter map: region (A..D, Mid, Attacker Side...), position 0..1000, kind (atk-spawn, def-spawn, site, area). */
+@Serializable
+class CustomMapNode(val name: String, val sup: String, val x: Int, val y: Int, val kind: String = "area", val site: String = "")
+
+/**
+ * A fictional shooter map (released by a major patch). Links are "from,to,type" (walk, door, breakable, drop,
+ * teleport, vent; drops and teleporters are one-way). The walls are compiled from the layout (sim.MapForge).
+ */
+@Serializable
+class CustomMap(
+    val titleId: String,
+    val id: String,
+    val name: String,
+    val theme: String,
+    val season: Int,
+    val version: String,
+    val nodes: List<CustomMapNode>,
+    val links: List<String>,
+    val blurb: String = "",
+    val features: List<String> = emptyList(),
+    /** VALORANT: agents the layout favours / punishes (short ids), and the class a flex player fills. */
+    val staples: List<String> = emptyList(),
+    val weak: List<String> = emptyList(),
+    val flex: String = "",
+)
+
+/** A change to a shooter's competitive map pool, announced with a patch and in force from [effective]. */
+@Serializable
+class MapPoolChange(val titleId: String, val season: Int, val day: Int, val version: String, val added: String, val removed: String, val effective: Int, var applied: Boolean = false)

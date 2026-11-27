@@ -87,7 +87,7 @@ fun PrepareScreen(vm: GameVm, w: World, fixtureId: Int) {
         item {
             Card("Staff recommendation") {
                 KV("Plan", Prep.LABEL[rec.first.emphasis] ?: rec.first.emphasis)
-                if (rec.first.map.isNotBlank()) KV("Map", t.maps.firstOrNull { it.id == rec.first.map }?.name ?: rec.first.map)
+                if (rec.first.map.isNotBlank()) KV("Map", t.mapName(rec.first.map))
                 Muted(rec.second, 11)
                 if (!locked) TextButton(onClick = {
                     Prep.edit(w, f.id, teamId)?.let { p -> p.emphasis = rec.first.emphasis; p.map = rec.first.map; p.style = ""; p.by = "staff recommendation"; p.note = rec.first.note }
@@ -101,7 +101,7 @@ fun PrepareScreen(vm: GameVm, w: World, fixtureId: Int) {
                 val share = Prep.expectedEffect(w, team, cur.emphasis)
                 KV("Emphasis", Prep.LABEL[cur.emphasis] ?: cur.emphasis)
                 if (t.isMoba) KV("Composition identity", cur.style.ifBlank { "the team's usual (${team.style.ifBlank { "balanced" }})" })
-                if (!t.isMoba && cur.emphasis == "map") KV("Map", t.maps.firstOrNull { it.id == cur.map }?.name ?: "—")
+                if (!t.isMoba && cur.emphasis == "map") KV("Map", t.mapName(cur.map))
                 KV("Deliverable this week", "%.0f%% (analysts and coaches%s)".format(share * 100, if (share < 1) "; other prepared matches this week share their time" else ""))
                 Muted(Prep.explain(cur.emphasis), 10)
                 if (!locked) {
@@ -138,7 +138,7 @@ fun PrepareScreen(vm: GameVm, w: World, fixtureId: Int) {
                     for (e in Prep.EMPHASES) {
                         val p = PrepPlan(f.id, teamId, e)
                         if (e == "map") { if (t.isMoba) continue; p.map = rec.first.map.ifBlank { Prep.bestMap(w, team) ?: "" } }
-                        options.add((Prep.LABEL[e] ?: e) + (if (e == "map" && p.map.isNotBlank()) " (${t.maps.firstOrNull { it.id == p.map }?.name})" else "") to p)
+                        options.add((Prep.LABEL[e] ?: e) + (if (e == "map" && p.map.isNotBlank()) " (${t.mapName(p.map)})" else "") to p)
                     }
                     vm.runLab(f.id, teamId, options, sizes[labN])
                 }, colors = ButtonDefaults.buttonColors(containerColor = Ui.accent)) { Text("Run the laboratory") }

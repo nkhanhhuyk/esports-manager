@@ -119,7 +119,7 @@ private fun VetoView(live: LiveMatch) {
         item { Card("Map veto") { Muted(if (live.spectator) (cur?.let { "${s.teams[it.first].short} to ${if (it.second) "ban" else "pick"}…" } ?: "Veto complete") else if (cur?.first == live.me) "Your turn: ${if (cur.second) "BAN" else "PICK"} a map" else "Waiting…"); for (l in v.log) Muted(l, 12) } }
         items(v.pool.size) { i ->
             val m = v.pool[i]
-            val name = s.t.maps.first { it.id == m }.name
+            val name = s.t.mapName(m)
             val prof = s.lineups[if (live.me >= 0) live.me else 0].filter { it >= 0 }.map { s.w.players[it].profMap[m] ?: 40.0 }.average()
             val prof2 = s.lineups[if (live.me >= 0) 1 - live.me else 1].filter { it >= 0 }.map { s.w.players[it].profMap[m] ?: 40.0 }.average()
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp).background(Ui.card, RoundedCornerShape(10.dp)).clickable(enabled = cur?.first == live.me) { live.vetoAct(m) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -253,7 +253,7 @@ private fun SubsDialog(live: LiveMatch, onClose: () -> Unit) {
     val last = s.games.lastOrNull()
     val map = s.nextMap()
     androidx.compose.material3.AlertDialog(onDismissRequest = onClose, confirmButton = { TextButton(onClick = onClose) { Text("Done", color = Ui.accent) } },
-        title = { Text("Substitutions · game ${s.gi + 1}${if (!t.isMoba && t.maps.size > 1) " · " + (t.maps.firstOrNull { it.id == map }?.name ?: "") else ""}") }, text = {
+        title = { Text("Substitutions · game ${s.gi + 1}${if (!t.isMoba && t.maps.size > 1) " · " + (t.mapName(map)) else ""}") }, text = {
             Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
                 live.suggestion()?.let { sg ->
                     val inP = w.players[sg.inPid]

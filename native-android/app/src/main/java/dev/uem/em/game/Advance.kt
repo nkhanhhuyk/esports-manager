@@ -251,6 +251,8 @@ object Advance {
             p.form = clamp(p.form * 0.85 + (l.rating - 1) * 6, -10.0, 10.0)
             p.fatigue = clamp(p.fatigue + (4 - p.attrs[Attrs.STAMINA] / 50) * (if (g.duration > 2400) 1.4 else 1.0), 0.0, 100.0)
         }
+        // Rounds by map (map library) and team records by map.
+        dev.uem.em.mgmt.MapPools.record(w, t, o.record.games, teamIds)
         // Character usage this season (tier lists): games, wins, bans; per map for shooters.
         for (g in o.record.games) {
             for (l in g.lines) if (l.charId.isNotEmpty()) {
@@ -336,6 +338,9 @@ object Advance {
         BoxStore.pruneReplays(w, w.day - 700)
         dev.uem.em.comp.Prestige.update(w, w.season)
         w.season++
+        // Map pool changes announced by last season's major patches come into force.
+        dev.uem.em.mgmt.MapPools.rollover(w)
+        dev.uem.em.mgmt.MapPools.prune(w)
         dev.uem.em.mgmt.SoloQueue.rollover(w)
         dev.uem.em.mgmt.Deals.returnLoans(w)
         dev.uem.em.mgmt.Deals.executePreContracts(w)

@@ -54,7 +54,9 @@ object Maps {
         val oneWay get() = type == "drop" || type == "teleport"
     }
 
-    class Shooter(val name: String, val nodes: List<Node>, val links: List<Link>, val sites: List<Site>, val atk: Int, val def: Int, val walls: List<FloatArray>, val source: String = "") {
+    class Shooter(val name: String, val nodes: List<Node>, val links: List<Link>, val sites: List<Site>, val atk: Int, val def: Int, val walls: List<FloatArray>, val source: String = "",
+        /** Scale of a holding defender's first-shot edge on this map (fictional maps are calibrated with it; real maps 1). */
+        val holdScale: Float = 1f) {
         val edges get() = links.map { it.from to it.to }
         private val adj = Array(nodes.size) { ArrayList<Pair<Int, Link>>() }.also { a -> for (l in links) { a[l.from].add(l.to to l); if (!l.oneWay) a[l.to].add(l.from to l) } }
 
@@ -207,9 +209,15 @@ object Maps {
     }
 
     fun moba(titleId: String): Moba? = moba[titleId]
-    fun shooter(mapId: String): Shooter? = shooter[mapId]
-    /** Every shooter map with geometry (real maps from the asset, plus registered fictional ones). */
-    fun shooterIds(): List<String> = shooter.keys.sorted()
+    fun shooter(mapId: String): Shooter? = shooter[mapId] ?: custom[mapId]
+    /** Every shooter map with geometry (real maps from the asset, plus this world's fictional ones). */
+    fun shooterIds(): List<String> = (shooter.keys + custom.keys).sorted()
+    /** Whether a map is one of the real maps from the asset. */
+    fun isReal(mapId: String) = mapId in shooter
+
+    /** Fictional maps of the open world (replaced as a whole when another world is opened). */
+    @Volatile private var custom: Map<String, Shooter> = emptyMap()
+    fun setCustom(maps: Map<String, Shooter>) { custom = maps }
 
     @Suppress("unused")
     private fun dist(a: Offset, b: Offset) = hypot(a.x - b.x, a.y - b.y)
