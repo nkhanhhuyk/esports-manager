@@ -305,6 +305,9 @@ object Circuits {
 
     /** An amateur club goes up: it turns semi-professional (its players now sign contracts with it). */
     private fun promote(w: World, champ: Team, lower: dev.uem.em.model.League, note: String) {
+        // Retired players (retirements are decided at the season's end, before seats are filled) are not signed.
+        champ.roster.removeAll { w.players[it].retired }
+        champ.lineup = Lineups.auto(w, champ)
         champ.kind = ""
         champ.leagueId = lower.id; lower.teamIds.add(champ.id)
         champ.dataNote = note
@@ -334,7 +337,7 @@ object Circuits {
             while (l.teamIds.size < want && guard++ < 6) {
                 val p = pts.getOrPut(l.titleId) { amateurPoints(w, w.season, l.titleId) }
                 val size = Catalogue.get(l.titleId).teamSize
-                val pick = w.teams.filter { it.active && it.titleId == l.titleId && it.kind == AMATEUR && it.parentId < 0 && !w.isUserTeam(it.id) && inRegion(it, l) && it.roster.size >= size }
+                val pick = w.teams.filter { it.active && it.titleId == l.titleId && it.kind == AMATEUR && it.parentId < 0 && !w.isUserTeam(it.id) && inRegion(it, l) && it.roster.count { pid -> !w.players[pid].retired } >= size }
                     .maxWithOrNull(compareBy<Team>({ p[it.id] ?: 0.0 }, { it.elo })) ?: break
                 promote(w, pick, l, "Fictional club promoted from the amateur circuit (a free place in ${l.short}, ${w.season})")
                 w.news.add(News(w.day, "${pick.name} promoted to ${l.short}", "${pick.name} take a free place in ${l.name} (a club left the league at the end of the season).", listOf(pick.id)))
