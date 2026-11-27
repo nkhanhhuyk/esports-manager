@@ -187,8 +187,11 @@ object Invariants {
         for (tid in st.teamIds) rec[tid] = IntArray(2)
         val seen = HashSet<Long>()
         for ((round, games) in fs.groupBy { it.round }.toSortedMap()) {
-            val groups = games.flatMap { listOf(it.a, it.b) }.groupBy { rec[it]!!.let { x -> x[0] * 100 + x[1] } }
-            val odd = groups.values.count { it.size % 2 == 1 }
+            // Record groups are drawn best record first; a group with an odd running total passes one team down to the
+            // next group, so each such carry allows one pairing across records.
+            val groups = games.flatMap { listOf(it.a, it.b) }.groupBy { rec[it]!!.let { x -> x[0] * 100 - x[1] } }.toSortedMap(compareByDescending { it })
+            var run = 0; var odd = 0
+            for (g in groups.values) { run += g.size; if (run % 2 == 1) odd++ }
             var cross = 0
             for (f in games) {
                 val ra = rec[f.a]!!; val rb = rec[f.b]!!
