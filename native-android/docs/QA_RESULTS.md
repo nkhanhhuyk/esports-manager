@@ -82,7 +82,23 @@ What round 1 showed besides (seeds `qa-2` / `qa-3`, 20 seasons each):
 * **Money keeps growing at the top.** Successful multi-game organisations accumulate (Team Liquid 363 M after
   20 seasons, about 18 % a year) with nothing to spend it on; the median barely moves.
 
-**Final round** (after all fixes; same seeds): see below.
+**Final round** (after all fixes, commit `ca745d0`; same seeds, class files frozen for the whole run):
+
+* First attempt: all three seeds reached 2036 (ten seasons) with **no failure**, then the container restarted
+  and the runs were lost; they were started again from the beginning.
+* Second attempt: `qa-2` was killed by the out-of-memory killer in its second season (three 4 GB runs plus the
+  Gradle suite on a 15 GB machine) and restarted on its own after the suite; `qa-1` and `qa-3` ran on.
+* Results: see the table below.
+
+FINAL_ROUND_TABLE
+
+## Full suite and build
+
+`./gradlew assembleDebug testDebugUnitTest` (commit `ca745d0` plus docs): **136 tests, 0 failures**, 10 skipped
+(the opt-in long runs and probes: `LongEcosystemTest`, `LongRunTest`, `EcosystemHarnessTest.manySeasons`,
+`QaProbeTest`, `MapStatsProbeTest`, `MapTraceProbeTest`, `SeatProbeTest`, `InspectSaveTest`, …). Debug APK:
+`native-android/app/build/outputs/apk/debug/app-debug.apk` (17.9 MB), copied to
+`release/esports-manager-native-debug.apk`. Not installed on a device (none available).
 
 ## 2. Shooter maps
 
