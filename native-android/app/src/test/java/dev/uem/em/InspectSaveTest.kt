@@ -37,7 +37,19 @@ class InspectSaveTest {
             val champs = w.comps.filter { it.leagueId == lg.id && it.done && it.placements.isNotEmpty() }.map { it.placements[0] }
             if (champs.size < 20) continue
             val top = champs.groupingBy { it }.eachCount().maxByOrNull { it.value }!!
-            if (top.value * 2 > champs.size) { val tm = w.teams[top.key]; println("dynasty ${lg.short}: ${tm.short} ${top.value}/${champs.size}, org ${w.orgs[tm.orgId].short} ${"%.0f".format(w.orgs[tm.orgId].balance / 1e6)}M, elo ${tm.elo.toInt()} vs league avg ${lg.teamIds.map { w.teams[it].elo }.average().toInt()}, roster ca ${tm.roster.map { w.players[it].ca }.sorted().takeLast(5).map { it.toInt() }}") }
+            if (top.value * 2 > champs.size) {
+                val tm = w.teams[top.key]; println("dynasty ${lg.short}: ${tm.short} ${top.value}/${champs.size}, org ${w.orgs[tm.orgId].short} ${"%.0f".format(w.orgs[tm.orgId].balance / 1e6)}M, elo ${tm.elo.toInt()} vs league avg ${lg.teamIds.map { w.teams[it].elo }.average().toInt()}, roster ca ${tm.roster.map { w.players[it].ca }.sorted().takeLast(5).map { it.toInt() }}")
+                // How each starter got there: the first entry at this club and the club before it.
+                for (pid in tm.lineup.filter { it >= 0 }) {
+                    val p = w.players[pid]
+                    val i = p.career.indexOfFirst { it.teamId == tm.id }
+                    val e = p.career.getOrNull(i); val before = p.career.getOrNull(i - 1)
+                    val from = before?.let { b -> w.teams.getOrNull(b.teamId)?.let { "${it.short}${if (it.parentId == tm.id) " (own academy)" else if (it.kind.isNotEmpty()) " (${it.kind})" else if (it.leagueId == tm.leagueId) " (league rival)" else " (" + (w.leagues.getOrNull(it.leagueId)?.short ?: "no league") + ")"}" } } ?: "first club"
+                    println("   ${p.handle} ${p.mainRole} ca ${p.ca.toInt()} pa ${p.pa.toInt()} age ${Dates.ageAt(p.birth, w.day)}: ${e?.type ?: "?"} ${e?.season ?: "?"} from $from; salary ${"%.0f".format(p.salary / 1000)}k, ambitions ${dev.uem.em.mgmt.Ambitions.ranked(w, p).take(3)}")
+                }
+                val rivals = lg.teamIds.filter { it != tm.id }.map { w.teams[it] }.sortedByDescending { r -> r.lineup.filter { it >= 0 }.sumOf { w.players[it].ca } }.take(2)
+                for (r in rivals) println("   rival ${r.short}: lineup ca ${r.lineup.filter { it >= 0 }.map { w.players[it].ca.toInt() }} elo ${r.elo.toInt()}")
+            }
         }
         val l = w.leagues.firstOrNull { it.short == "LCP" && it.titleId == "lol" }
         if (l != null) println("LCP amateur clubs: ${dev.uem.em.mgmt.Circuits.teamsOf(w, "lol", l, "amateur").map { "${it.short}(${it.roster.size})" }}")

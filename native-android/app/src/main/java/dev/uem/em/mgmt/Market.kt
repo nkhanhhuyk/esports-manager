@@ -307,17 +307,19 @@ object Market {
         if (!inWindow(w) || academy) return
         // Bid for a better player at a weaker club (never a club of the same organisation).
         val myElo = team.elo
-        // A club that keeps winning its league does not strip its domestic rivals (they will not sell it a player
-        // unless he is listed); rich clubs abroad, on the other hand, may tempt a dominant club's players.
+        // A club that keeps winning its league no longer buys other clubs' players (they will not sell to it unless
+        // a player is listed; it still signs free agents and promotes from its academy); other clubs, at home and
+        // abroad, may tempt its players who want money, a new challenge or more playing time.
         val dom = HashMap<Int, Int>()
         fun dominance(tm: Team) = dom.getOrPut(tm.id) { leagueDominance(w, tm) }
         val dominant = dominance(team) >= 2
+        fun tempted(p: Player) = Ambitions.weight(w, p, "money") >= 20 || Ambitions.weight(w, p, "growth") >= 15 || Ambitions.weight(w, p, "playtime") >= 15
         // Second divisions and academies included (their best players move up); a listed player even from a
         // stronger club; nobody who joined his club only recently.
         val targets = w.players.asSequence().filter { p -> p.teamId >= 0 && p.loanFrom < 0 && w.teams[p.teamId].orgId != team.orgId && w.teams[p.teamId].kind.isEmpty() && w.teams[p.teamId].nationalOf.isEmpty() &&
                 !(w.isUserTeam(team.id) && w.isUserTeam(p.teamId)) && p.titleId == team.titleId && p.mainRole == role && settled(w, p) &&
-                !(dominant && !p.listed && w.teams[p.teamId].leagueId == team.leagueId && team.leagueId >= 0) &&
-                (w.teams[p.teamId].elo < myElo + 40 || p.listed || (w.teams[p.teamId].leagueId != team.leagueId && Ambitions.weight(w, p, "money") >= 20 && dominance(w.teams[p.teamId]) >= 2)) }
+                !(dominant && !p.listed) &&
+                (w.teams[p.teamId].elo < myElo + 40 || p.listed || (tempted(p) && dominance(w.teams[p.teamId]) >= 2)) }
             .filter { judge(it) > weakCa + 4.5 }.sortedByDescending { Ambitions.targetScore(w, team, it) + (judge(it) - it.ca) }.take(4).toList()
         for (p in targets) {
             val value = Economy.marketValue(w, p)
