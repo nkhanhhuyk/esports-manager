@@ -60,7 +60,7 @@ class EcosystemHarnessTest {
         var w: World = WorldGen.create(TestData.source, run.seed, "Harness ${run.label}", Dates.day(2026, 11, 21), titles = run.titles)
         w.simDetail = "fast"
         val failures = ArrayList<String>()
-        fun fail(s: String) { if (failures.size < 300) failures.add(s); out.appendLine("FAIL $s") }
+        fun fail(s: String) { if (failures.size < 300) failures.add(s); out.appendLine("FAIL $s"); println("FAIL $s"); System.out.flush() }
         out.appendLine("seed ${run.seed}, titles ${w.titles}, ${run.seasons} season(s), created in ${(System.currentTimeMillis() - t0) / 1000}s")
         val start = w.season
         val history = HashMap<Int, Int>() // finished edition -> signature
@@ -165,6 +165,8 @@ class EcosystemHarnessTest {
             out.appendLine("season $s: ${r.counts["competitions"]} events ($kinds); ${r.counts["series played"]} series, ${r.counts["games"]} games, ${r.counts["swiss rounds"] ?: 0} Swiss rounds, " +
                 "${w.transfers.count { it.season == s }} transfers, ${reforms.size} reform(s) for next season, warnings ${r.warnings.size}, heap $mem MB, ${(System.currentTimeMillis() - ts) / 1000}s")
             for (x in r.warnings.take(3)) out.appendLine("  note: $x")
+            println("progress ${run.seed}: season $s done, ${(System.currentTimeMillis() - t0) / 1000}s, heap $mem MB, failures ${failures.size}"); System.out.flush()
+            File("build/harness-${run.seed}-partial.txt").writeText(out.toString())
         }
         // ---- summary
         out.appendLine("reloads: " + reloads.joinToString("; "))
