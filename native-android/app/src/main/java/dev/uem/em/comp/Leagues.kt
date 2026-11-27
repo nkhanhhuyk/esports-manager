@@ -123,11 +123,14 @@ object Leagues {
                 val l = w.leagues.getOrNull(param(p, "l")?.toIntOrNull() ?: -1)?.takeIf { live(it) } ?: return false
                 val joining = candidates(w, l, 2)
                 if (joining.size < 2) return false
+                val sources = joining.mapNotNull { w.leagues.getOrNull(it.leagueId) }.distinct().associate { it.id to it.teamIds.size }
                 for (team in joining) {
                     val from = w.leagues.getOrNull(team.leagueId)
                     Season.moveTeam(w, team, l)
                     w.news.add(News(w.day, "${team.name} join ${l.short}", "${l.short} expands for $season: ${team.name}${from?.let { " (from ${it.short})" } ?: ""} take one of the two new places.", listOf(team.id)))
                 }
+                // The leagues they leave keep their number of clubs: the best amateur clubs of their region move up.
+                dev.uem.em.mgmt.Circuits.rebalance(w, sources)
             }
             "merge" -> {
                 val a = w.leagues.getOrNull(param(p, "a")?.toIntOrNull() ?: -1)?.takeIf { live(it) } ?: return false
