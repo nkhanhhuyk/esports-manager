@@ -226,11 +226,15 @@ object Market {
             // Development clubs (amateur, university, Game Changers) do not sign contracts: their rosters refill from unsigned players.
             if (!team.active || w.isUserTeam(team.id) || team.nationalOf.isNotEmpty() || team.kind.isNotEmpty()) continue
             val t = Catalogue.get(team.titleId)
-            // First season: only a team that cannot field a lineup signs (an emergency).
-            if (frozen(w) && team.roster.count { !w.players[it].retired && w.players[it].injuryUntil <= w.day } >= t.teamSize) continue
-            val short = team.roster.count { !w.players[it].retired } < t.teamSize + 1
+            // Academies (second teams) have no transfer window: they replace a player who moved up or left at
+            // any time, position for position, and may sign a better young free agent whenever they like.
+            val academy = Academies.isAcademy(team)
             val missing = missingRoles(w, team).isNotEmpty()
-            if (!short && !missing && !(window && rng.chance(Ambitions.marketChance(w, team)))) continue
+            // First season: only a team that cannot field a lineup signs (an emergency); an academy also fills a position left empty.
+            if (frozen(w) && !(academy && missing) && team.roster.count { !w.players[it].retired && w.players[it].injuryUntil <= w.day } >= t.teamSize) continue
+            val short = team.roster.count { !w.players[it].retired } < t.teamSize + 1
+            val browse = if (window) Ambitions.marketChance(w, team) else if (academy && !frozen(w)) Ambitions.marketChance(w, team) * 0.25 else 0.0
+            if (!short && !missing && !rng.chance(browse)) continue
             if (missing && Academies.aiPromote(w, team)) continue
             aiTeamMarket(w, team, rng, short || missing)
         }
@@ -238,6 +242,13 @@ object Market {
         for (team in w.teams) {
             if (!team.active || !w.isUserTeam(team.id)) continue
             val t = Catalogue.get(team.titleId)
+            // Your academy: a position left empty (a player called up or signed away) is filled by the academy staff, from young free agents first.
+            if (Academies.isAcademy(team)) for (need in missingRoles(w, team)) {
+                val young = w.players.asSequence().filter { it.teamId < 0 && !it.retired && it.titleId == team.titleId && it.mainRole == need && Dates.ageAt(it.birth, w.day) <= 21 }.maxByOrNull { it.ca }
+                val p = young ?: bestForRole(w, team.titleId, need) ?: continue
+                sign(w, p, team, asking(w, team, p), 1, 0.0, "signed")
+                w.inbox.add(Message(w.day, "Academy staff", "Academy signing: ${p.handle}", "${team.name} had no ${t.role(need).name}, so the academy staff signed ${p.handle} (${Dates.ageAt(p.birth, w.day)}) on a one-season deal."))
+            }
             while (team.roster.count { !w.players[it].retired } < t.teamSize) {
                 val need = missingRoles(w, team).firstOrNull()
                 if (need != null && Academies.aiPromote(w, team)) {

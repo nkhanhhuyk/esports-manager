@@ -137,6 +137,12 @@ object Circuits {
             team.roster.add(p.id); taken.add(p.id)
             p.career.add(CareerEntry(w.season, w.day, team.id, team.kind))
         }
+        // A roster grown past a starting five and two substitutes lets its weakest doubled-up player go.
+        while (team.roster.size > t.teamSize + 2) {
+            val counts = team.roster.groupingBy { w.players[it].roles.firstOrNull() }.eachCount()
+            val drop = team.roster.filter { (counts[w.players[it].roles.firstOrNull()] ?: 0) > 1 }.minByOrNull { w.players[it].ca } ?: break
+            team.roster.remove(drop); dropRegistrations(w, team, drop)
+        }
         team.lineup = Lineups.auto(w, team)
     }
 
@@ -241,13 +247,31 @@ object Circuits {
                 team.lineup = Lineups.auto(w, team); dirty = true
             }
         }
-        // Clubs left short (a player signed by a professional team, graduated, too old) refill the next day.
-        if (!dirty && Dates.dow(w.day) != 1 && w.teams.none { it.active && it.kind.isNotEmpty() && it.roster.size < Catalogue.get(it.titleId).teamSize }) return
+        // Clubs left short or without a position (a player signed by a professional team, graduated, too old) refill
+        // the same day, position for position; there is no transfer window for development clubs.
+        fun needs(team: Team) = team.roster.size < Catalogue.get(team.titleId).teamSize || Catalogue.get(team.titleId).lineup.any { r -> team.roster.none { w.players[it].roles.firstOrNull() == r } }
+        val monday = Dates.dow(w.day) == 1
+        if (!dirty && !monday && w.teams.none { it.active && it.kind.isNotEmpty() && needs(it) }) return
         val rng = Rng.derive(w.seed, "circuit-fill", w.day)
         val ctx = GenCtx(w, rng)
-        for (team in w.teams) if (team.active && team.kind.isNotEmpty() && team.roster.size < Catalogue.get(team.titleId).teamSize) {
+        for (team in w.teams) if (team.active && team.kind.isNotEmpty() && needs(team)) {
             if (ctx.handles.isEmpty()) for (p in w.players) ctx.handles.add(p.handle.lowercase())
             fill(w, ctx, team, rng)
+        }
+        // Amateur clubs sign whenever they like: now and then a clearly better unsigned player of the region takes the place of their weakest at that position.
+        if (monday) {
+            val taken = w.teams.filter { it.kind.isNotEmpty() && it.active }.flatMap { it.roster }.toHashSet()
+            for (team in w.teams) {
+                if (!team.active || team.kind != AMATEUR || w.isUserTeam(team.id) || !rng.chance(0.2)) continue
+                val regs = GameData.expand(team.region).toSet()
+                val weakest = team.roster.map { w.players[it] }.minByOrNull { it.ca } ?: continue
+                val role = weakest.roles.firstOrNull() ?: continue
+                val better = w.players.asSequence().filter { it.titleId == team.titleId && it.teamId < 0 && !it.retired && it.id !in taken && it.roles.firstOrNull() == role && GameData.regionOf(it.nat) in regs && it.ca < 64 && it.ca >= weakest.ca + 6 && it.enrolled.isBlank() && it.circuits.isBlank() }.maxByOrNull { it.ca } ?: continue
+                team.roster.remove(weakest.id); dropRegistrations(w, team, weakest.id)
+                team.roster.add(better.id); taken.add(better.id)
+                better.career.add(CareerEntry(w.season, w.day, team.id, team.kind))
+                team.lineup = Lineups.auto(w, team)
+            }
         }
     }
 
@@ -358,7 +382,14 @@ object Circuits {
             }
             guard = 0
             while (l.teamIds.size > want && guard++ < 6) {
-                val last = w.comps.lastOrNull { it.season == w.season && it.leagueId == l.id && it.done }?.placements?.lastOrNull { it in l.teamIds && w.teams[it].parentId < 0 && w.teams[it].kind.isEmpty() && !w.isUserTeam(it) }
+                // The club that finished lowest in the league's last completed season (at a rollover that is the season
+                // just ended); never a club that only joined the league now (promoted, relegated into it), if any other can go.
+                val stayed = { id: Int -> w.teams[id].history.lastOrNull()?.leagueId == l.id }
+                val table = w.comps.filter { it.leagueId == l.id && it.done }.maxByOrNull { it.season * 1000 + it.id }?.placements
+                val ok = { id: Int -> id in l.teamIds && w.teams[id].parentId < 0 && w.teams[id].kind.isEmpty() && !w.isUserTeam(id) }
+                val last = table?.lastOrNull { ok(it) && stayed(it) }
+                    ?: l.teamIds.filter { ok(it) && stayed(it) }.minByOrNull { w.teams[it].elo }
+                    ?: table?.lastOrNull { ok(it) }
                     ?: l.teamIds.filter { w.teams[it].parentId < 0 && !w.isUserTeam(it) }.minByOrNull { w.teams[it].elo } ?: break
                 val down = w.teams[last]
                 relegate(w, down, l)

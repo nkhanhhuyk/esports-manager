@@ -56,7 +56,7 @@ class CircuitTest {
             val team = w.teams[e.teamId]
             val league = w.leagues[e.route.removePrefix("promotion:").toInt()]
             sb.appendLine("${team.name} → ${league.short}")
-            assertTrue(team.kind.isEmpty() && team.leagueId == league.id)
+            assertTrue("${team.name} (${team.region}) promoted to ${league.short} (${league.region}): kind '${team.kind}', now in league ${w.leagues.getOrNull(team.leagueId)?.short} (${team.leagueId}, ${w.leagues.getOrNull(team.leagueId)?.region}), news ${w.news.filter { team.name in it.title || team.name in it.body }.map { it.title + ": " + it.body }}", team.kind.isEmpty() && team.leagueId == league.id)
             assertEquals(1, league.teamIds.count { it == team.id })
             assertTrue(team.roster.all { w.players[it].teamId == team.id || w.players[it].retired })
         }
