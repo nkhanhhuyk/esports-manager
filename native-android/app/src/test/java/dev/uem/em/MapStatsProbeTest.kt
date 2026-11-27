@@ -23,6 +23,7 @@ class MapStatsProbeTest {
             val t = Catalogue.get(id)
             val all = w.teams.filter { it.titleId == id && it.active && it.leagueId >= 0 && it.parentId < 0 }.sortedByDescending { dev.uem.em.sim.Lineups.strength(w, it) }
             for (md in t.maps) {
+                if (System.getenv("UEM_MAPSTATS_ONLY")?.split(',')?.let { md.id !in it } == true) continue
                 var rounds = 0; var atk = 0; var plants = 0; var defuses = 0; var kills = 0; var ms = 0L; var timeouts = 0; var atkDeathsApproach = 0; var atkDeaths = 0; var endT = 0
                 for (i in 0 until n!!) {
                     val rng = Rng.of("mapstats|${md.id}|$i")

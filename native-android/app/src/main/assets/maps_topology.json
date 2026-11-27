@@ -69,7 +69,7 @@
    "levels": {}
   },
   "cs2:nuke": {
-   "source": "https://counterstrike.fandom.com/wiki/Nuke — two levels: Upper A and Lower B joined by Ramp, Secret stairs and the vents between the sites (vent covers can be opened and closed); Heaven above A.",
+   "source": "https://counterstrike.fandom.com/wiki/Nuke — two levels: Upper A and Lower B joined by Ramp, Secret stairs and the vents between the sites (vent covers can be opened and closed); Heaven above A. Hut and Squeaky open onto A through doors (closed doors block sight; they take a moment to open).",
    "levels": {
     "0": 1,
     "1": 1,
@@ -82,7 +82,9 @@
     "8": 0,
     "9": 1,
     "10": 0.5,
-    "11": 1
+    "11": 1,
+    "12": 1,
+    "13": 1
    },
    "retype": [
     [
@@ -115,7 +117,55 @@
      11,
      "stairs"
     ]
-   ]
+   ],
+   "nodes": [
+    {
+     "name": "Squeaky Door",
+     "sup": "A",
+     "x": 430,
+     "y": 450
+    },
+    {
+     "name": "Hut Door",
+     "sup": "A",
+     "x": 488,
+     "y": 452
+    }
+   ],
+   "remove": [
+    [
+     2,
+     4
+    ],
+    [
+     3,
+     4
+    ]
+   ],
+   "add": [
+    [
+     2,
+     12,
+     "walk"
+    ],
+    [
+     12,
+     4,
+     "door"
+    ],
+    [
+     3,
+     13,
+     "walk"
+    ],
+    [
+     13,
+     4,
+     "door"
+    ]
+   ],
+   "holdScale": 0.25,
+   "calibration": "holdScale 0.25: a holding defender's first-shot edge at a quarter of the usual on this map. With the doors alone attackers won 18% of rounds (24 seeded games); 0.4 gave 38%, 0.1 gave 48%; 0.25 aims at the real map's CT lean (attackers a little under half)."
   },
   "valorant:sunset": {
    "source": "Layout correction (QA, 27 Nov 2026): on Sunset B Main runs from B Lobby into B site. The exported graph had B Main as a dead end reachable only from the site, so every attack on B went through Market from Mid and attackers won 9% of rounds on the map (16 seeded games, MapStatsProbeTest); with the link restored they win 53%. A corridor is carved through the drawn walls along the link. Simplified 2D layout from the map's public lane structure, not measured geometry.",
@@ -133,6 +183,16 @@
      22
     ]
    ]
+  },
+  "valorant:summit": {
+   "source": "",
+   "holdScale": 2.1,
+   "calibration": "holdScale 2.1: attackers won 66% of rounds at 1.0 and 56% at 1.8 (24 seeded games each); 2.1 aims at about 52%."
+  },
+  "valorant:corrode": {
+   "source": "",
+   "holdScale": 1.4,
+   "calibration": "holdScale 1.4: attackers won 62% of rounds at 1.0 and 41% at 1.8 (24 seeded games each); 1.4 aims at about 52%."
   }
  }
 }

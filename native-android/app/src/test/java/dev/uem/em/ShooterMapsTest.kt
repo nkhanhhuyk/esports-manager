@@ -62,7 +62,7 @@ class ShooterMapsTest {
             val expected = when (id) {
                 "valorant:bind" -> setOf("teleport")
                 "valorant:lotus" -> setOf("drop", "door", "breakable")
-                "cs2:nuke" -> setOf("stairs", "vent")
+                "cs2:nuke" -> setOf("stairs", "vent", "door")
                 else -> emptySet()
             }
             assertEquals("$id special links", expected, special)

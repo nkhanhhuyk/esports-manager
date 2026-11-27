@@ -161,10 +161,14 @@ object Maps {
         val maps = Json.parseToJsonElement(text).jsonObject["maps"]?.jsonObject ?: return
         val out = HashMap(shooter)
         for ((id, v) in maps) {
-            val m = shooter[id] ?: continue
+            val m0 = shooter[id] ?: continue
             val o = v.jsonObject
+            // Callouts the export lacks (e.g. doors): appended after the exported ones, so existing indexes stay.
+            val extra = o["nodes"]?.jsonArray?.map { it.jsonObject }.orEmpty().map { n -> Node(n.s("name"), n.s("sup"), Offset(n["x"]!!.jsonPrimitive.int / 1000f, n["y"]!!.jsonPrimitive.int / 1000f), n.s("kind").ifBlank { "area" }) }
+            val m = if (extra.isEmpty()) m0 else Shooter(m0.name, m0.nodes + extra, m0.links, m0.sites, m0.atk, m0.def, m0.walls, m0.source)
             o["levels"]?.jsonObject?.forEach { (k, lv) -> m.nodes.getOrNull(k.toInt())?.level = lv.jsonPrimitive.content.toFloat() }
             val links = m.links.toMutableList()
+            o["remove"]?.jsonArray?.forEach { e -> val a = e.jsonArray[0].jsonPrimitive.int; val b = e.jsonArray[1].jsonPrimitive.int; links.removeAll { (it.from == a && it.to == b) || (it.from == b && it.to == a) } }
             o["retype"]?.jsonArray?.forEach { e ->
                 val a = e.jsonArray[0].jsonPrimitive.int; val b = e.jsonArray[1].jsonPrimitive.int; val type = e.jsonArray[2].jsonPrimitive.content
                 val l = links.firstOrNull { (it.from == a && it.to == b) || (it.from == b && it.to == a) }
@@ -172,8 +176,12 @@ object Maps {
             }
             o["add"]?.jsonArray?.forEach { e -> links.add(Link(e.jsonArray[0].jsonPrimitive.int, e.jsonArray[1].jsonPrimitive.int, e.jsonArray[2].jsonPrimitive.content)) }
             val carve = o["carve"]?.jsonArray?.map { e -> Triple(e.jsonArray[0].jsonPrimitive.int, e.jsonArray[1].jsonPrimitive.int, e.jsonArray[2].jsonPrimitive.int / 1000f) }.orEmpty()
-            out[id] = Shooter(m.name, m.nodes, links, m.sites, m.atk, m.def, if (carve.isEmpty()) m.walls else carved(m, carve), o.s("source"))
+            // A measured balance calibration (a holding defender's edge), where the layout alone leaves one side far ahead.
+            val hold = System.getenv("UEM_HOLD_${id.replace(':', '_').uppercase()}")?.toFloatOrNull() ?: o["holdScale"]?.jsonPrimitive?.content?.toFloatOrNull() ?: 1f
+            out[id] = Shooter(m.name, m.nodes, links, m.sites, m.atk, m.def, if (carve.isEmpty()) m.walls else carved(m, carve), o.s("source"), hold)
         }
+        // Calibration overrides for probes (UEM_HOLD_<MAP>, e.g. UEM_HOLD_VALORANT_SUMMIT=1.5), also for maps without topology.
+        for ((id, m) in out.toMap()) System.getenv("UEM_HOLD_${id.replace(':', '_').uppercase()}")?.toFloatOrNull()?.let { h -> if (h != m.holdScale) out[id] = Shooter(m.name, m.nodes, m.links, m.sites, m.atk, m.def, m.walls, m.source, h) }
         shooter = out
     }
 
