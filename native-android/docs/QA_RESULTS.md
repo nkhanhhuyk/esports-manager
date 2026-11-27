@@ -41,7 +41,48 @@ transfers and awards have no duplicates.
 
 ### Long runs
 
-(filled in below when the seeded runs finish)
+All seven games at once, fast simulation, from the November 2026 start. A run is restarted from the
+beginning whenever a fix is made (never resumed with older results), so the first round found the problems
+and the last round confirms the fixes.
+
+**Round 1** (seeds `qa-1` 25 seasons, `qa-2` and `qa-3` 20 seasons, three JVMs in parallel; `qa-1` was stopped
+at 2047 once its failures were understood):
+
+| Found | Seed, season | Cause | Fix |
+|---|---|---|---|
+| the academy league of the LCP grew from 4 to 5 | `qa-1`, 2027 | by design (a promoted club's second team joins); the seat check also excused leagues that only gained clubs | academy leagues are checked by their own rule (every member's club plays in the league above); the seat check now counts arrivals |
+| HoK CNC 11 → 9 clubs | `qa-3`, 2030 | a league expansion took two clubs from the lower league after the seats had been refilled | the leagues an expansion takes clubs from refill from their region's amateur circuit at once |
+| retired players on club rosters (10 clubs in `qa-1`) | all seeds, from 2035 | a club promoted to fill a seat signed every player on its amateur roster, including those who had just retired | retired players leave the roster first; a candidate club needs a full line-up of active players |
+| "LCP Amateur Championship never finished" | `qa-2` 2043–46, `qa-3` 2042–46 | the seat refills drained the LCP region's amateur circuit to two clubs; the championship put one in each group, a stage with no series never completed (a softlock repeated every season) | amateur circuits top up to their size every season end; a stage with nothing to play completes at once; a stuck event in an existing save moves on when it is loaded |
+| "3 pairings across records, only 2 allowed" (Worlds 2043) | `qa-1` | the check was too strict: when record groups are odd, a team passes down through several groups | the check counts the carries (no engine change) |
+
+What round 1 showed besides (seeds `qa-2` / `qa-3`, 20 seasons each):
+
+| Measure | `qa-2` | `qa-3` |
+|---|---|---|
+| Events per season | 443–448 (amateur 145–150, tier-1 leagues 84–87, academy leagues 54–57, nations 49, tier-2 leagues 27, internationals 21, open qualifiers 21, rivalry / all-star 7–8, world championships 7, collegiate 6, best of the rest 4, CACL 4, LCQs 3–6, Game Changers 3, play-ins 1–5, promotion series 1–2) | same range |
+| Series / games per season | about 14,000 / 31,000 | about 14,100 / 31,100 |
+| Final world | 32,101 players, 280,997 series, 9,366 events, 87,167 transfers; save 69 MB | 32,100 players, 282,865 series, 9,380 events; save 69 MB |
+| Save + reload (JVM) | 3.6 s at 20 MB (2029) … 6.6 s at 45 MB (2038) | 2.8 s … 6.8 s |
+| Heap after each season | 295–751 MB (991 MB in the season with the 45 MB reload) | 297–786 MB (941 MB) |
+| Time per season (three runs sharing four cores) | 161–238 s | 157–242 s |
+| Upsets (the team lower on Elo at the season start wins) by Elo gap < 50 / 50–100 / 100–200 / 200+ | 45 % / 37 % / 28 % / 10 % | 45 % / 36 % / 28 % / 9 % |
+| Different world champions in 20 seasons (per game) | 5 to 10 (most by one club: 10) | 7 to 10 (most: 12, MLBB) |
+| World championship places by league | move with results and reforms: e.g. LoL LCK 5 → 3, CBLOL 2 → 5, LCP 2 → 1; VALORANT stays 4 per league (fixed by design) | LoL LPL 5 → 6, LEC 2 → 5, LCP 2 → 4 |
+| Richest organisation | 14.5 M → 575 M | 13.0 M → 363 M (Team Liquid, four games) |
+| Median organisation | 1.0 M → 1.5 M | 1.0 M → 1.5 M |
+| Organisations below zero | none in any season | none |
+
+**Flagged, not tuned in this phase** (balance; see known issues):
+
+* **League dynasties.** Over 60 league splits one club won 53 (Wild Rift APNES, `qa-2`), 46 (LEC), 42 (HoK CNC,
+  `qa-3`), 40 (Wild Rift APNPL). The dynasty clubs sit 300–550 Elo above their league's average with rosters of
+  86–93 current ability (MPL ID's ONIC), so talent concentrates in one club and stays there; it is not money
+  (ONIC 37 M, VH 19 M).
+* **Money keeps growing at the top.** Successful multi-game organisations accumulate (Team Liquid 363 M after
+  20 seasons, about 18 % a year) with nothing to spend it on; the median barely moves.
+
+**Final round** (after all fixes; same seeds): see below.
 
 ## 2. Shooter maps
 
@@ -106,6 +147,8 @@ JVM heap after each season and save sizes instead.
 | Priority | Issue | Reproduce | Why it is not fixed here |
 |---|---|---|---|
 | high | CS2 Nuke: attackers win about 13 % of rounds | `UEM_MAPSTATS=16 ./gradlew testDebugUnitTest --tests '*MapStatsProbeTest*'`; `UEM_MAPTRACE=cs2:nuke … '*MapTraceProbeTest*'` shows A-site defenders killing attackers waiting in Hut and Squeaky | In the real map Hut and Squeaky are rooms behind doors; the 2D layout leaves them open to A site, so attackers waiting to execute are shot. Letting attackers wait out of the site's sight fixed Nuke (71 %) but pushed most other maps to 64–84 %; a proper fix needs room geometry for Hut and Squeaky (or a retune of every map), not attempted without reliable geometry |
+| high | League dynasties: one club wins up to 53 of 60 league splits over 20 seasons | `UEM_HARNESS=1 UEM_H_SEED=qa-2 …`; "league titles" line of `build/harness-qa-2.txt`; `InspectSaveTest` (`UEM_INSPECT=build/harness-qa-3`) lists dynasty clubs with Elo and roster ability | talent concentrates in the best club (transfers, player ambitions, development); a fix is a transfer / economy retune with its own before / after runs, out of this phase's time |
+| medium | Money accumulates at the top (richest organisation 363–575 M after 20 seasons) with no spending sink | same runs, "finances" line | as above: an economy change (reinvestment, wage pressure) needs its own measured tuning |
 | medium | One active map pool per game for every season; no historical pools by patch | `titles/Catalogue.kt` (`VAL_POOL`, `CS2_POOL`) | a pool rotation is a new feature (out of scope) |
 | medium | No device profiling | — | no phone or emulator in this environment |
 | low | The quick model (fast simulation, second-tier leagues) and the positional engine give different results for the same seed by design; quick-simulated series have no 2D replay | — | by design: whichever model played a series, its stored record is what every screen and replay shows |

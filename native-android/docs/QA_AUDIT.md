@@ -55,6 +55,12 @@ found). "Now" is the state after this phase.
 | Rosters, organisations, transfers, awards (no duplicates) | not checked | — | `Invariants.world` (also run on every load) |
 | Whole-world long run, all seven games, fixed seeds, reloads | **partial**: four MOBAs only, one reload | `LongEcosystemTest` | `EcosystemHarnessTest` (seven games, seeds, four reload checkpoints, balance figures) |
 | Map pools by patch / year | **missing**: one active pool per title for every season (`Catalogue.VAL_POOL`, `CS2_POOL`); no historical pools | `titles/Catalogue.kt` | unchanged (documented limitation; a rotation system is a new feature) |
+| Lower-league seats across promotion from several lower leagues (LCP: LJL, PCS, VCS) | **broken**: relegated clubs went home, the league that sent the promoted club shrank (PCS 11 → 10) | harness, seed `qa-regress` | lower leagues refill from (or trim to) their own region's amateur circuit (`Circuits.rebalance`) |
+| Amateur champion's promotion | **broken**: always into the first lower league listed (LJL) | same | into the champion's own region's league |
+| League expansion | **broken**: the lower league lost the two clubs it sent up (HoK CNC 11 → 9) | harness, `qa-3` 2030 | the lower league refills |
+| Promoted amateur clubs | **broken**: signed players who had just retired | harness, all seeds from 2035 | retired players leave the roster first |
+| Stage with nothing to play | **broken**: never completed (amateur championship of two clubs, every season after the circuit drained) | harness, `qa-2` / `qa-3` from 2042 | completes at once; amateur circuits top up each season; stuck events repaired on load |
+| Balance over decades | not measured | — | measured (upsets, champions, seeds, money): dynasties and money accumulation flagged, not tuned |
 
 ### 2. Shooter maps (VALORANT, CS2)
 
