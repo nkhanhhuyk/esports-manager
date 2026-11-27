@@ -274,17 +274,13 @@ object Circuits {
             if (c.season != w.season || c.circuit != AMATEUR || !c.defKey.endsWith("amchamp") || !c.done) continue
             val champ = w.teams.getOrNull(c.placements.firstOrNull() ?: -1) ?: continue
             val upper = w.leagues.firstOrNull { it.id.toString() == c.defKey.split(':').getOrNull(1)?.removePrefix("L") } ?: continue
-            val lower = w.leagues.firstOrNull { it.upperId == upper.id && it.tier == 2 && upper.lowerId != it.id && !it.academy } ?: continue
-            val last = w.comps.lastOrNull { it.season == w.season && it.leagueId == lower.id && it.done }?.placements?.lastOrNull { w.teams[it].parentId < 0 && w.teams[it].kind.isEmpty() && !w.isUserTeam(it) } ?: continue
+            // Several lower leagues under one top league (LCP: LJL, PCS, VCS): the champion goes up into its own region's.
+            val lowers = w.leagues.filter { it.upperId == upper.id && it.tier == 2 && upper.lowerId != it.id && !it.academy && it.until == 0 }
+            val lower = lowers.firstOrNull { inRegion(champ, it) } ?: lowers.firstOrNull() ?: continue
+            val last = w.comps.lastOrNull { it.season == w.season && it.leagueId == lower.id && it.done }?.placements?.lastOrNull { w.teams[it].parentId < 0 && w.teams[it].kind.isEmpty() && !w.isUserTeam(it) && w.teams[it].leagueId == lower.id } ?: continue
             val down = w.teams[last]
-            // Promotion: the club turns semi-professional (its players now sign contracts with it).
-            champ.kind = ""
-            champ.leagueId = lower.id; lower.teamIds.add(champ.id)
-            champ.dataNote = "Fictional club promoted from the amateur circuit (${c.name})"
-            for (pid in champ.roster) { val p = w.players[pid]; if (p.teamId < 0) { p.teamId = champ.id; p.contractEnd = w.season + 2; p.salary = Economy.expectedSalary(p, region = champ.region) * 0.4; p.joinedDay = w.day; p.career.add(CareerEntry(w.season + 1, w.day, champ.id, "signed (promoted club)")) } }
-            lower.teamIds.remove(down.id); down.leagueId = -1; down.kind = AMATEUR
-            down.dataNote = "Relegated to the amateur circuit (${lower.short} ${w.season})"
-            for (pid in down.roster.toList()) { val p = w.players[pid]; if (p.teamId == down.id) { p.teamId = -1; p.contractEnd = 0; p.career.add(CareerEntry(w.season + 1, w.day, -1, "released (club relegated)")) } }
+            promote(w, champ, lower, "Fictional club promoted from the amateur circuit (${c.name})")
+            relegate(w, down, lower)
             c.entries.add(dev.uem.em.model.QualEntry(champ.id, "promotion:${lower.id}", c.id, 0, "promoted to ${lower.short}", "${down.short} relegated to the amateur circuit", "promoted", w.day))
             w.news.add(News(w.day, "${champ.name} promoted to ${lower.short}", "${champ.name} won ${c.name} and join ${lower.name}; ${down.name} drop to the amateur circuit.", listOf(champ.id, down.id)))
         }
@@ -301,6 +297,56 @@ object Circuits {
             if (ctx.handles.isEmpty()) for (p in w.players) ctx.handles.add(p.handle.lowercase())
             val nt = newTeam(w, ctx, Catalogue.get(team.titleId), league, AMATEUR, rng)
             w.news.add(News(w.day, "${team.name} fold", "${team.name} leave the amateur circuit; ${nt.name} take their place.", listOf(team.id, nt.id)))
+        }
+    }
+
+    /** A club of the league's region: the same region, one of its sub-regions, or a multi-region circuit that covers it (APN-PCS.JP.VN covers PCS). */
+    private fun inRegion(t: Team, l: dev.uem.em.model.League) = t.region == l.region || t.region in dev.uem.em.data.GameData.expand(l.region) || l.region in dev.uem.em.data.GameData.expand(t.region)
+
+    /** An amateur club goes up: it turns semi-professional (its players now sign contracts with it). */
+    private fun promote(w: World, champ: Team, lower: dev.uem.em.model.League, note: String) {
+        champ.kind = ""
+        champ.leagueId = lower.id; lower.teamIds.add(champ.id)
+        champ.dataNote = note
+        for (pid in champ.roster) { val p = w.players[pid]; if (p.teamId < 0) { p.teamId = champ.id; p.contractEnd = w.season + 2; p.salary = Economy.expectedSalary(p, region = champ.region) * 0.4; p.joinedDay = w.day; p.career.add(CareerEntry(w.season + 1, w.day, champ.id, "signed (promoted club)")) } }
+    }
+
+    /** A lower-league club drops to the amateur circuit: its players' contracts end. */
+    private fun relegate(w: World, down: Team, lower: dev.uem.em.model.League) {
+        lower.teamIds.remove(down.id); down.leagueId = -1; down.kind = AMATEUR
+        down.dataNote = "Relegated to the amateur circuit (${lower.short} ${w.season})"
+        for (pid in down.roster.toList()) { val p = w.players[pid]; if (p.teamId == down.id) { p.teamId = -1; p.contractEnd = 0; p.career.add(CareerEntry(w.season + 1, w.day, -1, "released (club relegated)")) } }
+    }
+
+    /**
+     * Seats: every independent lower league starts the new season with as many clubs as it had (unless a reform
+     * changes that when the calendar is drawn). Promotion to a top league fed by several lower leagues sends the
+     * relegated club home, and second teams follow their parents, so a lower league can come up short or over:
+     * short, the best amateur clubs of its own region (amateur points, then Elo) go up; over, its last clubs drop
+     * to the amateur circuit. [before]: league sizes when the season ended.
+     */
+    fun rebalance(w: World, before: Map<Int, Int>) {
+        val pts = HashMap<String, Map<Int, Double>>()
+        for (l in w.leagues) {
+            if (l.tier < 2 || l.academy || l.until > 0) continue
+            val want = before[l.id] ?: continue
+            var guard = 0
+            while (l.teamIds.size < want && guard++ < 6) {
+                val p = pts.getOrPut(l.titleId) { amateurPoints(w, w.season, l.titleId) }
+                val size = Catalogue.get(l.titleId).teamSize
+                val pick = w.teams.filter { it.active && it.titleId == l.titleId && it.kind == AMATEUR && it.parentId < 0 && !w.isUserTeam(it.id) && inRegion(it, l) && it.roster.size >= size }
+                    .maxWithOrNull(compareBy<Team>({ p[it.id] ?: 0.0 }, { it.elo })) ?: break
+                promote(w, pick, l, "Fictional club promoted from the amateur circuit (a free place in ${l.short}, ${w.season})")
+                w.news.add(News(w.day, "${pick.name} promoted to ${l.short}", "${pick.name} take a free place in ${l.name} (a club left the league at the end of the season).", listOf(pick.id)))
+            }
+            guard = 0
+            while (l.teamIds.size > want && guard++ < 6) {
+                val last = w.comps.lastOrNull { it.season == w.season && it.leagueId == l.id && it.done }?.placements?.lastOrNull { it in l.teamIds && w.teams[it].parentId < 0 && w.teams[it].kind.isEmpty() && !w.isUserTeam(it) }
+                    ?: l.teamIds.filter { w.teams[it].parentId < 0 && !w.isUserTeam(it) }.minByOrNull { w.teams[it].elo } ?: break
+                val down = w.teams[last]
+                relegate(w, down, l)
+                w.news.add(News(w.day, "${down.name} drop to the amateur circuit", "${l.name} keeps $want clubs: ${down.name} go down.", listOf(down.id)))
+            }
         }
     }
 

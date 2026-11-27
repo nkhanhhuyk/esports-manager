@@ -36,7 +36,7 @@ object Invariants {
             c.promoLeague >= 0 -> "promotion / relegation"
             c.defKey.contains(":rf:") -> "regional final (LCQ)"
             c.defKey.endsWith(":playin") -> "play-in"
-            c.defKey.contains(":oq:") || c.defKey.contains(":rq:") -> "open / regional qualifier"
+            c.defKey.contains(":oq:") || c.defKey.contains(":rq:") || c.entrants.any { it.startsWith("open:") } -> "open / regional qualifier"
             c.defKey.endsWith(":cacl") -> "academy champions league"
             c.defKey.endsWith(":dcgi") -> "best of the rest"
             c.defKey.endsWith(":rivalry") || c.defKey.endsWith(":allstar") -> "rivalry cup / all-star"

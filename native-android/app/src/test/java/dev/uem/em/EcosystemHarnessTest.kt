@@ -94,7 +94,6 @@ class EcosystemHarnessTest {
             // League seats at the start of the season.
             val seatsAt = w.leagues.filter { it.until == 0 }.associate { it.id to it.teamIds.toSet() }
             val proRelAt = w.leagues.filter { it.until == 0 && it.tier == 1 }.associate { it.id to Formats.hasProRel(w, it) }
-            for ((id, tf) in w.formats) seedsLog.getOrPut(id) { ArrayList() }.add("$s: " + tf.seeds.filterKeys { it.startsWith("worlds:") }.entries.sortedBy { it.key }.joinToString(" ") { "${w.leagues[it.key.substringAfter(':').toInt()].short}=${it.value}" })
             var midDone = false
             val end = Season.endDay(s)
             while (w.season == s) {
@@ -149,6 +148,12 @@ class EcosystemHarnessTest {
                 val gap = kotlin.math.abs(ea - eb); val b = when { gap < 50 -> 0; gap < 100 -> 1; gap < 200 -> 2; else -> 3 }
                 series[b]++; if ((f.winner == f.a) != (ea >= eb)) upsets[b]++
             }
+            // World championship places by league (main event and play-in), to see seeds move with results or reforms.
+            for (c in comps.filter { it.tier == CompTier.WORLDS && !it.defKey.endsWith(":playin") }) {
+                val field = c.teamIds + comps.filter { it.defKey == c.defKey + ":playin" }.flatMap { it.teamIds }.filter { it !in c.teamIds }
+                seedsLog.getOrPut(c.titleId) { ArrayList() }.add("$s " + field.groupingBy { w.leagues.getOrNull(w.teams[it].leagueId)?.short ?: w.teams[it].region }.eachCount().entries.sortedByDescending { it.value }.joinToString(",") { "${it.key}${it.value}" })
+            }
+            if (idx == 0) out.appendLine("  events of no other kind: " + comps.filter { Invariants.kindOf(w, it) == "other" }.map { it.name }.distinct().take(12))
             for (c in comps.filter { it.done && it.tier == CompTier.WORLDS && !it.defKey.endsWith(":playin") && it.placements.isNotEmpty() })
                 worldsWinners.getOrPut(c.titleId) { ArrayList() }.add("$s ${w.teams[c.placements[0]].short} (${w.teams[c.placements[0]].region}, org ${w.orgs[w.teams[c.placements[0]].orgId].short})")
             for (c in comps.filter { it.done && it.leagueId >= 0 && it.tier == CompTier.LEAGUE && it.placements.isNotEmpty() }) leagueChamps.getOrPut(c.leagueId) { ArrayList() }.add(c.placements[0])
@@ -171,7 +176,7 @@ class EcosystemHarnessTest {
         val leagueMax = leagueChamps.mapValues { (_, v) -> v.groupingBy { it }.eachCount().maxOf { it.value } to v.size }
         out.appendLine("league titles: most by one club per league: " + leagueMax.entries.sortedByDescending { it.value.first }.take(8).joinToString(", ") { "${w.leagues[it.key].short} ${it.value.first}/${it.value.second}" })
         out.appendLine("finances: " + balances.joinToString(" | "))
-        for ((t, l) in seedsLog) out.appendLine("$t worlds seeds by season: " + l.filter { it.contains('=') }.let { if (it.size > 6) it.take(3) + listOf("…") + it.takeLast(3) else it }.joinToString(" / "))
+        for ((t, l) in seedsLog) out.appendLine("$t world championship places by league: " + (if (l.size > 6) l.take(3) + listOf("…") + l.takeLast(3) else l).joinToString(" / "))
         for (t in w.titles) {
             val picks = w.charStats.keys.filter { it.split('|').size == 2 }.groupBy { it.substringBefore('|') }
             val per = picks.entries.sortedBy { it.key }.joinToString(" ") { "${it.key}:${it.value.size}" }

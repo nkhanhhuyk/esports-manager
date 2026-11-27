@@ -322,6 +322,7 @@ object Advance {
             team.history.add(TeamSeason(w.season, team.leagueId, pos, lines.sumOf { it.w }, lines.sumOf { it.l }, team.elo, team.roster.toIntArray()))
         }
         val rng = dev.uem.em.core.Rng.derive(w.seed, "rollover", w.season)
+        val seats = w.leagues.associate { it.id to it.teamIds.size }
         Season.applyPromotions(w)
         dev.uem.em.mgmt.Circuits.seasonEnd(w)
         dev.uem.em.mgmt.Extras.residency(w)
@@ -348,6 +349,8 @@ object Advance {
         dev.uem.em.mgmt.Mentoring.aiSuccession(w)
         // Second teams follow their clubs between leagues (academy leagues).
         dev.uem.em.mgmt.Academies.ensureLeagues(w)
+        // Lower leagues keep their number of clubs (promotion across several lower leagues, second teams moving).
+        dev.uem.em.mgmt.Circuits.rebalance(w, seats)
         Season.plan(w, w.season)
         dev.uem.em.mgmt.Circuits.plan(w, w.season)
         dev.uem.em.comp.CustomComps.rollover(w)
