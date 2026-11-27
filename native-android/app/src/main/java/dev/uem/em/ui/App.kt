@@ -131,6 +131,7 @@ fun AppRoot(vm: GameVm, exit: () -> Unit) {
                         Screen.SoloQ -> SoloQueueScreen(vm, w)
                         Screen.Rankings -> RankingsScreen(vm, w)
                         is Screen.Library -> LibraryScreen(vm, w, s.kind)
+                        is Screen.MapBook -> MapBookScreen(vm, w, s.mapId)
                         Screen.Social -> SocialScreen(vm, w)
                         is Screen.Road -> RoadScreen(vm, w, s.teamId)
                         is Screen.Prepare -> PrepareScreen(vm, w, s.fixtureId)
@@ -269,6 +270,7 @@ fun screenTitle(w: World, s: Screen): String = when (s) {
     Screen.CompEditor -> "Create a competition"
     Screen.SoloQ -> "Solo queue ladders"
     Screen.Rankings -> "World rankings"
+    is Screen.MapBook -> if (s.mapId.isBlank()) "Maps" else "Map · " + dev.uem.em.titles.Catalogue.get(s.mapId.substringBefore(':')).mapName(s.mapId)
     is Screen.Library -> when (s.kind) { "items" -> "Items"; "runes" -> "Runes, emblems & arcana"; "spells" -> "Spells"; else -> "Neutral objectives" }
     Screen.Social -> "Social media"
     is Screen.Road -> "Road · ${w.teams.getOrNull(s.teamId)?.short ?: ""}"

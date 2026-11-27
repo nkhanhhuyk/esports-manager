@@ -256,11 +256,16 @@ object TierList {
     fun mapAffinity(w: World, t: TitleDef, charId: String, mapId: String, k: Int? = null): Double {
         val patches = k ?: w.patches.count { it.titleId == t.id }
         val h = (charId + "|" + mapId + "|" + patches / 3).hashCode()
-        val sites = Maps.shooter("${t.id}:$mapId")?.sites?.size ?: 2
+        val sites = geo(t, mapId)?.sites?.size ?: 2
         val cls = t.charIndex[charId]?.cls?.lowercase() ?: ""
         val siteBonus = if (sites >= 3 && (cls.contains("initiator") || cls.contains("controller"))) 0.6 else if (sites == 2 && cls.contains("sentinel")) 0.3 else 0.0
-        return ((h % 1000) / 1000.0) * 1.6 + siteBonus
+        // The map's own meta: the agents its compositions are built around (and those rarely seen there).
+        val meta = if (t.id == "valorant") dev.uem.em.titles.MapMeta.fit(mapId, charId) * 4 else 0.0
+        return ((h % 1000) / 1000.0) * 1.2 + siteBonus + meta
     }
+
+    /** A map's geometry from its id ("valorant:bind"; short ids "bind" too). */
+    private fun geo(t: TitleDef, mapId: String) = Maps.shooter(mapId) ?: Maps.shooter("${t.id}:$mapId")
 
     /** A character's classes (a champion can be both, e.g. Fighter and Tank). */
     fun classesOf(c: dev.uem.em.titles.CharDef): List<String> = c.classes.ifEmpty { listOf(c.cls) }.filter { it.isNotBlank() }
@@ -295,7 +300,7 @@ object TierList {
 
     fun weapons(w: World, t: TitleDef, role: RoleDef? = null, mapId: String? = null, category: String? = null, at: View? = null): List<Pair<String, List<Entry>>> {
         val cats = role?.let { roleCategories(t, it) }
-        val map = mapId?.let { Maps.shooter("${t.id}:$it") }
+        val map = mapId?.let { geo(t, it) }
         val openness = map?.let { m -> m.links.map { (m.nodes[it.from].pos - m.nodes[it.to].pos).getDistance() }.average() } ?: 0.12
         val list = Release.weaponsOf(w, t.id).filter { (cats == null || it.category in cats) && (category == null || it.category == category) }
         return tiers(list.map { wp ->

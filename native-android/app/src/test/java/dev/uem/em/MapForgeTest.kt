@@ -11,6 +11,7 @@ import dev.uem.em.sim.TacticalEngine
 import dev.uem.em.sim.TeamContexts
 import dev.uem.em.titles.Catalogue
 import dev.uem.em.ui.Maps
+import dev.uem.em.game.BoxStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -114,5 +115,43 @@ class MapForgeTest {
         println(out)
         Maps.setCustom(emptyMap())
         for ((tid, v) in perTitle) assertTrue("$tid: attackers win ${v[0] * 100 / v[1]}% on fictional maps", v[0] * 100 / v[1] in 38..62)
+    }
+}
+
+/** Map pools across many major patches: size kept, every map resolvable and playable, the log consistent, saves keep it. */
+class MapPoolsTest {
+    @Test
+    fun poolsRotateOverManySeasons() {
+        TestData.init(); BoxStore.clear()
+        val w = dev.uem.em.gen.WorldGen.create(TestData.source, "pools", "P", dev.uem.em.core.Dates.day(2026, 11, 21))
+        Catalogue.applyCustom(w)
+        val sizes = listOf("valorant", "cs2").associateWith { Catalogue.get(it).maps.size }
+        val notes = ArrayList<String>()
+        for (k in 0 until 14) {
+            for (tid in listOf("valorant", "cs2")) notes.addAll(dev.uem.em.mgmt.MapPools.patch(w, Catalogue.get(tid), "${Catalogue.get(tid).short} ${w.season % 100}.0", Rng.of("pooltest|$tid|$k")))
+            w.season++
+            dev.uem.em.mgmt.MapPools.rollover(w)
+            for (tid in listOf("valorant", "cs2")) {
+                val t = Catalogue.get(tid)
+                assertEquals("$tid pool size in ${w.season}", sizes[tid], t.maps.size)
+                assertEquals("$tid: no map twice", t.maps.size, t.maps.map { it.id }.toSet().size)
+                for (m in t.maps) { assertNotNull("$tid: ${m.id} has no layout", Maps.shooter(m.id)); assertFalse("$tid: ${m.id} has no name", m.name.contains(':')) }
+            }
+        }
+        assertTrue("no map ever rotated", w.mapPoolLog.isNotEmpty())
+        assertTrue("no fictional map released", w.customMaps.isNotEmpty())
+        assertTrue("every change applied", w.mapPoolLog.all { it.applied })
+        assertEquals("names unique", w.customMaps.size, w.customMaps.map { it.name }.toSet().size)
+        for (cm in w.customMaps) assertTrue("${cm.name} invalid", MapForge.valid(MapForge.compile(cm)))
+        // A save keeps the fictional maps and the pools exactly.
+        val bytes = kotlinx.serialization.protobuf.ProtoBuf.encodeToByteArray(dev.uem.em.model.World.serializer(), w)
+        val back = kotlinx.serialization.protobuf.ProtoBuf.decodeFromByteArray(dev.uem.em.model.World.serializer(), bytes)
+        assertEquals(w.mapPools, back.mapPools)
+        assertEquals(w.customMaps.map { it.id + it.links.joinToString() }, back.customMaps.map { it.id + it.links.joinToString() })
+        Catalogue.applyCustom(back)
+        assertEquals(Catalogue.get("valorant").maps.map { it.id }, w.mapPools["valorant"]!!.split(','))
+        File("build/map-pools.txt").writeText(notes.joinToString("\n") + "\n\n" + w.mapPoolLog.joinToString("\n") { "${it.titleId} ${it.season}: +${it.added} -${it.removed} (from ${it.effective})" })
+        // Leave the shared catalogue as other tests expect it.
+        Catalogue.applyCustom(MobaBalanceTest.world())
     }
 }

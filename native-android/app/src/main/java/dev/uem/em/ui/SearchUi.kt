@@ -61,7 +61,7 @@ object Search {
         Triple("Social media", "social fans posts threads", Screen.Social), Triple("Development circuits", "amateur collegiate university game changers circuits", Screen.Circuits),
         Triple("Create a competition", "create custom competition editor", Screen.CompEditor), Triple("Items", "items builds", Screen.Library("items")),
         Triple("Runes, emblems & arcana", "runes emblems arcana talents", Screen.Library("runes")), Triple("Spells", "spells summoner battle", Screen.Library("spells")),
-        Triple("Neutral objectives", "objectives dragon baron lord turtle roshan", Screen.Library("objectives")), Triple("Settings", "settings theme light dark delegation difficulty save export", Screen.Settings),
+        Triple("Neutral objectives", "objectives dragon baron lord turtle roshan", Screen.Library("objectives")), Triple("Maps", "maps map pool layouts sites valorant cs2", Screen.MapBook()), Triple("Settings", "settings theme light dark delegation difficulty save export", Screen.Settings),
     )
 
     fun find(vm: GameVm, w: World, raw: String, limit: Int = 60): List<Hit> {

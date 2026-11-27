@@ -57,7 +57,7 @@ object MapPools {
                 w.customMaps.add(cm)
                 Catalogue.applyMaps(w)
                 notes.add("New map — ${cm.name}: ${cm.blurb}" + (if (cm.features.isNotEmpty()) " " + cm.features.joinToString("; ") + "." else "") +
-                    (if (cm.staples.isNotEmpty()) " Early read: ${cm.staples.take(3).joinToString { s -> s.replaceFirstChar { c -> c.uppercase() } }} look strong here." else ""))
+                    (if (cm.staples.isNotEmpty()) " Early read: ${cm.staples.take(3).joinToString { s -> t.characters.firstOrNull { c -> c.id == "${t.id}-$s" }?.name ?: s }} look strong here." else ""))
                 cm.id
             } else {
                 if (outside.isEmpty()) return@repeat

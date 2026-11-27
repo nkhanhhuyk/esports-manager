@@ -631,6 +631,7 @@ fun MoreScreen(vm: GameVm, w: World) {
             MoreEntry("Runes, emblems & arcana", "Runes (LoL, Wild Rift), emblems (MLBB), arcana (HoK), facets and talents (Dota 2)", Icons.Rounded.Lock, Screen.Library("runes"), Ui.accent2),
             MoreEntry("Spells", "Summoner spells, battle spells and common skills", Icons.Rounded.Refresh, Screen.Library("spells"), Ui.win),
             MoreEntry("Neutral objectives", "Drakes, Baron, Turtles, Lords, Tyrants, Roshan... and what they give", Icons.Rounded.LocationOn, Screen.Library("objectives"), Ui.red),
+            MoreEntry("Maps", "Every VALORANT and CS2 map, in the pool or not (and fictional ones from patches): layouts, sites, sides, agents and guns", Icons.Rounded.Place, Screen.MapBook(), Ui.accent),
         ),
     )
     BoxWithConstraints(Modifier.fillMaxSize()) {

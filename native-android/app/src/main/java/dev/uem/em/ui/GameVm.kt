@@ -63,6 +63,8 @@ sealed class Screen {
     data class Replay(val fixtureId: Int, val game: Int) : Screen()
     /** Game reference: "items", "runes", "spells" or "objectives". */
     data class Library(val kind: String) : Screen()
+    /** Shooter map library: blank = the list, else a map id ("valorant:bind"). */
+    data class MapBook(val mapId: String = "") : Screen()
     data object Social : Screen()
     /** A team's road through its game's competitions (qualification routes and status). */
     data class Road(val teamId: Int) : Screen()

@@ -51,11 +51,22 @@ object MapMeta {
     @Volatile private var custom: Map<String, Triple<Set<String>, Set<String>, String>> = emptyMap()
     fun setCustom(maps: List<dev.uem.em.model.CustomMap>) { custom = maps.filter { it.titleId == "valorant" }.associate { key(it.id) to Triple(it.staples.toSet(), it.weak.toSet(), it.flex) } }
 
-    /** Whether the map's favoured / punished agents are known (real meta or a fictional map's layout). */
-    fun known(mapId: String) = key(mapId) in STAPLES || key(mapId) in custom
+    /** Whether the map's favoured agents come from the professional meta (otherwise from its layout). */
+    fun known(mapId: String) = key(mapId) in STAPLES
     /** The agents (short ids) a map's compositions are built around, and those rarely picked there. */
-    fun staples(mapId: String): Set<String> = STAPLES[key(mapId)] ?: custom[key(mapId)]?.first ?: emptySet()
-    fun weakOnes(mapId: String): Set<String> = WEAK[key(mapId)] ?: custom[key(mapId)]?.second ?: emptySet()
+    fun staples(mapId: String): Set<String> = STAPLES[key(mapId)] ?: custom[key(mapId)]?.first ?: derived(mapId)?.first ?: emptySet()
+    fun weakOnes(mapId: String): Set<String> = WEAK[key(mapId)] ?: custom[key(mapId)]?.second ?: derived(mapId)?.second?.filter { it !in staples(mapId) }?.toSet() ?: emptySet()
+
+    /** Real maps without a professional read (or a missing half of it): what the layout favours (sim.MapForge). */
+    private val auto = java.util.concurrent.ConcurrentHashMap<String, Triple<Set<String>, Set<String>, String>>()
+    private fun derived(mapId: String): Triple<Set<String>, Set<String>, String>? {
+        val k = key(mapId)
+        auto[k]?.let { return it }
+        val geo = dev.uem.em.ui.Maps.shooter(if (':' in mapId) mapId else "valorant:$mapId") ?: return null
+        val r = dev.uem.em.sim.MapForge.rateAgents(geo)
+        if (r.first.isEmpty()) return null // characters not loaded yet
+        return Triple(r.first.toSet(), r.second.toSet(), r.third).also { auto[k] = it }
+    }
     fun weak(mapId: String, charId: String) = weakOnes(mapId).contains(short(charId))
 
     private fun key(mapId: String) = mapId.substringAfter(':').lowercase()
@@ -72,5 +83,5 @@ object MapMeta {
     }
 
     /** The class a flex player fills on this map. */
-    fun flexClass(mapId: String): String = FLEX[key(mapId)] ?: custom[key(mapId)]?.third?.takeIf { it in CLASSES } ?: CLASSES[Math.floorMod(key(mapId).hashCode(), CLASSES.size)]
+    fun flexClass(mapId: String): String = FLEX[key(mapId)] ?: custom[key(mapId)]?.third?.takeIf { it in CLASSES } ?: derived(mapId)?.third?.takeIf { it in CLASSES } ?: CLASSES[Math.floorMod(key(mapId).hashCode(), CLASSES.size)]
 }
