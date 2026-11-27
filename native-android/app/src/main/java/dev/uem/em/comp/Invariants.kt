@@ -306,6 +306,12 @@ object Invariants {
             }
         }
         for (tm in w.teams) if (tm.active && tm.leagueId >= 0 && inLeague[tm.id] != tm.leagueId) r.bad("${tm.name} belongs to league ${tm.leagueId} but is not listed there")
+        // An academy league holds the second teams of the league above it.
+        for (l in w.leagues) if (l.academy && l.until == 0) for (tid in l.teamIds) {
+            val tm = w.teams[tid]
+            if (tm.parentId < 0) r.bad("${l.short}: ${tm.name} is not a second team")
+            else if (l.upperId >= 0 && w.teams[tm.parentId].leagueId != l.upperId) r.bad("${l.short}: ${tm.name}'s club plays in ${w.leagues.getOrNull(w.teams[tm.parentId].leagueId)?.short ?: "no league"}, not ${w.leagues[l.upperId].short}")
+        }
         for (tm in w.teams) if (tm.parentId >= 0) {
             val parent = w.teams.getOrNull(tm.parentId)
             if (parent == null || parent.titleId != tm.titleId || parent.orgId != tm.orgId) r.bad("academy ${tm.name}: parent ${tm.parentId} is not its organisation's ${tm.titleId} team")

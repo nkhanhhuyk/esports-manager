@@ -136,8 +136,11 @@ class EcosystemHarnessTest {
                 val l = w.leagues[lid]
                 val now = l.teamIds.toSet()
                 val reformed = reforms.any { ch -> ch.kind in Formats.LEAGUE_KINDS && (lid in ch.leagues || lid in ch.gain || ch.leagues.isEmpty()) && w.leagues[lid].titleId == l.titleId } || l.until > 0
-                val folded = (before - now).all { !w.teams[it].active }
-                if (before.size != now.size && !reformed && !folded) fail("${l.short} (${l.titleId}) went from ${before.size} to ${now.size} clubs with no reform")
+                // Academy leagues follow their parents (a promoted club's second team joins): checked by Invariants instead.
+                if (l.academy) continue
+                val departed = before - now; val arrived = now - before
+                val folded = departed.isNotEmpty() && departed.all { !w.teams[it].active } && arrived.isEmpty()
+                if (before.size != now.size && !reformed && !folded) fail("${l.short} (${l.titleId}) went from ${before.size} to ${now.size} clubs with no reform (out ${departed.map { w.teams[it].short }}, in ${arrived.map { w.teams[it].short }})")
                 if (l.tier == 1 && proRelAt[lid] == false && before != now && !reformed && !folded &&
                     reforms.none { it.kind == "prorel" && w.leagues[lid].titleId == l.titleId }) fail("franchised ${l.short} changed members without a reform: out ${(before - now).map { w.teams[it].short }}, in ${(now - before).map { w.teams[it].short }}")
             }
