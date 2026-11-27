@@ -269,6 +269,15 @@ object Invariants {
 
     /** The world as it stands: rosters, league membership, academies, transfers, awards and reform records. */
     fun world(w: World, r: Report = Report()): Report {
+        // Shooter map pools: the starting size, no map twice, every map a known layout; fictional maps unique.
+        for ((titleId, ids) in w.mapPools) {
+            val pool = ids.split(',').filter { it.isNotBlank() }
+            val want = dev.uem.em.titles.Catalogue.startingPool(titleId).size
+            if (pool.size != want) r.bad("$titleId map pool has ${pool.size} maps (starting pool $want)")
+            if (pool.size != pool.toSet().size) r.bad("$titleId map pool lists a map twice: $pool")
+            for (id in pool) if (dev.uem.em.ui.Maps.shooter(id) == null && w.customMaps.none { it.id == id }) r.bad("$titleId map pool: unknown map $id")
+        }
+        if (w.customMaps.map { it.id }.toSet().size != w.customMaps.size) r.bad("two fictional maps share an id")
         val onRoster = HashMap<Int, Int>()
         val onDev = HashMap<Int, Int>()
         for (tm in w.teams) {

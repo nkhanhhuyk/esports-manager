@@ -181,6 +181,9 @@ class EcosystemHarnessTest {
         val leagueMax = leagueChamps.mapValues { (_, v) -> v.groupingBy { it }.eachCount().maxOf { it.value } to v.size }
         out.appendLine("league titles: most by one club per league: " + leagueMax.entries.sortedByDescending { it.value.first }.take(8).joinToString(", ") { "${w.leagues[it.key].short} ${it.value.first}/${it.value.second}" })
         out.appendLine("finances: " + balances.joinToString(" | "))
+        val takers = w.orgs.filter { it.withdrawn > 0 }.sortedByDescending { it.withdrawn }
+        out.appendLine("owners' withdrawals (AI organisations above their reserve): ${takers.size} organisations, ${"%.1f".format(takers.sumOf { it.withdrawn } / 1e6)}M in total; most: " + takers.take(3).joinToString { "${it.name} ${"%.1f".format(it.withdrawn / 1e6)}M (balance ${"%.1f".format(it.balance / 1e6)}M)" })
+        out.appendLine("map pools: ${w.mapPoolLog.size} changes, ${w.customMaps.size} fictional maps (${w.customMaps.joinToString { "${it.name} ${it.titleId} ${it.season}" }}); now " + listOf("valorant", "cs2").filter { it in w.titles }.joinToString(" | ") { tid -> tid + ": " + dev.uem.em.titles.Catalogue.get(tid).maps.joinToString { it.name } })
         for ((t, l) in seedsLog) out.appendLine("$t world championship places by league: " + (if (l.size > 6) l.take(3) + listOf("…") + l.takeLast(3) else l).joinToString(" / "))
         for (t in w.titles) {
             val picks = w.charStats.keys.filter { it.split('|').size == 2 }.groupBy { it.substringBefore('|') }

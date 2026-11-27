@@ -1034,3 +1034,52 @@ through thin walls, floors on Nuke, the Lotus wall, doors and drop, illegal corn
 missing B Main link (all 14 maps tested); saves flushed before the rename, rotated instead of copied, recovered
 from an unfinished save or the backup with a note, and simulations wait for a save in progress. Flagged and not
 tuned: Nuke attack rounds (13 %), league dynasties and money piling up at the top organisations.
+
+
+## Twenty-ninth follow-up: shooter rounds in detail, a map library, fictional maps, academies, open issues
+
+**Shooter rounds and box scores** (`sim/ShooterEconomy.kt`, `ui/EconomyUi.kt`, `ui/ShooterView2.kt`)
+
+* The economy log (v2) records each round's winner, how it ended (elimination, detonation, defuse, time) and the
+  site attacked, and each VALORANT player's ultimate points. Older logs are still read.
+* The 2D viewer labels the sites (A–D) and the spawns, shows a round strip with an icon per round ending (☠ 💥
+  🔧 ⏱, tap to jump), and lists per player: gun, armour (VALORANT shields), ability charges or CS2 grenades (smoke,
+  flash, HE, molotov, decoy; used ones greyed), defuse kit / Zeus, ultimate points and money left after buying.
+  Smokes and flashes were already drawn and come from each agent's kit in VALORANT; the legend now says so.
+* The economy box score has the same round strip and full loadouts per round.
+
+**Maps** (`sim/MapForge.kt`, `mgmt/MapPools.kt`, `ui/MapBookUi.kt`)
+
+* All 22 real maps have layouts now: the 14 pool maps plus Ascent, Split, Fracture, Breeze, Pearl, Icebox,
+  Train and Overpass (exported from the web version's specifications).
+* More → **Maps**: every map, in the competitive pool or not and fictional ones too, with a page per map:
+  layout (walls, sites, spawns, callouts, teleporters / drops / doors / breakable walls / vents), walking times
+  to each site and between sites, longest sightline, how it plays in this world by season (side split, pistol
+  rounds, round endings, sites hit and won), the best teams there, the players with the most experience of it
+  and the pool history. VALORANT: agents good and bad there (the professional meta as an estimate, or what
+  the layout favours) and this world's pick and win rates. CS2: the guns by tier for that map.
+* **Fictional maps.** A major patch may rotate one or two maps: a long-serving map leaves; a real map returns or
+  a new fictional map is released (two to four sites A–D, themed callouts in places like a flooded aquarium or
+  a cheese market, and sometimes teleporters, drops, doors, breakable walls or vents). The patch notes and news
+  announce it; it comes into force the next season. Generated layouts pass the same checks as the real maps,
+  and the defenders' holding edge is calibrated by game and number of sites (measured).
+* Tier lists "Agents by map" / "Guns by map" now really use the map (they looked it up under a doubled id).
+
+**Signings** — academies and development clubs have no transfer window: a player who moves up is replaced at
+his position the same day (also in the first season, when senior rosters are frozen); academies may sign
+better young free agents outside windows; amateur clubs swap their weakest for a clearly better unsigned player
+of the position now and then.
+
+**Bug found by the new test:** at a rollover an over-full lower league trimmed itself by the new season's table
+(empty), fell back to the lowest Elo and relegated the amateur champion it had just promoted, which then took a
+free place in another league. Fixed (finished season's table; never a club that only just joined).
+
+**Open issues from the QA phase**
+
+* **Nuke:** Squeaky and Hut now open onto A through doors, and a calibration of the holding edge (recorded with
+  its sweep in `maps_topology.json`) brings attackers from 13–18 % to 42 % (the real map is CT-sided). Summit
+  (66 → 47 %) and Corrode (62 → 48 %) were calibrated the same way. Even-team probe over the pools: CS2 38–57 %,
+  VALORANT 40–58 %.
+* **Money:** AI owners take 3 % a month of the cash above a reserve of two years' costs (and a margin).
+* **Dynasties:** a club that won two of its league's last three splits no longer buys its domestic rivals'
+  unlisted players; clubs in other leagues may tempt a dominant club's money-minded players.

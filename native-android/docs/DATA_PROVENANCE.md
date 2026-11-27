@@ -279,3 +279,22 @@ from the maps' public layout, not from measured geometry:
   ledge.
 
 No other map geometry was changed. No site was scraped for this (no Liquipedia or Fandom requests).
+
+## Shooter maps outside the pool, fictional maps, calibration (27 Nov 2026, later)
+
+* **Maps outside the competitive pool** (VALORANT Ascent, Split, Fracture, Breeze, Pearl, Icebox; CS2 Train,
+  Overpass): exported from the web version's existing map specifications (`src/sim/shooter/maps.ts`,
+  `cs2Maps.ts`) by `scripts/export-shooter-maps.ts`, with the same simplifications as the pool maps. Nothing new
+  was looked up.
+* **Nuke doors:** Squeaky and Hut open onto A site through doors in the real map; two door callouts were added
+  in `maps_topology.json` (the topology can now add callouts and remove links). Positions are placed on the
+  existing corridors, not measured.
+* **Calibration (not geometry):** `holdScale` in `maps_topology.json` scales a holding defender's first-shot edge
+  on Nuke (0.25), Summit (2.1) and Corrode (1.4). Each entry records the measured sweep that set it (attack round
+  wins from 24 seeded games per value). It is a balance setting of the 2D model, not a fact about the map.
+* **Agents rarely picked per VALORANT map** (`titles/MapMeta.kt`, `WEAK`): an estimate from the general shape
+  of the professional meta, like the existing staples; shown in the game as "professional meta (estimate)".
+  Maps without a professional read (Summit; Corrode's weak list) and fictional maps get theirs from their layout
+  (`sim.MapForge.rateAgents`: sightlines, number of sites, rotations, drops, teleporters, doors).
+* **Fictional maps** (`sim.MapForge`): generated in the game by major patches; every name, callout and layout is
+  invented, and labelled fictional in the game.

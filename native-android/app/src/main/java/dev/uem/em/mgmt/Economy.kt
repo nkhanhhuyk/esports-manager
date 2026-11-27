@@ -116,6 +116,9 @@ object Economy {
         return Breakdown(rev, exp)
     }
 
+    /** Monthly share of an AI organisation's cash above its reserve that the owners take out. */
+    const val OWNER_SHARE = 0.03
+
     /** First day of each month: every organisation's finances. */
     fun monthTick(w: World) {
         val mk = Dates.year(w.day) * 12 + Dates.month(w.day)
@@ -137,6 +140,12 @@ object Economy {
             } else org.balance += b.income - b.costs
             // AI owners keep clubs afloat (stage 2: no AI bankruptcy).
             if (!user && org.balance < 0) org.balance += -org.balance + 200_000 * GameData.economy(org.region)
+            // AI owners take money out of a club sitting on far more than it needs (two years of costs and a margin):
+            // a small share of the surplus each month, so a successful organisation no longer piles up cash forever.
+            if (!user) {
+                val reserve = b.costs * 24 + 2_000_000 * (0.4 + GameData.economy(org.region))
+                if (org.balance > reserve) { val take = (org.balance - reserve) * OWNER_SHARE; org.balance -= take; org.withdrawn += take }
+            }
         }
     }
 

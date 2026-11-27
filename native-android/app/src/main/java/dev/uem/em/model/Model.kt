@@ -387,6 +387,8 @@ class Org(
     var creators: MutableList<CreatorDeal> = ArrayList(),
     /** Fan events held (the last two years). */
     var fanEvents: MutableList<FanEvent> = ArrayList(),
+    /** Money the owners took out of the organisation (AI organisations above their reserve; see Economy.OWNER_SHARE). */
+    var withdrawn: Double = 0.0,
 )
 
 /** A content creator signed to an organisation: audience, monthly fee, until the end of a season. */
