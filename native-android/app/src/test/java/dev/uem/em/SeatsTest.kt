@@ -28,3 +28,23 @@ class SeatsTest {
         assertTrue(r.violations.take(5).joinToString(), r.violations.isEmpty())
     }
 }
+
+class EmptyStageTest {
+    @Test
+    fun aStageWithNothingToPlayCompletes() {
+        TestData.init(); BoxStore.clear(); BoxStore.store = null
+        val w = WorldGen.create(TestData.source, "empty-stage", "Empty", Dates.day(2026, 11, 21), titles = listOf("lol"))
+        // Two clubs in a two-group stage (one each, no series), then a final four: the event must still finish.
+        val two = w.teams.filter { it.titleId == "lol" && it.active && it.leagueId >= 0 && it.parentId < 0 }.take(2).map { it.id }
+        val t = dev.uem.em.titles.Catalogue.get("lol")
+        val stages = listOf(dev.uem.em.model.Stage("Groups", dev.uem.em.model.StageType.GROUPS, w.day + 2, 3, listOf(0, 1, 2, 3, 4, 5, 6), groups = 2, advance = 2, daysBetween = 1),
+            dev.uem.em.model.Stage("Final Four", dev.uem.em.model.StageType.SINGLE_ELIM, w.day + 9, 3, listOf(0, 1, 2, 3, 4, 5, 6), daysBetween = 1))
+        val c = dev.uem.em.comp.Season.mk(w, t, w.season, "Tiny Cup", "Tiny", dev.uem.em.model.CompTier.CHALLENGER, null, listOf("ids:${two.joinToString(",")}"), stages, 1000.0, 5, emptyList(), key = "lol:tiny")
+        c.startDay = w.day + 1; w.rebuildSchedule()
+        dev.uem.em.game.Advance.run(w, 20)
+        assertTrue("finished: status ${c.status}, stages ${c.stages.map { it.status }}", c.done)
+        assertTrue(c.placements.size == 2)
+        val r = Invariants.season(w, w.season)
+        assertTrue(r.violations.filter { it.contains("Tiny") }.joinToString(), r.violations.none { it.contains("Tiny") })
+    }
+}

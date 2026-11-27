@@ -1193,6 +1193,28 @@ object Progress {
             dev.uem.em.mgmt.Supporters.register(w, c)
             c.current = 0
             Stages.start(w, c, 0, teams)
+            settle(w, c, 0)
+        }
+    }
+
+    /**
+     * A stage with nothing to play (a group of one, a bracket of byes) is complete as soon as it starts; without this
+     * it would wait for a series that never comes (seen with an amateur championship of two clubs in two groups).
+     */
+    fun settle(w: World, c: Competition, si: Int) {
+        var i = si
+        var guard = 0
+        while (guard++ < c.stages.size + 1) {
+            val stage = c.stages.getOrNull(i) ?: return
+            if (stage.status != 1 || stage.fixtureIds.any { !w.fixtures[it].done } || !Stages.stageDone(w, c, i)) return
+            stage.status = 2
+            stage.placements = Stages.placements(w, stage).toMutableList()
+            val next = c.stages.getOrNull(i + 1)
+            if (next == null) { finish(w, c); return }
+            val n = if (stage.type == StageType.GROUPS) stage.advance * maxOf(1, stage.groups) else if (stage.advance > 0) stage.advance else stage.placements.size
+            c.current = i + 1
+            Stages.start(w, c, i + 1, stage.placements.take(minOf(n, stage.placements.size)))
+            i++
         }
     }
 
@@ -1210,6 +1232,7 @@ object Progress {
             val n = if (stage.type == StageType.GROUPS) stage.advance * maxOf(1, stage.groups) else if (stage.advance > 0) stage.advance else stage.placements.size
             c.current = f.stageIdx + 1
             Stages.start(w, c, f.stageIdx + 1, stage.placements.take(minOf(n, stage.placements.size)))
+            settle(w, c, f.stageIdx + 1)
             return
         }
         finish(w, c)

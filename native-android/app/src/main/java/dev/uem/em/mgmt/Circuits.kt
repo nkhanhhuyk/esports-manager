@@ -89,7 +89,7 @@ object Circuits {
         for (id in w.titles) {
             val t = Catalogue.get(id)
             for (l in w.leagues.filter { it.titleId == id && it.tier == 1 }) {
-                repeat(if (dev.uem.em.comp.Season.leagueStrength(l) >= 60) 6 else 4) { newTeam(w, ctx, t, l, AMATEUR, rng) }
+                repeat(amateurClubs(l)) { newTeam(w, ctx, t, l, AMATEUR, rng) }
                 if (collegiateRegion(id, l)) repeat(4) { newTeam(w, ctx, t, l, COLLEGIATE, rng) }
                 if (gcRegion(id, l)) repeat(4) { newTeam(w, ctx, t, l, GC, rng) }
             }
@@ -97,6 +97,9 @@ object Circuits {
         // This season's remaining events (an older save gets the rest of the current calendar).
         plan(w, w.season, w.day + 7)
     }
+
+    /** How many community clubs a top league's amateur circuit has (and is topped back up to at every season's end). */
+    private fun amateurClubs(l: dev.uem.em.model.League) = if (dev.uem.em.comp.Season.leagueStrength(l) >= 60) 6 else 4
 
     private fun newTeam(w: World, ctx: GenCtx, t: TitleDef, l: dev.uem.em.model.League, kind: String, rng: Rng): Team {
         val regs = GameData.expand(l.region)
@@ -297,6 +300,17 @@ object Circuits {
             if (ctx.handles.isEmpty()) for (p in w.players) ctx.handles.add(p.handle.lowercase())
             val nt = newTeam(w, ctx, Catalogue.get(team.titleId), league, AMATEUR, rng)
             w.news.add(News(w.day, "${team.name} fold", "${team.name} leave the amateur circuit; ${nt.name} take their place.", listOf(team.id, nt.id)))
+        }
+        // Clubs that went up leave the circuit: new community clubs form, so every region keeps its circuit (a circuit of
+        // two clubs could not play its championship).
+        if (w.teams.any { it.kind == AMATEUR }) for (id in w.titles) for (l in w.leagues.filter { it.titleId == id && it.tier == 1 && it.until == 0 }) {
+            var have = teamsOf(w, id, l, AMATEUR).size
+            while (have < amateurClubs(l)) {
+                if (ctx.handles.isEmpty()) for (p in w.players) ctx.handles.add(p.handle.lowercase())
+                val nt = newTeam(w, ctx, Catalogue.get(id), l, AMATEUR, rng)
+                w.news.add(News(w.day, "${nt.name} formed", "A new community club joins the ${l.short} amateur circuit.", listOf(nt.id)))
+                have++
+            }
         }
     }
 

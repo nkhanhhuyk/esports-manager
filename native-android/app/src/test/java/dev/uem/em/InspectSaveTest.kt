@@ -27,6 +27,18 @@ class InspectSaveTest {
                 for (o in waiting.take(2)) for ((i, st) in o.stages.withIndex()) println("      ${o.name} stage $i ${st.type} status ${st.status} teams ${st.teamIds.size} fixtures ${st.fixtureIds.size}/${st.fixtureIds.count { w.fixtures[it].done }} bracket ${st.bracket.map { "${it.id}:${it.teamA}v${it.teamB}->${it.winner} f${it.fixtureId}" }.take(8)}")
             }
         }
+        // Money and dynasties.
+        for (o in w.orgs.sortedByDescending { it.balance }.take(6)) {
+            val ts = o.teams.map { w.teams[it] }.filter { it.active && it.kind.isEmpty() && it.parentId < 0 }
+            println("org ${o.short} ${"%.0f".format(o.balance / 1e6)}M teams ${ts.map { "${it.titleId}:${it.short}(${w.leagues.getOrNull(it.leagueId)?.short}) trophies ${it.trophies.size}" }} last 12 months: " +
+                o.months.takeLast(12).let { m -> "in %.1fM out %.1fM".format(m.sumOf { it.income } / 1e6, m.sumOf { it.expenses } / 1e6) })
+        }
+        for (lg in w.leagues.filter { it.tier == 1 && it.until == 0 && !it.academy }) {
+            val champs = w.comps.filter { it.leagueId == lg.id && it.done && it.placements.isNotEmpty() }.map { it.placements[0] }
+            if (champs.size < 20) continue
+            val top = champs.groupingBy { it }.eachCount().maxByOrNull { it.value }!!
+            if (top.value * 2 > champs.size) { val tm = w.teams[top.key]; println("dynasty ${lg.short}: ${tm.short} ${top.value}/${champs.size}, org ${w.orgs[tm.orgId].short} ${"%.0f".format(w.orgs[tm.orgId].balance / 1e6)}M, elo ${tm.elo.toInt()} vs league avg ${lg.teamIds.map { w.teams[it].elo }.average().toInt()}, roster ca ${tm.roster.map { w.players[it].ca }.sorted().takeLast(5).map { it.toInt() }}") }
+        }
         val l = w.leagues.firstOrNull { it.short == "LCP" && it.titleId == "lol" }
         if (l != null) println("LCP amateur clubs: ${dev.uem.em.mgmt.Circuits.teamsOf(w, "lol", l, "amateur").map { "${it.short}(${it.roster.size})" }}")
     }

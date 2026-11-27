@@ -183,6 +183,9 @@ class SaveStore(private val root: File) {
         // Event MVPs of older saves were sometimes players whose team went out early: chosen again by the current rule.
         for (c in w.comps) if (c.status == 2 && c.pstats.isNotEmpty() && c.placements.isNotEmpty()) c.mvp = dev.uem.em.comp.Progress.mvpOf(c)
         dev.uem.em.mgmt.Ambitions.ensure(w)
+        // Saves made before empty stages completed on their own: a running event stuck on a stage with nothing to play
+        // (an amateur championship of two clubs in two groups) moves on now; no result is changed.
+        for (c in w.comps.toList()) if (c.status == 1) dev.uem.em.comp.Progress.settle(w, c, c.current)
     }
 
     private fun read(f: File): SaveFile = GZIPInputStream(f.inputStream().buffered(1 shl 16)).use { ProtoBuf.decodeFromByteArray<SaveFile>(it.readBytes()) }
