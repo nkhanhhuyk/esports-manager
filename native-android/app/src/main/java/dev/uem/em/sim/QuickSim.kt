@@ -198,7 +198,8 @@ object QuickSim {
             val defused = rw == def && planted
             if (planted) { val pl = rng.pickCtx(teams[attack].players) { 1.0 }; book.add(pl.p.id, PLANT, 1.0); bank.onPlant(attack, teams[attack].players.indexOf(pl)) }
             if (defused) book.add(rng.pickCtx(teams[def].players) { 1.0 }.p.id, DEFUSE, 1.0)
-            bank.endRound(rw, attack, Array(2) { s -> teams[s].players.indices.filter { teams[s].players[it] in alive[s] }.toSet() }, planted, (rw == attack && planted) || defused)
+            bank.endRound(rw, attack, Array(2) { s -> teams[s].players.indices.filter { teams[s].players[it] in alive[s] }.toSet() }, planted, (rw == attack && planted) || defused,
+                how = if (defused) 2 else if (planted && rw == attack) 1 else 0)
             if (alive[rw].size == 1 && loserKills >= 3) book.add(alive[rw][0].p.id, CLUTCH, 1.0)
             for (s in 0..1) for (pc in teams[s].players) {
                 val k = roundKills[pc.p.id] ?: 0

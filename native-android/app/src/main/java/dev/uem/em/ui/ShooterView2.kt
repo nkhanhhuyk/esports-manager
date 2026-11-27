@@ -37,6 +37,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -65,6 +66,10 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
     val teams = arrayOf(w.teams[f.a], w.teams[f.b])
     val teamCol = arrayOf(Ui.blue, Ui.red)
     val rounds = remember(g) { ev.filter { it.kind == "round" } }
+    // Round endings, buys and loadouts (box score); older box scores have no endings or ultimates.
+    val econ = remember(g) { dev.uem.em.sim.ShooterEconomy.EconLog.parse(g.econ) }
+    val cs = t.id == "cs2"
+    val labelPaint = remember { android.graphics.Paint().apply { color = android.graphics.Color.WHITE; isFakeBoldText = true; textAlign = android.graphics.Paint.Align.CENTER; isAntiAlias = true } }
     val ends = remember(g) { ev.filter { it.kind == "roundEnd" } }
     val dur = max(1, g.duration).toFloat()
     val startAt = remember(g) { ReplayJump.seconds.takeIf { it >= 0 }?.toFloat()?.also { ReplayJump.seconds = -1 } ?: (rounds.getOrNull((rounds.size * LiveDefaults.startFraction).toInt())?.t?.toFloat() ?: 0f) }
@@ -152,6 +157,15 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
                 }
             }
             for (s in map.sites) drawCircle(Color(0x333B82F6), s.r * W, p(s.pos))
+            // Site letters and spawns.
+            drawContext.canvas.nativeCanvas.let { nc ->
+                labelPaint.textSize = W * 0.055f; labelPaint.alpha = 230
+                for (s in map.sites) nc.drawText(s.id, s.pos.x * W, s.pos.y * W + labelPaint.textSize * 0.35f, labelPaint)
+                labelPaint.textSize = W * 0.026f; labelPaint.alpha = 170
+                val sides = t.tactical!!.sides
+                nc.drawText(if (cs) "T spawn" else "${sides.first} spawn", map.nodes[map.atk].pos.x * W, map.nodes[map.atk].pos.y * W - W * 0.025f, labelPaint)
+                nc.drawText(if (cs) "CT spawn" else "${sides.second} spawn", map.nodes[map.def].pos.x * W, map.nodes[map.def].pos.y * W + W * 0.04f, labelPaint)
+            }
             // Utility active now.
             if (utilOn) for (e in inRound) if (e.kind == "util" && Ti - e.t < (if (e.x == 0) e.m else 3)) {
                 val at = Offset(MobaEngine.unpackX(e.n) / 1000f * W, MobaEngine.unpackY(e.n) / 1000f * W)
@@ -175,7 +189,9 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
             // Round result banner (first seconds after the round ends).
             ends.lastOrNull { it.t <= Ti && Ti - it.t <= 4 }?.let { e ->
                 val ri2 = ends.indexOf(e)
-                val how = ev.filter { it.t > (rounds.getOrNull(ri2)?.t ?: 0) && it.t <= e.t }.let { r -> when { r.any { it.kind == "defuse" } -> "defuse"; r.any { it.kind == "plant" } && e.team == rounds.getOrNull(ri2)?.team -> "detonation"; else -> "elimination / time" } }
+                val rd = econ?.rounds?.getOrNull(ri2)
+                val how = if (rd != null && rd.how >= 0) "${RoundIcons.icon(rd.how)} ${RoundIcons.label(cs, rd.how).lowercase()}"
+                    else ev.filter { it.t > (rounds.getOrNull(ri2)?.t ?: 0) && it.t <= e.t }.let { r -> when { r.any { it.kind == "defuse" } -> "defuse"; r.any { it.kind == "plant" } && e.team == rounds.getOrNull(ri2)?.team -> "detonation"; else -> "elimination / time" } }
                 Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.TopCenter) {
                     Text("${teams[e.team.coerceIn(0, 1)].short} win round ${ri2 + 1} · $how · ${e.a}–${e.b}", color = Ui.gold, fontWeight = FontWeight.Black, fontSize = 15.sp,
                         modifier = Modifier.background(Color(0xCC000000), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp))
@@ -236,9 +252,12 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
             drawLine(Color.White, Offset(Wd * T / dur, 0f), Offset(Wd * T / dur, size.height), strokeWidth = 2f)
         }
         if (bc) BroadcastUi.Bookmarks(moments, Ti, { teams[it.coerceIn(0, 1)].short }, { teamCol[it.coerceIn(0, 1)] }) { s -> time = (s - 3).coerceAtLeast(0).toFloat(); playing = false; slate = false }
+        if (econ != null) Column(Modifier.padding(horizontal = 12.dp)) { RoundStrip(econ, cs, t.tactical?.half ?: 12, ri) { r -> rounds.getOrNull(r)?.let { time = it.t.toFloat(); playing = false } } }
+        if (utilOn) Muted("  Utility on the map: grey disc smoke · white ring flash / concussion / blind · orange disc molly, incendiary or HE · blue line wall · dashed ring recon / trap", 9)
         if (time >= dur) after?.invoke()
         Card("Players", right = { Muted("tap to follow") }) {
-            for (team in 0..1) for (l in g.lines.filter { it.team == team }) {
+            val rdNow = econ?.rounds?.getOrNull(ri)
+            for (team in 0..1) for ((li, l) in g.lines.filter { it.team == team }.withIndex()) {
                 val pid = l.playerId
                 val kills = ev.count { it.kind == "kill" && it.a == pid && it.t <= Ti }
                 val deaths = ev.count { it.kind == "kill" && it.b == pid && it.t <= Ti }
@@ -249,6 +268,19 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
                     Text(w.players[pid].handle, color = if (pid in dead) Ui.muted else Ui.text, fontSize = 13.sp, modifier = Modifier.weight(1f))
                     Muted("${Weapons.of(t.id).getOrNull(wid)?.name ?: ""} · ${if (i >= 0) units[i][2].toInt() else 0} HP · $${ReplayCodec.value(rp, si, pid, 0)}", 11)
                     Text("  $kills/$deaths", color = Ui.text, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(48.dp), textAlign = TextAlign.End)
+                }
+                // This round's loadout: gun, shield / armour, abilities and ultimate or grenades and kit (used ones hollow), money left.
+                val pe = rdNow?.players?.getOrNull(team)?.getOrNull(li)
+                if (pe != null) {
+                    val used = HashMap<String, Int>()
+                    for (u in inRound) if (u.kind == "util" && u.a == pid) {
+                        val kind = UTIL_KINDS.getOrElse(u.x) { "" }
+                        val key = if (cs) kind else dev.uem.em.sim.TacticalEngine.valorantSlotOf(l.charId, kind) ?: continue
+                        used.merge(key, 1, Int::plus)
+                    }
+                    val gun = Weapons.of(t.id).getOrNull(pe.weapon)?.name ?: ""
+                    val kit = if (cs) csKit(pe.bits, used) else if (pe.ult >= 0) valorantKit(l.charId, pe.bits, pe.ult, used) else dev.uem.em.sim.ShooterEconomy.valUtilText(l.charId, pe.bits)
+                    Muted("    $gun · ${dev.uem.em.sim.ShooterEconomy.armorName(cs, pe.armor)} · $kit · ${pe.money} left after buying", 10)
                 }
             }
         }
@@ -274,4 +306,6 @@ fun ShooterReplayViewer(w: World, f: Fixture, g: GameRecord, after: (@Composable
     })
 }
 
+/** Utility kinds in event order (sim.ShooterRound.KIND_CODES). */
+private val UTIL_KINDS = listOf("smoke", "flash", "molly", "recon", "wall", "trap", "concuss", "slow", "heal", "mobility", "decoy", "nearsight", "suppress", "revive", "weapon", "he")
 private val UTIL_NAMES = listOf("smoke", "flash", "molly", "recon", "wall", "trap", "concuss", "slow", "heal", "mobility", "decoy", "nearsight", "suppress", "revive", "weapon", "HE grenade")

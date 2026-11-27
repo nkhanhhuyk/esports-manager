@@ -44,6 +44,10 @@ object TacticalEngine {
     private val VAL_KIND = mapOf("smoke" to "smoke", "flash" to "flash", "molly" to "molly", "recon" to "recon", "wall" to "wall", "trap" to "trap", "concuss" to "concuss",
         "slow" to "slow", "heal" to "heal", "mobility" to "mobility", "decoy" to "decoy", "nearsight" to "nearsight", "suppress" to "suppress", "revive" to "heal", "weapon" to "mobility")
 
+    /** Which of an agent's ability slots (C, Q, E, X) a used utility kind came from (the first with that kind; null if none). */
+    fun valorantSlotOf(charId: String?, kind: String): String? =
+        Abilities.valorant(charId).sortedBy { listOf("C", "Q", "E", "X").indexOf(it.slot) }.firstOrNull { a -> a.kinds.any { VAL_KIND[it] == kind } }?.slot
+
     /** Utility a player carries this round: the agent's kit (charges bought, signature free, ultimate when charged) or CS2 grenades. */
     fun utilityFor(t: TitleDef, pc: PlayerCtx, buy: String, attacking: Boolean, ult: IntArray, i: Int, rng: Rng): MutableList<String> {
         val out = ArrayList<String>()
@@ -149,6 +153,7 @@ object TacticalEngine {
             var clutchSide = -1
             var clutchPlayer: PlayerCtx? = null
             var rw: Int
+            var how = 0; var siteNow = -1
             if (smap != null) {
                 // Positional round on the real map.
                 val loadout = Array(2) { s -> Array(teams[s].players.size) { i -> purchases[s][i].weapon to ShooterEconomy.armorValue(t.id == "cs2", purchases[s][i].armor) } }
@@ -188,6 +193,7 @@ object TacticalEngine {
                 planted = r.planted
                 rw = r.winner
                 defusedNow = r.defused
+                how = r.how; siteNow = r.site
                 events?.let { e -> val k = e.indexOfLast { it.kind == "round" }; if (k >= 0) { val o = e[k]; e[k] = Ev(o.t, o.kind, o.team, o.a, o.b, r.site, o.text, o.m, o.n) } }
                 if (r.defused) events?.let { } // recorded by the round
                 clock += r.seconds + 6
@@ -266,6 +272,8 @@ object TacticalEngine {
                 } else def
                 else -> if (planted) attack else def
             }
+            how = when { alive[def].isEmpty() -> 0; defusedNow -> 2; planted -> 1; alive[attack].isEmpty() -> 0; else -> 3 }
+            siteNow = site
             }
             score[rw]++
             events?.add(Ev(if (smap != null) clock - 6 else round, "roundEnd", rw, a = score[0], b = score[1]))
@@ -278,7 +286,7 @@ object TacticalEngine {
             val lr = 1 - rw
             // Rewards (win, bomb / defuse, loss streak, plant bonus) and what the survivors keep.
             val bombWin = (rw == attack && planted && alive[def].isNotEmpty()) || (rw == def && defusedNow)
-            bank.endRound(rw, attack, Array(2) { s -> teams[s].players.indices.filter { teams[s].players[it] in alive[s] }.toSet() }, planted, bombWin)
+            bank.endRound(rw, attack, Array(2) { s -> teams[s].players.indices.filter { teams[s].players[it] in alive[s] }.toSet() }, planted, bombWin, how, siteNow)
             winStreak[rw]++; winStreak[lr] = 0
             streak[lr]++; streak[rw] = 0
             round++

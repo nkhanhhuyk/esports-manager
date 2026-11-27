@@ -72,7 +72,8 @@ class ShooterRound(
         fun damage(p: PlayerCtx, d: Double)
     }
 
-    class Result(val winner: Int, val planted: Boolean, val defused: Boolean, val seconds: Int, val site: Int)
+    /** [how]: 0 elimination, 1 detonation, 2 defused, 3 time ran out. */
+    class Result(val winner: Int, val planted: Boolean, val defused: Boolean, val seconds: Int, val site: Int, val how: Int = 0)
 
     val cs = t.id == "cs2"
     val ROUND = if (cs) 115f else 100f
@@ -317,7 +318,7 @@ class ShooterRound(
                 if (d.node != siteNode || !atEnd(d)) { if (d.path.lastOrNull() != siteNode) go(d, siteNode); step(d) } else if (defuseTick(d)) return end(def, defuse = true)
                 tickSample(); continue
             }
-            if (!planted && now >= ROUND) return end(def)
+            if (!planted && now >= ROUND) return end(def, time = true)
             if (planted && now - plantAt >= BOMB) return end(attack, explode = true)
             // Attackers: gather at the staging node, use utility, then go onto the site.
             val staged = bySide[attack].filter { it.alive && atEnd(it) }
@@ -460,9 +461,9 @@ class ShooterRound(
         killer.revealedUntil = now + 1.5f
     }
 
-    fun end(winner: Int, explode: Boolean = false, defuse: Boolean = false): Result {
+    fun end(winner: Int, explode: Boolean = false, defuse: Boolean = false, time: Boolean = false): Result {
         if (rec != null) sample()
-        return Result(winner, planted, defuse, now.toInt(), site)
+        return Result(winner, planted, defuse, now.toInt(), site, when { defuse -> 2; explode -> 1; time -> 3; else -> 0 })
     }
 }
 

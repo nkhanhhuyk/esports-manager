@@ -208,6 +208,8 @@ object Maps {
 
     fun moba(titleId: String): Moba? = moba[titleId]
     fun shooter(mapId: String): Shooter? = shooter[mapId]
+    /** Every shooter map with geometry (real maps from the asset, plus registered fictional ones). */
+    fun shooterIds(): List<String> = shooter.keys.sorted()
 
     @Suppress("unused")
     private fun dist(a: Offset, b: Offset) = hypot(a.x - b.x, a.y - b.y)

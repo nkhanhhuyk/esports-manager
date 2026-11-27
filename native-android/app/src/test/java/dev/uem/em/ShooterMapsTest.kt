@@ -15,6 +15,7 @@ import dev.uem.em.titles.Catalogue
 import dev.uem.em.ui.Maps
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -28,7 +29,7 @@ import java.io.File
  */
 class ShooterMapsTest {
     private val ids = listOf("valorant", "cs2")
-    private fun maps(): List<Pair<String, Maps.Shooter>> { TestData.init(); Maps.init(TestData.source); return ids.flatMap { t -> Catalogue.get(t).maps.map { it.id to (Maps.shooter(it.id) ?: error("no geometry for ${it.id}")) } } }
+    private fun maps(): List<Pair<String, Maps.Shooter>> { TestData.init(); Maps.init(TestData.source); for (t in ids) for (md in Catalogue.get(t).maps) assertNotNull("no geometry for ${md.id}", Maps.shooter(md.id)); return Maps.shooterIds().map { it to Maps.shooter(it)!! } }
     private fun walkable(type: String) = type == "walk" || type == "stairs" || type == "door"
 
     @Test

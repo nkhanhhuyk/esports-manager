@@ -64,12 +64,16 @@ object ShooterEconomy {
         /** Winner of the last round (-1 at the start of a half). */
         var lastWinner = -1
         private val key = seedKey
-        /** Box score: per round [attack, buyA, buyD, winner] then per player [weapon index, armour, utility bits, spent, money left]. */
+        /**
+         * Box score (version 2): per round [attack, buyA, buyD, winner, how it ended, site] then per player [weapon index,
+         * armour, utility bits, spent, money left, ultimate points]. Version 1 (older saves) has no ending, site or ultimate.
+         */
         private val log = ArrayList<Int>()
         var rounds = 0; private set
         val weapons = Weapons.of(t.id)
+        private val per = EconLog.ROUND + 2 * n * EconLog.PLAYER
 
-        fun econ(): IntArray = (intArrayOf(1, rounds, n) + log.toIntArray())
+        fun econ(): IntArray = (intArrayOf(2, rounds, n) + log.toIntArray())
 
         fun resetHalf() { lastWinner = -1; for (s in 0..1) { money[s].fill(cfg.startMoney.toDouble()); gun[s].fill(null); armor[s].fill(0); streak[s] = 0 } }
         fun fill(v: Double) { for (s in 0..1) money[s].fill(v) }
@@ -107,10 +111,11 @@ object ShooterEconomy {
                 out[s][i] = Buy(rifle, b.armor, b.util, b.kit, b.bits, b.spent)
                 gun[s][i] = rifle.id
             }
-            log.add(attack); log.add(BUYS.indexOf(buys[0]).coerceAtLeast(0)); log.add(BUYS.indexOf(buys[1]).coerceAtLeast(0)); log.add(-1)
+            log.add(attack); log.add(BUYS.indexOf(buys[0]).coerceAtLeast(0)); log.add(BUYS.indexOf(buys[1]).coerceAtLeast(0)); log.add(-1); log.add(-1); log.add(-1)
             for (s in 0..1) for (i in 0 until n) {
                 val b = out[s].getOrNull(i)
                 log.add(if (b != null) weapons.indexOf(b.weapon) else -1); log.add(b?.armor ?: 0); log.add(b?.bits ?: 0); log.add(b?.spent ?: 0); log.add(money[s][i].toInt())
+                log.add(if (cs) 0 else ult[s].getOrElse(i) { 0 })
             }
             rounds++
             return out
@@ -213,10 +218,11 @@ object ShooterEconomy {
         fun onPlant(s: Int, i: Int) { if (cs) { if (i in 0 until n) money[s][i] += 300.0 } else for (k in 0 until n) money[s][k] += cfg.plantReward.toDouble() }
 
         /** Round result: win / loss rewards, the loss streak, what the survivors keep. */
-        fun endRound(rw: Int, attack: Int, aliveIdx: Array<Set<Int>>, planted: Boolean, bombWin: Boolean) {
+        /** [how]: 0 elimination, 1 the bomb / spike exploded, 2 defused, 3 time ran out; [site]: the site played (-1 none). */
+        fun endRound(rw: Int, attack: Int, aliveIdx: Array<Set<Int>>, planted: Boolean, bombWin: Boolean, how: Int = -1, site: Int = -1) {
             val lr = 1 - rw
             lastWinner = rw
-            log[log.size - (4 + 2 * n * 5) + 3] = rw
+            log[log.size - per + 3] = rw; log[log.size - per + 4] = how; log[log.size - per + 5] = site
             for (i in 0 until n) {
                 money[rw][i] += if (cs && bombWin) 3500.0 else cfg.winReward.toDouble()
                 money[lr][i] += cfg.lossRewards[minOf(streak[lr], cfg.lossRewards.size - 1)].toDouble()
@@ -232,5 +238,31 @@ object ShooterEconomy {
         }
 
         companion object { val BUYS = listOf("pistol", "full", "force", "eco") }
+    }
+
+    /** The per-round economy and loadouts of a map's box score, either version (see [Bank]). */
+    class EconLog(val rounds: List<Round>, val n: Int, val version: Int) {
+        class Player(val weapon: Int, val armor: Int, val bits: Int, val spent: Int, val money: Int, val ult: Int)
+        class Round(val attack: Int, val buyA: Int, val buyB: Int, val winner: Int, val how: Int, val site: Int, val players: Array<Array<Player>>)
+        companion object {
+            const val ROUND = 6
+            const val PLAYER = 6
+            /** Endings: 0 elimination, 1 detonation, 2 defuse, 3 time. */
+            val HOW = listOf("Elimination", "Detonation", "Defused", "Time")
+            fun parse(e: IntArray): EconLog? {
+                if (e.size < 3 || e[0] !in 1..2) return null
+                val v = e[0]; val rounds = e[1]; val n = e[2]
+                val rf = if (v == 1) 4 else ROUND; val pf = if (v == 1) 5 else PLAYER
+                val per = rf + 2 * n * pf
+                if (rounds <= 0 || e.size < 3 + rounds * per) return null
+                val out = ArrayList<Round>()
+                for (r in 0 until rounds) {
+                    val b = 3 + r * per
+                    val pl = Array(2) { s -> Array(n) { i -> val o = b + rf + (s * n + i) * pf; Player(e[o], e[o + 1], e[o + 2], e[o + 3], e[o + 4], if (pf > 5) e[o + 5] else -1) } }
+                    out.add(Round(e[b], e[b + 1], e[b + 2], e[b + 3], if (v == 1) -1 else e[b + 4], if (v == 1) -1 else e[b + 5], pl))
+                }
+                return EconLog(out, n, v)
+            }
+        }
     }
 }
