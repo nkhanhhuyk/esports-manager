@@ -90,24 +90,24 @@ What round 1 showed besides (seeds `qa-2` / `qa-3`, 20 seasons each):
   Gradle suite on a 15 GB machine) and restarted on its own after the suite; `qa-1` and `qa-3` ran on.
 * Results: see the table below.
 
-| | `qa-1` (25 seasons, 2027–2051) | `qa-3` (20 seasons, 2027–2046) | `qa-2` (20 seasons) |
+| | `qa-1` (25 seasons, 2027–2051) | `qa-3` (20 seasons, 2027–2046) | `qa-2` (20 seasons, 2027–2046) |
 |---|---|---|---|
-| Failures (every check, every season) | **0** | **0** | QA2_FAIL |
-| Warnings (unavoidable Swiss rematches, logged) | 3 | 6 | QA2_WARN |
-| Events per season | 438–456 | 443–451 | QA2_EVENTS |
-| Series / games per season | 13,740–14,066 / 29,720–31,576 | 13,931–14,369 / 30,868–31,713 | QA2_SERIES |
-| Series in total / players / transfers | 349,429 / 36,826 / 112,678 | 282,846 / 32,110 / 86,702 | QA2_TOTAL |
-| Reforms applied (all games) | 69 | 54 | QA2_REFORMS |
-| Save + reload at the four checkpoints (state digest identical each time) | 3.1–7.0 s, 20–45 MB | 2.9–7.4 s, 20–45 MB | QA2_RELOAD |
-| Final save | 84 MB | 69 MB | QA2_SAVE |
-| Heap after each season | 286–848 MB (946 MB with the 45 MB reload) | 297–779 MB (973 MB) | QA2_HEAP |
-| Time per season (two or three runs sharing four cores) | 174–310 s | 181–311 s | QA2_TIME |
-| Upsets by Elo gap < 50 / 50–100 / 100–200 / 200+ | 45 / 37 / 27 / 9 % | 45 / 36 / 27 / 9 % | QA2_UPSETS |
-| Different world champions per game | 8–12 (most by one club: 11, HoK) | 6–11 (most: 8) | QA2_CHAMPS |
-| Most league titles by one club | 56 of 75 (Wild Rift PH/ID), 48 of 75 (LCS, VCT China) | 43 of 60 (VCT Americas), 41 of 60 | QA2_DYN |
-| Richest / median organisation at the end | 404.8 M / 1.6 M | 414.7 M / 1.5 M | QA2_MONEY |
+| Failures (every check, every season) | **0** | **0** | **0** |
+| Warnings (unavoidable Swiss rematches, logged) | 3 | 6 | 4 |
+| Events per season | 438–456 | 443–451 | 443–449 |
+| Series / games per season | 13,740–14,066 / 29,720–31,576 | 13,931–14,369 / 30,868–31,713 | 13,933–14,237 / 30,800–31,623 |
+| Series in total / players / transfers | 349,429 / 36,826 / 112,678 | 282,846 / 32,110 / 86,702 | 281,331 / 32,073 / 87,941 |
+| Reforms applied (all games) | 69 | 54 | 54 |
+| Save + reload at the four checkpoints (state digest identical each time) | 3.1–7.0 s, 20–45 MB | 2.9–7.4 s, 20–45 MB | 3.2–6.6 s, 20–46 MB |
+| Final save | 84 MB | 69 MB | 69 MB |
+| Heap after each season | 286–848 MB (946 MB with the 45 MB reload) | 297–779 MB (973 MB) | 295–744 MB (960 MB) |
+| Time per season (two or three runs sharing four cores) | 174–310 s | 181–311 s | 163–206 s |
+| Upsets by Elo gap < 50 / 50–100 / 100–200 / 200+ | 45 / 37 / 27 / 9 % | 45 / 36 / 27 / 9 % | 45 / 37 / 27 / 9 % |
+| Different world champions per game | 8–12 (most by one club: 11, HoK) | 6–11 (most: 8) | 4–10 (most: 9, HoK) |
+| Most league titles by one club | 56 of 75 (Wild Rift PH/ID), 48 of 75 (LCS, VCT China) | 43 of 60 (VCT Americas), 41 of 60 | 51 of 60 (Wild Rift APNES), 46 of 60 (Dota 2 APSES) |
+| Richest / median organisation at the end | 404.8 M / 1.6 M | 414.7 M / 1.5 M | 572.7 M / 1.5 M |
 
-Every season of every run: no unfinished event (amateur, collegiate and Game Changers circuits included), no
+The full logs of the three final runs are in [qa-runs/](qa-runs/) (`harness-qa-1.txt` …). Every season of every run: no unfinished event (amateur, collegiate and Game Changers circuits included), no
 team or athlete in two series on a day, no duplicate entrant, no ledger mismatch, no contradictory table or
 bracket, no edition changed after it finished or while it was running, no seat lost or gained without a
 reform, and every reload reproduced the same world.

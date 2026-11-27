@@ -1022,3 +1022,15 @@ The test ran on a JVM, not on a device.
 
 Full suite: 117 tests, 0 failures (4 opt-in long runs skipped); debug APK built.
 
+
+## Twenty-eighth follow-up: competition integrity, shooter maps, saves (QA phase)
+
+Audit, measurements, fixes and known issues: [QA_AUDIT.md](QA_AUDIT.md) and [QA_RESULTS.md](QA_RESULTS.md).
+In short: a read-only integrity checker (`comp/Invariants.kt`, also run on every load); a seven-game harness
+(`EcosystemHarnessTest`) whose final 20- and 25-season runs on three seeds had no failure; six competition bugs it
+found and fixed (lower-league seats, amateur promotion region, league expansion seats, retired players signed
+by promoted clubs, a stage with nothing to play never completing, Swiss rematches); shooter maps fixed for sight
+through thin walls, floors on Nuke, the Lotus wall, doors and drop, illegal corner-cutting moves and Sunset's
+missing B Main link (all 14 maps tested); saves flushed before the rename, rotated instead of copied, recovered
+from an unfinished save or the backup with a note, and simulations wait for a save in progress. Flagged and not
+tuned: Nuke attack rounds (13 %), league dynasties and money piling up at the top organisations.
